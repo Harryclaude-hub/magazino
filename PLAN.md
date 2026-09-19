@@ -227,6 +227,56 @@ halb gebaut.
 
 ---
 
+## Neuer Auftrag vom 19.09.2026
+
+Karam hat vier Dinge bestellt. Reihenfolge wie hier, damit der Faden haelt.
+
+### A. Umzug verlassen
+
+Wer Mitglied ist, muss gehen koennen, nicht nur loeschen. Der letzte
+Besitzer darf nicht gehen, ohne vorher jemanden zum Besitzer zu machen,
+sonst steht ein Umzug ohne Besitzer da. Diese Regel gibt es schon als
+`guard_last_owner`.
+
+### B. Zimmer ist die Regel, Person ist Zugabe
+
+Jede Kiste gehoert zu einem Zimmer. Eine Person darf dazukommen, muss
+aber nicht. Bisher reichte eines von beiden. Die Datenbankregel bleibt,
+damit vorhandene Personenkisten nicht brechen, aber die Oberflaeche
+fuehrt Zimmer als Pflichtfeld.
+
+### C. Der Grundriss (das grosse Stueck)
+
+Ein Zimmer ist wie eine Wohnung, die auch nach dem Umzug lange weiter
+benutzt wird. Auf der Zimmerseite oben rechts ein Knopf, der eine eigene
+Seite oeffnet:
+
+- Masse eingeben (2 x 5 Meter, Hoehe)
+- Umriss zeichnen, Tuer und Eingang setzen
+- Kisten wie Bausteine setzen: nebeneinander und uebereinander
+- 2D von oben und eine raeumliche Ansicht
+- Jede sichtbare Kiste zeigt ihre Nummer und ihren QR-Code
+- Doppeltippen zeigt, was drin ist, noch einmal fuehrt zur Kiste
+- Umgekehrt: von einer Kiste aus zeigen, wo im Zimmer sie steht
+
+### D. Bilderkennung in Schichten
+
+Eine Kiste wird mehrfach fotografiert, von jedem Winkel und Schicht fuer
+Schicht: Schicht 1 ist oben, Schicht 2 darunter. Die Erkennung benennt
+die Sachen und sagt, in welcher Schicht sie liegen. Die Liste entsteht
+von allein und bleibt von Hand aenderbar.
+
+Tippt man in der Liste auf einen Gegenstand, geht das Bild auf. Auf dem
+Bild sitzt auf jedem erkannten Ding ein Punkt, der gesuchte ist rot. Man
+bestaetigt: ja, das ist es, oder nein. Dafuer braucht die Erkennung
+Koordinaten je Gegenstand, nicht nur Namen.
+
+**Braucht einen API-Schluessel.** Den kann Claude nicht besorgen, er
+haengt an einem Konto mit Zahlungsmittel. Karam legt ihn unter
+https://console.anthropic.com an und hinterlegt ihn einmal.
+
+---
+
 ## Regeln, die ueberall gelten
 
 - Datenbankzugriffe nur in `src/lib/api.ts`

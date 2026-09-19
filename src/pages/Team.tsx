@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Copy, LogOut, Plus, Share2, Trash2, UserPlus } from 'lucide-react'
+import { Copy, Plus, Share2, Trash2, UserPlus } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
+import { UmzugVerlassen } from '../components/UmzugVerlassen'
 import {
   Avatar,
   Button,
@@ -33,15 +33,13 @@ import { appUrl, fmtDate, useAsync } from '../lib/util'
 const ROLLEN: MemberRole[] = ['owner', 'editor', 'viewer']
 
 export default function Team() {
-  const { project, members, role, isOwner, canEdit, reloadMembers } = useProject()
+  const { project, members, isOwner, canEdit, reloadMembers } = useProject()
   const { user } = useAuth()
   const { t, tn } = useSprache()
   const toast = useToast()
-  const nav = useNavigate()
   const invites = useAsync(() => listInvites(project.id), [project.id])
 
   const [busy, setBusy] = useState(false)
-  const [leaveOpen, setLeaveOpen] = useState(false)
   const [kick, setKick] = useState<string | null>(null)
 
   async function onCreateInvite() {
@@ -253,41 +251,12 @@ export default function Team() {
         )}
 
         <div className="mt-8">
-          <Button
-            variant="outline"
-            size="lg"
-            full
-            className="sm:w-auto"
-            onClick={() => setLeaveOpen(true)}
-          >
-            <LogOut size={20} className="spiegeln" /> {t('team.verlassen_knopf')}
-          </Button>
-          {role === 'owner' ? (
-            <p className="t-sub mt-2">{t('team.verlassen_besitzer')}</p>
-          ) : null}
+          <UmzugVerlassen />
         </div>
 
         {/* Luft fuer die untere Navigationsleiste */}
         <div className="h-6" />
       </Page>
-
-      <ConfirmDialog
-        open={leaveOpen}
-        title={t('team.verlassen_titel')}
-        confirmLabel={t('team.verlassen_bestaetigen')}
-        body={t('team.verlassen_text')}
-        onClose={() => setLeaveOpen(false)}
-        onConfirm={async () => {
-          if (!user) return
-          try {
-            await removeMember(project.id, user.id)
-            toast(t('team.verlassen_ok'), 'ok')
-            nav('/app')
-          } catch (err) {
-            toast(err instanceof Error ? err.message : String(err), 'error')
-          }
-        }}
-      />
 
       <ConfirmDialog
         open={Boolean(kick)}

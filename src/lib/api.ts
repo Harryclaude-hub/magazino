@@ -170,6 +170,27 @@ export async function removeMember(projectId: string, userId: string): Promise<v
   if (error) throw new Error(tg('fehler.mitglied_entfernen', { grund: errText(error) }))
 }
 
+/** Selbst aus einem Umzug aussteigen.
+ *
+ *  Das ist etwas anderes als loeschen: der Umzug bleibt bestehen, nur man
+ *  selbst ist nicht mehr dabei. Was man angelegt hat, bleibt auch da, denn
+ *  es gehoert dem Umzug und nicht der Person.
+ *
+ *  Der letzte Besitzer kommt hier nicht durch, das verhindert der Trigger
+ *  guard_last_owner in der Datenbank. Sonst stuende ein Umzug ohne
+ *  Besitzer da, den niemand mehr verwalten koennte. */
+export async function leaveProject(projectId: string): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser()
+  const uid = auth.user?.id
+  if (!uid) throw new Error(tg('fehler.sitzung_weg'))
+  const { error } = await supabase
+    .from('project_members')
+    .delete()
+    .eq('project_id', projectId)
+    .eq('user_id', uid)
+  if (error) throw new Error(tg('fehler.umzug_verlassen', { grund: errText(error) }))
+}
+
 export async function markRead(projectId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from('project_members')

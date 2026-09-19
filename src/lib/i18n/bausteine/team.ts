@@ -66,15 +66,19 @@ export const team: Woerterbuch = {
 
   // ---------------------------------------------------------------- Verlassen
   'team.verlassen_knopf': { de: 'Diesen Umzug verlassen', ar: 'مغادرة هذه النقلة' },
+  'team.verlassen_hinweis': {
+    de: 'Der Umzug bleibt bestehen, du bist nur nicht mehr dabei. Was du angelegt hast, bleibt drin, denn es gehört dem Umzug und nicht dir.',
+    ar: 'تبقى النقلة موجودة، أنت فقط لم تعد ضمنها. ما أنشأته يبقى فيها، فهو ملك للنقلة وليس لك.',
+  },
   'team.verlassen_besitzer': {
-    de: 'Du bist Besitzer. Verlassen geht erst, wenn jemand anders Besitzer ist.',
-    ar: 'أنت المالك. لا يمكنك المغادرة قبل أن يصبح شخص آخر المالك.',
+    de: 'Du bist der einzige Besitzer. Verlassen geht erst, wenn jemand anders auch Besitzer ist.',
+    ar: 'أنت المالك الوحيد. لا يمكنك المغادرة قبل أن يصبح شخص آخر مالكًا أيضًا.',
   },
   'team.verlassen_titel': { de: 'Umzug verlassen', ar: 'مغادرة النقلة' },
   'team.verlassen_bestaetigen': { de: 'Verlassen', ar: 'مغادرة' },
   'team.verlassen_text': {
-    de: 'Du siehst diesen Umzug danach nicht mehr. Mit einem neuen Einladungscode kommst du wieder rein.',
-    ar: 'لن ترى هذه النقلة بعد ذلك. يمكنك العودة برمز دعوة جديد.',
+    de: 'Du siehst "{name}" danach nicht mehr. Der Umzug selbst bleibt bestehen. Mit einem neuen Einladungscode kommst du wieder rein.',
+    ar: 'لن ترى "{name}" بعد ذلك. النقلة نفسها تبقى موجودة. يمكنك العودة برمز دعوة جديد.',
   },
   'team.verlassen_ok': { de: 'Umzug verlassen', ar: 'تمت مغادرة النقلة' },
 

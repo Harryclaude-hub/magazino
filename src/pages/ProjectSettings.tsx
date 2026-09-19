@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Trash2, Users } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
+import { UmzugVerlassen } from '../components/UmzugVerlassen'
 import {
   Button,
   Card,
@@ -109,6 +110,18 @@ export default function ProjectSettings() {
               <Users size={20} /> {t('team.karte_knopf')}
             </Button>
           </Link>
+        </Card>
+
+        {/* Gehen darf jeder, auch ein Besitzer, solange ein zweiter Besitzer
+            da ist. Das ist etwas anderes als loeschen: der Umzug bleibt, nur
+            man selbst ist raus. Derselbe Knopf steht auch im Team. */}
+        <SectionTitle>{t('team.verlassen_titel')}</SectionTitle>
+        <Card className="mb-6 p-5">
+          <p className="t-name">{t('team.verlassen_knopf')}</p>
+          <p className="t-sub mt-1.5">{t('team.verlassen_hinweis')}</p>
+          <div className="mt-4">
+            <UmzugVerlassen />
+          </div>
         </Card>
 
         {isOwner ? (

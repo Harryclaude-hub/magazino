@@ -282,6 +282,10 @@ export const fehler: Woerterbuch = {
     de: 'Verbleibende Auswertungen laden: {grund}',
     ar: 'تعذّر تحميل المتبقّي: {grund}',
   },
+  'fehler.umzug_verlassen': {
+    de: 'Umzug verlassen: {grund}',
+    ar: '\u062a\u0639\u0630\u0651\u0631 \u0645\u063a\u0627\u062f\u0631\u0629 \u0627\u0644\u0646\u0642\u0644\u0629: {grund}',
+  },
   'fehler.keine_verbindung': {
     de: 'Keine Verbindung zum Server. Internet prüfen.',
     ar: 'لا يوجد اتصال بالخادم. تحقق من الإنترنت.',
