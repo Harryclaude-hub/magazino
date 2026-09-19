@@ -231,21 +231,31 @@ halb gebaut.
 
 Karam hat vier Dinge bestellt. Reihenfolge wie hier, damit der Faden haelt.
 
-### A. Umzug verlassen
+### A. Umzug verlassen FERTIG
 
 Wer Mitglied ist, muss gehen koennen, nicht nur loeschen. Der letzte
 Besitzer darf nicht gehen, ohne vorher jemanden zum Besitzer zu machen,
 sonst steht ein Umzug ohne Besitzer da. Diese Regel gibt es schon als
 `guard_last_owner`.
 
-### B. Zimmer ist die Regel, Person ist Zugabe
+Gebaut: `UmzugVerlassen.tsx`, eine Fassung fuer beide Orte (Team und
+Einstellungen). `leaveProject` in api.ts. Der letzte Besitzer kann den
+Knopf nicht druecken und liest den Grund daneben. Die drei Faelle sind
+gegen die echte Datenbank geprueft.
+
+### B. Zimmer ist die Regel, Person ist Zugabe FERTIG
 
 Jede Kiste gehoert zu einem Zimmer. Eine Person darf dazukommen, muss
 aber nicht. Bisher reichte eines von beiden. Die Datenbankregel bleibt,
 damit vorhandene Personenkisten nicht brechen, aber die Oberflaeche
 fuehrt Zimmer als Pflichtfeld.
 
-### C. Der Grundriss (das grosse Stueck)
+Gebaut: Filter "Ohne Zimmer" und "Ohne Person" (`listItems` kennt jetzt
+'none'), eine Leiste ueber der Kistenliste zeigt, wie viele kein Zimmer
+haben, und die Regel steht als Hinweis am Zimmerfeld. "Kein Zimmer" ist
+nur waehlbar, wenn eine Person dransteht, und umgekehrt.
+
+### C. Der Grundriss (das grosse Stueck) FERTIG
 
 Ein Zimmer ist wie eine Wohnung, die auch nach dem Umzug lange weiter
 benutzt wird. Auf der Zimmerseite oben rechts ein Knopf, der eine eigene
@@ -258,6 +268,22 @@ Seite oeffnet:
 - Jede sichtbare Kiste zeigt ihre Nummer und ihren QR-Code
 - Doppeltippen zeigt, was drin ist, noch einmal fuehrt zur Kiste
 - Umgekehrt: von einer Kiste aus zeigen, wo im Zimmer sie steht
+
+Gebaut als Migration 0017 und `src/pages/RaumPlan.tsx`. Das Zimmer ist
+ein Raster aus Zellen von raster_cm, eine Kiste belegt genau eine Zelle
+und stapelt sich wie ein Bauklotz. Der Platz steht in der Kiste selbst
+(plan_x, plan_y, plan_z), nicht in einer zweiten Tabelle: eine Kiste ist
+in genau einem Zimmer, also hat sie genau einen Platz.
+
+Die Datenbank haelt fest, was die Oberflaeche nur vorschlaegt: ein Platz
+je Kiste, kein Platz ausserhalb des Zimmers, keiner auf einer gesperrten
+Zelle, keiner hoeher als das Zimmer, und beim Zimmerwechsel faellt der
+Platz weg. Neun Faelle gegen die echte Datenbank geprueft.
+
+Offen und ehrlich: der QR-Code auf der Kiste erscheint erst ab einer
+Zellgroesse von 128 Bildpunkten. Darunter steht nur die Nummer, weil ein
+QR-Code mit 30 Bildpunkten zwar aussieht wie einer, sich aber nicht
+scannen laesst. In der raeumlichen Ansicht steht nur die Nummer.
 
 ### D. Bilderkennung in Schichten
 

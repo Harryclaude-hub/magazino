@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Armchair, Boxes, CheckSquare, DoorOpen, Merge, Pencil, Printer, User } from 'lucide-react'
+import {
+  Armchair,
+  Boxes,
+  CheckSquare,
+  DoorOpen,
+  LayoutGrid,
+  Merge,
+  Pencil,
+  Printer,
+  User,
+} from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { ItemRow } from '../components/ItemRow'
 import { Auswahlleiste } from '../components/Auswahlleiste'
@@ -172,7 +182,19 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
         subtitle={t(kind === 'room' ? 'begriff.zimmer' : 'begriff.person')}
         back={`/app/p/${project.id}/bereiche`}
         actions={
-          canEdit ? (
+          <>
+            {/* Der Raumplan steht auch Betrachtern offen: hinschauen darf
+                jeder, aendern nicht. Darum steht er vor dem canEdit-Zweig
+                und nicht darin. Personen haben keinen Raumplan. */}
+            {kind === 'room' ? (
+              <Link to={`/app/p/${project.id}/zimmer/${tag.id}/plan`}>
+                <Button variant="outline" size="sm">
+                  <LayoutGrid size={16} />
+                  {t('raumplan.titel')}
+                </Button>
+              </Link>
+            ) : null}
+            {canEdit ? (
             <>
               <IconButton
                 label={waehlen ? t('auswahl.modus_aus') : t('auswahl.modus_an')}
@@ -191,7 +213,8 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
                 </Button>
               </Link>
             </>
-          ) : null
+            ) : null}
+          </>
         }
       />
       <Page>

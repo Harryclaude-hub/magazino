@@ -16,6 +16,7 @@ import { umzuege } from './bausteine/umzuege'
 import { bereiche } from './bausteine/bereiche'
 import { bereichsseite } from './bausteine/bereichsseite'
 import { kisten } from './bausteine/kisten'
+import { raumplan } from './bausteine/raumplan'
 import { moebel } from './bausteine/moebel'
 import { marken } from './bausteine/marken'
 import { etiketten } from './bausteine/etiketten'
@@ -54,6 +55,7 @@ export const WOERTER: Woerterbuch = zusammenlegen(
   bereiche,
   bereichsseite,
   kisten,
+  raumplan,
   moebel,
   marken,
   etiketten,

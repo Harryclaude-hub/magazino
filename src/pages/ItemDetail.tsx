@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   ImagePlus,
+  LayoutGrid,
   Pencil,
   Plus,
   Printer,
@@ -841,6 +842,20 @@ export default function ItemDetail() {
               </Select>
             </Field>
           </div>
+
+          {/* Der Weg von der Kiste zum Zimmer: zeig mir, wo sie steht.
+              Der Plan hebt sie dann hervor. Hat sie noch keinen Platz,
+              steht sie dort unten bei den Kisten ohne Platz. */}
+          {item.room_id ? (
+            <Link
+              to={`/app/p/${project.id}/zimmer/${item.room_id}/plan?kiste=${item.id}`}
+              className="block"
+            >
+              <Button variant="soft" size="lg" full className="sm:w-auto">
+                <LayoutGrid size={20} /> {t('raumplan.zeigen')}
+              </Button>
+            </Link>
+          ) : null}
 
           {item.room_id && item.person_id ? (
             <Field label={t('kisten.kuerzel_im_code')}>

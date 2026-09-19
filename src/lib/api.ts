@@ -23,6 +23,7 @@ import type {
   ProjectInvite,
   ProjectMember,
   ProjectStats,
+  Raumplan,
   Tag,
 } from './types'
 import { inviteCode } from './util'
@@ -510,6 +511,88 @@ export async function ladeSchnellansicht(itemId: string): Promise<SchnellDaten> 
     contents,
     coverPath: (deck.data as { path?: string } | null)?.path ?? null,
     role: ((rolle.data as { role?: MemberRole } | null)?.role ?? null) as MemberRole | null,
+  }
+}
+
+/* ------------------------------------------------------------ Raumplan */
+
+/** Der Plan eines Zimmers, oder null, wenn es noch keinen gibt. null
+ *  heisst "noch nicht angelegt" und ist etwas anderes als ein Fehler:
+ *  ein Fehler wirft. */
+export async function ladeRaumplan(tagId: string): Promise<Raumplan | null> {
+  const res = await supabase.from('room_plans').select('*').eq('tag_id', tagId).maybeSingle()
+  if (res.error) throw new Error(tg('fehler.raumplan_laden', { grund: errText(res.error) }))
+  return (res.data as Raumplan | null) ?? null
+}
+
+/** Plan anlegen oder aendern. Die Datenbank prueft Groesse, Raster, Tuer
+ *  und Umriss selbst, darum steht hier keine zweite Pruefung. */
+export async function speichereRaumplan(input: {
+  tag_id: string
+  project_id: string
+  breite_cm: number
+  tiefe_cm: number
+  hoehe_cm: number
+  raster_cm: number
+  gesperrt: [number, number][]
+  tuer_x: number | null
+  tuer_y: number | null
+  tuer_seite: Raumplan['tuer_seite']
+}): Promise<Raumplan> {
+  const res = await supabase
+    .from('room_plans')
+    .upsert(input, { onConflict: 'tag_id' })
+    .select('*')
+    .single()
+  return unwrap(res, 'fehler.raumplan_speichern') as Raumplan
+}
+
+/** Den ganzen Plan wegwerfen. Die Kisten bleiben im Zimmer, sie stehen
+ *  danach nur an keinem festen Platz mehr. Das erledigt der Trigger. */
+export async function loescheRaumplan(tagId: string): Promise<void> {
+  const { error } = await supabase.from('room_plans').delete().eq('tag_id', tagId)
+  if (error) throw new Error(tg('fehler.raumplan_loeschen', { grund: errText(error) }))
+}
+
+/** Alle Kisten und Moebel eines Zimmers, auch die ohne Platz im Plan.
+ *  Seitenweise, damit auch ein volles Zimmer durchlaeuft. */
+export async function ladeZimmerKisten(projectId: string, roomId: string): Promise<Item[]> {
+  const out: Item[] = []
+  const step = 500
+  for (let offset = 0; ; offset += step) {
+    const { rows, total } = await listItems(projectId, { roomId, limit: step, offset })
+    out.push(...rows)
+    if (out.length >= total || rows.length === 0) break
+  }
+  return out
+}
+
+/** Eine Kiste auf einen Platz stellen. Ob der Platz frei ist, entscheidet
+ *  die Datenbank: zwei Leute koennen gleichzeitig legen. */
+export async function setzePlatz(itemId: string, x: number, y: number, z: number): Promise<Item> {
+  return updateItem(itemId, { plan_x: x, plan_y: y, plan_z: z })
+}
+
+/** Eine Kiste vom Platz nehmen. Was darueber stand, rutscht eine Lage
+ *  nach unten. Sonst schwebte es im Plan, und der Plan zeigte etwas, das
+ *  im Zimmer so nicht steht. Von unten nach oben, damit jeder Platz frei
+ *  ist, bevor die naechste Kiste darauf rutscht. */
+export async function raeumePlatz(item: Item): Promise<void> {
+  if (item.plan_x === null || item.plan_y === null || item.plan_z === null) return
+  const { plan_x: x, plan_y: y, plan_z: z, room_id: raum } = item
+  await updateItem(item.id, { plan_x: null, plan_y: null, plan_z: null })
+  if (!raum) return
+  const res = await supabase
+    .from('items')
+    .select('id, plan_z')
+    .eq('room_id', raum)
+    .eq('plan_x', x)
+    .eq('plan_y', y)
+    .gt('plan_z', z)
+    .order('plan_z')
+  if (res.error) throw new Error(tg('fehler.raumplan_nachruecken', { grund: errText(res.error) }))
+  for (const zeile of (res.data ?? []) as { id: string; plan_z: number }[]) {
+    await updateItem(zeile.id, { plan_z: zeile.plan_z - 1 })
   }
 }
 

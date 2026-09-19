@@ -18,6 +18,7 @@ import ProjectLayout from './pages/ProjectLayout'
 import ProjectHome from './pages/ProjectHome'
 import Areas from './pages/Areas'
 import AreaDetail from './pages/AreaDetail'
+import RaumPlan from './pages/RaumPlan'
 import Items from './pages/Items'
 import ItemDetail from './pages/ItemDetail'
 import Furniture from './pages/Furniture'
@@ -96,6 +97,7 @@ export default function App() {
                 {/* Eigene Seiten. Zimmer und Person teilen sich eine Datei,
                     sie sind in der Datenbank dieselbe Tabelle. */}
                 <Route path="zimmer/:tagId" element={<AreaDetail kind="room" />} />
+                <Route path="zimmer/:tagId/plan" element={<RaumPlan />} />
                 <Route path="person/:tagId" element={<AreaDetail kind="person" />} />
                 <Route path="moebel" element={<Furniture />} />
                 <Route path="moebel/:id" element={<FurnitureDetail />} />

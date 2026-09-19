@@ -81,6 +81,22 @@ export const fehler: Woerterbuch = {
   },
 
   // ------------------------------------------------------------ Kisten
+  'fehler.raumplan_laden': {
+    de: 'Raumplan laden: {grund}',
+    ar: 'تعذّر تحميل مخطط الغرفة: {grund}',
+  },
+  'fehler.raumplan_speichern': {
+    de: 'Raumplan speichern: {grund}',
+    ar: 'تعذّر حفظ مخطط الغرفة: {grund}',
+  },
+  'fehler.raumplan_loeschen': {
+    de: 'Raumplan löschen: {grund}',
+    ar: 'تعذّر حذف مخطط الغرفة: {grund}',
+  },
+  'fehler.raumplan_nachruecken': {
+    de: 'Kisten über dem Platz nachrücken: {grund}',
+    ar: 'تعذّر إنزال الصناديق فوق الموضع: {grund}',
+  },
   'fehler.kisten_laden': { de: 'Kisten laden: {grund}', ar: 'تعذّر تحميل الصناديق: {grund}' },
   'fehler.kiste_laden': { de: 'Kiste laden: {grund}', ar: 'تعذّر تحميل الصندوق: {grund}' },
   'fehler.kiste_anlegen': { de: 'Kiste anlegen: {grund}', ar: 'تعذّر إنشاء الصندوق: {grund}' },

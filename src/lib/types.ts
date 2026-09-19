@@ -95,6 +95,13 @@ export interface Item {
    * Zimmer. Die Zimmerfarbe bleibt davon unberuehrt. */
   mark_color: string | null
   mark_symbol: string | null
+  /* Wo die Kiste im Zimmer steht. Zellen aus dem Raster des Raumplans:
+   * x nach rechts, y nach hinten, z nach oben. Entweder alle drei oder
+   * keines. Wechselt die Kiste das Zimmer, faellt der Platz weg.
+   * Siehe Migration 0017. */
+  plan_x: number | null
+  plan_y: number | null
+  plan_z: number | null
   /* Das Bild, das beim Scannen sofort erscheint. Verweis auf eine Zeile
    * in item_photos, kein zweiter Pfad. Siehe Migration 0012. */
   cover_photo_id: string | null
@@ -119,6 +126,31 @@ export interface ItemContent {
   sort: number
   quelle: InhaltQuelle
   created_at: string
+}
+
+/* ------------------------------------------------------------ Raumplan */
+
+/** An welcher Wand der Zelle die Tuer sitzt. */
+export type TuerSeite = 'nord' | 'ost' | 'sued' | 'west'
+
+/** Der Plan eines Zimmers: wie gross es ist, welche Ecken fehlen und wo
+ *  die Tuer ist. Ein Plan je Zimmer, der Schluessel ist das Zimmer
+ *  selbst. Siehe Migration 0017. */
+export interface Raumplan {
+  tag_id: string
+  project_id: string
+  breite_cm: number
+  tiefe_cm: number
+  hoehe_cm: number
+  /** Kantenlaenge einer Zelle. Eine Kiste belegt genau eine Zelle. */
+  raster_cm: number
+  /** Zellen, die nicht zum Zimmer gehoeren, als [x, y]. */
+  gesperrt: [number, number][]
+  tuer_x: number | null
+  tuer_y: number | null
+  tuer_seite: TuerSeite | null
+  created_at: string
+  updated_at: string
 }
 
 export type PhotoArt = 'foto' | 'anleitung'
