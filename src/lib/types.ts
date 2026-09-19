@@ -125,6 +125,17 @@ export interface ItemContent {
   checked: boolean
   sort: number
   quelle: InhaltQuelle
+  /* Wo der Gegenstand zu sehen ist: auf welchem Bild, in welcher
+   * Schicht, und an welcher Stelle des Bildes. 0 ist links und oben,
+   * 1 ist rechts und unten. Anteile statt Punkte, weil dasselbe Bild
+   * auf jedem Geraet anders gross erscheint. Siehe Migration 0018. */
+  photo_id: string | null
+  schicht: number | null
+  punkt_x: number | null
+  punkt_y: number | null
+  /* Hat ein Mensch hingesehen? null heisst "noch niemand", und das ist
+   * etwas anderes als "nein, das ist es nicht". */
+  bestaetigt: boolean | null
   created_at: string
 }
 
@@ -168,6 +179,9 @@ export interface ItemPhoto {
   art: PhotoArt
   /** Welche Seite zu sehen ist, etwa vorne, hinten, Unterseite. */
   seite: string | null
+  /* Wie tief in der Kiste. 1 ist die oberste Lage, 2 liegt darunter.
+   * null heisst: ohne Schicht aufgenommen. Siehe Migration 0018. */
+  schicht: number | null
   caption: string | null
   created_by: string | null
   created_at: string
@@ -185,6 +199,11 @@ export interface ErkanntesDing {
   sicherheit: number
   /** Zerbrechlich, schwer, und was sonst beim Tragen zaehlt. */
   hinweis?: string | null
+  /* Wo auf dem Bild das Ding sitzt, als Anteil von 0 bis 1. Geschaetzt,
+   * nicht gemessen: darum wird der Punkt im Bild gezeigt und von einem
+   * Menschen bestaetigt, statt ihn einfach zu glauben. */
+  x?: number | null
+  y?: number | null
 }
 
 export interface PhotoAnalyse {

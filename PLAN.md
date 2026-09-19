@@ -285,7 +285,7 @@ Zellgroesse von 128 Bildpunkten. Darunter steht nur die Nummer, weil ein
 QR-Code mit 30 Bildpunkten zwar aussieht wie einer, sich aber nicht
 scannen laesst. In der raeumlichen Ansicht steht nur die Nummer.
 
-### D. Bilderkennung in Schichten
+### D. Bilderkennung in Schichten GEBAUT, WARTET AUF DEN SCHLUESSEL
 
 Eine Kiste wird mehrfach fotografiert, von jedem Winkel und Schicht fuer
 Schicht: Schicht 1 ist oben, Schicht 2 darunter. Die Erkennung benennt
@@ -300,6 +300,38 @@ Koordinaten je Gegenstand, nicht nur Namen.
 **Braucht einen API-Schluessel.** Den kann Claude nicht besorgen, er
 haengt an einem Konto mit Zahlungsmittel. Karam legt ihn unter
 https://console.anthropic.com an und hinterlegt ihn einmal.
+
+Gebaut als Migration 0018 und 0019 sowie `PunktBild.tsx`:
+
+- `item_photos.schicht` haelt fest, welche Lage ein Bild zeigt. Auf der
+  Kistenseite waehlt man die Schicht fuer die naechsten Fotos, und jedes
+  Bild traegt seine Schicht als Marke, die sich antippen laesst.
+- `item_contents` bekommt photo_id, schicht, punkt_x, punkt_y und
+  bestaetigt. Ein Eintrag weiss damit, auf welchem Bild er zu sehen ist
+  und an welcher Stelle.
+- In der Inhaltsliste fuehrt ein Tippen auf einen Eintrag mit Bild in die
+  Bildansicht: alle erkannten Dinge als blasse Punkte, der gesuchte rot
+  und mit Ring. Darunter zwei Knoepfe: ja, das ist es, oder nein. Noch
+  einmal tippen nimmt die Antwort zurueck.
+- `bestaetigt` hat drei Zustaende. null heisst "noch niemand hat
+  hingesehen" und ist etwas anderes als "nein". Wer beides gleich
+  behandelt, verliert genau die Faelle, die man pruefen wollte.
+- Die Edge Function fragt das Modell jetzt nach der Stelle jedes
+  Gegenstands, in Promille des Bildes. Fehlt die Angabe, bleibt der Punkt
+  leer: ein erfundener Punkt saehe aus wie ein gefundener.
+
+**Zwei Dinge fehlen noch, beide brauchen Karam:**
+
+1. Der Schluessel. Ohne ihn meldet die Funktion `kein_schluessel`, alles
+   andere laeuft.
+2. Die Funktion auf dem Server ist noch die Fassung ohne Koordinaten. Die
+   Datei hier ist neuer. Ausliefern mit:
+   `npx supabase login` und dann
+   `npx supabase functions deploy bild-analyse --project-ref vqpirkgvclfsduklnnzv`
+
+Nicht gebaut: eine Eingabe fuer `seite` (aus welchem Winkel das Bild
+aufgenommen wurde). Die Spalte gibt es seit 0001, die Oberflaeche fuellt
+sie nicht. Die Schicht war der Teil, an dem Karam etwas lag.
 
 ---
 

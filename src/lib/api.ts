@@ -650,10 +650,30 @@ export async function addContent(
   /** Woher die Zeile kommt. Ein Vorschlag aus einem Foto bleibt als
    *  solcher erkennbar, auch nachdem er uebernommen wurde. */
   quelle: ItemContent['quelle'] = 'hand',
+  /** Wo der Gegenstand zu sehen ist. Nur die Bilderkennung weiss das,
+   *  von Hand eingetippte Zeilen haben keinen Ort. */
+  ort?: {
+    photo_id?: string | null
+    schicht?: number | null
+    punkt_x?: number | null
+    punkt_y?: number | null
+  },
 ): Promise<ItemContent> {
   const res = await supabase
     .from('item_contents')
-    .insert({ item_id: itemId, project_id: projectId, text: text.trim(), qty, quelle })
+    .insert({
+      item_id: itemId,
+      project_id: projectId,
+      text: text.trim(),
+      qty,
+      quelle,
+      photo_id: ort?.photo_id ?? null,
+      schicht: ort?.schicht ?? null,
+      /* Beide oder keiner. Die Datenbank weist einen halben Punkt
+       * ohnehin zurueck, hier wird er gar nicht erst gebaut. */
+      punkt_x: ort?.punkt_x != null && ort?.punkt_y != null ? ort.punkt_x : null,
+      punkt_y: ort?.punkt_x != null && ort?.punkt_y != null ? ort.punkt_y : null,
+    })
     .select('*')
     .single()
   return unwrap(res, 'fehler.eintrag_anlegen') as ItemContent
@@ -735,6 +755,8 @@ export async function addPhotoRecord(
   caption?: string,
   art: ItemPhoto['art'] = 'foto',
   seite?: string,
+  /** Wie tief in der Kiste. 1 ist oben. */
+  schicht?: number | null,
 ): Promise<ItemPhoto> {
   const { data: auth } = await supabase.auth.getUser()
   const res = await supabase
@@ -745,6 +767,7 @@ export async function addPhotoRecord(
       path,
       art,
       seite: seite ?? null,
+      schicht: schicht ?? null,
       caption: caption ?? null,
       created_by: auth.user?.id ?? null,
     })
@@ -780,6 +803,18 @@ export async function coverPaths(items: Item[]): Promise<Map<string, string>> {
     }
   }
   return out
+}
+
+/** In welche Schicht der Kiste dieses Foto gehoert. null nimmt die
+ *  Angabe wieder weg. */
+export async function setPhotoSchicht(id: string, schicht: number | null): Promise<ItemPhoto> {
+  const res = await supabase
+    .from('item_photos')
+    .update({ schicht })
+    .eq('id', id)
+    .select('*')
+    .single()
+  return unwrap(res, 'fehler.foto_speichern') as ItemPhoto
 }
 
 export async function deletePhoto(photo: ItemPhoto): Promise<void> {

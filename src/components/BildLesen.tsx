@@ -51,12 +51,20 @@ interface Zeile {
   hinweis: string | null
   gewaehlt: boolean
   schonDrin: boolean
+  /* Wo das Ding auf dem Bild sitzt und in welcher Schicht der Kiste das
+   * Bild aufgenommen wurde. Beides wandert mit in die Inhaltsliste,
+   * damit man den Gegenstand spaeter im Bild wiederfindet. */
+  x: number | null
+  y: number | null
+  schicht: number | null
 }
 
 function zeilenAus(
   ergebnisse: BildErgebnis[],
   vorhanden: string[],
   reihenfolge: string[],
+  /** Welches Bild in welcher Schicht aufgenommen wurde. */
+  schichtVon: Map<string, number | null>,
 ): Zeile[] {
   const out: Zeile[] = []
   for (const e of ergebnisse) {
@@ -75,6 +83,10 @@ function zeilenAus(
         // legt ein Tippen alles doppelt an.
         gewaehlt: !drin,
         schonDrin: drin,
+        // Beide oder keiner. Ein halber Punkt zeigt auf nichts.
+        x: typeof d.x === 'number' && typeof d.y === 'number' ? d.x : null,
+        y: typeof d.x === 'number' && typeof d.y === 'number' ? d.y : null,
+        schicht: schichtVon.get(e.photo_id) ?? null,
       })
     })
   }
@@ -119,6 +131,7 @@ export function BildLesen({
 
   const brauchbar = lesbareFotos(fotos).slice(0, MAX_BILDER_JE_LAUF)
   const reihenfolge = brauchbar.map((f) => f.id)
+  const schichtVon = new Map(brauchbar.map((f) => [f.id, f.schicht]))
   const vorhandeneTexte = vorhandeneInhalte.map((c) => c.text)
 
   /* Beim Oeffnen wird nur nachgesehen, was schon einmal gelesen wurde.
@@ -151,6 +164,7 @@ export function BildLesen({
               })),
               vorhandeneTexte,
               reihenfolge,
+              schichtVon,
             ),
           )
         }
@@ -187,6 +201,7 @@ export function BildLesen({
           antwort.ergebnisse.filter((e) => e.status === 'fertig'),
           vorhandeneTexte,
           reihenfolge,
+          schichtVon,
         ),
       )
     } catch (err) {
@@ -209,7 +224,14 @@ export function BildLesen({
     const fehlgeschlagen: string[] = []
     for (const z of gewaehlt) {
       try {
-        neu.push(await addContent(projectId, itemId, z.text.trim(), z.menge, 'bild'))
+        neu.push(
+          await addContent(projectId, itemId, z.text.trim(), z.menge, 'bild', {
+            photo_id: z.photoId,
+            schicht: z.schicht,
+            punkt_x: z.x,
+            punkt_y: z.y,
+          }),
+        )
       } catch (err) {
         fehlgeschlagen.push(err instanceof Error ? err.message : String(err))
       }
@@ -357,6 +379,11 @@ export function BildLesen({
                         ) : null}
                         {brauchbar.length > 1 ? (
                           <span className="t-sub">{t('bildki.bild_nummer', { n: z.bildNr })}</span>
+                        ) : null}
+                        {z.schicht ? (
+                          <span className="t-sub font-bold">
+                            {t('schichten.schicht_n', { n: z.schicht })}
+                          </span>
                         ) : null}
                       </div>
                     </div>

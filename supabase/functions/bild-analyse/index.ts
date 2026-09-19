@@ -72,6 +72,11 @@ interface Ding {
   menge: number
   sicherheit: number
   hinweis?: string | null
+  /* Wo das Ding auf dem Bild sitzt, als Anteil von 0 bis 1. Das Modell
+   * antwortet in Promille, weil es mit ganzen Zahlen zuverlaessiger
+   * umgeht als mit Kommazahlen; umgerechnet wird hier. */
+  x?: number | null
+  y?: number | null
 }
 
 /* ------------------------------------------------------------ Anweisung */
@@ -90,7 +95,12 @@ function anweisung(was: Was, sprache: Sprache): string {
     `Zähle nur, was du wirklich siehst. Rate nicht, was unter anderen Dingen liegen könnte. ` +
     `Bist du dir bei etwas unsicher, nimm es trotzdem auf und gib eine niedrige Sicherheit an. ` +
     `Weglassen wäre schlimmer: was fehlt, sucht später jemand vergeblich. ` +
-    `Notiere bei hinweis nur, was beim Tragen zählt, etwa zerbrechlich oder schwer. Sonst lass es weg.`
+    `Notiere bei hinweis nur, was beim Tragen zählt, etwa zerbrechlich oder schwer. Sonst lass es weg. ` +
+    `Gib zu jedem Gegenstand an, wo er auf dem Bild liegt: x vom linken Rand, y vom oberen Rand, ` +
+    `beides in Promille des Bildes, also 0 bis 1000. Ziel ist die Mitte des Gegenstands. ` +
+    `Bei mehreren gleichen Dingen nimm die Mitte der Gruppe. ` +
+    `Diese Stelle wird später als Punkt ins Bild gezeichnet, damit ein Mensch nachsehen kann, ` +
+    `ob wirklich das gemeint ist. Schätze lieber grob, als die Angabe wegzulassen.`
 
   if (was === 'moebel') {
     return (
@@ -138,8 +148,20 @@ const WERKZEUG = {
               type: 'string',
               description: 'Nur wenn es beim Tragen zählt, sonst weglassen',
             },
+            x: {
+              type: 'integer',
+              minimum: 0,
+              maximum: 1000,
+              description: 'Mitte des Gegenstands, Abstand vom linken Bildrand in Promille',
+            },
+            y: {
+              type: 'integer',
+              minimum: 0,
+              maximum: 1000,
+              description: 'Mitte des Gegenstands, Abstand vom oberen Bildrand in Promille',
+            },
           },
-          required: ['text', 'menge', 'sicherheit'],
+          required: ['text', 'menge', 'sicherheit', 'x', 'y'],
         },
       },
     },
@@ -207,14 +229,30 @@ async function erkennen(
 
   // Aufraeumen, aber nichts wegwerfen. Was unsicher erkannt wurde, bleibt
   // drin und wird in der Oberflaeche als unsicher gezeigt.
+  /** Promille zu Anteil. Fehlt die Angabe oder ist sie unbrauchbar,
+   *  kommt null heraus und nicht die Mitte des Bildes: ein erfundener
+   *  Punkt saehe aus wie ein gefundener. */
+  const anteil = (v: unknown): number | null => {
+    const z = Number(v)
+    if (!Number.isFinite(z)) return null
+    return Math.max(0, Math.min(1, z / 1000))
+  }
+
   return werkzeug.input.dinge
     .filter((d) => typeof d?.text === 'string' && d.text.trim().length > 0)
-    .map((d) => ({
-      text: String(d.text).trim().slice(0, 200),
-      menge: Number.isFinite(d.menge) ? Math.max(1, Math.min(999, Math.round(d.menge))) : 1,
-      sicherheit: Number.isFinite(d.sicherheit) ? Math.max(0, Math.min(1, d.sicherheit)) : 0.5,
-      hinweis: d.hinweis ? String(d.hinweis).trim().slice(0, 200) : null,
-    }))
+    .map((d) => {
+      const x = anteil(d.x)
+      const y = anteil(d.y)
+      return {
+        text: String(d.text).trim().slice(0, 200),
+        menge: Number.isFinite(d.menge) ? Math.max(1, Math.min(999, Math.round(d.menge))) : 1,
+        sicherheit: Number.isFinite(d.sicherheit) ? Math.max(0, Math.min(1, d.sicherheit)) : 0.5,
+        hinweis: d.hinweis ? String(d.hinweis).trim().slice(0, 200) : null,
+        // Beide oder keiner. Ein halber Punkt zeigt auf nichts.
+        x: x !== null && y !== null ? x : null,
+        y: x !== null && y !== null ? y : null,
+      }
+    })
     .slice(0, 60)
 }
 

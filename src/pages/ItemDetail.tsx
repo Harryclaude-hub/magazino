@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   ImagePlus,
+  Layers,
   LayoutGrid,
   Pencil,
   Plus,
@@ -19,12 +20,14 @@ import {
 } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { BildLesen } from '../components/BildLesen'
+import { PunktBild } from '../components/PunktBild'
 import { InhaltVerschieben } from '../components/InhaltVerschieben'
 import { MarkIcon, MarkPicker } from '../components/Mark'
 import {
   Avatar,
   Button,
   Card,
+  Chip,
   ConfirmDialog,
   ErrorBox,
   Field,
@@ -52,6 +55,7 @@ import {
   listItemEvents,
   listPhotos,
   setCoverPhoto,
+  setPhotoSchicht,
   updateContent,
   updateItem,
 } from '../lib/api'
@@ -134,6 +138,11 @@ export default function ItemDetail() {
   /* Einen Eintrag in eine andere Kiste umhaengen, und die Zeile selbst
    * markieren. Beides sind eigene Dialoge, damit die Seite ruhig bleibt. */
   const [umhaengen, setUmhaengen] = useState<ItemContent | null>(null)
+  /* In welche Schicht der Kiste die naechsten Fotos gehoeren. Gilt fuer
+   * das Aufnehmen, nicht fuer das, was schon liegt. */
+  const [neueSchicht, setNeueSchicht] = useState<number | null>(null)
+  /* Der Eintrag, dessen Stelle im Bild gerade gezeigt wird. */
+  const [punktEintrag, setPunktEintrag] = useState<ItemContent | null>(null)
   const [markieren, setMarkieren] = useState(false)
   const [bildLesen, setBildLesen] = useState(false)
   const [urls, setUrls] = useState<Map<string, string>>(new Map())
@@ -225,7 +234,15 @@ export default function ItemDetail() {
           const blob = await compressImage(file)
           const path = `${project.id}/${item.id}/${uid()}.jpg`
           await uploadTo('item-photos', path, blob, 'image/jpeg')
-          const row = await addPhotoRecord(project.id, item.id, path)
+          const row = await addPhotoRecord(
+            project.id,
+            item.id,
+            path,
+            undefined,
+            'foto',
+            undefined,
+            neueSchicht,
+          )
           setPhotos((p) => [...p, row])
           const u = await signedUrls('item-photos', [path])
           setUrls((m) => new Map([...m, ...u]))
@@ -241,7 +258,7 @@ export default function ItemDetail() {
       // Fehlgeschlagene Uploads werden gemeldet, nicht verschwiegen.
       if (failed.length) toast(t('kisten.upload_fehler', { liste: failed.join(' | ') }), 'error')
     },
-    [item, project.id, toast, t, tn],
+    [item, project.id, toast, t, tn, neueSchicht],
   )
 
   // Der Aufhaenger fuer das Einfuegen liegt auf dem Dokument, damit ein Bild
@@ -485,15 +502,54 @@ export default function ItemDetail() {
                     {c.checked ? <Check size={20} strokeWidth={3} /> : null}
                   </button>
 
-                  <span
-                    className={cx(
-                      'min-w-0 flex-1 break-words text-lg font-semibold',
-                      c.checked && 'text-muted line-through',
-                    )}
-                  >
-                    {c.qty > 1 ? <span className="t-serial">{c.qty}x </span> : null}
-                    {c.text}
-                  </span>
+                  {/* Hat der Eintrag eine Stelle auf einem Bild, fuehrt
+                      ein Tippen dorthin. Sonst steht hier nur Text: ein
+                      Knopf, der nichts tut, waere gelogen. */}
+                  {c.photo_id ? (
+                    <button
+                      type="button"
+                      onClick={() => setPunktEintrag(c)}
+                      className={cx(
+                        'min-w-0 flex-1 break-words text-start text-lg font-semibold underline decoration-line decoration-2 underline-offset-4',
+                        c.checked && 'text-muted line-through',
+                      )}
+                    >
+                      {c.qty > 1 ? <span className="t-serial">{c.qty}x </span> : null}
+                      {c.text}
+                    </button>
+                  ) : (
+                    <span
+                      className={cx(
+                        'min-w-0 flex-1 break-words text-lg font-semibold',
+                        c.checked && 'text-muted line-through',
+                      )}
+                    >
+                      {c.qty > 1 ? <span className="t-serial">{c.qty}x </span> : null}
+                      {c.text}
+                    </span>
+                  )}
+
+                  {c.schicht ? (
+                    <span className="t-serial shrink-0 rounded-lg bg-raised px-2 py-1 text-sm font-black">
+                      {c.schicht}
+                    </span>
+                  ) : null}
+                  {c.bestaetigt === true ? (
+                    <span
+                      title={t('schichten.bestaetigt')}
+                      className="shrink-0 rounded-lg bg-ok/15 px-2 py-1 text-sm font-black text-ok"
+                    >
+                      <Check size={16} strokeWidth={3} />
+                    </span>
+                  ) : null}
+                  {c.bestaetigt === false ? (
+                    <span
+                      title={t('schichten.verneint')}
+                      className="shrink-0 rounded-lg bg-danger/15 px-2 py-1 text-sm font-black text-danger"
+                    >
+                      <X size={16} strokeWidth={3} />
+                    </span>
+                  ) : null}
 
                   {canEdit ? (
                     <IconButton
@@ -582,6 +638,28 @@ export default function ItemDetail() {
             e.target.value = ''
           }}
         />
+
+        {/* Schicht fuer die naechsten Fotos. Sie steht ueber dem
+            Fotobereich, weil sie sich auf das Aufnehmen bezieht und nicht
+            auf ein einzelnes Bild. */}
+        {canEdit ? (
+          <Card className="mb-3 p-4">
+            <p className="t-name flex items-center gap-2">
+              <Layers size={18} /> {t('schichten.waehlen')}
+            </p>
+            <p className="t-sub mt-1.5">{t('schichten.hinweis')}</p>
+            <div className="-mx-1 mt-3 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1">
+              <Chip active={neueSchicht === null} onClick={() => setNeueSchicht(null)}>
+                {t('schichten.ohne')}
+              </Chip>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Chip key={n} active={neueSchicht === n} onClick={() => setNeueSchicht(n)}>
+                  <span className="t-serial">{t('schichten.schicht_n', { n })}</span>
+                </Chip>
+              ))}
+            </div>
+          </Card>
+        ) : null}
 
         <Card
           className="relative mb-5 p-3"
@@ -727,6 +805,45 @@ export default function ItemDetail() {
                           </IconButton>
                         </span>
                       ) : null}
+
+                      {/* In welcher Schicht dieses Bild aufgenommen wurde.
+                          Tippen zaehlt eins weiter und nach der fuenften
+                          wieder auf keine. */}
+                      <button
+                        type="button"
+                        disabled={!canEdit}
+                        title={t('schichten.foto_schicht')}
+                        aria-label={t('schichten.foto_schicht')}
+                        onClick={() => {
+                          const naechste = p.schicht === null ? 1 : p.schicht >= 5 ? null : p.schicht + 1
+                          setPhotos((list) =>
+                            list.map((x) => (x.id === p.id ? { ...x, schicht: naechste } : x)),
+                          )
+                          void setPhotoSchicht(p.id, naechste)
+                            .then(() =>
+                              toast(
+                                naechste === null
+                                  ? t('schichten.entfernt')
+                                  : t('schichten.gesetzt', { n: naechste }),
+                                'ok',
+                              ),
+                            )
+                            .catch((err: unknown) => {
+                              setPhotos((list) =>
+                                list.map((x) => (x.id === p.id ? { ...x, schicht: p.schicht } : x)),
+                              )
+                              toast(err instanceof Error ? err.message : String(err), 'error')
+                            })
+                        }}
+                        className={cx(
+                          'absolute bottom-1.5 start-1.5 flex h-9 items-center gap-1 rounded-xl px-2 text-sm font-black transition active:scale-95',
+                          'disabled:cursor-not-allowed disabled:opacity-60',
+                          p.schicht ? 'bg-ink text-paper' : 'bg-black/60 text-white',
+                        )}
+                      >
+                        <Layers size={15} />
+                        <span className="t-serial">{p.schicht ?? '-'}</span>
+                      </button>
                     </div>
                   )
                 })}
@@ -924,6 +1041,30 @@ export default function ItemDetail() {
         canEdit={canEdit}
         userId={user?.id ?? ''}
         onUebernommen={(neu) => setContents((c) => [...c, ...neu])}
+      />
+
+      <PunktBild
+        offen={punktEintrag !== null}
+        onClose={() => setPunktEintrag(null)}
+        eintrag={punktEintrag}
+        geschwister={contents}
+        foto={photos.find((p) => p.id === punktEintrag?.photo_id) ?? null}
+        canEdit={canEdit}
+        onAntwort={(eintrag, wert) => {
+          /* Sofort speichern, nicht erst beim Schliessen. Wer das
+           * Fenster zuwirft, hat trotzdem geantwortet. */
+          setContents((list) =>
+            list.map((x) => (x.id === eintrag.id ? { ...x, bestaetigt: wert } : x)),
+          )
+          setPunktEintrag({ ...eintrag, bestaetigt: wert })
+          void updateContent(eintrag.id, { bestaetigt: wert }).catch((err: unknown) => {
+            setContents((list) =>
+              list.map((x) => (x.id === eintrag.id ? { ...x, bestaetigt: eintrag.bestaetigt } : x)),
+            )
+            setPunktEintrag({ ...eintrag })
+            toast(err instanceof Error ? err.message : String(err), 'error')
+          })
+        }}
       />
 
       <InhaltVerschieben
