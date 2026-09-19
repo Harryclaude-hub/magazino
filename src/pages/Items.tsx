@@ -22,7 +22,7 @@ import {
   useToast,
 } from '../components/ui'
 import { useProject } from './ProjectLayout'
-import { createItem, listItems, setItemStatus, listAllItems } from '../lib/api'
+import { countItems, createItem, listItems, setItemStatus, listAllItems } from '../lib/api'
 import { useSprache, useT } from '../lib/i18n'
 import { notifyItemStatus } from '../lib/push'
 import { supabase } from '../lib/supabase'
@@ -118,6 +118,10 @@ export default function Items() {
    * derselben Kiste im Kopf. */
   const [waehlen, setWaehlen] = useState(false)
   const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set())
+  /* Wie viele Kisten kein Zimmer haben. null heisst ungezaehlt, nicht
+   * null gleich null. Geht die Zaehlung schief, steht hier kein Hinweis,
+   * aber auch keine Entwarnung. */
+  const [ohneZimmer, setOhneZimmer] = useState<number | null>(null)
   const PAGE = 60
 
   /* Moebel haben einen eigenen Bereich. Sie stehen in derselben Tabelle,
@@ -141,6 +145,15 @@ export default function Items() {
         setRows((prev) => (append ? [...prev, ...res.rows] : res.rows))
         setTotal(res.total)
         setPage(nextPage)
+        /* Nur bei der ersten Seite zaehlen. Beim Nachladen wuerde dieselbe
+         * Zahl noch einmal geholt, ohne dass sich etwas geaendert hat. */
+        if (!append) {
+          try {
+            setOhneZimmer(await countItems(project.id, { roomId: 'none', kindNot: 'furniture' }))
+          } catch {
+            setOhneZimmer(null)
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       } finally {
@@ -424,6 +437,7 @@ export default function Items() {
             <Field label={t('begriff.zimmer')}>
               <Select value={roomId} onChange={(e) => setParam('room', e.target.value)}>
                 <option value="all">{t('kisten.alle_zimmer')}</option>
+                <option value="none">{t('kisten.ohne_zimmer')}</option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.short} . {r.name}
@@ -434,6 +448,7 @@ export default function Items() {
             <Field label={t('begriff.person')}>
               <Select value={personId} onChange={(e) => setParam('person', e.target.value)}>
                 <option value="all">{t('kisten.alle_personen')}</option>
+                <option value="none">{t('kisten.ohne_person')}</option>
                 {people.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.short} . {p.name}
@@ -454,6 +469,21 @@ export default function Items() {
               </Button>
             ) : null}
           </Card>
+        ) : null}
+
+        {/* Jede Kiste gehoert in ein Zimmer. Was keines hat, steht hier
+            oben und nicht in einer Ecke, in die niemand schaut. */}
+        {ohneZimmer !== null && ohneZimmer > 0 && roomId !== 'none' ? (
+          <button
+            type="button"
+            onClick={() => setParam('room', 'none')}
+            className="mb-3 flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-warn/40 bg-warn/10 px-4 py-3 text-start transition active:scale-[0.99]"
+          >
+            <span className="text-[0.9375rem] font-bold text-warn">
+              {tn('kisten.ohne_zimmer_anzahl', ohneZimmer)}
+            </span>
+            <span className="t-sub shrink-0">{t('kisten.ohne_zimmer_zeigen')}</span>
+          </button>
         ) : null}
 
         {/* Liste */}
@@ -598,12 +628,17 @@ export default function Items() {
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label={t('begriff.zimmer')}>
+            <Field label={t('begriff.zimmer')} hint={t('kisten.zimmer_regel')}>
               <Select
                 value={draft.room_id}
                 onChange={(e) => setDraft((d) => ({ ...d, room_id: e.target.value }))}
               >
-                <option value="">{t('kisten.kein_zimmer')}</option>
+                {/* Ohne Zimmer geht nur, wenn eine Person dransteht. Sonst
+                    haette die Kiste gar keine Zuordnung, und die Datenbank
+                    weist sie ohnehin zurueck. */}
+                <option value="" disabled={!draft.person_id}>
+                  {t('kisten.kein_zimmer')}
+                </option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.short} . {r.name}
@@ -611,12 +646,14 @@ export default function Items() {
                 ))}
               </Select>
             </Field>
-            <Field label={t('begriff.person')}>
+            <Field label={t('begriff.person')} hint={t('begriff.optional')}>
               <Select
                 value={draft.person_id}
                 onChange={(e) => setDraft((d) => ({ ...d, person_id: e.target.value }))}
               >
-                <option value="">{t('kisten.keine_person')}</option>
+                <option value="" disabled={!draft.room_id}>
+                  {t('kisten.keine_person')}
+                </option>
                 {people.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.short} . {p.name}

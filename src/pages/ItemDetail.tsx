@@ -809,12 +809,15 @@ export default function ItemDetail() {
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('begriff.zimmer')}>
+            <Field label={t('begriff.zimmer')} hint={t('kisten.zimmer_regel')}>
               <Select
                 value={item.room_id ?? ''}
                 onChange={(e) => void patch({ room_id: e.target.value || null })}
               >
-                <option value="">{t('kisten.kein_zimmer')}</option>
+                {/* Ohne Zimmer geht nur, wenn eine Person dransteht. */}
+                <option value="" disabled={!item.person_id}>
+                  {t('kisten.kein_zimmer')}
+                </option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.short} . {r.name}
@@ -822,12 +825,14 @@ export default function ItemDetail() {
                 ))}
               </Select>
             </Field>
-            <Field label={t('begriff.person')}>
+            <Field label={t('begriff.person')} hint={t('begriff.optional')}>
               <Select
                 value={item.person_id ?? ''}
                 onChange={(e) => void patch({ person_id: e.target.value || null })}
               >
-                <option value="">{t('kisten.keine_person')}</option>
+                <option value="" disabled={!item.room_id}>
+                  {t('kisten.keine_person')}
+                </option>
                 {people.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.short} . {p.name}

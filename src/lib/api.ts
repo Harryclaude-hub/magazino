@@ -308,8 +308,11 @@ export async function mergeTags(von: string, nach: string): Promise<number> {
 export interface ItemFilter {
   search?: string
   status?: ItemStatus | 'all'
-  roomId?: string | 'all'
-  personId?: string | 'all'
+  /* Eine Kennung, 'all' fuer alle, oder 'none' fuer die ohne Zuordnung.
+   * 'none' macht sichtbar, was sonst stillschweigend fehlt: eine Kiste
+   * ohne Zimmer findet beim Ausladen niemand wieder. */
+  roomId?: string | 'all' | 'none'
+  personId?: string | 'all' | 'none'
   /** Kisten oder Moebel. Moebel sind Eintraege mit kind 'furniture'. */
   kind?: Item['kind'] | 'all'
   /** Moebel aus der Kistenliste heraushalten und umgekehrt. */
@@ -337,8 +340,10 @@ export async function listItems(projectId: string, f: ItemFilter = {}): Promise<
   if (f.status && f.status !== 'all') q = q.eq('status', f.status)
   if (f.kind && f.kind !== 'all') q = q.eq('kind', f.kind)
   if (f.kindNot) q = q.neq('kind', f.kindNot)
-  if (f.roomId && f.roomId !== 'all') q = q.eq('room_id', f.roomId)
-  if (f.personId && f.personId !== 'all') q = q.eq('person_id', f.personId)
+  if (f.roomId === 'none') q = q.is('room_id', null)
+  else if (f.roomId && f.roomId !== 'all') q = q.eq('room_id', f.roomId)
+  if (f.personId === 'none') q = q.is('person_id', null)
+  else if (f.personId && f.personId !== 'all') q = q.eq('person_id', f.personId)
   if (f.search?.trim()) {
     const s = f.search.trim().replace(/[%,()*\\"]/g, '')
     if (s) {

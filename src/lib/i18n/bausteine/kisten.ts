@@ -19,6 +19,23 @@ export const kisten: Woerterbuch = {
   'kisten.filter_zuruecksetzen': { de: 'Filter zurücksetzen', ar: 'إلغاء التصفية' },
   'kisten.alle_zimmer': { de: 'Alle Zimmer', ar: 'كل الغرف' },
   'kisten.alle_personen': { de: 'Alle Personen', ar: 'كل الأشخاص' },
+  // Die Kisten, denen die Zuordnung fehlt. Sie sollen auffindbar sein,
+  // nicht unsichtbar zwischen den anderen stehen.
+  'kisten.ohne_zimmer': { de: 'Ohne Zimmer', ar: 'بدون غرفة' },
+  'kisten.ohne_person': { de: 'Ohne Person', ar: 'بدون شخص' },
+  'kisten.ohne_zimmer_anzahl.eins': {
+    de: '{n} Kiste hat kein Zimmer',
+    ar: 'صندوق واحد بلا غرفة',
+  },
+  'kisten.ohne_zimmer_anzahl.viele': {
+    de: '{n} Kisten haben kein Zimmer',
+    ar: '{n} صناديق بلا غرفة',
+  },
+  'kisten.ohne_zimmer_zeigen': { de: 'Anzeigen', ar: 'عرض' },
+  'kisten.zimmer_regel': {
+    de: 'Jede Kiste gehört in ein Zimmer. Eine Person kommt freiwillig dazu.',
+    ar: 'كل صندوق ينتمي إلى غرفة. وإضافة شخص اختيارية.',
+  },
   'kisten.sortierung': { de: 'Sortierung', ar: 'الترتيب' },
   'kisten.sort_code': { de: 'Nach Nummer', ar: 'حسب الرقم' },
   'kisten.sort_neueste': { de: 'Neueste zuerst', ar: 'الأحدث أولاً' },
