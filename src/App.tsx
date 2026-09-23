@@ -5,7 +5,6 @@ import { ToastProvider, Loading, Wordmark } from './components/ui'
 import { configError } from './lib/supabase'
 import { SpracheProvider } from './lib/i18n'
 
-import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ResetRequest from './pages/ResetRequest'
@@ -68,7 +67,9 @@ export default function App() {
         <AuthProvider>
           <ToastProvider>
           <Routes>
-            <Route path="/" element={<Landing />} />
+            {/* Die Werbeseite (pages/Landing.tsx) ist abgeschaltet: nach aussen soll
+                nichts verraten, was Kistly ist. Wer kommt, landet bei der Anmeldung. */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/registrieren" element={<Register />} />
             <Route path="/passwort-vergessen" element={<ResetRequest />} />
