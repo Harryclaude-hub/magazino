@@ -1,7 +1,6 @@
 {
-  "name": "Kistly - Umzug ohne Chaos",
+  "name": "Kistly",
   "short_name": "Kistly",
-  "description": "Kisten nummerieren, beschriften, scannen und verfolgen. Mit Gruppenchat.",
   "start_url": "app",
   "scope": "./",
   "display": "standalone",
