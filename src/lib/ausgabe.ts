@@ -196,6 +196,7 @@ export const SPALTEN = [
   'zimmer',
   'person',
   'groesse',
+  'liter',
   'status',
   'inhalt',
   'notiz',
@@ -216,6 +217,9 @@ export interface AusgabeOpt {
   symbole: boolean
   rtl: boolean
   qrGroesse: number
+  /** Die Liter einer Kiste als fertiger Text, leer bei Moebeln. Kommt von
+   *  aussen, weil die Zahlen in der Datenbank stehen und nicht hier. */
+  literVon?: (item: Item) => string
   /** Uebersetzung. Kommt von aussen, damit diese Datei nichts ueber
    *  React oder die aktuelle Sprache wissen muss. */
   t: (key: string, vars?: Record<string, string | number>) => string
@@ -254,6 +258,8 @@ function zellenText(item: Item, spalte: Spalte, opt: AusgabeOpt): string {
       return person?.name ?? ''
     case 'groesse':
       return `${item.size}`
+    case 'liter':
+      return opt.literVon?.(item) ?? ''
     case 'status':
       return opt.t(`status.${item.status}`)
     case 'notiz':

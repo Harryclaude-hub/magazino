@@ -32,6 +32,72 @@ export async function compressImage(file: File, max = 1600, quality = 0.82): Pro
   }
 }
 
+/* ----------------------------------------------------------- Ausschnitt */
+
+export interface Rahmen {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+/** So lang wird die laengere Seite eines Ausschnitts. Genug, um das Ding
+ *  in der Suche zu erkennen, klein genug fuer eine lange Trefferliste. */
+const AUSSCHNITT_KANTE = 320
+/** Etwas Rand um den Rahmen, damit das Ding nicht an der Kante klebt. */
+const AUSSCHNITT_RAND = 0.03
+
+/**
+ * Ein Ding aus einem Foto ausschneiden und als kleines JPEG ablegen.
+ *
+ * Das Foto wird ueber den Speicher geholt, nicht ueber eine Adresse: so
+ * gibt es keine Fremd-Herkunft, die das Bild fuer die Leinwand sperrt.
+ * Der Rahmen ist in Anteilen des Bildes, wie in der Datenbank (0023).
+ * Liefert den Pfad des Ausschnitts.
+ */
+export async function ausschnittErstellen(
+  fotoPfad: string,
+  rahmen: Rahmen,
+  zielPfad: string,
+): Promise<string> {
+  const { data, error } = await supabase.storage.from('item-photos').download(fotoPfad)
+  if (error || !data) throw new Error(tg('fehler.ausschnitt', { grund: errText(error) }))
+  const bild = await createImageBitmap(data)
+  try {
+    const w = bild.width
+    const h = bild.height
+    const sx = Math.max(0, (rahmen.x0 - AUSSCHNITT_RAND) * w)
+    const sy = Math.max(0, (rahmen.y0 - AUSSCHNITT_RAND) * h)
+    const ex = Math.min(w, (rahmen.x1 + AUSSCHNITT_RAND) * w)
+    const ey = Math.min(h, (rahmen.y1 + AUSSCHNITT_RAND) * h)
+    const sw = Math.max(1, ex - sx)
+    const sh = Math.max(1, ey - sy)
+    const massstab = Math.min(1, AUSSCHNITT_KANTE / Math.max(sw, sh))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(sw * massstab))
+    canvas.height = Math.max(1, Math.round(sh * massstab))
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error(tg('fehler.ausschnitt', { grund: 'canvas' }))
+    ctx.drawImage(bild, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise<Blob | null>((res) =>
+      canvas.toBlob((b) => res(b), 'image/jpeg', 0.82),
+    )
+    if (!blob) throw new Error(tg('fehler.ausschnitt', { grund: 'toBlob' }))
+    /* Immer eine neue Datei: der Speicher erlaubt Bearbeitern Anlegen und
+     * Loeschen, aber kein Ueberschreiben (0005). Den alten Ausschnitt
+     * raeumt der Aufrufer weg. */
+    const { error: hochFehler } = await supabase.storage.from('item-photos').upload(zielPfad, blob, {
+      contentType: 'image/jpeg',
+      upsert: false,
+      cacheControl: '3600',
+    })
+    if (hochFehler) throw new Error(tg('fehler.ausschnitt', { grund: errText(hochFehler) }))
+    return zielPfad
+  } finally {
+    bild.close?.()
+  }
+}
+
 /* --------------------------------------------------------------- Upload */
 
 export async function uploadTo(

@@ -306,7 +306,11 @@ export default function Furniture() {
           </Field>
 
           <Field label={t('begriff.groesse')}>
-            <SizePicker value={entwurf.size} onChange={(v) => setEntwurf({ ...entwurf, size: v })} />
+            <SizePicker
+            value={entwurf.size}
+            kind="furniture"
+            onChange={(v) => setEntwurf({ ...entwurf, size: v })}
+          />
           </Field>
 
           <p className="t-sub">

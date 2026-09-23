@@ -44,11 +44,23 @@ export function errText(err: unknown): string {
     message?: string
     error_description?: string
     details?: string
+    hint?: string
     code?: string
     error_code?: string
   }
   const raw = e.error_description || e.message || e.details || ''
   const code = e.error_code || e.code || ''
+
+  /* Die Datenbank gibt ihren Ablehnungen eine Kennung mit (seit 0022):
+   * hint = 'kistly:raumplan.zu_hoch'. Der Satz dazu steht im Woerterbuch
+   * unter fehler.db.raumplan.zu_hoch, auf Deutsch und Arabisch. Sonst
+   * stuende der deutsche Satz der Datenbank auch im arabischen Satz. */
+  if (typeof e.hint === 'string' && e.hint.startsWith('kistly:')) {
+    const key = 'fehler.db.' + e.hint.slice(7)
+    const text = tg(key)
+    if (text !== key) return text
+  }
+  if (raw.includes('items_plan_platz2')) return tg('fehler.db.raumplan.platz_belegt')
 
   /* Supabase verschickt beim Registrieren eine Bestaetigungsmail, solange in
    * der Projektverwaltung "Confirm email" aktiv ist. Der eingebaute

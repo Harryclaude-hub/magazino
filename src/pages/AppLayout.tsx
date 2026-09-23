@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { Boxes, MessageCircle, ScanLine, User, Warehouse } from 'lucide-react'
+import { Boxes, MessageCircle, ScanLine, Search, User, Warehouse } from 'lucide-react'
 import { BottomNav, NavTab } from '../components/AppShell'
 import { useT } from '../lib/i18n'
 import { countUnread, listMembers } from '../lib/api'
@@ -144,6 +144,12 @@ export default function AppLayout() {
             label={t('nav.scannen')}
             active={path === '/app/scan' || path.endsWith('/scan')}
             raised
+          />
+          <NavTab
+            to="/app/suche"
+            icon={<Search size={21} />}
+            label={t('nav.suchen')}
+            active={path === '/app/suche'}
           />
           <NavTab
             to={chatTo}

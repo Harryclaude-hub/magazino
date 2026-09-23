@@ -482,7 +482,7 @@ export default function FurnitureDetail() {
                       onClick={() => {
                         const merken = teile
                         setTeile((c) => c.filter((x) => x.id !== teil.id))
-                        void deleteContent(teil.id).catch((err: unknown) => {
+                        void deleteContent(teil.id, teil.ausschnitt_pfad).catch((err: unknown) => {
                           setTeile(merken)
                           toast(err instanceof Error ? err.message : String(err), 'error')
                         })
@@ -759,6 +759,7 @@ export default function FurnitureDetail() {
         projectId={project.id}
         itemId={item.id}
         fotos={fotos}
+        fotoUrls={urls}
         art="moebel"
         vorhandeneInhalte={teile}
         canEdit={canEdit}
@@ -938,7 +939,11 @@ function AngabenDialog({
         </div>
 
         <Field label={t('begriff.groesse')}>
-          <SizePicker value={entwurf.size} onChange={(v) => setEntwurf({ ...entwurf, size: v })} />
+          <SizePicker
+            value={entwurf.size}
+            kind="furniture"
+            onChange={(v) => setEntwurf({ ...entwurf, size: v })}
+          />
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">

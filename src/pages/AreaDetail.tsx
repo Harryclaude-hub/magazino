@@ -188,9 +188,16 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
                 und nicht darin. Personen haben keinen Raumplan. */}
             {kind === 'room' ? (
               <Link to={`/app/p/${project.id}/zimmer/${tag.id}/plan`}>
-                <Button variant="outline" size="sm">
+                {/* Auf dem Handy nur das Zeichen: mit beiden Beschriftungen
+                    lief die Kopfzeile seitlich ueber den Rand. */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={t('raumplan.titel')}
+                  title={t('raumplan.titel')}
+                >
                   <LayoutGrid size={16} />
-                  {t('raumplan.titel')}
+                  <span className="hidden sm:inline">{t('raumplan.titel')}</span>
                 </Button>
               </Link>
             ) : null}
@@ -207,9 +214,14 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
                 <CheckSquare size={17} />
               </IconButton>
               <Link to={`/app/p/${project.id}/bereiche?bearbeiten=${tag.id}`}>
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={t('aktion.bearbeiten')}
+                  title={t('aktion.bearbeiten')}
+                >
                   <Pencil size={16} />
-                  {t('aktion.bearbeiten')}
+                  <span className="hidden sm:inline">{t('aktion.bearbeiten')}</span>
                 </Button>
               </Link>
             </>

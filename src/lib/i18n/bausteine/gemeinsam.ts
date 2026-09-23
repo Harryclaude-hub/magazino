@@ -17,6 +17,8 @@ export const gemeinsam: Woerterbuch = {
   'aktion.loeschen': { de: 'Löschen', ar: 'حذف' },
   'aktion.entfernen': { de: 'Entfernen', ar: 'إزالة' },
   'aktion.schliessen': { de: 'Schließen', ar: 'إغلاق' },
+  'nav.suchen': { de: 'Suchen', ar: 'بحث' },
+  'aktion.ausblenden': { de: 'Ausblenden', ar: 'إخفاء' },
   'aktion.zurueck': { de: 'Zurück', ar: 'رجوع' },
   'aktion.anlegen': { de: 'Anlegen', ar: 'إنشاء' },
   'aktion.bearbeiten': { de: 'Bearbeiten', ar: 'تعديل' },
@@ -98,6 +100,17 @@ export const gemeinsam: Woerterbuch = {
   'groesse.9': { de: 'riesig', ar: 'ضخم' },
   'groesse.10': { de: 'sperrig', ar: 'ضخم وثقيل' },
   'groesse.von_zehn': { de: 'Größe {n} von 10, {wort}', ar: 'الحجم {n} من 10، {wort}' },
+  // Liter statt Wort, fuer alles ausser Moebeln. Die Zahlen kommen aus der
+  // Datenbank (0021), hier steht nur der Satz.
+  'groesse.von_zehn_liter': {
+    de: 'Größe {n} von 10, {liter} Liter',
+    ar: 'الحجم {n} من 10، {liter} لتر',
+  },
+  'groesse.liter_kurz': { de: '{liter} l', ar: '{liter} لتر' },
+  'groesse.mass': {
+    de: 'typisch etwa {l} × {b} × {h} cm',
+    ar: 'عادةً حوالي {l} × {b} × {h} سم',
+  },
 
   // ------------------------------------------- Von ui.tsx direkt gebraucht
   'konto.passwort_anzeigen': { de: 'Passwort anzeigen', ar: 'إظهار كلمة المرور' },

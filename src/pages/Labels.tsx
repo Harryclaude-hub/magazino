@@ -16,7 +16,8 @@ import {
 } from '../components/ui'
 import { useProject } from './ProjectLayout'
 import { listAllItems, listContentsForItems } from '../lib/api'
-import { useSprache, useT } from '../lib/i18n'
+import { useSprache } from '../lib/i18n'
+import { hatLiter, literText, useKistenGroessen } from '../lib/groessen'
 import type { Item, ItemContent, ItemStatus } from '../lib/types'
 import { appUrl, useLocalState } from '../lib/util'
 
@@ -260,7 +261,8 @@ function Label({
   color: string
   projectName: string
 }) {
-  const t = useT()
+  const { t, lang } = useSprache()
+  const groessen = useKistenGroessen()
   const s = tile.s
   const pad = 3 * s
   const bar = cfg.colorBar ? 2.6 * s : 0
@@ -392,7 +394,15 @@ function Label({
             }}
           >
             {cfg.showSizeWord ? (
-              <span>{t('etiketten.groesse_von_zehn', { n: item.size })}</span>
+              <span>
+                {/* Bei Kisten die Liter, bei Moebeln nur die Stufe. */}
+                {hatLiter(item.kind) && groessen?.get(item.size)
+                  ? t('etiketten.groesse_liter', {
+                      n: item.size,
+                      liter: literText(groessen.get(item.size)!.liter, lang),
+                    })
+                  : t('etiketten.groesse_von_zehn', { n: item.size })}
+              </span>
             ) : null}
             {item.fragile ? (
               <span style={{ fontWeight: 900, color: '#E11D48' }}>{t('etiketten.zerbrechlich')}</span>
@@ -497,6 +507,28 @@ export default function Labels() {
   const { t, tn, dir, rtl } = useSprache()
   const [params] = useSearchParams()
   const singleId = params.get('item')
+  /* Mehrere bestimmte Kisten, etwa alle, die gerade neu eingestuft wurden.
+   * Kommt als ?items=a,b,c aus "Groessen pruefen". */
+  const auswahlIds = useMemo(() => {
+    const roh = params.get('items')
+    if (roh) return new Set(roh.split(',').filter(Boolean))
+    /* Aus "Groessen pruefen": die Liste der neu eingestuften Kisten steht
+     * auf diesem Geraet, nicht in der Adresse. */
+    if (params.get('auswahl') === 'groessen') {
+      try {
+        const liste = JSON.parse(
+          localStorage.getItem(`kistly.neuEingestuft.${project.id}`) ?? '[]',
+        ) as unknown
+        if (Array.isArray(liste)) {
+          return new Set(liste.filter((x): x is string => typeof x === 'string'))
+        }
+      } catch {
+        /* Dann gibt es keine Auswahl, und es steht "keine Kisten" da. */
+      }
+      return new Set<string>()
+    }
+    return null
+  }, [params, project.id])
 
   const [stored, setStored] = useLocalState<unknown>('kistly.labels', DEFAULT_CONFIG)
   const cfg = useMemo(() => sanitize(stored), [stored])
@@ -537,6 +569,7 @@ export default function Labels() {
   const selected = useMemo(() => {
     let list = items
     if (singleId) list = list.filter((i) => i.id === singleId)
+    else if (auswahlIds) list = list.filter((i) => auswahlIds.has(i.id))
     else {
       if (roomId !== 'all') list = list.filter((i) => i.room_id === roomId)
       if (personId !== 'all') list = list.filter((i) => i.person_id === personId)
@@ -545,7 +578,7 @@ export default function Labels() {
     const out: Item[] = []
     for (const i of list) for (let c = 0; c < cfg.copies; c++) out.push(i)
     return out
-  }, [items, singleId, roomId, personId, status, cfg.copies])
+  }, [items, singleId, auswahlIds, roomId, personId, status, cfg.copies])
 
   const L = useMemo(() => layoutOf(cfg.paper, cfg.perPage), [cfg.paper, cfg.perPage])
 
@@ -650,6 +683,10 @@ export default function Labels() {
           <SectionTitle>{t('etiketten.welche_kisten')}</SectionTitle>
           {singleId ? (
             <p className="text-base text-muted">{t('etiketten.nur_eine_kiste')}</p>
+          ) : auswahlIds ? (
+            <p className="text-base text-muted">
+              {t('etiketten.nur_auswahl', { n: auswahlIds.size })}
+            </p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label={t('begriff.zimmer')}>

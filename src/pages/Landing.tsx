@@ -12,7 +12,8 @@ import {
 } from 'lucide-react'
 import { Button, CodeChip, QrCode, Wordmark } from '../components/ui'
 import { useAuth } from '../lib/auth'
-import { useT } from '../lib/i18n'
+import { useSprache } from '../lib/i18n'
+import { groesseSatz, useKistenGroessen } from '../lib/groessen'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { SpracheToggle } from '../components/SpracheToggle'
 import { Buehne } from '../design/Buehne'
@@ -56,7 +57,8 @@ const DEMO_INHALT = [
 
 export default function Landing() {
   const { session } = useAuth()
-  const t = useT()
+  const { t, lang } = useSprache()
+  const groessen = useKistenGroessen()
 
   return (
     <div className="relative min-h-screen">
@@ -195,7 +197,7 @@ export default function Landing() {
                 </ul>
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t-2 border-line pt-4 text-base">
                   <span className="font-semibold text-muted">
-                    {t('groesse.von_zehn', { n: 7, wort: t('groesse.7') })}
+                    {groesseSatz(t, lang, 7, 'box', groessen)}
                   </span>
                   <span className="rounded-full bg-danger/12 px-3 py-1 font-black text-danger">
                     {t('status.open')}

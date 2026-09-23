@@ -28,4 +28,25 @@ export const schichten: Woerterbuch = {
   'schichten.bestaetigt': { de: 'Bestätigt', ar: 'مؤكَّد' },
   'schichten.verneint': { de: 'Stimmt nicht', ar: 'غير صحيح' },
   'schichten.antwort_weg': { de: 'Antwort zurückgenommen', ar: 'تم سحب الإجابة' },
+
+  // ------------------------------------------------ Rahmen und Ausschnitt
+  'schichten.markieren': { de: 'Ding markieren', ar: 'تحديد غرض' },
+  'schichten.markieren_titel': { de: 'Ding im Bild markieren', ar: 'تحديد غرض في الصورة' },
+  'schichten.markieren_name': { de: 'Wie heißt das Ding?', ar: 'ما اسم هذا الغرض؟' },
+  'schichten.markiert': { de: 'Ding eingetragen', ar: 'تمت إضافة الغرض' },
+  'schichten.ziehen_hinweis': {
+    de: 'Zieh mit dem Finger einen Rahmen um das Ding.',
+    ar: 'ارسم بإصبعك إطارًا حول الغرض.',
+  },
+  'schichten.rahmen_neu': { de: 'Rahmen neu ziehen', ar: 'رسم الإطار من جديد' },
+  'schichten.rahmen_ziehen': { de: 'Rahmen ziehen', ar: 'رسم إطار' },
+  'schichten.rahmen_gespeichert': { de: 'Rahmen gespeichert', ar: 'تم حفظ الإطار' },
+  'schichten.ausschnitt_fehlt.eins': {
+    de: 'Ein Ausschnitt konnte nicht angelegt werden. Der Eintrag steht trotzdem in der Liste.',
+    ar: 'تعذّر إنشاء قصاصة واحدة. الإدخال موجود في القائمة رغم ذلك.',
+  },
+  'schichten.ausschnitt_fehlt.viele': {
+    de: '{n} Ausschnitte konnten nicht angelegt werden. Die Einträge stehen trotzdem in der Liste.',
+    ar: 'تعذّر إنشاء {n} قصاصات. الإدخالات موجودة في القائمة رغم ذلك.',
+  },
 }

@@ -14,6 +14,7 @@ import AppLayout from './pages/AppLayout'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import ScanHub from './pages/ScanHub'
+import Suche from './pages/Suche'
 import ProjectLayout from './pages/ProjectLayout'
 import ProjectHome from './pages/ProjectHome'
 import Areas from './pages/Areas'
@@ -25,6 +26,7 @@ import Furniture from './pages/Furniture'
 import FurnitureDetail from './pages/FurnitureDetail'
 import Labels from './pages/Labels'
 import Export from './pages/Export'
+import Groessen from './pages/Groessen'
 import ScanPage from './pages/ScanPage'
 import Chat from './pages/Chat'
 import Team from './pages/Team'
@@ -91,6 +93,7 @@ export default function App() {
               <Route index element={<Dashboard />} />
               <Route path="einstellungen" element={<Settings />} />
               <Route path="scan" element={<ScanHub />} />
+              <Route path="suche" element={<Suche />} />
               <Route path="p/:pid" element={<ProjectLayout />}>
                 <Route index element={<ProjectHome />} />
                 <Route path="bereiche" element={<Areas />} />
@@ -105,6 +108,7 @@ export default function App() {
                 <Route path="kisten/:iid" element={<ItemDetail />} />
                 <Route path="etiketten" element={<Labels />} />
                 <Route path="export" element={<Export />} />
+                <Route path="groessen" element={<Groessen />} />
                 <Route path="scan" element={<ScanPage />} />
                 <Route path="chat" element={<Chat />} />
                 <Route path="team" element={<Team />} />

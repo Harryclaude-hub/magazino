@@ -1,13 +1,18 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactElement,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { Boxes, DoorOpen, Grid3x3, Hand, Minus, Plus, Ruler, Trash2 } from 'lucide-react'
+import {
+  Boxes,
+  DoorOpen,
+  Grid3x3,
+  Hand,
+  Library,
+  Minus,
+  PanelTop,
+  Plus,
+  Ruler,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import {
   Button,
@@ -15,154 +20,165 @@ import {
   Chip,
   ConfirmDialog,
   ErrorBox,
-  Field,
-  Input,
   Loading,
-  QrCode,
   SectionTitle,
   useToast,
 } from '../components/ui'
 import { Schnellansicht } from '../components/Schnellansicht'
+import { BrettWahl } from '../components/raumplan/BrettWahl'
+import { PlanFormular, type PlanWerte } from '../components/raumplan/PlanFormular'
+import { Plan2D, QR_AB, type ZellTipp } from '../components/raumplan/Plan2D'
+import { Plan3D } from '../components/raumplan/Plan3D'
+import { PlanSeite, type SeitenTipp } from '../components/raumplan/PlanSeite'
+import { RegalDialog } from '../components/raumplan/RegalDialog'
 import { useProject } from './ProjectLayout'
 import {
+  aendereRegal,
   ladeRaumplan,
+  ladeRegale,
   ladeZimmerKisten,
+  legeRegalAn,
   loescheRaumplan,
+  loescheRegal,
   raeumePlatz,
   setzePlatz,
   speichereRaumplan,
+  type RegalWerte,
 } from '../lib/api'
-import { useSprache } from '../lib/i18n'
-import type { Item, Raumplan, TuerSeite } from '../lib/types'
-import { appUrl, contrastOn } from '../lib/util'
+import { useKistenGroessenStand } from '../lib/groessen'
+import { useSprache, type Lang } from '../lib/i18n'
+import {
+  anWand,
+  baueRaster,
+  findeKiste,
+  kisteHoehe,
+  passtDrauf,
+  randSeite,
+  rasterMasse,
+  stapelAn,
+  stapelDerZelle,
+  stapelKey,
+  zelleKey,
+} from '../lib/raumplan'
+import type { Item, Raumplan, Regal, TuerSeite } from '../lib/types'
+import { cx } from '../lib/util'
 
 /* Der Raumplan eines Zimmers.
  *
- * Das Zimmer ist ein Raster. Eine Zelle ist raster_cm breit und tief,
- * eine Kiste belegt genau eine Zelle, und Kisten stapeln sich
- * uebereinander wie Bauklotze. Das ist absichtlich grob: auf dem Telefon
- * trifft niemand einen Zentimeter, und beim Ausladen zaehlt nicht der
- * Zentimeter, sondern die Ecke.
+ * Das Zimmer ist ein Raster aus Zellen von raster_cm. Auf einer Zelle
+ * steht ein Stapel Kisten, jede so hoch, wie sie wirklich ist (0021,
+ * 0022), oder ein Regal mit Brettern, auf denen sich Kisten stapeln.
+ * Drei Ansichten: von oben, schraeg, und von der Seite mit der Hoehe in
+ * Zentimetern.
  *
- * Was hier geprueft wird, prueft die Datenbank noch einmal (Migration
- * 0017). Die Oberflaeche prueft, damit man den Grund vorher liest; die
- * Datenbank prueft, weil zwei Leute gleichzeitig legen koennen.
+ * Was hier vorab geprueft wird, prueft die Datenbank noch einmal. Die
+ * Oberflaeche prueft, damit man den Grund liest, bevor man tippt; die
+ * Datenbank prueft, weil zwei Leute gleichzeitig legen koennen. Lehnt
+ * sie ab, kommt ihr Satz auf Deutsch oder Arabisch, und der Plan wird
+ * neu geladen, damit man sieht, was wirklich steht.
  */
 
-/** Eine Lage rechnet mit 40 cm Kistenhoehe. Dieselbe Zahl steht in
- *  Migration 0017 in items_plan_pruefen. Aendert sich eine, muss die
- *  andere im selben Arbeitsgang mit. */
-const LAGE_CM = 40
+type Ansicht = '2d' | '3d' | 'seite'
+type Modus = 'setzen' | 'umriss' | 'tuer' | 'regal'
 
-/** Wie gross eine Zelle auf dem Bildschirm ist, in Bildpunkten. */
 const ZELLE_MIN = 44
 const ZELLE_MAX = 200
 const ZELLE_SCHRITT = 28
 
-/** Ab dieser Zellgroesse passt ein QR-Code hinein, den ein Telefon auch
- *  wirklich liest. Darunter steht nur die Nummer: ein QR-Code mit 30
- *  Bildpunkten sieht aus wie einer, laesst sich aber nicht scannen. */
-const QR_AB = 128
-
-/** Seitenlaenge einer Zelle in Zeichenkoordinaten der Ansicht von oben. */
-const S = 100
-
-/** So viel von der Zelle nimmt der QR-Code ein. */
-const QR_SEITE = 58
-
-/* Schraege Ansicht: Breite, Hoehe und Lagenhoehe einer Zelle. */
-const ISO_B = 80
-const ISO_T = 40
-const ISO_H = 48
-
-type Modus = 'setzen' | 'umriss' | 'tuer'
-
-interface Raster {
-  spalten: number
-  reihen: number
-  ebenen: number
-  gesperrt: Set<string>
-  /** Schluessel "x,y", Kisten von unten nach oben. */
-  stapel: Map<string, Item[]>
-}
-
-function schluessel(x: number, y: number): string {
-  return `${x},${y}`
-}
-
-/** Mischt eine Farbe zu Schwarz hin, damit die drei Seiten eines Klotzes
- *  verschieden hell sind. Kommt eine Farbe in einer Form daher, die sich
- *  nicht lesen laesst, bleibt sie, wie sie ist. */
-function dunkler(hex: string, anteil: number): string {
-  const roh = hex.replace('#', '')
-  const voll =
-    roh.length === 3
-      ? roh
-          .split('')
-          .map((z) => z + z)
-          .join('')
-      : roh
-  if (voll.length !== 6) return hex
-  const zahl = Number.parseInt(voll, 16)
-  if (Number.isNaN(zahl)) return hex
-  const r = Math.round(((zahl >> 16) & 255) * (1 - anteil))
-  const g = Math.round(((zahl >> 8) & 255) * (1 - anteil))
-  const b = Math.round((zahl & 255) * (1 - anteil))
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
-}
-
-/** An welcher Wand liegt diese Zelle. null heisst: mitten im Zimmer. */
-function randSeite(x: number, y: number, spalten: number, reihen: number): TuerSeite | null {
-  const abstaende: Array<[TuerSeite, number]> = [
-    ['west', x],
-    ['ost', spalten - 1 - x],
-    ['nord', y],
-    ['sued', reihen - 1 - y],
-  ]
-  abstaende.sort((a, b) => a[1] - b[1])
-  return abstaende[0][1] === 0 ? abstaende[0][0] : null
+function meterText(cm: number, lang: Lang): string {
+  return new Intl.NumberFormat(lang === 'ar' ? 'ar-u-nu-latn' : 'de-DE', {
+    maximumFractionDigits: 2,
+  }).format(cm / 100)
 }
 
 export default function RaumPlan() {
   const { project, tagById, canEdit } = useProject()
   const { tagId = '' } = useParams()
-  const { t, tn } = useSprache()
+  const { t, tn, lang } = useSprache()
   const toast = useToast()
   const [params, setParams] = useSearchParams()
+  const { tabelle: groessen, fehler: groessenFehler } = useKistenGroessenStand()
 
   const zimmer = tagById(tagId)
 
   const [plan, setPlan] = useState<Raumplan | null>(null)
   const [kisten, setKisten] = useState<Item[]>([])
+  const [regale, setRegale] = useState<Regal[]>([])
   const [laedt, setLaedt] = useState(true)
+  /** Einmal fehlerfrei geladen. Erst dann heisst "kein Plan" wirklich,
+   *  dass es keinen gibt, und nicht, dass das Netz weg war. */
+  const [geladen, setGeladen] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
 
-  const [ansicht, setAnsicht] = useState<'2d' | '3d'>('2d')
-  const [modus, setModus] = useState<Modus>('setzen')
+  const [ansicht, setAnsichtRoh] = useState<Ansicht>('2d')
+  const [modus, setModusRoh] = useState<Modus>('setzen')
+
+  /* Umriss, Tuer und Regale gibt es nur von oben. Wer schraeg oder von der
+   * Seite schaut, setzt Kisten. Und wer den Modus verlaesst, legt die
+   * Kiste aus der Hand: sonst laege sie unsichtbar darin, und der naechste
+   * Tipp setzte sie. */
+  function setAnsicht(a: Ansicht) {
+    setAnsichtRoh(a)
+    if (a !== '2d') setModusRoh('setzen')
+  }
+  function setModus(m: Modus) {
+    setModusRoh(m)
+    if (m !== 'setzen') setHand(null)
+  }
   const [zelle, setZelle] = useState(72)
   /** Die Kiste, die als naechstes gesetzt wird. */
   const [hand, setHand] = useState<string | null>(null)
-  /** Die angetippte Kiste im Plan. */
+  /** Die angetippte oder gesuchte Kiste. */
   const [markiert, setMarkiert] = useState<string | null>(null)
+  /** Eine angetippte Zelle ohne Kiste darauf, etwa ein Regal. */
+  const [auswahl, setAuswahl] = useState<ZellTipp | null>(null)
+  /** Welche Reihe die Seitenansicht zeigt. */
+  const [reihe, setReihe] = useState(0)
   const [schnellId, setSchnellId] = useState<string | null>(null)
   const [formular, setFormular] = useState(false)
   const [loeschenOffen, setLoeschenOffen] = useState(false)
+  const [regalDialog, setRegalDialog] = useState<{ regal: Regal | null; x: number; y: number } | null>(
+    null,
+  )
+  const [regalWeg, setRegalWeg] = useState<Regal | null>(null)
+  const [brettWahl, setBrettWahl] = useState<{ x: number; y: number; regal: Regal } | null>(null)
   const [busy, setBusy] = useState(false)
+  /* Solange geschrieben wird, zaehlt kein weiterer Tipp. Ein Ref und kein
+   * Zustand: zwei Tipper kurz hintereinander saehen sonst beide noch den
+   * alten Zustand und setzten dieselbe Kiste zweimal. */
+  const sperre = useRef(false)
 
-  /* Kommt man von einer Kiste her, soll man sofort sehen, welche gemeint
-   * ist. Das ist der Rueckweg zu "zeig mir, wo sie steht". */
+  /* Kommt man von einer Kiste oder aus der Suche, soll man sofort sehen,
+   * welche gemeint ist. */
   const hervor = params.get('kiste')
+  const hervorGezeigt = useRef<string | null>(null)
+
+  /* Ein anderes Zimmer faengt von vorn an. Steht vor dem Laden, damit
+   * nicht kurz der Plan des vorigen Zimmers stehen bleibt. */
+  useEffect(() => {
+    setPlan(null)
+    setKisten([])
+    setRegale([])
+    setGeladen(false)
+    setHand(null)
+    setMarkiert(null)
+    setAuswahl(null)
+    hervorGezeigt.current = null
+  }, [tagId])
 
   const laden = useCallback(async () => {
     setLaedt(true)
     setFehler(null)
     try {
-      const [p, k] = await Promise.all([
+      const [p, k, r] = await Promise.all([
         ladeRaumplan(tagId),
         ladeZimmerKisten(project.id, tagId),
+        ladeRegale(tagId),
       ])
       setPlan(p)
       setKisten(k)
+      setRegale(r)
+      setGeladen(true)
     } catch (err) {
       setFehler(err instanceof Error ? err.message : String(err))
     } finally {
@@ -174,56 +190,126 @@ export default function RaumPlan() {
     void laden()
   }, [laden])
 
-  const raster = useMemo<Raster | null>(() => {
-    if (!plan) return null
-    const spalten = Math.ceil(plan.breite_cm / plan.raster_cm)
-    const reihen = Math.ceil(plan.tiefe_cm / plan.raster_cm)
-    const ebenen = Math.max(1, Math.floor(plan.hoehe_cm / LAGE_CM))
-    const gesperrt = new Set(plan.gesperrt.map(([x, y]) => schluessel(x, y)))
-    const stapel = new Map<string, Item[]>()
-    for (const k of kisten) {
-      if (k.plan_x === null || k.plan_y === null || k.plan_z === null) continue
-      const key = schluessel(k.plan_x, k.plan_y)
-      const liste = stapel.get(key) ?? []
-      liste.push(k)
-      stapel.set(key, liste)
-    }
-    for (const liste of stapel.values()) liste.sort((a, b) => (a.plan_z ?? 0) - (b.plan_z ?? 0))
-    return { spalten, reihen, ebenen, gesperrt, stapel }
-  }, [plan, kisten])
+  const raster = useMemo(
+    () => (plan ? baueRaster(plan, regale, kisten, groessen) : null),
+    [plan, regale, kisten, groessen],
+  )
 
   const ohnePlatz = useMemo(() => kisten.filter((k) => k.plan_x === null), [kisten])
+  const inHand = hand && canEdit ? (ohnePlatz.find((k) => k.id === hand) ?? null) : null
+  const steht = raster ? kisten.some((k) => k.plan_x !== null) || regale.length > 0 : false
 
-  /* Die Kiste, die gerade in der Hand ist, kann inzwischen gesetzt sein.
-   * Dann ist die Hand leer, nicht falsch gefuellt. */
-  const inHand = hand ? (ohnePlatz.find((k) => k.id === hand) ?? null) : null
+  /* Die gesuchte Kiste einmal zeigen: markieren, ihre Reihe in der
+   * Seitenansicht waehlen und die Zelle in den sichtbaren Bereich holen. */
+  useEffect(() => {
+    if (!hervor || !geladen || !raster || hervorGezeigt.current === hervor) return
+    hervorGezeigt.current = hervor
+    setMarkiert(hervor)
+    const kiste = kisten.find((k) => k.id === hervor)
+    if (kiste && kiste.plan_x !== null && kiste.plan_y !== null) {
+      setReihe(kiste.plan_y)
+      const id = `zelle-${kiste.plan_x}-${kiste.plan_y}`
+      requestAnimationFrame(() =>
+        document.getElementById(id)?.scrollIntoView({ block: 'center', inline: 'center' }),
+      )
+    }
+  }, [hervor, geladen, raster, kisten])
 
   function ersetze(neu: Item) {
     setKisten((prev) => prev.map((k) => (k.id === neu.id ? neu : k)))
   }
 
+  function meldung(err: unknown) {
+    toast(err instanceof Error ? err.message : String(err), 'error')
+  }
+
+  /** Ein Schreibvorgang mit Sperre. Scheitert er, wird neu geladen: was
+   *  die Datenbank abgelehnt hat, steht vielleicht schon anders da, weil
+   *  jemand anderes gleichzeitig gelegt hat. */
+  async function mitSperre(fn: () => Promise<void>, neuLadenBeiFehler = true) {
+    if (sperre.current) return
+    sperre.current = true
+    setBusy(true)
+    try {
+      await fn()
+    } catch (err) {
+      meldung(err)
+      if (neuLadenBeiFehler) await laden()
+    } finally {
+      sperre.current = false
+      setBusy(false)
+    }
+  }
+
   /* ------------------------------------------------------- Plan aendern */
 
-  async function planSpeichern(werte: {
-    breite_cm: number
-    tiefe_cm: number
-    hoehe_cm: number
-    raster_cm: number
+  async function planSpeichern(werte: PlanWerte & {
     gesperrt?: [number, number][]
     tuer_x?: number | null
     tuer_y?: number | null
     tuer_seite?: TuerSeite | null
   }) {
-    const spalten = Math.ceil(werte.breite_cm / werte.raster_cm)
-    const reihen = Math.ceil(werte.tiefe_cm / werte.raster_cm)
-    const ebenen = Math.max(1, Math.floor(werte.hoehe_cm / LAGE_CM))
-    /* Wird das Zimmer kleiner, stuenden Kisten ausserhalb. Die Datenbank
-     * merkt das nicht, weil sie den Platz nur beim Schreiben der Kiste
-     * prueft. Also hier, und mit Namen statt mit einer Zahl. */
+    const { spalten, reihen } = rasterMasse(werte)
+    let gesperrt = werte.gesperrt ?? plan?.gesperrt ?? []
+    let tuerX = werte.tuer_x !== undefined ? werte.tuer_x : (plan?.tuer_x ?? null)
+    let tuerY = werte.tuer_y !== undefined ? werte.tuer_y : (plan?.tuer_y ?? null)
+    let tuerSeite = werte.tuer_seite !== undefined ? werte.tuer_seite : (plan?.tuer_seite ?? null)
+
+    /* Neue Zellgroesse: Umriss und Tuer ueber ihre Lage in Zentimetern auf
+     * das neue Raster umrechnen. Eine neue Zelle ist gesperrt, wenn ihre
+     * Mitte in einer alten gesperrten Zelle lag. Ohne das rutschten beide
+     * still an eine andere Stelle. Kisten und Regale kann es hier nicht
+     * geben: dann ist die Zellgroesse gesperrt (0022). */
+    const rasterNeu = plan !== null && werte.raster_cm !== plan.raster_cm
+    if (rasterNeu && plan) {
+      const alt = plan.raster_cm
+      const neu = werte.raster_cm
+      const altGesperrt = new Set(gesperrt.map(([x, y]) => zelleKey(x, y)))
+      const umgerechnet: [number, number][] = []
+      for (let y = 0; y < reihen; y++) {
+        for (let x = 0; x < spalten; x++) {
+          const ax = Math.floor(((x + 0.5) * neu) / alt)
+          const ay = Math.floor(((y + 0.5) * neu) / alt)
+          if (altGesperrt.has(zelleKey(ax, ay))) umgerechnet.push([x, y])
+        }
+      }
+      gesperrt = umgerechnet
+      if (tuerX !== null && tuerY !== null) {
+        tuerX = Math.min(spalten - 1, Math.floor(((tuerX + 0.5) * alt) / neu))
+        tuerY = Math.min(reihen - 1, Math.floor(((tuerY + 0.5) * alt) / neu))
+      }
+    }
+    const kleiner =
+      plan !== null && (werte.breite_cm < plan.breite_cm || werte.tiefe_cm < plan.tiefe_cm)
+
+    /* Wird das Zimmer kleiner, fallen gesperrte Zellen draussen weg, und
+     * eine Tuer, die dann nicht mehr an einer Wand liegt, auch. Beides
+     * wird gesagt, nicht still getan. */
+    const vorher = gesperrt.length
+    gesperrt = gesperrt.filter(([x, y]) => x < spalten && y < reihen)
+    const gesperrtSet = new Set(gesperrt.map(([x, y]) => zelleKey(x, y)))
+    let tuerWeg = false
+    if (tuerX !== null && tuerY !== null && tuerSeite) {
+      const gut =
+        tuerX < spalten &&
+        tuerY < reihen &&
+        !gesperrtSet.has(zelleKey(tuerX, tuerY)) &&
+        anWand(tuerX, tuerY, tuerSeite, spalten, reihen, gesperrtSet)
+      if (!gut) {
+        tuerX = null
+        tuerY = null
+        tuerSeite = null
+        tuerWeg = true
+      }
+    }
+
+    /* Kisten, die danach draussen stuenden, werden mit Nummer genannt.
+     * Die Datenbank lehnt es ebenfalls ab, sagt aber nicht, welche. */
     const draussen = kisten.filter(
       (k) =>
         k.plan_x !== null &&
-        (k.plan_x >= spalten || (k.plan_y ?? 0) >= reihen || (k.plan_z ?? 0) >= ebenen),
+        k.plan_y !== null &&
+        (k.plan_x >= spalten || k.plan_y >= reihen || gesperrtSet.has(zelleKey(k.plan_x, k.plan_y))),
     )
     if (draussen.length > 0) {
       toast(
@@ -238,83 +324,97 @@ export default function RaumPlan() {
       )
       return
     }
-    setBusy(true)
-    try {
-      const neu = await speichereRaumplan({
-        tag_id: tagId,
-        project_id: project.id,
-        breite_cm: werte.breite_cm,
-        tiefe_cm: werte.tiefe_cm,
-        hoehe_cm: werte.hoehe_cm,
-        raster_cm: werte.raster_cm,
-        gesperrt: werte.gesperrt ?? plan?.gesperrt ?? [],
-        tuer_x: werte.tuer_x !== undefined ? werte.tuer_x : (plan?.tuer_x ?? null),
-        tuer_y: werte.tuer_y !== undefined ? werte.tuer_y : (plan?.tuer_y ?? null),
-        tuer_seite: werte.tuer_seite !== undefined ? werte.tuer_seite : (plan?.tuer_seite ?? null),
-      })
+
+    await mitSperre(async () => {
+      const neu = await speichereRaumplan(
+        {
+          tag_id: tagId,
+          project_id: project.id,
+          breite_cm: werte.breite_cm,
+          tiefe_cm: werte.tiefe_cm,
+          hoehe_cm: werte.hoehe_cm,
+          raster_cm: werte.raster_cm,
+          gesperrt,
+          tuer_x: tuerX,
+          tuer_y: tuerY,
+          tuer_seite: tuerSeite,
+        },
+        // Neu anlegen nur, wenn es wirklich noch keinen Plan gibt.
+        plan === null,
+      )
       setPlan(neu)
       setFormular(false)
       toast(t('raumplan.gespeichert'), 'ok')
-    } catch (err) {
-      toast(err instanceof Error ? err.message : String(err), 'error')
-    } finally {
-      setBusy(false)
-    }
+      if (rasterNeu && (neu.gesperrt.length > 0 || neu.tuer_x !== null)) {
+        toast(t('raumplan.raster_umgerechnet'), 'info')
+      } else if (kleiner && gesperrt.length < vorher) {
+        toast(t('raumplan.umriss_angepasst', { n: vorher - gesperrt.length }), 'info')
+      }
+      if (tuerWeg) toast(t('raumplan.tuer_entfernt'), 'info')
+    }, false)
   }
 
   /* ------------------------------------------------------ Zelle antippen */
 
-  async function zelleGetippt(x: number, y: number) {
-    if (!plan || !raster) return
-    const key = schluessel(x, y)
-    const liste = raster.stapel.get(key) ?? []
+  async function setzen(item: Item, x: number, y: number, z: number, regal: { id: string; boden: number } | null) {
+    await mitSperre(async () => {
+      const neu = await setzePlatz(item.id, x, y, z, regal)
+      ersetze(neu)
+      /* Die naechste Kiste kommt in die Hand, sichtbar in der Leiste ueber
+       * dem Plan, mit "Loslassen" daneben. Nie still. */
+      const rest = ohnePlatz.filter((k) => k.id !== neu.id)
+      // Hat jemand waehrend des Speicherns eine andere Kiste genommen oder
+      // losgelassen, bleibt es dabei.
+      setHand((jetzt) => (jetzt === item.id ? (rest[0]?.id ?? null) : jetzt))
+      setMarkiert(neu.id)
+    })
+  }
 
-    if (modus === 'umriss' && canEdit) {
-      const drin = raster.gesperrt.has(key)
-      if (!drin && liste.length > 0) {
-        toast(t('raumplan.zelle_belegt'), 'info')
+  function zelleGetippt({ x, y }: ZellTipp) {
+    if (!plan || !raster) return
+    if (sperre.current) {
+      toast(t('raumplan.moment'), 'info')
+      return
+    }
+    const key = zelleKey(x, y)
+    const aus = raster.gesperrt.has(key)
+    const regal = raster.regalAuf.get(key) ?? null
+    const boden = raster.stapel.get(stapelKey(x, y, null)) ?? null
+
+    if (modus === 'umriss' && canEdit && ansicht === '2d') {
+      if (!aus && (boden || regal)) {
+        toast(t(regal ? 'fehler.db.raumplan.regal_draussen' : 'raumplan.zelle_belegt'), 'info')
         return
       }
-      if (
-        !drin &&
-        plan.tuer_x === x &&
-        plan.tuer_y === y
-      ) {
-        await planSpeichern({
-          breite_cm: plan.breite_cm,
-          tiefe_cm: plan.tiefe_cm,
-          hoehe_cm: plan.hoehe_cm,
-          raster_cm: plan.raster_cm,
-          gesperrt: [...plan.gesperrt, [x, y]],
-          tuer_x: null,
-          tuer_y: null,
-          tuer_seite: null,
-        })
-        return
-      }
-      await planSpeichern({
+      const tuerHier = plan.tuer_x === x && plan.tuer_y === y
+      void planSpeichern({
         breite_cm: plan.breite_cm,
         tiefe_cm: plan.tiefe_cm,
         hoehe_cm: plan.hoehe_cm,
         raster_cm: plan.raster_cm,
-        gesperrt: drin
+        gesperrt: aus
           ? plan.gesperrt.filter(([a, b]) => !(a === x && b === y))
           : [...plan.gesperrt, [x, y]],
+        ...(tuerHier && !aus ? { tuer_x: null, tuer_y: null, tuer_seite: null } : {}),
       })
       return
     }
 
-    if (modus === 'tuer' && canEdit) {
-      if (raster.gesperrt.has(key)) {
+    if (modus === 'tuer' && canEdit && ansicht === '2d') {
+      if (aus) {
         toast(t('raumplan.zelle_gesperrt'), 'info')
         return
       }
-      const seite = randSeite(x, y, raster.spalten, raster.reihen)
+      if (regal) {
+        toast(t('fehler.db.raumplan.regal_tuer'), 'info')
+        return
+      }
+      const seite = randSeite(x, y, raster.spalten, raster.reihen, raster.gesperrt)
       if (!seite) {
         toast(t('raumplan.nur_rand'), 'info')
         return
       }
-      await planSpeichern({
+      void planSpeichern({
         breite_cm: plan.breite_cm,
         tiefe_cm: plan.tiefe_cm,
         hoehe_cm: plan.hoehe_cm,
@@ -326,79 +426,136 @@ export default function RaumPlan() {
       return
     }
 
-    // Kisten setzen
-    if (inHand && canEdit) {
-      if (raster.gesperrt.has(key)) {
+    if (modus === 'regal' && canEdit && ansicht === '2d') {
+      if (regal) {
+        setRegalDialog({ regal, x: regal.x, y: regal.y })
+        return
+      }
+      if (aus) {
         toast(t('raumplan.zelle_gesperrt'), 'info')
         return
       }
-      if (liste.length >= raster.ebenen) {
-        toast(t('raumplan.zu_hoch'), 'info')
+      if (boden) {
+        toast(t('fehler.db.raumplan.regal_auf_kisten'), 'info')
         return
       }
-      try {
-        const neu = await setzePlatz(inHand.id, x, y, liste.length)
-        ersetze(neu)
-        // Gleich die naechste in die Hand, sonst tippt man sich tot.
-        const rest = ohnePlatz.filter((k) => k.id !== neu.id)
-        setHand(rest[0]?.id ?? null)
-      } catch (err) {
-        toast(err instanceof Error ? err.message : String(err), 'error')
+      if (plan.tuer_x === x && plan.tuer_y === y) {
+        toast(t('fehler.db.raumplan.regal_tuer'), 'info')
+        return
       }
+      setRegalDialog({ regal: null, x, y })
       return
     }
 
-    const oben = liste[liste.length - 1]
-    setMarkiert(oben ? oben.id : null)
+    // Kisten setzen, nur im Modus "Kisten setzen".
+    if (inHand && canEdit && modus === 'setzen') {
+      if (aus) {
+        toast(t('raumplan.zelle_gesperrt'), 'info')
+        return
+      }
+      if (regal) {
+        setBrettWahl({ x, y, regal })
+        return
+      }
+      const s = stapelAn(raster, plan, x, y, null, null)
+      const h = kisteHoehe(inHand, groessen)
+      if (!passtDrauf(s, h)) {
+        toast(t('raumplan.passt_nicht', { h, frei: Math.max(0, s.grenze - s.oben) }), 'info')
+        return
+      }
+      void setzen(inHand, x, y, s.kisten.length, null)
+      return
+    }
+
+    // Ohne Kiste in der Hand: anschauen.
+    if (regal) {
+      setAuswahl({ x, y })
+      setMarkiert(null)
+      setReihe(y)
+      return
+    }
+    /* Ist die markierte Kiste in dieser Zelle, bleibt sie markiert: wer
+     * unten im Stapel eine Kiste gewaehlt hat und doppelt tippt, will
+     * diese oeffnen, nicht die oberste. */
+    if (boden?.kisten.some((k) => k.item.id === markiert)) {
+      setAuswahl(null)
+      setReihe(y)
+      return
+    }
+    const oben = boden?.kisten[boden.kisten.length - 1]?.item ?? null
+    setAuswahl(null)
+    setMarkiert(oben?.id ?? null)
+    if (oben) setReihe(y)
   }
 
-  function zelleDoppelt(x: number, y: number) {
+  function zelleDoppelt({ x, y }: ZellTipp) {
     if (!raster) return
-    const liste = raster.stapel.get(schluessel(x, y)) ?? []
-    const oben = liste[liste.length - 1]
-    if (oben) setSchnellId(oben.id)
+    const alle = stapelDerZelle(raster, x, y).flatMap((s) => s.kisten)
+    // Die markierte Kiste, wenn sie hier steht, sonst die oberste.
+    const ziel = alle.find((k) => k.item.id === markiert) ?? alle[alle.length - 1]
+    if (ziel) setSchnellId(ziel.item.id)
+  }
+
+  function seiteGetippt(z: SeitenTipp) {
+    if (z.item) {
+      setMarkiert(z.item.id)
+      setAuswahl(null)
+      return
+    }
+    zelleGetippt({ x: z.x, y: z.y })
   }
 
   async function vomPlatz(item: Item) {
-    setBusy(true)
-    try {
-      await raeumePlatz(item)
-      setMarkiert(null)
-      await laden()
-      toast(t('raumplan.vom_platz_ok'), 'ok')
-    } catch (err) {
-      toast(err instanceof Error ? err.message : String(err), 'error')
-    } finally {
-      setBusy(false)
-    }
+    await mitSperre(async () => {
+      try {
+        await raeumePlatz(item)
+        toast(t('raumplan.vom_platz_ok'), 'ok')
+      } finally {
+        // Auch nach einem Fehler neu laden, sonst bliebe der Plan veraltet.
+        await laden()
+      }
+    }, false)
   }
 
-  /** Den Rest der Reihe nach auf die freien Plaetze stellen. Von unten
-   *  nach oben, Zelle fuer Zelle. Was nicht mehr hineinpasst, bleibt
-   *  liegen und wird gemeldet, statt still zu verschwinden. */
+  /** Den Rest auf freie Plaetze am Boden stellen, Lage fuer Lage: erst
+   *  jede freie Zelle einmal, dann obendrauf. Nicht auf die Tuer, nicht
+   *  in Regale. Was nicht passt, bleibt liegen und wird gemeldet. */
   async function alleSetzen() {
-    if (!raster || ohnePlatz.length === 0) return
-    setBusy(true)
-    let gesetzt = 0
-    const hoehen = new Map<string, number>()
-    for (const [key, liste] of raster.stapel) hoehen.set(key, liste.length)
-    try {
-      const warteschlange = [...ohnePlatz]
-      for (let z = 0; z < raster.ebenen && warteschlange.length > 0; z++) {
-        for (let y = 0; y < raster.reihen && warteschlange.length > 0; y++) {
-          for (let x = 0; x < raster.spalten && warteschlange.length > 0; x++) {
-            const key = schluessel(x, y)
-            if (raster.gesperrt.has(key)) continue
-            if ((hoehen.get(key) ?? 0) !== z) continue
-            const kiste = warteschlange.shift()
-            if (!kiste) break
-            const neu = await setzePlatz(kiste.id, x, y, z)
-            ersetze(neu)
-            hoehen.set(key, z + 1)
-            gesetzt++
-          }
+    if (!plan || !raster || ohnePlatz.length === 0) return
+    await mitSperre(async () => {
+      const oben = new Map<string, { cm: number; n: number }>()
+      const zellen: Array<[number, number]> = []
+      for (let y = 0; y < raster.reihen; y++) {
+        for (let x = 0; x < raster.spalten; x++) {
+          const key = zelleKey(x, y)
+          if (raster.gesperrt.has(key) || raster.regalAuf.has(key)) continue
+          if (plan.tuer_x === x && plan.tuer_y === y) continue
+          const s = raster.stapel.get(stapelKey(x, y, null))
+          oben.set(key, { cm: s?.oben ?? 0, n: s?.kisten.length ?? 0 })
+          zellen.push([x, y])
         }
       }
+      let gesetzt = 0
+      for (const kiste of ohnePlatz) {
+        const h = kisteHoehe(kiste, groessen)
+        // Die niedrigste Zelle, auf die sie noch passt.
+        let ziel: [number, number] | null = null
+        let tiefste = Infinity
+        for (const [x, y] of zellen) {
+          const o = oben.get(zelleKey(x, y))!
+          if (o.cm + h <= plan.hoehe_cm && o.cm < tiefste) {
+            tiefste = o.cm
+            ziel = [x, y]
+          }
+        }
+        if (!ziel) continue
+        const o = oben.get(zelleKey(ziel[0], ziel[1]))!
+        const neu = await setzePlatz(kiste.id, ziel[0], ziel[1], o.n, null)
+        ersetze(neu)
+        oben.set(zelleKey(ziel[0], ziel[1]), { cm: o.cm + h, n: o.n + 1 })
+        gesetzt++
+      }
+      setHand(null)
       const rest = ohnePlatz.length - gesetzt
       toast(
         rest > 0
@@ -406,11 +563,23 @@ export default function RaumPlan() {
           : t('raumplan.alle_gesetzt', { n: gesetzt }),
         rest > 0 ? 'info' : 'ok',
       )
-    } catch (err) {
-      toast(err instanceof Error ? err.message : String(err), 'error')
-    } finally {
-      setBusy(false)
-    }
+    })
+  }
+
+  async function regalSpeichern(werte: RegalWerte) {
+    if (!regalDialog) return
+    const alt = regalDialog.regal
+    await mitSperre(async () => {
+      if (alt) {
+        const belegt = kisten.some((k) => k.regal_id === alt.id)
+        await aendereRegal(alt.id, belegt ? { name: werte.name } : werte)
+      } else {
+        await legeRegalAn(tagId, project.id, werte)
+      }
+      toast(t('raumplan.regal_gespeichert'), 'ok')
+      setRegalDialog(null)
+      await laden()
+    }, false)
   }
 
   /* ---------------------------------------------------------- Anzeige */
@@ -427,6 +596,9 @@ export default function RaumPlan() {
   }
 
   const markierteKiste = markiert ? (kisten.find((k) => k.id === markiert) ?? null) : null
+  const fund = markiert && raster ? findeKiste(raster, markiert) : null
+  const auswahlRegal = auswahl && raster ? (raster.regalAuf.get(zelleKey(auswahl.x, auswahl.y)) ?? null) : null
+  const nurVonOben = ansicht !== '2d'
 
   return (
     <>
@@ -437,25 +609,44 @@ export default function RaumPlan() {
       />
       <Page>
         {fehler ? <ErrorBox error={fehler} onRetry={() => void laden()} /> : null}
-        {laedt ? <Loading /> : null}
-
-        {!laedt && !plan ? (
-          <PlanFormular
-            werte={null}
-            busy={busy}
-            canEdit={canEdit}
-            onSpeichern={planSpeichern}
-            onAbbrechen={null}
-          />
+        {/* Nur beim ersten Laden. Beim Nachladen bleibt der Plan stehen,
+            statt kurz zu verschwinden und wieder aufzutauchen. */}
+        {laedt && !geladen ? <Loading /> : null}
+        {/* Ohne Groessentabelle rechnet der Plan mit 40 cm je Kiste. Das
+            steht da, statt still falsche Hoehen zu zeigen. */}
+        {groessenFehler ? (
+          <p className="mb-3 rounded-xl border-2 border-warn/40 bg-warn/10 px-3 py-2 text-sm font-bold text-warn">
+            {t('raumplan.hoehen_geschaetzt')}
+          </p>
         ) : null}
 
-        {!laedt && plan && raster ? (
+        {/* Kein Plan: anlegen, oder fuer Betrachter ein klarer Leersatz.
+            Nach einem Ladefehler steht nur die Fehlermeldung da, sonst
+            legte man einen Plan an, den es schon gibt. */}
+        {geladen && !laedt && !fehler && !plan ? (
+          canEdit ? (
+            <PlanFormular
+              werte={null}
+              busy={busy}
+              rasterFest={false}
+              onSpeichern={planSpeichern}
+              onAbbrechen={null}
+            />
+          ) : (
+            <Card className="mb-3 p-5">
+              <p className="t-name">{t('raumplan.nur_lesen_leer')}</p>
+              <p className="t-sub mt-1.5">{t('raumplan.nur_lesen')}</p>
+            </Card>
+          )
+        ) : null}
+
+        {plan && raster ? (
           <>
-            {formular ? (
+            {formular && canEdit ? (
               <PlanFormular
                 werte={plan}
                 busy={busy}
-                canEdit={canEdit}
+                rasterFest={steht}
                 onSpeichern={planSpeichern}
                 onAbbrechen={() => setFormular(false)}
               />
@@ -463,13 +654,12 @@ export default function RaumPlan() {
               <Card className="mb-3 p-4">
                 <p className="t-sub">
                   {t('raumplan.masse_zeile', {
-                    breite: (plan.breite_cm / 100).toFixed(2).replace(/0$/, ''),
-                    tiefe: (plan.tiefe_cm / 100).toFixed(2).replace(/0$/, ''),
-                    hoehe: (plan.hoehe_cm / 100).toFixed(2).replace(/0$/, ''),
+                    breite: meterText(plan.breite_cm, lang),
+                    tiefe: meterText(plan.tiefe_cm, lang),
+                    hoehe: meterText(plan.hoehe_cm, lang),
                     raster: plan.raster_cm,
                     spalten: raster.spalten,
                     reihen: raster.reihen,
-                    ebenen: raster.ebenen,
                   })}
                 </p>
                 {canEdit ? (
@@ -495,6 +685,9 @@ export default function RaumPlan() {
               <Chip active={ansicht === '3d'} onClick={() => setAnsicht('3d')}>
                 <Boxes size={16} /> {t('raumplan.ansicht_3d')}
               </Chip>
+              <Chip active={ansicht === 'seite'} onClick={() => setAnsicht('seite')}>
+                <PanelTop size={16} /> {t('raumplan.ansicht_seite')}
+              </Chip>
               <span className="mx-1 h-6 w-px shrink-0 bg-line" />
               <Chip onClick={() => setZelle((z) => Math.max(ZELLE_MIN, z - ZELLE_SCHRITT))}>
                 <Minus size={16} /> {t('raumplan.kleiner')}
@@ -504,99 +697,277 @@ export default function RaumPlan() {
               </Chip>
             </div>
 
-            {/* Was ein Tippen gerade tut */}
+            {/* Was ein Tippen gerade tut. Umriss, Tuer und Regale nur von
+                oben: schraeg und von der Seite traefe man die Zellen nicht
+                sicher. */}
             {canEdit ? (
               <div className="-mx-3 mb-2 flex flex-nowrap gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0">
                 <Chip active={modus === 'setzen'} onClick={() => setModus('setzen')}>
                   <Hand size={16} /> {t('raumplan.modus_setzen')}
                 </Chip>
-                <Chip active={modus === 'umriss'} onClick={() => setModus('umriss')}>
-                  <Grid3x3 size={16} /> {t('raumplan.modus_umriss')}
-                </Chip>
-                <Chip active={modus === 'tuer'} onClick={() => setModus('tuer')}>
-                  <DoorOpen size={16} /> {t('raumplan.modus_tuer')}
-                </Chip>
+                {!nurVonOben ? (
+                  <>
+                    <Chip active={modus === 'umriss'} onClick={() => setModus('umriss')}>
+                      <Grid3x3 size={16} /> {t('raumplan.modus_umriss')}
+                    </Chip>
+                    <Chip active={modus === 'tuer'} onClick={() => setModus('tuer')}>
+                      <DoorOpen size={16} /> {t('raumplan.modus_tuer')}
+                    </Chip>
+                    <Chip active={modus === 'regal'} onClick={() => setModus('regal')}>
+                      <Library size={16} /> {t('raumplan.modus_regal')}
+                    </Chip>
+                  </>
+                ) : null}
               </div>
             ) : null}
             {canEdit ? (
               <p className="t-sub mb-3">
-                {modus === 'setzen'
-                  ? t('raumplan.setzen_hinweis')
-                  : modus === 'umriss'
-                    ? t('raumplan.umriss_hinweis')
-                    : t('raumplan.tuer_hinweis')}
+                {nurVonOben && modus !== 'setzen'
+                  ? t('raumplan.nur_von_oben')
+                  : modus === 'setzen'
+                    ? t('raumplan.setzen_hinweis')
+                    : modus === 'umriss'
+                      ? t('raumplan.umriss_hinweis')
+                      : modus === 'tuer'
+                        ? t('raumplan.tuer_hinweis')
+                        : t('raumplan.regal_hinweis')}
               </p>
+            ) : null}
+
+            {/* Die Kiste in der Hand, sichtbar, mit dem Weg zurueck. */}
+            {inHand && modus === 'setzen' ? (
+              <div className="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-3 rounded-2xl border-2 border-ink bg-paper px-4 py-3 shadow-sm">
+                <Hand size={18} />
+                <span className="t-name min-w-0 flex-1">
+                  {t('raumplan.hand', { code: inHand.code })}
+                  <span className="t-sub ms-2">
+                    {t('raumplan.stapel_hoehe', { h: kisteHoehe(inHand, groessen) })}
+                  </span>
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => setHand(null)}>
+                  <X size={16} /> {t('raumplan.hand_weg')}
+                </Button>
+                <p className="t-sub w-full">{t('raumplan.hand_hinweis')}</p>
+              </div>
+            ) : null}
+
+            {/* Die Reihe fuer die Seitenansicht. */}
+            {ansicht === 'seite' ? (
+              <div className="-mx-3 mb-2 flex flex-nowrap gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0">
+                {Array.from({ length: raster.reihen }, (_, y) => (
+                  <Chip key={y} active={reihe === y} onClick={() => setReihe(y)}>
+                    <span className="t-serial">{t('raumplan.seite_reihe', { n: y + 1 })}</span>
+                  </Chip>
+                ))}
+              </div>
             ) : null}
 
             {/* Der Plan selbst. Er wird nie gespiegelt: eine Karte zeigt,
                 wo etwas steht, auch im arabischen Satz. */}
-            <div
-              dir="ltr"
-              className="mb-3 overflow-auto rounded-2xl border-2 border-line bg-paper p-3"
-            >
+            <div dir="ltr" className="mb-3 overflow-auto rounded-2xl border-2 border-line bg-paper p-3">
               {ansicht === '2d' ? (
                 <Plan2D
                   plan={plan}
                   raster={raster}
                   zelle={zelle}
                   farbe={zimmer.color}
-                  hervor={hervor}
-                  markiert={markiert}
+                  hervor={markiert}
+                  auswahlZelle={auswahl}
                   tuerLabel={t('raumplan.tuer_hier')}
-                  onZelle={(x, y) => void zelleGetippt(x, y)}
+                  hoeheText={(h) => t('raumplan.stapel_hoehe', { h })}
+                  abwarten={inHand !== null && modus === 'setzen'}
+                  onTipp={zelleGetippt}
                   onDoppel={zelleDoppelt}
-                  doppelAn={!inHand}
                 />
-              ) : (
+              ) : ansicht === '3d' ? (
                 <Plan3D
                   plan={plan}
                   raster={raster}
                   zelle={zelle}
                   farbe={zimmer.color}
-                  hervor={hervor}
-                  markiert={markiert}
+                  hervor={markiert}
                   tuerLabel={t('raumplan.tuer_hier')}
-                  onZelle={(x, y) => void zelleGetippt(x, y)}
+                  abwarten={inHand !== null && modus === 'setzen'}
+                  onTipp={zelleGetippt}
                   onDoppel={zelleDoppelt}
-                  doppelAn={!inHand}
+                />
+              ) : (
+                <PlanSeite
+                  plan={plan}
+                  raster={raster}
+                  reihe={Math.min(reihe, raster.reihen - 1)}
+                  zelle={zelle}
+                  farbe={zimmer.color}
+                  hervor={markiert}
+                  tuerLabel={t('raumplan.tuer_hier')}
+                  deckeLabel={t('raumplan.decke', { h: plan.hoehe_cm })}
+                  abwarten={inHand !== null && modus === 'setzen'}
+                  onTipp={seiteGetippt}
+                  onDoppel={(z) => (z.item ? setSchnellId(z.item.id) : zelleDoppelt(z))}
                 />
               )}
             </div>
-            {ansicht === '2d' && zelle < QR_AB ? (
-              <p className="t-sub mb-3">{t('raumplan.qr_ab')}</p>
-            ) : null}
+            {ansicht === '2d' && zelle < QR_AB ? <p className="t-sub mb-3">{t('raumplan.qr_ab')}</p> : null}
+            {ansicht === 'seite' ? <p className="t-sub mb-3">{t('raumplan.seite_hinweis')}</p> : null}
 
-            {/* Die angetippte Kiste */}
+            {/* Die angetippte oder gesuchte Kiste: wo sie steht und in
+                welcher Hoehe. */}
             {markierteKiste ? (
-              <Card className="mb-3 flex flex-wrap items-center gap-3 p-4">
-                <span className="t-serial text-xl">{markierteKiste.code}</span>
-                {markierteKiste.plan_x !== null ? (
-                  <span className="t-sub">
-                    {t('raumplan.platz_von', {
-                      x: markierteKiste.plan_x + 1,
-                      y: (markierteKiste.plan_y ?? 0) + 1,
-                      z: (markierteKiste.plan_z ?? 0) + 1,
-                    })}
+              <Card className="mb-3 space-y-3 p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="t-serial text-xl" dir="ltr">
+                    {markierteKiste.code}
                   </span>
+                  <span className="t-sub flex-1">
+                    {fund
+                      ? fund.stapel.regal
+                        ? t('raumplan.platz_regal', {
+                            regal: fund.stapel.regal.name || t('raumplan.regal_ohne_name'),
+                            brett: fund.stapel.brett ?? 1,
+                            z: fund.kiste.lage,
+                            n: fund.stapel.kisten.length,
+                          })
+                        : t('raumplan.platz_boden', {
+                            x: fund.stapel.x + 1,
+                            y: fund.stapel.y + 1,
+                            z: fund.kiste.lage,
+                            n: fund.stapel.kisten.length,
+                          })
+                      : t('raumplan.kiste_ohne_platz')}
+                  </span>
+                </div>
+                {fund ? (
+                  <p className="t-name">
+                    {t('raumplan.hoehe_bereich', {
+                      von: Math.round(fund.kiste.unten),
+                      bis: Math.round(fund.kiste.oben),
+                    })}
+                  </p>
                 ) : null}
-                <span className="flex-1" />
-                <Button variant="soft" size="sm" onClick={() => setSchnellId(markierteKiste.id)}>
-                  {t('raumplan.oeffnen')}
-                </Button>
-                {canEdit && markierteKiste.plan_x !== null ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    loading={busy}
-                    onClick={() => void vomPlatz(markierteKiste)}
-                  >
-                    {t('raumplan.vom_platz')}
+                {fund && fund.stapel.kisten.length > 1 ? (
+                  <div>
+                    <p className="t-sub mb-1.5">{t('raumplan.stapel_titel')}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[...fund.stapel.kisten].reverse().map((k) => (
+                        <Chip
+                          key={k.item.id}
+                          active={k.item.id === markiert}
+                          color={k.item.mark_color ?? zimmer.color}
+                          onClick={() => setMarkiert(k.item.id)}
+                        >
+                          <span className="t-serial">{k.item.code}</span>
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="soft" size="sm" onClick={() => setSchnellId(markierteKiste.id)}>
+                    {t('raumplan.oeffnen')}
                   </Button>
-                ) : null}
+                  {fund && ansicht !== 'seite' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setReihe(fund.stapel.y)
+                        setAnsicht('seite')
+                      }}
+                    >
+                      <PanelTop size={16} /> {t('raumplan.seitenansicht')}
+                    </Button>
+                  ) : null}
+                  {canEdit && fund ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      loading={busy}
+                      onClick={() => void vomPlatz(markierteKiste)}
+                    >
+                      {t('raumplan.vom_platz')}
+                    </Button>
+                  ) : null}
+                </div>
               </Card>
             ) : null}
 
-            {/* Kisten, die noch keinen Platz haben */}
+            {/* Ein angetipptes Regal: was auf welchem Brett dieser Zelle
+                steht. */}
+            {auswahlRegal && auswahl ? (
+              <Card className="mb-3 space-y-3 p-4">
+                <div>
+                  <p className="t-name">{auswahlRegal.name || t('raumplan.regal_ohne_name')}</p>
+                  <p className="t-sub">
+                    {t('raumplan.regal_zeile', {
+                      breite: auswahlRegal.breite,
+                      tiefe: auswahlRegal.tiefe,
+                      hoehe: auswahlRegal.hoehe_cm,
+                      n: auswahlRegal.boeden_cm.length,
+                    })}
+                  </p>
+                </div>
+                <ul className="divide-y divide-line">
+                  {auswahlRegal.boeden_cm
+                    .map((h, i) => ({ h, n: i + 1 }))
+                    .reverse()
+                    .map(({ h, n }) => {
+                      const s = stapelAn(raster, plan, auswahl.x, auswahl.y, auswahlRegal, n)
+                      return (
+                        <li key={n} className="flex flex-wrap items-center gap-2 py-2">
+                          <span className="t-name">{t('raumplan.brett_n', { n })}</span>
+                          <span className="t-sub">{t('raumplan.brett_hoehe', { h })}</span>
+                          <span className="flex w-full flex-wrap gap-2">
+                            {s.kisten.length === 0 ? (
+                              <span className="t-sub">{t('raumplan.brett_leer')}</span>
+                            ) : (
+                              s.kisten.map((k) => (
+                                <Chip
+                                  key={k.item.id}
+                                  color={k.item.mark_color ?? zimmer.color}
+                                  onClick={() => {
+                                    setMarkiert(k.item.id)
+                                    setAuswahl(null)
+                                  }}
+                                >
+                                  <span className="t-serial">{k.item.code}</span>
+                                </Chip>
+                              ))
+                            )}
+                          </span>
+                        </li>
+                      )
+                    })}
+                </ul>
+                <div className="flex flex-wrap gap-2">
+                  {canEdit ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setRegalDialog({ regal: auswahlRegal, x: auswahlRegal.x, y: auswahlRegal.y })
+                      }
+                    >
+                      {t('raumplan.regal_bearbeiten')}
+                    </Button>
+                  ) : null}
+                  {ansicht !== 'seite' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setReihe(auswahl.y)
+                        setAnsicht('seite')
+                      }}
+                    >
+                      <PanelTop size={16} /> {t('raumplan.seitenansicht')}
+                    </Button>
+                  ) : null}
+                </div>
+              </Card>
+            ) : null}
+
+            {/* Kisten, die noch keinen Platz haben. Betrachter koennen
+                nichts in die Hand nehmen, sie sehen nur die Nummern. */}
             <SectionTitle>
               {ohnePlatz.length > 0
                 ? tn('raumplan.ohne_platz', ohnePlatz.length)
@@ -607,16 +978,31 @@ export default function RaumPlan() {
             {ohnePlatz.length > 0 ? (
               <Card className="mb-6 p-4">
                 <div className="flex flex-wrap gap-2">
-                  {ohnePlatz.map((k) => (
-                    <Chip
-                      key={k.id}
-                      active={hand === k.id}
-                      color={k.mark_color ?? zimmer.color}
-                      onClick={() => setHand(hand === k.id ? null : k.id)}
-                    >
-                      <span className="t-serial">{k.code}</span>
-                    </Chip>
-                  ))}
+                  {ohnePlatz.map((k) =>
+                    canEdit ? (
+                      <Chip
+                        key={k.id}
+                        active={hand === k.id || markiert === k.id}
+                        color={k.mark_color ?? zimmer.color}
+                        onClick={() => {
+                          setModus('setzen')
+                          setHand(hand === k.id ? null : k.id)
+                        }}
+                      >
+                        <span className="t-serial">{k.code}</span>
+                      </Chip>
+                    ) : (
+                      <span
+                        key={k.id}
+                        className={cx(
+                          't-serial inline-flex h-10 items-center rounded-full border-2 px-4',
+                          markiert === k.id ? 'border-ink bg-ink text-paper' : 'border-line',
+                        )}
+                      >
+                        {k.code}
+                      </span>
+                    ),
+                  )}
                 </div>
                 {canEdit ? (
                   <Button
@@ -645,6 +1031,75 @@ export default function RaumPlan() {
         onGeaendert={(neu) => ersetze(neu)}
       />
 
+      <BrettWahl
+        offen={brettWahl !== null && inHand !== null}
+        regal={brettWahl?.regal ?? null}
+        code={inHand?.code ?? ''}
+        hoehe={inHand ? kisteHoehe(inHand, groessen) : 0}
+        stapelAuf={(n) =>
+          raster && plan && brettWahl
+            ? stapelAn(raster, plan, brettWahl.x, brettWahl.y, brettWahl.regal, n)
+            : {
+                key: '',
+                x: 0,
+                y: 0,
+                regal: null,
+                brett: n,
+                grund: 0,
+                grenze: 0,
+                kisten: [],
+                oben: 0,
+              }
+        }
+        onWahl={(n) => {
+          const w = brettWahl
+          setBrettWahl(null)
+          if (!w || !inHand || !raster || !plan) return
+          const s = stapelAn(raster, plan, w.x, w.y, w.regal, n)
+          void setzen(inHand, w.x, w.y, s.kisten.length, { id: w.regal.id, boden: n })
+        }}
+        onClose={() => setBrettWahl(null)}
+      />
+
+      <RegalDialog
+        offen={regalDialog !== null}
+        regal={regalDialog?.regal ?? null}
+        x={regalDialog?.x ?? 0}
+        y={regalDialog?.y ?? 0}
+        zimmerHoehe={plan?.hoehe_cm ?? 250}
+        belegt={regalDialog?.regal ? kisten.some((k) => k.regal_id === regalDialog.regal?.id) : false}
+        busy={busy}
+        onSpeichern={regalSpeichern}
+        onLoeschen={
+          regalDialog?.regal
+            ? () => {
+                setRegalWeg(regalDialog.regal)
+                setRegalDialog(null)
+              }
+            : null
+        }
+        onClose={() => setRegalDialog(null)}
+      />
+
+      <ConfirmDialog
+        open={regalWeg !== null}
+        title={t('raumplan.regal_loeschen')}
+        body={t('raumplan.regal_loeschen_text')}
+        confirmLabel={t('raumplan.regal_loeschen')}
+        onClose={() => setRegalWeg(null)}
+        onConfirm={async () => {
+          const r = regalWeg
+          setRegalWeg(null)
+          if (!r) return
+          await mitSperre(async () => {
+            await loescheRegal(r.id)
+            toast(t('raumplan.regal_geloescht'), 'ok')
+            setAuswahl(null)
+            await laden()
+          }, false)
+        }}
+      />
+
       <ConfirmDialog
         open={loeschenOffen}
         title={t('raumplan.plan_loeschen_titel')}
@@ -652,492 +1107,21 @@ export default function RaumPlan() {
         confirmLabel={t('aktion.loeschen')}
         onClose={() => setLoeschenOffen(false)}
         onConfirm={async () => {
-          try {
+          setLoeschenOffen(false)
+          await mitSperre(async () => {
             await loescheRaumplan(tagId)
             toast(t('raumplan.plan_geloescht'), 'ok')
-            setLoeschenOffen(false)
+            setMarkiert(null)
+            setAuswahl(null)
+            setHand(null)
             if (hervor) {
               params.delete('kiste')
               setParams(params, { replace: true })
             }
             await laden()
-          } catch (err) {
-            toast(err instanceof Error ? err.message : String(err), 'error')
-          }
+          }, false)
         }}
       />
     </>
-  )
-}
-
-/* ===================================================== Maße eingeben */
-
-function PlanFormular({
-  werte,
-  busy,
-  canEdit,
-  onSpeichern,
-  onAbbrechen,
-}: {
-  werte: Raumplan | null
-  busy: boolean
-  canEdit: boolean
-  onSpeichern: (v: {
-    breite_cm: number
-    tiefe_cm: number
-    hoehe_cm: number
-    raster_cm: number
-  }) => Promise<void>
-  onAbbrechen: (() => void) | null
-}) {
-  const { t } = useSprache()
-  const [breite, setBreite] = useState(String((werte?.breite_cm ?? 400) / 100))
-  const [tiefe, setTiefe] = useState(String((werte?.tiefe_cm ?? 400) / 100))
-  const [hoehe, setHoehe] = useState(String((werte?.hoehe_cm ?? 250) / 100))
-  const [raster, setRaster] = useState(String(werte?.raster_cm ?? 50))
-
-  function meterInCm(v: string, ersatz: number): number {
-    const zahl = Number.parseFloat(v.replace(',', '.'))
-    if (!Number.isFinite(zahl)) return ersatz
-    return Math.round(zahl * 100)
-  }
-
-  if (!canEdit) {
-    return (
-      <Card className="mb-3 p-5">
-        <p className="t-sub">{t('raumplan.nur_lesen')}</p>
-      </Card>
-    )
-  }
-
-  return (
-    <Card className="mb-4 space-y-4 p-5">
-      <div>
-        <p className="t-name">{t('raumplan.einrichten_titel')}</p>
-        <p className="t-sub mt-1.5">{t('raumplan.einrichten_text')}</p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label={t('raumplan.breite')}>
-          <Input
-            inputMode="decimal"
-            value={breite}
-            onChange={(e) => setBreite(e.target.value)}
-            className="t-serial"
-          />
-        </Field>
-        <Field label={t('raumplan.tiefe')}>
-          <Input
-            inputMode="decimal"
-            value={tiefe}
-            onChange={(e) => setTiefe(e.target.value)}
-            className="t-serial"
-          />
-        </Field>
-        <Field label={t('raumplan.hoehe')}>
-          <Input
-            inputMode="decimal"
-            value={hoehe}
-            onChange={(e) => setHoehe(e.target.value)}
-            className="t-serial"
-          />
-        </Field>
-      </div>
-      <Field label={t('raumplan.raster')} hint={t('raumplan.raster_hinweis')}>
-        <Input
-          inputMode="numeric"
-          value={raster}
-          onChange={(e) => setRaster(e.target.value)}
-          className="t-serial"
-        />
-      </Field>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="lg"
-          loading={busy}
-          onClick={() =>
-            void onSpeichern({
-              breite_cm: meterInCm(breite, 400),
-              tiefe_cm: meterInCm(tiefe, 400),
-              hoehe_cm: meterInCm(hoehe, 250),
-              raster_cm: Math.round(Number.parseFloat(raster.replace(',', '.'))) || 50,
-            })
-          }
-        >
-          {werte ? t('aktion.speichern') : t('raumplan.anlegen')}
-        </Button>
-        {onAbbrechen ? (
-          <Button variant="ghost" size="lg" onClick={onAbbrechen}>
-            {t('aktion.abbrechen')}
-          </Button>
-        ) : null}
-      </div>
-    </Card>
-  )
-}
-
-/* ================================================== Doppeltippen merken */
-
-/** Zwei Tipper auf dieselbe Zelle innerhalb dieser Zeit sind ein
- *  Doppeltipp. Auf dem Telefon gibt es kein dblclick, auf das man sich
- *  verlassen koennte. */
-const DOPPEL_MS = 400
-
-function useDoppeltipp(
-  onZelle: (x: number, y: number) => void,
-  onDoppel: (x: number, y: number) => void,
-  doppelAn: boolean,
-) {
-  const letzter = useRef<{ key: string; zeit: number } | null>(null)
-  return (x: number, y: number) => {
-    const key = schluessel(x, y)
-    const jetzt = Date.now()
-    if (doppelAn && letzter.current?.key === key && jetzt - letzter.current.zeit < DOPPEL_MS) {
-      letzter.current = null
-      onDoppel(x, y)
-      return
-    }
-    letzter.current = { key, zeit: jetzt }
-    onZelle(x, y)
-  }
-}
-
-interface AnsichtProps {
-  plan: Raumplan
-  raster: Raster
-  zelle: number
-  farbe: string
-  hervor: string | null
-  markiert: string | null
-  tuerLabel: string
-  onZelle: (x: number, y: number) => void
-  onDoppel: (x: number, y: number) => void
-  doppelAn: boolean
-}
-
-/* ======================================================= Von oben (2D) */
-
-function Plan2D({
-  plan,
-  raster,
-  zelle,
-  farbe,
-  hervor,
-  markiert,
-  tuerLabel,
-  onZelle,
-  onDoppel,
-  doppelAn,
-}: AnsichtProps) {
-  const tippen = useDoppeltipp(onZelle, onDoppel, doppelAn)
-  const { spalten, reihen, gesperrt, stapel } = raster
-  const zeigeQr = zelle >= QR_AB
-
-  const zellen: ReactElement[] = []
-  for (let y = 0; y < reihen; y++) {
-    for (let x = 0; x < spalten; x++) {
-      const key = schluessel(x, y)
-      const liste = stapel.get(key) ?? []
-      const oben = liste[liste.length - 1]
-      const aus = gesperrt.has(key)
-      const grund = aus ? 'var(--paper)' : oben ? (oben.mark_color ?? farbe) : 'var(--surface)'
-      const schrift = oben && !aus ? contrastOn(grund) : 'var(--muted)'
-      const leuchtet = oben && (oben.id === hervor || oben.id === markiert)
-      zellen.push(
-        <g key={key} onClick={() => tippen(x, y)} style={{ cursor: 'pointer' }}>
-          <rect
-            x={x * S}
-            y={y * S}
-            width={S}
-            height={S}
-            fill={grund}
-            stroke="var(--line)"
-            strokeWidth={2}
-          />
-          {leuchtet ? (
-            <rect
-              x={x * S + 4}
-              y={y * S + 4}
-              width={S - 8}
-              height={S - 8}
-              fill="none"
-              stroke="var(--danger)"
-              strokeWidth={6}
-            />
-          ) : null}
-          {aus ? (
-            <path
-              d={`M${x * S} ${y * S + S}L${x * S + S} ${y * S}`}
-              stroke="var(--line)"
-              strokeWidth={3}
-            />
-          ) : null}
-          {oben ? (
-            <>
-              <text
-                x={x * S + S / 2}
-                y={zeigeQr ? y * S + 19 : y * S + S / 2 + 5}
-                textAnchor="middle"
-                fontSize={14}
-                fontWeight={800}
-                fontFamily="ui-monospace, monospace"
-                fill={schrift}
-              >
-                {oben.code}
-              </text>
-              {/* Der QR-Code steckt als eigenes Bild in der Zelle. Er
-                  zeigt auf dieselbe Adresse wie das Etikett, damit ein
-                  Scan hier und ein Scan am Karton dasselbe tun. */}
-              {zeigeQr ? (
-                <g transform={`translate(${x * S + (S - QR_SEITE) / 2} ${y * S + 28})`}>
-                  <QrCode value={appUrl(`s/${oben.id}`)} size={QR_SEITE} />
-                </g>
-              ) : null}
-              {/* Wie viele Kisten hier uebereinander stehen. Unten
-                  links, weil oben die Nummer steht. */}
-              {liste.length > 1 ? (
-                <>
-                  <circle cx={x * S + 17} cy={y * S + S - 17} r={13} fill="var(--ink)" />
-                  <text
-                    x={x * S + 17}
-                    y={y * S + S - 12}
-                    textAnchor="middle"
-                    fontSize={15}
-                    fontWeight={900}
-                    fill="var(--paper)"
-                  >
-                    {liste.length}
-                  </text>
-                </>
-              ) : null}
-            </>
-          ) : null}
-        </g>,
-      )
-    }
-  }
-
-  return (
-    <svg
-      viewBox={`0 0 ${spalten * S} ${reihen * S}`}
-      width={spalten * zelle}
-      height={reihen * zelle}
-      role="img"
-      style={{ display: 'block' }}
-    >
-      {zellen}
-      {plan.tuer_x !== null && plan.tuer_y !== null && plan.tuer_seite ? (
-        <TuerMarke
-          x={plan.tuer_x}
-          y={plan.tuer_y}
-          seite={plan.tuer_seite}
-          label={tuerLabel}
-          frei={!stapel.has(schluessel(plan.tuer_x, plan.tuer_y))}
-        />
-      ) : null}
-    </svg>
-  )
-}
-
-/** Die Tuer als dicker Strich an der Wand der Zelle. Steht auf der
- *  Zelle eine Kiste, faellt die Beschriftung weg: der Strich allein ist
- *  eindeutig, zwei Schriften uebereinander sind es nicht. */
-function TuerMarke({
-  x,
-  y,
-  seite,
-  label,
-  frei,
-}: {
-  x: number
-  y: number
-  seite: TuerSeite
-  label: string
-  frei: boolean
-}) {
-  const px = x * S
-  const py = y * S
-  const linien: Record<TuerSeite, [number, number, number, number]> = {
-    nord: [px + 8, py + 4, px + S - 8, py + 4],
-    sued: [px + 8, py + S - 4, px + S - 8, py + S - 4],
-    west: [px + 4, py + 8, px + 4, py + S - 8],
-    ost: [px + S - 4, py + 8, px + S - 4, py + S - 8],
-  }
-  const [x1, y1, x2, y2] = linien[seite]
-  return (
-    <g pointerEvents="none">
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--danger)" strokeWidth={10} />
-      {frei ? (
-        <text
-          x={px + S / 2}
-          y={py + S / 2 + 5}
-          textAnchor="middle"
-          fontSize={15}
-          fontWeight={800}
-          fill="var(--danger)"
-        >
-          {label}
-        </text>
-      ) : null}
-    </g>
-  )
-}
-
-/* ========================================================= Schräg (3D) */
-
-function Plan3D({
-  plan,
-  raster,
-  zelle,
-  farbe,
-  hervor,
-  markiert,
-  tuerLabel,
-  onZelle,
-  onDoppel,
-  doppelAn,
-}: AnsichtProps) {
-  const tippen = useDoppeltipp(onZelle, onDoppel, doppelAn)
-  const { spalten, reihen, gesperrt, stapel } = raster
-
-  function lage(x: number, y: number, z: number): { px: number; py: number } {
-    return {
-      px: (x - y) * (ISO_B / 2),
-      py: (x + y) * (ISO_T / 2) - z * ISO_H,
-    }
-  }
-
-  function raute(px: number, py: number): string {
-    return [
-      `${px},${py}`,
-      `${px + ISO_B / 2},${py + ISO_T / 2}`,
-      `${px},${py + ISO_T}`,
-      `${px - ISO_B / 2},${py + ISO_T / 2}`,
-    ].join(' ')
-  }
-
-  const boden: ReactElement[] = []
-  const kloetze: ReactElement[] = []
-  const reihenfolge: Array<[number, number]> = []
-  for (let y = 0; y < reihen; y++) for (let x = 0; x < spalten; x++) reihenfolge.push([x, y])
-  reihenfolge.sort((a, b) => a[0] + a[1] - (b[0] + b[1]))
-
-  let maxZ = 0
-  for (const liste of stapel.values()) maxZ = Math.max(maxZ, liste.length)
-
-  for (const [x, y] of reihenfolge) {
-    const key = schluessel(x, y)
-    if (gesperrt.has(key)) continue
-    const { px, py } = lage(x, y, 0)
-    const tuerHier = plan.tuer_x === x && plan.tuer_y === y
-    boden.push(
-      <polygon
-        key={`b${key}`}
-        points={raute(px, py)}
-        fill={tuerHier ? 'var(--danger)' : 'var(--surface)'}
-        stroke="var(--line)"
-        strokeWidth={2}
-        onClick={() => tippen(x, y)}
-        style={{ cursor: 'pointer' }}
-      />,
-    )
-    if (tuerHier) {
-      boden.push(
-        <text
-          key={`t${key}`}
-          x={px}
-          y={py + ISO_T / 2 + 5}
-          textAnchor="middle"
-          fontSize={14}
-          fontWeight={800}
-          fill="#ffffff"
-          pointerEvents="none"
-        >
-          {tuerLabel}
-        </text>,
-      )
-    }
-
-    const liste = stapel.get(key) ?? []
-    liste.forEach((k, z) => {
-      const grund = k.mark_color ?? farbe
-      const { px: bx, py: by } = lage(x, y, z)
-      const deckelY = by - ISO_H
-      const leuchtet = k.id === hervor || k.id === markiert
-      const oben = z === liste.length - 1
-      kloetze.push(
-        <g
-          key={k.id}
-          onClick={() => tippen(x, y)}
-          style={{ cursor: 'pointer' }}
-        >
-          {/* linke Seite */}
-          <polygon
-            points={[
-              `${bx - ISO_B / 2},${deckelY + ISO_T / 2}`,
-              `${bx},${deckelY + ISO_T}`,
-              `${bx},${deckelY + ISO_T + ISO_H}`,
-              `${bx - ISO_B / 2},${deckelY + ISO_T / 2 + ISO_H}`,
-            ].join(' ')}
-            fill={dunkler(grund, 0.32)}
-            stroke="var(--line)"
-            strokeWidth={1.5}
-          />
-          {/* rechte Seite */}
-          <polygon
-            points={[
-              `${bx + ISO_B / 2},${deckelY + ISO_T / 2}`,
-              `${bx},${deckelY + ISO_T}`,
-              `${bx},${deckelY + ISO_T + ISO_H}`,
-              `${bx + ISO_B / 2},${deckelY + ISO_T / 2 + ISO_H}`,
-            ].join(' ')}
-            fill={dunkler(grund, 0.18)}
-            stroke="var(--line)"
-            strokeWidth={1.5}
-          />
-          {/* Deckel */}
-          <polygon
-            points={raute(bx, deckelY)}
-            fill={grund}
-            stroke={leuchtet ? 'var(--danger)' : 'var(--line)'}
-            strokeWidth={leuchtet ? 5 : 1.5}
-          />
-          {oben ? (
-            <text
-              x={bx}
-              y={deckelY + ISO_T / 2 + 4}
-              textAnchor="middle"
-              fontSize={11}
-              fontWeight={800}
-              fontFamily="ui-monospace, monospace"
-              fill={contrastOn(grund)}
-              pointerEvents="none"
-            >
-              {k.code}
-            </text>
-          ) : null}
-        </g>,
-      )
-    })
-  }
-
-  const minPx = -(reihen - 1) * (ISO_B / 2) - ISO_B / 2 - 10
-  const maxPx = (spalten - 1) * (ISO_B / 2) + ISO_B / 2 + 10
-  const minPy = -maxZ * ISO_H - ISO_H - 10
-  const maxPy = (spalten - 1 + reihen - 1) * (ISO_T / 2) + ISO_T + 10
-  const breite = maxPx - minPx
-  const hoehe = maxPy - minPy
-  const massstab = zelle / ISO_B
-
-  return (
-    <svg
-      viewBox={`${minPx} ${minPy} ${breite} ${hoehe}`}
-      width={breite * massstab}
-      height={hoehe * massstab}
-      role="img"
-      style={{ display: 'block' }}
-    >
-      {boden}
-      {kloetze}
-    </svg>
   )
 }

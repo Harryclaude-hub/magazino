@@ -30,6 +30,7 @@ import {
 } from '../components/ui'
 import { setItemStatus } from '../lib/api'
 import { useSprache, useT } from '../lib/i18n'
+import { groesseSatz, useKistenGroessen } from '../lib/groessen'
 import { signedUrls } from '../lib/media'
 import { notifyItemStatus } from '../lib/push'
 import { resolveScan, type ScanResult } from '../lib/scan'
@@ -82,7 +83,8 @@ function TagTile({ label, tag, icon }: { label: string; tag: Tag | null; icon: R
 export default function ScanHub() {
   const { rememberProject } = useAppShell()
   const toast = useToast()
-  const { t, tn } = useSprache()
+  const { t, tn, lang } = useSprache()
+  const groessen = useKistenGroessen()
 
   /* Derselbe Schluessel wie beim Scannen innerhalb eines Umzugs, damit die
    * Einstellung nicht an zwei Orten auseinanderlaeuft. */
@@ -279,9 +281,7 @@ export default function ScanHub() {
 
   /* Groesse 3 von 10, klein. Ein Satz, damit die Zahl und das Wort dazu in
    * beiden Sprachen in der richtigen Reihenfolge stehen. */
-  const groesseText = hit
-    ? t('groesse.von_zehn', { n: hit.item.size, wort: t(`groesse.${hit.item.size}`) })
-    : ''
+  const groesseText = hit ? groesseSatz(t, lang, hit.item.size, hit.item.kind, groessen) : ''
 
   return (
     <>

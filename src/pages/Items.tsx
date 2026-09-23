@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Boxes, CheckSquare, Download, Filter, Plus, Search, X } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Boxes, CheckSquare, Download, Filter, Plus, Ruler, Search, X } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { ItemRow } from '../components/ItemRow'
 import { Auswahlleiste } from '../components/Auswahlleiste'
@@ -23,7 +23,8 @@ import {
 } from '../components/ui'
 import { useProject } from './ProjectLayout'
 import { countItems, createItem, listItems, setItemStatus, listAllItems } from '../lib/api'
-import { useSprache, useT } from '../lib/i18n'
+import { useSprache } from '../lib/i18n'
+import { groesseSatz, hatLiter, literText, useKistenGroessen } from '../lib/groessen'
 import { notifyItemStatus } from '../lib/push'
 import { supabase } from '../lib/supabase'
 import {
@@ -32,7 +33,7 @@ import {
   type ItemStatus,
   type TagKind,
 } from '../lib/types'
-import { download, toCsv, useDebounced } from '../lib/util'
+import { download, toCsv, useDebounced, useLocalState } from '../lib/util'
 
 const NEXT_STATUS: Record<ItemStatus, ItemStatus> = {
   open: 'transit',
@@ -44,37 +45,62 @@ const NEXT_STATUS: Record<ItemStatus, ItemStatus> = {
  * Woerterbuch unter art.box und so weiter, nicht mehr in types.ts. */
 export const ARTEN: ItemKind[] = ['box', 'furniture', 'bag', 'other']
 
+/** Die Groesse 1 bis 10. Bei Kisten steht unter jeder Ziffer, wie viele
+ *  Liter sie fasst, bei Moebeln bleibt es beim Wort. Die Liter kommen aus
+ *  der Datenbank; solange sie fehlen, steht nur die Ziffer da. */
 export function SizePicker({
   value,
   onChange,
+  kind = 'box',
 }: {
   value: number
   onChange: (v: number) => void
+  kind?: ItemKind
 }) {
-  const t = useT()
+  const { t, lang } = useSprache()
+  const tabelle = useKistenGroessen()
+  const mitLiter = hatLiter(kind) && tabelle !== null
+  const gewaehlt = mitLiter ? tabelle.get(value) : undefined
   return (
     <div>
       <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onChange(n)}
-            aria-label={t('kisten.groesse_knopf', { n, wort: t(`groesse.${n}`) })}
-            aria-pressed={value === n}
-            className={`h-12 w-full min-w-0 rounded-xl border-2 font-mono text-lg font-black transition active:scale-95 ${
-              value === n
-                ? 'border-danger bg-danger text-white'
-                : 'border-line bg-surface text-ink hover:border-ink/35 hover:bg-raised'
-            }`}
-          >
-            {n}
-          </button>
-        ))}
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
+          const g = mitLiter ? tabelle.get(n) : undefined
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(n)}
+              aria-label={
+                g
+                  ? t('kisten.groesse_knopf_liter', { n, liter: literText(g.liter, lang) })
+                  : t('kisten.groesse_knopf', { n, wort: t(`groesse.${n}`) })
+              }
+              aria-pressed={value === n}
+              className={`flex w-full min-w-0 flex-col items-center justify-center rounded-xl border-2 font-mono transition active:scale-95 ${
+                g ? 'h-14' : 'h-12'
+              } ${
+                value === n
+                  ? 'border-danger bg-danger text-white'
+                  : 'border-line bg-surface text-ink hover:border-ink/35 hover:bg-raised'
+              }`}
+            >
+              <span className="text-lg font-black leading-none">{n}</span>
+              {g ? (
+                <span dir="ltr" className="mt-1 text-xs font-bold leading-none opacity-80">
+                  {literText(g.liter, lang)}
+                </span>
+              ) : null}
+            </button>
+          )
+        })}
       </div>
       <p className="t-sub mt-2.5">
-        {t('groesse.von_zehn', { n: value, wort: t(`groesse.${value}`) })}.{' '}
-        {t('kisten.groesse_hinweis')}
+        {groesseSatz(t, lang, value, kind, tabelle)}
+        {gewaehlt
+          ? `, ${t('groesse.mass', { l: gewaehlt.laenge_cm, b: gewaehlt.breite_cm, h: gewaehlt.hoehe_cm })}`
+          : null}
+        . {t('kisten.groesse_hinweis')}
       </p>
     </div>
   )
@@ -96,6 +122,11 @@ interface Draft {
 export default function Items() {
   const { project, rooms, people, tagById, canEdit } = useProject()
   const { t, tn } = useSprache()
+  const groessen = useKistenGroessen()
+  const [groessenHinweisWeg, setGroessenHinweisWeg] = useLocalState<boolean>(
+    `kistly.groessenHinweis.${project.id}`,
+    false,
+  )
   const toast = useToast()
   const [params, setParams] = useSearchParams()
 
@@ -308,6 +339,12 @@ export default function Items() {
           [t('begriff.zimmer')]: tagById(i.room_id)?.name ?? '',
           [t('begriff.person')]: tagById(i.person_id)?.name ?? '',
           [t('begriff.groesse')]: i.size,
+          // Immer mit Komma: die Datei trennt mit Semikolon, und in einem
+          // deutschen Excel wuerde 35.5 zum Datum.
+          [t('ausgabe.spalte_liter')]:
+            hatLiter(i.kind) && groessen?.get(i.size)
+              ? literText(groessen.get(i.size)!.liter, 'de')
+              : '',
           [t('begriff.status')]: t(`status.${i.status}`),
           [t('begriff.ziel')]: i.target_room ?? '',
           [t('begriff.zerbrechlich')]: i.fragile ? t('kisten.ja') : t('kisten.nein'),
@@ -349,6 +386,13 @@ export default function Items() {
         back={`/app/p/${project.id}`}
         actions={
           <>
+            {/* Groessen pruefen bleibt erreichbar, auch wenn der Hinweis in
+                der Liste weggetippt ist. */}
+            <Link to={`/app/p/${project.id}/groessen`}>
+              <IconButton label={t('groessen.titel')} size="sm">
+                <Ruler size={19} />
+              </IconButton>
+            </Link>
             <IconButton
               label={t('aktion.exportieren')}
               size="sm"
@@ -469,6 +513,22 @@ export default function Items() {
               </Button>
             ) : null}
           </Card>
+        ) : null}
+
+        {/* Seit 0021 haben die Groessen Liter. Einmal neu einstufen, dann
+            kann der Hinweis weg. Er merkt sich das je Umzug. */}
+        {canEdit && !groessenHinweisWeg && rows.length > 0 ? (
+          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border-2 border-line bg-raised px-4 py-3">
+            <span className="min-w-0 flex-1 text-[0.9375rem] font-bold">
+              {t('groessen.hinweis_liste')}
+            </span>
+            <Link to={`/app/p/${project.id}/groessen`}>
+              <Button size="sm">{t('groessen.titel')}</Button>
+            </Link>
+            <Button size="sm" variant="ghost" onClick={() => setGroessenHinweisWeg(true)}>
+              {t('aktion.ausblenden')}
+            </Button>
+          </div>
         ) : null}
 
         {/* Jede Kiste gehoert in ein Zimmer. Was keines hat, steht hier
@@ -685,7 +745,11 @@ export default function Items() {
           ) : null}
 
           <Field label={t('begriff.groesse')} required>
-            <SizePicker value={draft.size} onChange={(size) => setDraft((d) => ({ ...d, size }))} />
+            <SizePicker
+              value={draft.size}
+              kind={draft.kind}
+              onChange={(size) => setDraft((d) => ({ ...d, size }))}
+            />
           </Field>
 
           <div className="grid gap-5 sm:grid-cols-2">

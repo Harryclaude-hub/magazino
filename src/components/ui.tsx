@@ -11,6 +11,7 @@ import {
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
+  type Ref,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react'
@@ -202,7 +203,10 @@ const FIELD_BASE =
   'placeholder:text-muted/70 outline-none transition focus:border-ink/50 ' +
   'focus:ring-4 focus:ring-ink/10 disabled:opacity-50'
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+export function Input({
+  className,
+  ...rest
+}: InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> }) {
   return <input {...rest} className={cx(FIELD_BASE, className)} />
 }
 

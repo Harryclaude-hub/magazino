@@ -333,6 +333,51 @@ Nicht gebaut: eine Eingabe fuer `seite` (aus welchem Winkel das Bild
 aufgenommen wurde). Die Spalte gibt es seit 0001, die Oberflaeche fuellt
 sie nicht. Die Schicht war der Teil, an dem Karam etwas lag.
 
+**Nachtrag 23.09.2026:** Der Anthropic-Schluessel ist vom Tisch. Karam hat
+ein offenes Modell gewaehlt, siehe unten unter G.
+
+## Neuer Auftrag vom 23.09.2026
+
+Karams Worte, gekuerzt: Hoehe im Raumplan, auch im Regal nach oben stapeln.
+Groessen 1 bis 10 als Liter, 1 ist 15 Liter, 10 bis 100 Liter, die
+Abstaende nach Norm. Ein offenes Modell, das die Schichten fotografiert,
+die Dinge erkennt, sie ausschneidet, umbenennen laesst, und dann ueber alle
+Umzuege suchen: "Kleber", ein Bild, ein Tipp, und man sieht Kiste, Zimmer,
+Schicht, und im Raumplan Tuer, Bereich und Hoehe.
+
+Seine Entscheidungen: Qwen3.5-9B bei OVHcloud; alle Kisten neu einstufen
+und die Etiketten neu drucken; die Reihe wie vorgeschlagen, Karton ist 7;
+Migrationen nach Probelauf anwenden.
+
+### E. Hoehe, Stapel, Regale GEBAUT (0022, 0025)
+
+Hoehe aus der Groesse oder eigene Hoehe, Stapel auf Boden und Brettern,
+Pruefung gegen Decke und naechstes Brett in der Datenbank, Seitenansicht
+mit Skala. Die Hoehe wird nie gespeichert, sie folgt aus dem Stapel. 0025
+sperrt Zimmer und Zelle gegen gleichzeitiges Setzen.
+
+### F. Kistengroessen in Litern GEBAUT (0021)
+
+DIN 323 Reihe R40: 15, 19, 22,4, 28, 35,5, 42,5, 53, 67, 80, 100 Liter.
+Die Grenzen liegen im geometrischen Mittel zweier Stufen. Der klassische
+Umzugskarton (58,6 L) ist Stufe 7, einer mit 62 L Stufe 8. Seite Groessen
+zum Neueinstufen, mit Druckliste der geaenderten Etiketten.
+
+### G. Rahmen, Ausschnitte, offenes Modell GEBAUT, WARTET AUF DEN SCHLUESSEL (0023)
+
+Rahmen statt Punkte, kleines Bild je Ding im Speicher, Rahmen von Hand
+ziehen, uebersehene Dinge von Hand markieren. `bild-analyse` fragt
+Qwen3.5-9B bei OVHcloud ueber die OpenAI-kompatible Schnittstelle, ohne
+`service_role`. Braucht `OVH_AI_ENDPOINTS_TOKEN` als Function Secret und
+das Ausrollen der Funktion.
+
+### H. Suche ueber alle Umzuege GEBAUT (0024)
+
+`inhalt_suchen` mit pg_trgm und eigener Bereinigung (Umlaute, arabische
+Vokalzeichen und Schreibvarianten), Zeilen-Sicherheit greift. Reiter
+"Suchen" unten, Treffer mit Bild, Fundort mit kleinem Raumplan und
+Seitenansicht, Spruenge in Kiste, Foto und Raumplan.
+
 ---
 
 ## Regeln, die ueberall gelten

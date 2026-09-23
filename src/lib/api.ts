@@ -13,6 +13,7 @@ import type {
   ItemEvent,
   ItemPhoto,
   ItemStatus,
+  KistenGroesse,
   MemberRole,
   Message,
   MessageLink,
@@ -24,6 +25,8 @@ import type {
   ProjectMember,
   ProjectStats,
   Raumplan,
+  Regal,
+  SuchTreffer,
   Tag,
 } from './types'
 import { inviteCode } from './util'
@@ -514,6 +517,46 @@ export async function ladeSchnellansicht(itemId: string): Promise<SchnellDaten> 
   }
 }
 
+/* ------------------------------------------------------ Kistengroessen */
+
+/** Die zehn Groessenstufen mit Litern und Massen. Feste Zahlen aus der
+ *  Datenbank (0021), fuer alle lesbar. Numeric kommt als Text an und wird
+ *  hier zur Zahl, damit niemand dahinter mit Text rechnet. */
+export async function ladeKistenGroessen(): Promise<KistenGroesse[]> {
+  const res = await supabase.from('kisten_groessen').select('*').order('stufe')
+  const zeilen = unwrap(res, 'fehler.groessen_laden') as Array<Record<string, unknown>>
+  return zeilen.map((z) => ({
+    stufe: Number(z.stufe),
+    liter: Number(z.liter),
+    bis_liter: z.bis_liter === null ? null : Number(z.bis_liter),
+    laenge_cm: Number(z.laenge_cm),
+    breite_cm: Number(z.breite_cm),
+    hoehe_cm: Number(z.hoehe_cm),
+  }))
+}
+
+/* ---------------------------------------------------------------- Suche */
+
+/** Ein Ding ueber alle Umzuege suchen, in denen man Mitglied ist. Die
+ *  Datenbank bereinigt die Anfrage selbst (such_normal) und laesst die
+ *  Zeilen-Sicherheit greifen (0024). Numeric kommt als Text an und wird
+ *  hier zur Zahl. */
+export async function inhaltSuchen(q: string, max = 60): Promise<SuchTreffer[]> {
+  const res = await supabase.rpc('inhalt_suchen', { p_q: q, p_max: max })
+  if (res.error) throw new Error(tg('fehler.suchen', { grund: errText(res.error) }))
+  const zahl = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+  return ((res.data ?? []) as Array<Record<string, unknown>>).map((z) => ({
+    ...(z as unknown as SuchTreffer),
+    box_x0: zahl(z.box_x0),
+    box_y0: zahl(z.box_y0),
+    box_x1: zahl(z.box_x1),
+    box_y1: zahl(z.box_y1),
+    punkt_x: zahl(z.punkt_x),
+    punkt_y: zahl(z.punkt_y),
+    treffer: Number(z.treffer ?? 0),
+  }))
+}
+
 /* ------------------------------------------------------------ Raumplan */
 
 /** Der Plan eines Zimmers, oder null, wenn es noch keinen gibt. null
@@ -525,9 +568,7 @@ export async function ladeRaumplan(tagId: string): Promise<Raumplan | null> {
   return (res.data as Raumplan | null) ?? null
 }
 
-/** Plan anlegen oder aendern. Die Datenbank prueft Groesse, Raster, Tuer
- *  und Umriss selbst, darum steht hier keine zweite Pruefung. */
-export async function speichereRaumplan(input: {
+export interface RaumplanWerte {
   tag_id: string
   project_id: string
   breite_cm: number
@@ -538,62 +579,139 @@ export async function speichereRaumplan(input: {
   tuer_x: number | null
   tuer_y: number | null
   tuer_seite: Raumplan['tuer_seite']
-}): Promise<Raumplan> {
-  const res = await supabase
-    .from('room_plans')
-    .upsert(input, { onConflict: 'tag_id' })
-    .select('*')
-    .single()
+}
+
+/** Plan anlegen oder aendern. Die Datenbank prueft Groesse, Raster, Tuer
+ *  und Umriss selbst, darum steht hier keine zweite Pruefung.
+ *
+ *  Anlegen und Aendern sind zwei Wege, kein upsert: wer "Plan anlegen"
+ *  tippt, weil die Seite den vorhandenen Plan gerade nicht laden konnte,
+ *  darf ihn damit nicht ueberschreiben. Ein zweites Anlegen scheitert an
+ *  der Datenbank, statt Umriss und Tuer still zu leeren. */
+export async function speichereRaumplan(
+  input: RaumplanWerte,
+  neu: boolean,
+): Promise<Raumplan> {
+  const res = neu
+    ? await supabase.from('room_plans').insert(input).select('*').single()
+    : await supabase
+        .from('room_plans')
+        .update(input)
+        .eq('tag_id', input.tag_id)
+        .select('*')
+        .single()
   return unwrap(res, 'fehler.raumplan_speichern') as Raumplan
 }
 
 /** Den ganzen Plan wegwerfen. Die Kisten bleiben im Zimmer, sie stehen
- *  danach nur an keinem festen Platz mehr. Das erledigt der Trigger. */
+ *  danach nur an keinem festen Platz mehr.
+ *
+ *  Zuerst die Plaetze leeren, dann den Plan loeschen. Umgekehrt stuende
+ *  jede Kiste mit einem Platz in einem Zimmer ohne Plan, und der Trigger
+ *  aus 0017 wiese danach jede Aenderung an ihr ab, auch "Angekommen". */
 export async function loescheRaumplan(tagId: string): Promise<void> {
+  // Die Plaetze leert der Trigger aus 0020 im selben Vorgang wie das
+  // Loeschen. Zwei Anfragen von hier aus liessen bei einem Abbruch einen
+  // Plan ohne Plaetze zurueck.
   const { error } = await supabase.from('room_plans').delete().eq('tag_id', tagId)
   if (error) throw new Error(tg('fehler.raumplan_loeschen', { grund: errText(error) }))
 }
 
-/** Alle Kisten und Moebel eines Zimmers, auch die ohne Platz im Plan.
- *  Seitenweise, damit auch ein volles Zimmer durchlaeuft. */
+/** Alle Kisten eines Zimmers, auch die ohne Platz im Plan. Moebel nicht:
+ *  sie stehen nicht im Raumplan (0022). Seitenweise, damit auch ein
+ *  volles Zimmer durchlaeuft. */
 export async function ladeZimmerKisten(projectId: string, roomId: string): Promise<Item[]> {
   const out: Item[] = []
   const step = 500
   for (let offset = 0; ; offset += step) {
-    const { rows, total } = await listItems(projectId, { roomId, limit: step, offset })
+    const { rows, total } = await listItems(projectId, {
+      roomId,
+      kindNot: 'furniture',
+      limit: step,
+      offset,
+    })
     out.push(...rows)
     if (out.length >= total || rows.length === 0) break
   }
   return out
 }
 
-/** Eine Kiste auf einen Platz stellen. Ob der Platz frei ist, entscheidet
- *  die Datenbank: zwei Leute koennen gleichzeitig legen. */
-export async function setzePlatz(itemId: string, x: number, y: number, z: number): Promise<Item> {
-  return updateItem(itemId, { plan_x: x, plan_y: y, plan_z: z })
+/** Eine Kiste auf einen Platz stellen: auf den Boden oder auf ein Brett
+ *  eines Regals. Ob der Platz frei ist und ob der Stapel noch unter die
+ *  Decke oder das naechste Brett passt, entscheidet die Datenbank: zwei
+ *  Leute koennen gleichzeitig legen. */
+export async function setzePlatz(
+  itemId: string,
+  x: number,
+  y: number,
+  z: number,
+  regal: { id: string; boden: number } | null = null,
+): Promise<Item> {
+  return updateItem(itemId, {
+    plan_x: x,
+    plan_y: y,
+    plan_z: z,
+    regal_id: regal?.id ?? null,
+    regal_boden: regal?.boden ?? null,
+  })
 }
 
-/** Eine Kiste vom Platz nehmen. Was darueber stand, rutscht eine Lage
- *  nach unten. Sonst schwebte es im Plan, und der Plan zeigte etwas, das
- *  im Zimmer so nicht steht. Von unten nach oben, damit jeder Platz frei
- *  ist, bevor die naechste Kiste darauf rutscht. */
+/** Eine Kiste vom Platz nehmen. Was darueber stand, rutscht nach; das
+ *  macht die Datenbank in einem Vorgang (0022), nicht mehr der Browser. */
 export async function raeumePlatz(item: Item): Promise<void> {
-  if (item.plan_x === null || item.plan_y === null || item.plan_z === null) return
-  const { plan_x: x, plan_y: y, plan_z: z, room_id: raum } = item
-  await updateItem(item.id, { plan_x: null, plan_y: null, plan_z: null })
-  if (!raum) return
+  if (item.plan_x === null) return
+  await updateItem(item.id, {
+    plan_x: null,
+    plan_y: null,
+    plan_z: null,
+    regal_id: null,
+    regal_boden: null,
+  })
+}
+
+/* --------------------------------------------------------------- Regale */
+
+export async function ladeRegale(tagId: string): Promise<Regal[]> {
+  const res = await supabase.from('regale').select('*').eq('tag_id', tagId).order('created_at')
+  return unwrap(res, 'fehler.regale_laden') as Regal[]
+}
+
+export interface RegalWerte {
+  name: string
+  x: number
+  y: number
+  breite: number
+  tiefe: number
+  hoehe_cm: number
+  boeden_cm: number[]
+}
+
+/** Ein Regal aufstellen. Ob es ins Zimmer passt, nicht vor der Tuer und
+ *  nicht auf Kisten steht, prueft die Datenbank (0022). */
+export async function legeRegalAn(
+  tagId: string,
+  projectId: string,
+  werte: RegalWerte,
+): Promise<Regal> {
   const res = await supabase
-    .from('items')
-    .select('id, plan_z')
-    .eq('room_id', raum)
-    .eq('plan_x', x)
-    .eq('plan_y', y)
-    .gt('plan_z', z)
-    .order('plan_z')
-  if (res.error) throw new Error(tg('fehler.raumplan_nachruecken', { grund: errText(res.error) }))
-  for (const zeile of (res.data ?? []) as { id: string; plan_z: number }[]) {
-    await updateItem(zeile.id, { plan_z: zeile.plan_z - 1 })
-  }
+    .from('regale')
+    .insert({ tag_id: tagId, project_id: projectId, ...werte })
+    .select('*')
+    .single()
+  return unwrap(res, 'fehler.regal_speichern') as Regal
+}
+
+/** Stehen Kisten darauf, laesst die Datenbank nur den Namen aendern. */
+export async function aendereRegal(id: string, werte: Partial<RegalWerte>): Promise<Regal> {
+  const res = await supabase.from('regale').update(werte).eq('id', id).select('*').single()
+  return unwrap(res, 'fehler.regal_speichern') as Regal
+}
+
+/** Das Regal wegnehmen. Die Kisten darauf verlieren ihren Platz, nicht
+ *  ihr Zimmer; das erledigt der Trigger aus 0022. */
+export async function loescheRegal(id: string): Promise<void> {
+  const { error } = await supabase.from('regale').delete().eq('id', id)
+  if (error) throw new Error(tg('fehler.regal_loeschen', { grund: errText(error) }))
 }
 
 /* ------------------------------------------------------------- Inhalte */
@@ -650,15 +768,21 @@ export async function addContent(
   /** Woher die Zeile kommt. Ein Vorschlag aus einem Foto bleibt als
    *  solcher erkennbar, auch nachdem er uebernommen wurde. */
   quelle: ItemContent['quelle'] = 'hand',
-  /** Wo der Gegenstand zu sehen ist. Nur die Bilderkennung weiss das,
-   *  von Hand eingetippte Zeilen haben keinen Ort. */
+  /** Wo der Gegenstand zu sehen ist: auf welchem Foto, in welcher
+   *  Schicht, und an welcher Stelle. Von Hand eingetippte Zeilen haben
+   *  keinen Ort, im Bild markierte schon. Mit Rahmen setzt die Datenbank
+   *  den Punkt selbst auf die Mitte (0023). */
   ort?: {
     photo_id?: string | null
     schicht?: number | null
     punkt_x?: number | null
     punkt_y?: number | null
+    rahmen?: { x0: number; y0: number; x1: number; y1: number } | null
   },
+  /** Suchwoerter und Sicherheit aus der Erkennung. */
+  extra?: { suchwoerter?: string[]; sicherheit?: number | null },
 ): Promise<ItemContent> {
+  const r = ort?.rahmen ?? null
   const res = await supabase
     .from('item_contents')
     .insert({
@@ -673,6 +797,12 @@ export async function addContent(
        * ohnehin zurueck, hier wird er gar nicht erst gebaut. */
       punkt_x: ort?.punkt_x != null && ort?.punkt_y != null ? ort.punkt_x : null,
       punkt_y: ort?.punkt_x != null && ort?.punkt_y != null ? ort.punkt_y : null,
+      box_x0: r ? r.x0 : null,
+      box_y0: r ? r.y0 : null,
+      box_x1: r ? r.x1 : null,
+      box_y1: r ? r.y1 : null,
+      suchwoerter: extra?.suchwoerter ?? [],
+      sicherheit: extra?.sicherheit ?? null,
     })
     .select('*')
     .single()
@@ -688,6 +818,12 @@ export async function moveContent(
   zielItemId: string,
   projectId: string,
 ): Promise<void> {
+  /* Der Ort bleibt in der alten Kiste: das Foto gehoert ihr, also auch
+   * Punkt, Rahmen, Schicht und Antwort. Das raeumt der Trigger aus 0023
+   * (contents_bild_pruefen) ab, wenn die Kiste wechselt und photo_id
+   * unveraendert ankommt. Darum hier NUR Kiste und Umzug: wer photo_id
+   * mitschickt, umgeht das Abraeumen, der Rahmen bleibt stehen, und die
+   * Pruefung "Rahmen braucht ein Foto" lehnt das Verschieben ab. */
   const { error } = await supabase
     .from('item_contents')
     .update({ item_id: zielItemId, project_id: projectId })
@@ -727,14 +863,59 @@ export async function moveItems(
   return patchItems(ids, patch)
 }
 
+/** Ein Update, das keine Zeile trifft, meldet Supabase nicht als Fehler.
+ *  Darum wird die Zeile zurueckgelesen: kommt keine, wurde nichts
+ *  gespeichert, und die Oberflaeche darf nicht so tun als ob. */
 export async function updateContent(id: string, patch: Partial<ItemContent>): Promise<void> {
-  const { error } = await supabase.from('item_contents').update(patch).eq('id', id)
+  const { data, error } = await supabase
+    .from('item_contents')
+    .update(patch)
+    .eq('id', id)
+    .select('id')
   if (error) throw new Error(tg('fehler.eintrag_speichern', { grund: errText(error) }))
+  if (!data || data.length === 0) {
+    throw new Error(tg('fehler.eintrag_speichern', { grund: tg('fehler.keine_daten') }))
+  }
 }
 
-export async function deleteContent(id: string): Promise<void> {
+/** Einen Eintrag loeschen, und sein Ausschnittbild mit. Bleibt das Bild
+ *  liegen, wird das nur gemeldet: der Eintrag ist weg, das zaehlt. */
+export async function deleteContent(id: string, ausschnittPfad: string | null = null): Promise<void> {
   const { error } = await supabase.from('item_contents').delete().eq('id', id)
   if (error) throw new Error(tg('fehler.eintrag_loeschen', { grund: errText(error) }))
+  if (ausschnittPfad) {
+    const rm = await supabase.storage.from('item-photos').remove([ausschnittPfad])
+    if (rm.error) console.warn('[storage] Ausschnitt blieb liegen:', rm.error.message)
+  }
+}
+
+/** Den Rahmen eines Eintrags neu setzen oder wegnehmen, zusammen mit dem
+ *  neuen Ausschnittbild. Das alte Bild wird danach weggeraeumt. */
+export async function setzeRahmen(
+  eintrag: ItemContent,
+  rahmen: { x0: number; y0: number; x1: number; y1: number } | null,
+  ausschnittPfad: string | null,
+): Promise<ItemContent> {
+  const res = await supabase
+    .from('item_contents')
+    .update({
+      box_x0: rahmen ? rahmen.x0 : null,
+      box_y0: rahmen ? rahmen.y0 : null,
+      box_x1: rahmen ? rahmen.x1 : null,
+      box_y1: rahmen ? rahmen.y1 : null,
+      ausschnitt_pfad: ausschnittPfad,
+      // Ein neuer Rahmen ist eine neue Antwort auf "ist es das?".
+      bestaetigt: rahmen ? true : eintrag.bestaetigt,
+    })
+    .eq('id', eintrag.id)
+    .select('*')
+    .single()
+  const neu = unwrap(res, 'fehler.eintrag_speichern') as ItemContent
+  if (eintrag.ausschnitt_pfad && eintrag.ausschnitt_pfad !== ausschnittPfad) {
+    const rm = await supabase.storage.from('item-photos').remove([eintrag.ausschnitt_pfad])
+    if (rm.error) console.warn('[storage] alter Ausschnitt blieb liegen:', rm.error.message)
+  }
+  return neu
 }
 
 /* --------------------------------------------------------------- Fotos */
@@ -806,7 +987,11 @@ export async function coverPaths(items: Item[]): Promise<Map<string, string>> {
 }
 
 /** In welche Schicht der Kiste dieses Foto gehoert. null nimmt die
- *  Angabe wieder weg. */
+ *  Angabe wieder weg.
+ *
+ *  Die Zeilen der Inhaltsliste, die auf diesem Foto zu sehen sind, ziehen
+ *  mit. Sonst stuende an der Zeile weiter die alte Schicht, und die Suche
+ *  schickte einen spaeter in die falsche Lage der Kiste. */
 export async function setPhotoSchicht(id: string, schicht: number | null): Promise<ItemPhoto> {
   const res = await supabase
     .from('item_photos')
@@ -814,6 +999,9 @@ export async function setPhotoSchicht(id: string, schicht: number | null): Promi
     .eq('id', id)
     .select('*')
     .single()
+  // Die Zeilen auf diesem Foto zieht der Trigger aus 0020 im selben
+  // Vorgang nach. Ein zweites Update von hier aus konnte bei schnellem
+  // Weitertippen die Zeilen auf einer alten Schicht zuruecklassen.
   return unwrap(res, 'fehler.foto_speichern') as ItemPhoto
 }
 

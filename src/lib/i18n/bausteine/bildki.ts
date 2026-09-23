@@ -53,6 +53,10 @@ export const bildki: Woerterbuch = {
     ar: 'كل صورة جديدة تكلّف جزءاً من السنت. الصورة التي قُرئت من قبل لا تكلّف شيئاً.',
   },
   'bildki.aus_speicher': { de: 'Schon gelesen', ar: 'قُرئت سابقاً' },
+  'bildki.alles_gelesen': {
+    de: 'Alle Fotos sind schon gelesen. Mit "Neu lesen" liest du sie noch einmal.',
+    ar: 'قُرئت كل الصور بالفعل. مع "إعادة القراءة" تقرأها مرة أخرى.',
+  },
   'bildki.neu_lesen': { de: 'Neu lesen', ar: 'إعادة القراءة' },
   'bildki.neu_lesen_frage': {
     de: 'Das Bild wird noch einmal gelesen und kostet wieder. Die bisherigen Vorschläge gehen dabei verloren.',
@@ -62,11 +66,23 @@ export const bildki: Woerterbuch = {
     de: 'Heute noch frei: {projekt} für diesen Umzug, {nutzer} für dich in dieser Stunde.',
     ar: 'المتبقّي اليوم: {projekt} لهذه النقلة، و{nutzer} لك خلال هذه الساعة.',
   },
+  'bildki.noch_ungelesen.eins': {
+    de: 'Ein Foto ist noch nicht gelesen. Tippe noch einmal auf "Foto lesen", dann kommt es dran.',
+    ar: 'بقيت صورة واحدة لم تُقرأ بعد. اضغط مرة أخرى على "قراءة الصورة" لتُقرأ.',
+  },
+  'bildki.noch_ungelesen.viele': {
+    de: '{n} Fotos sind noch nicht gelesen. Je Durchgang gehen höchstens {max}. Tippe noch einmal auf "Foto lesen", dann kommen die nächsten dran.',
+    ar: 'بقيت {n} صور لم تُقرأ بعد. في كل مرة تُقرأ {max} صور على الأكثر. اضغط مرة أخرى على "قراءة الصورة" لتُقرأ الصور التالية.',
+  },
   'bildki.grenze_erreicht': {
     de: 'Die Grenze für heute ist erreicht. {n} Bilder sind darum liegen geblieben. Morgen geht es weiter.',
     ar: 'تم بلوغ حدّ اليوم. لذلك بقيت {n} صور دون قراءة. يمكنك المتابعة غداً.',
   },
 
+  'bildki.dienst': {
+    de: 'Gelesen wird mit dem offenen Modell Qwen bei OVHcloud in Frankreich.',
+    ar: 'تتم القراءة بالنموذج المفتوح Qwen لدى OVHcloud في فرنسا.',
+  },
   'bildki.datenschutz': {
     de: 'Zum Lesen wird das Bild an den Erkennungsdienst geschickt. Fotografier nichts, was niemanden angeht: Papiere, Rezepte, Ausweise.',
     ar: 'لقراءتها تُرسَل الصورة إلى خدمة التعرّف. لا تصوّر ما لا يخصّ أحداً: أوراقاً أو وصفات أو هويات.',
@@ -81,8 +97,37 @@ export const bildki: Woerterbuch = {
 
   'bildki.kein_schluessel_titel': { de: 'Die Erkennung ist noch nicht eingeschaltet', ar: 'التعرّف غير مُفعّل بعد' },
   'bildki.kein_schluessel': {
-    de: 'Es fehlt der Schlüssel für den Erkennungsdienst. Er wird einmal im Supabase-Projekt hinterlegt, entweder als Function Secret ANTHROPIC_API_KEY oder als Zeile in private.config. Danach läuft es ohne weiteres Zutun.',
-    ar: 'مفتاح خدمة التعرّف ناقص. يُضاف مرة واحدة في مشروع Supabase، إما كسرّ للدالة باسم ANTHROPIC_API_KEY أو كسطر في private.config. بعدها يعمل كل شيء تلقائياً.',
+    de: 'Es fehlt der Schlüssel für den Erkennungsdienst. Er wird einmal im Supabase-Projekt als Function Secret OVH_AI_ENDPOINTS_TOKEN hinterlegt. Danach läuft es ohne weiteres Zutun.',
+    ar: 'مفتاح خدمة التعرّف ناقص. يُضاف مرة واحدة في مشروع Supabase كسرّ للدالة باسم OVH_AI_ENDPOINTS_TOKEN. بعدها يعمل كل شيء تلقائياً.',
+  },
+  // Eigene Saetze fuer die Fehler, die die Erkennung mit Kennung meldet.
+  'bildki.fehler.zu_lang': {
+    de: 'Auf dem Bild war so viel, dass die Antwort abgeschnitten wurde. Fotografiere die Lage in zwei Teilen.',
+    ar: 'كان في الصورة الكثير حتى قُطع الرد. صوّر الطبقة على جزأين.',
+  },
+  'bildki.fehler.zeit': {
+    de: 'Die Erkennung hat zu lange gebraucht. Versuch es gleich noch einmal.',
+    ar: 'استغرق التعرّف وقتاً طويلاً. حاول مرة أخرى بعد قليل.',
+  },
+  'bildki.fehler.dienst_voll': {
+    de: 'Der Erkennungsdienst ist gerade ausgelastet. Versuch es in einer Minute noch einmal.',
+    ar: 'خدمة التعرّف مشغولة الآن. حاول مرة أخرى بعد دقيقة.',
+  },
+  'bildki.fehler.schluessel_falsch': {
+    de: 'Der Schlüssel für den Erkennungsdienst wird nicht angenommen. Prüf OVH_AI_ENDPOINTS_TOKEN in Supabase.',
+    ar: 'مفتاح خدمة التعرّف غير مقبول. تحقّق من OVH_AI_ENDPOINTS_TOKEN في Supabase.',
+  },
+  'bildki.fehler.format': {
+    de: 'Dieses Foto hat ein Format, das die Erkennung nicht lesen kann. Nimm es noch einmal auf.',
+    ar: 'لهذه الصورة صيغة لا يستطيع التعرّف قراءتها. التقطها مرة أخرى.',
+  },
+  'bildki.fehler.unlesbar': {
+    de: 'Die Erkennung hat keine brauchbare Liste geliefert. Versuch es noch einmal.',
+    ar: 'لم يُرجع التعرّف قائمة صالحة. حاول مرة أخرى.',
+  },
+  'bildki.fehler.zu_gross': {
+    de: 'Das Foto ist zu groß für die Erkennung.',
+    ar: 'الصورة كبيرة جداً على التعرّف.',
   },
   'bildki.nur_lesen': {
     de: 'Nur Bearbeiter dürfen Bilder lesen lassen.',

@@ -102,6 +102,13 @@ export interface Item {
   plan_x: number | null
   plan_y: number | null
   plan_z: number | null
+  /* Steht die Kiste in einem Regal, dann auf welchem Brett (1 ist das
+   * unterste). Beides oder keines. Siehe Migration 0022. */
+  regal_id: string | null
+  regal_boden: number | null
+  /* Eigene Hoehe in cm, wenn die Kiste nicht so hoch ist wie ihre
+   * Groesse, etwa eine Kleiderbox. null heisst: die Hoehe der Groesse. */
+  eigene_hoehe_cm: number | null
   /* Das Bild, das beim Scannen sofort erscheint. Verweis auf eine Zeile
    * in item_photos, kein zweiter Pfad. Siehe Migration 0012. */
   cover_photo_id: string | null
@@ -136,6 +143,19 @@ export interface ItemContent {
   /* Hat ein Mensch hingesehen? null heisst "noch niemand", und das ist
    * etwas anderes als "nein, das ist es nicht". */
   bestaetigt: boolean | null
+  /* Der Rahmen um das Ding im Bild, als Anteil 0 bis 1. Alle vier oder
+   * keiner. Hat ein Eintrag einen Rahmen, ist punkt_x/punkt_y seine
+   * Mitte; das setzt die Datenbank (0023). */
+  box_x0: number | null
+  box_y0: number | null
+  box_x1: number | null
+  box_y1: number | null
+  /** Woerter, unter denen jemand das Ding sucht, in beiden Sprachen. */
+  suchwoerter: string[]
+  /** Das ausgeschnittene Bild des Dings im Speicher item-photos. */
+  ausschnitt_pfad: string | null
+  /** Selbsteinschaetzung der Erkennung, 0 bis 1. null bei Handeintraegen. */
+  sicherheit: number | null
   created_at: string
 }
 
@@ -162,6 +182,77 @@ export interface Raumplan {
   tuer_seite: TuerSeite | null
   created_at: string
   updated_at: string
+}
+
+/** Eine Stufe der Kistengroesse, 1 bis 10. Liter ist der Inhalt, wie ihn
+ *  der Hersteller angibt; die Masse sind Aussenmasse eines typischen
+ *  Kartons dieser Stufe. Die Zahlen stehen nur in der Datenbank
+ *  (Migration 0021) und werden von dort gelesen. */
+export interface KistenGroesse {
+  stufe: number
+  liter: number
+  /** Bis hierher (ausschliesslich) zaehlt ein Karton zu dieser Stufe.
+   *  null bei der groessten Stufe. */
+  bis_liter: number | null
+  laenge_cm: number
+  breite_cm: number
+  hoehe_cm: number
+}
+
+/** Ein Regal im Raumplan. Es steht auf breite x tiefe Zellen ab (x, y)
+ *  und hat Bretter in der Hoehe boeden_cm, aufsteigend; Brett 1 ist das
+ *  unterste. Siehe Migration 0022. */
+export interface Regal {
+  id: string
+  tag_id: string
+  project_id: string
+  name: string
+  x: number
+  y: number
+  breite: number
+  tiefe: number
+  hoehe_cm: number
+  boeden_cm: number[]
+  created_at: string
+  updated_at: string
+}
+
+/** Ein Treffer der Suche ueber alle Umzuege (inhalt_suchen, 0024): ein
+ *  Ding, und wo es steht, bis zur Hoehe ueber dem Boden. */
+export interface SuchTreffer {
+  content_id: string
+  inhalt: string
+  menge: number
+  schicht: number | null
+  photo_id: string | null
+  foto_pfad: string | null
+  box_x0: number | null
+  box_y0: number | null
+  box_x1: number | null
+  box_y1: number | null
+  punkt_x: number | null
+  punkt_y: number | null
+  ausschnitt_pfad: string | null
+  bestaetigt: boolean | null
+  item_id: string
+  item_code: string
+  item_kind: ItemKind
+  item_title: string | null
+  item_status: ItemStatus
+  project_id: string
+  project_name: string
+  room_id: string | null
+  room_name: string | null
+  room_color: string | null
+  plan_x: number | null
+  plan_y: number | null
+  plan_z: number | null
+  regal_name: string | null
+  regal_boden: number | null
+  /** Unter- und Oberkante in cm ueber dem Zimmerboden, ohne Platz null. */
+  hoehe_von: number | null
+  hoehe_bis: number | null
+  treffer: number
 }
 
 export type PhotoArt = 'foto' | 'anleitung'
@@ -201,9 +292,19 @@ export interface ErkanntesDing {
   hinweis?: string | null
   /* Wo auf dem Bild das Ding sitzt, als Anteil von 0 bis 1. Geschaetzt,
    * nicht gemessen: darum wird der Punkt im Bild gezeigt und von einem
-   * Menschen bestaetigt, statt ihn einfach zu glauben. */
+   * Menschen bestaetigt, statt ihn einfach zu glauben. x und y sind die
+   * Mitte, x0 bis y1 der Rahmen (seit 0023). Aeltere Ergebnisse haben nur
+   * den Punkt, ganz alte gar nichts. */
   x?: number | null
   y?: number | null
+  x0?: number | null
+  y0?: number | null
+  x1?: number | null
+  y1?: number | null
+  /** Beide Namen und Suchwoerter, fuer die Suche ueber alle Umzuege. */
+  name_de?: string | null
+  name_ar?: string | null
+  suchwoerter?: string[]
 }
 
 export interface PhotoAnalyse {

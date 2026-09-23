@@ -22,6 +22,8 @@ export interface BildErgebnis {
   aus_speicher: boolean
   dinge: ErkanntesDing[]
   fehler?: string
+  /** Kennung des Fehlers, fuer einen eigenen Satz (bildki.fehler.*). */
+  code?: string
 }
 
 export interface ErkennungsAntwort {
@@ -159,15 +161,6 @@ export function stufeVon(sicherheit: number): Stufe {
   if (sicherheit >= 0.8) return 'sicher'
   if (sicherheit >= 0.5) return 'wahrscheinlich'
   return 'unsicher'
-}
-
-/** Steht dieser Vorschlag schon in der Liste? Verglichen wird ohne
- *  Gross- und Kleinschreibung und ohne Rand, aber NICHT unscharf: zwei
- *  aehnliche Woerter sind zwei Dinge, und etwas stillschweigend
- *  zusammenzuwerfen waere schlimmer als eine Zeile doppelt. */
-export function schonVorhanden(vorschlag: string, vorhanden: string[]): boolean {
-  const a = vorschlag.trim().toLowerCase()
-  return vorhanden.some((v) => v.trim().toLowerCase() === a)
 }
 
 /** Alle Fotos, die zu dieser Art gehoeren. Anleitungen bleiben draussen:

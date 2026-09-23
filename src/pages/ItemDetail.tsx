@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Camera,
   Check,
   Copy,
+  Crosshair,
   ImagePlus,
   Layers,
   LayoutGrid,
@@ -19,6 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
+import { Ausschnitt } from '../components/Ausschnitt'
 import { BildLesen } from '../components/BildLesen'
 import { PunktBild } from '../components/PunktBild'
 import { InhaltVerschieben } from '../components/InhaltVerschieben'
@@ -56,12 +58,22 @@ import {
   listPhotos,
   setCoverPhoto,
   setPhotoSchicht,
+  setzeRahmen,
   updateContent,
   updateItem,
 } from '../lib/api'
 import { useSprache } from '../lib/i18n'
+import { groesseSatz, useKistenGroessen } from '../lib/groessen'
+import { zahlLesen } from '../lib/raumplan'
 import { markFlaeche } from '../lib/marken'
-import { compressImage, signedUrls, uploadTo } from '../lib/media'
+import {
+  ausschnittErstellen,
+  compressImage,
+  signedUrls,
+  uploadTo,
+  type Rahmen,
+} from '../lib/media'
+import { rahmenVon } from '../lib/rahmen'
 import { notifyItemStatus } from '../lib/push'
 import {
   STATUS_COLOR,
@@ -122,9 +134,14 @@ function TagTile({ role, tag }: { role: string; tag: Tag }) {
 
 export default function ItemDetail() {
   const { iid = '' } = useParams()
+  /* Kommt man aus der Suche, steht das gesuchte Ding in der Adresse. */
+  const [params] = useSearchParams()
+  const gesuchtInhalt = params.get('inhalt')
+  const gesuchtGezeigt = useRef<string | null>(null)
   const { project, rooms, people, tagById, canEdit, members } = useProject()
   const { user } = useAuth()
-  const { t, tn } = useSprache()
+  const { t, tn, lang } = useSprache()
+  const groessen = useKistenGroessen()
   const toast = useToast()
   const nav = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -143,12 +160,24 @@ export default function ItemDetail() {
   const [neueSchicht, setNeueSchicht] = useState<number | null>(null)
   /* Der Eintrag, dessen Stelle im Bild gerade gezeigt wird. */
   const [punktEintrag, setPunktEintrag] = useState<ItemContent | null>(null)
+  /* Das Foto, auf dem gerade ein neues Ding von Hand markiert wird. */
+  const [markierFoto, setMarkierFoto] = useState<ItemPhoto | null>(null)
   const [markieren, setMarkieren] = useState(false)
   const [bildLesen, setBildLesen] = useState(false)
   const [urls, setUrls] = useState<Map<string, string>>(new Map())
   const [newEntry, setNewEntry] = useState('')
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [editOpen, setEditOpen] = useState(false)
+  /* Das Feld fuer die eigene Hoehe, mit Fehler. Beim Oeffnen des
+   * Dialogs frisch aus der Kiste. */
+  const [hoeheFehler, setHoeheFehler] = useState<string | null>(null)
+  const [hoeheText, setHoeheText] = useState('')
+  useEffect(() => {
+    if (!editOpen) return
+    setHoeheFehler(null)
+    setHoeheText(item?.eigene_hoehe_cm != null ? String(item.eigene_hoehe_cm) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOpen])
   const [delOpen, setDelOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -178,8 +207,26 @@ export default function ItemDetail() {
     void reload()
   }, [reload])
 
-  async function patch(p: Partial<Item>) {
-    if (!item) return
+  /* Das gesuchte Ding einmal in den Blick holen, sobald die Liste wirklich
+   * dasteht. Die Inhalte kommen vor den Bildadressen an; solange die noch
+   * laden, zeigt die Seite nur "Laedt", und die Zeile gibt es noch nicht.
+   * Darum haengt es an loading, und als gezeigt gilt es erst, wenn die
+   * Zeile gefunden wurde. */
+  useEffect(() => {
+    if (loading || !gesuchtInhalt || gesuchtGezeigt.current === gesuchtInhalt) return
+    if (!contents.some((c) => c.id === gesuchtInhalt)) return
+    requestAnimationFrame(() => {
+      const zeile = document.getElementById(`inhalt-${gesuchtInhalt}`)
+      if (!zeile) return
+      gesuchtGezeigt.current = gesuchtInhalt
+      zeile.scrollIntoView({ block: 'center' })
+    })
+  }, [gesuchtInhalt, contents, loading])
+
+  /** Gibt zurueck, ob es geklappt hat. Wer danach etwas anzeigt, muss
+   *  das wissen, etwa das Feld fuer die eigene Hoehe. */
+  async function patch(p: Partial<Item>): Promise<boolean> {
+    if (!item) return false
     const before = item
     setItem({ ...item, ...p })
     try {
@@ -193,9 +240,11 @@ export default function ItemDetail() {
           t('kisten.ist_angekommen', { code: next.code }),
         )
       }
+      return true
     } catch (err) {
       setItem(before)
       toast(err instanceof Error ? err.message : String(err), 'error')
+      return false
     }
   }
 
@@ -276,6 +325,62 @@ export default function ItemDetail() {
     document.addEventListener('paste', handler)
     return () => document.removeEventListener('paste', handler)
   }, [canEdit, onFiles])
+
+  /** Pfad fuer ein neues Ausschnittbild. Immer ein neuer Name: der
+   *  Speicher erlaubt kein Ueberschreiben. */
+  function ausschnittPfad(): string {
+    return `${project.id}/${iid}/ausschnitt-${uid()}.jpg`
+  }
+
+  /** Einen neu gezogenen Rahmen speichern, mit neuem Ausschnitt. Scheitert
+   *  nur der Ausschnitt, bleibt der Rahmen und das Bild wird live aus dem
+   *  Foto geschnitten. */
+  async function rahmenSpeichern(eintrag: ItemContent, r: Rahmen) {
+    const foto = photos.find((p) => p.id === eintrag.photo_id)
+    if (!foto) return
+    let pfad: string | null = null
+    try {
+      pfad = await ausschnittErstellen(foto.path, r, ausschnittPfad())
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    }
+    try {
+      const neu = await setzeRahmen(eintrag, r, pfad)
+      setContents((list) => list.map((x) => (x.id === neu.id ? neu : x)))
+      setPunktEintrag((cur) => (cur?.id === neu.id ? neu : cur))
+      toast(t('schichten.rahmen_gespeichert'), 'ok')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }
+
+  /** Ein Ding, das die Erkennung uebersehen hat, von Hand im Bild
+   *  markieren: neuer Eintrag mit Rahmen, Schicht des Fotos und Ausschnitt. */
+  async function dingMarkieren(name: string, r: Rahmen) {
+    const foto = markierFoto
+    if (!foto || !item) return
+    try {
+      let neu = await addContent(
+        project.id,
+        item.id,
+        name,
+        1,
+        'hand',
+        { photo_id: foto.id, schicht: foto.schicht, rahmen: r },
+        { suchwoerter: [name] },
+      )
+      try {
+        const pfad = await ausschnittErstellen(foto.path, r, ausschnittPfad())
+        neu = await setzeRahmen(neu, r, pfad)
+      } catch (err) {
+        toast(err instanceof Error ? err.message : String(err), 'error')
+      }
+      setContents((c) => [...c, neu])
+      toast(t('schichten.markiert'), 'ok')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }
 
   async function copyLink(id: string) {
     try {
@@ -370,15 +475,27 @@ export default function ItemDetail() {
 
               <p className="t-name-lg mt-3 break-words">{item.title || t(`art.${item.kind}`)}</p>
               <p className="t-sub mt-1">
-                {t('kisten.art_und_groesse', {
+                {t('kisten.art_und_satz', {
                   art: t(`art.${item.kind}`),
-                  n: item.size,
-                  wort: t(`groesse.${item.size}`),
+                  groesse: groesseSatz(t, lang, item.size, item.kind, groessen),
                 })}
               </p>
 
               <div className="mt-4 grid gap-2">
                 {room ? <TagTile role={t('begriff.zimmer')} tag={room} /> : null}
+                {/* Der Weg von der Kiste zum Zimmer: zeig mir, wo sie steht.
+                    Auf der Seite selbst und fuer jede Rolle, nicht versteckt
+                    im Bearbeiten: suchen muss auch, wer nur schauen darf. */}
+                {room && item.kind !== 'furniture' ? (
+                  <Link
+                    to={`/app/p/${project.id}/zimmer/${room.id}/plan?kiste=${item.id}`}
+                    className="block"
+                  >
+                    <Button variant="soft" full>
+                      <LayoutGrid size={18} /> {t('raumplan.zeigen')}
+                    </Button>
+                  </Link>
+                ) : null}
                 {person ? <TagTile role={t('begriff.person')} tag={person} /> : null}
                 {!room && !person ? (
                   <div className="rounded-2xl border border-dashed border-line px-3 py-3">
@@ -475,7 +592,14 @@ export default function ItemDetail() {
           ) : (
             <ul className="zebra divide-y divide-line">
               {contents.map((c) => (
-                <li key={c.id} className="flex items-center gap-3 px-3 py-2.5">
+                <li
+                  key={c.id}
+                  id={`inhalt-${c.id}`}
+                  className={cx(
+                    'flex items-center gap-3 px-3 py-2.5',
+                    c.id === gesuchtInhalt && 'ring-4 ring-inset ring-danger',
+                  )}
+                >
                   <button
                     type="button"
                     disabled={!canEdit}
@@ -505,51 +629,79 @@ export default function ItemDetail() {
                   {/* Hat der Eintrag eine Stelle auf einem Bild, fuehrt
                       ein Tippen dorthin. Sonst steht hier nur Text: ein
                       Knopf, der nichts tut, waere gelogen. */}
-                  {c.photo_id ? (
+                  {/* Das kleine Bild des Dings, wenn es eines gibt. Ein
+                      Tippen darauf zeigt es im Foto. */}
+                  {c.ausschnitt_pfad || (c.photo_id && c.box_x0 !== null) ? (
                     <button
                       type="button"
                       onClick={() => setPunktEintrag(c)}
-                      className={cx(
-                        'min-w-0 flex-1 break-words text-start text-lg font-semibold underline decoration-line decoration-2 underline-offset-4',
-                        c.checked && 'text-muted line-through',
-                      )}
+                      aria-label={c.text}
+                      className="shrink-0 transition active:scale-95"
                     >
-                      {c.qty > 1 ? <span className="t-serial">{c.qty}x </span> : null}
-                      {c.text}
+                      <Ausschnitt
+                        pfad={c.ausschnitt_pfad}
+                        fotoUrl={(() => {
+                          const f = photos.find((p) => p.id === c.photo_id)
+                          return f ? (urls.get(f.path) ?? null) : null
+                        })()}
+                        rahmen={rahmenVon(c)}
+                        groesse={44}
+                        alt={c.text}
+                      />
                     </button>
-                  ) : (
-                    <span
-                      className={cx(
-                        'min-w-0 flex-1 break-words text-lg font-semibold',
-                        c.checked && 'text-muted line-through',
-                      )}
-                    >
-                      {c.qty > 1 ? <span className="t-serial">{c.qty}x </span> : null}
-                      {c.text}
-                    </span>
-                  )}
+                  ) : null}
 
-                  {c.schicht ? (
-                    <span className="t-serial shrink-0 rounded-lg bg-raised px-2 py-1 text-sm font-black">
-                      {c.schicht}
-                    </span>
-                  ) : null}
-                  {c.bestaetigt === true ? (
-                    <span
-                      title={t('schichten.bestaetigt')}
-                      className="shrink-0 rounded-lg bg-ok/15 px-2 py-1 text-sm font-black text-ok"
-                    >
-                      <Check size={16} strokeWidth={3} />
-                    </span>
-                  ) : null}
-                  {c.bestaetigt === false ? (
-                    <span
-                      title={t('schichten.verneint')}
-                      className="shrink-0 rounded-lg bg-danger/15 px-2 py-1 text-sm font-black text-danger"
-                    >
-                      <X size={16} strokeWidth={3} />
-                    </span>
-                  ) : null}
+                  {/* Text oben, Schicht und Antwort klein darunter. Neben
+                      dem Text blieben auf einem schmalen Handy sonst nur
+                      drei Buchstaben je Zeile. */}
+                  <div className="min-w-0 flex-1">
+                    {c.photo_id ? (
+                      <button
+                        type="button"
+                        onClick={() => setPunktEintrag(c)}
+                        className={cx(
+                          'block w-full break-words text-start text-lg font-semibold underline decoration-line decoration-2 underline-offset-4',
+                          c.checked && 'text-muted line-through',
+                        )}
+                      >
+                        {c.qty > 1 ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
+                        {c.text}
+                      </button>
+                    ) : (
+                      <span
+                        className={cx(
+                          'block break-words text-lg font-semibold',
+                          c.checked && 'text-muted line-through',
+                        )}
+                      >
+                        {c.qty > 1 ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
+                        {c.text}
+                      </span>
+                    )}
+
+                    {c.schicht || c.bestaetigt !== null ? (
+                      <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {c.schicht ? (
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-raised px-2 py-0.5 text-sm font-black">
+                            <Layers size={13} />
+                            {t('schichten.schicht_n', { n: c.schicht })}
+                          </span>
+                        ) : null}
+                        {c.bestaetigt === true ? (
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-ok/15 px-2 py-0.5 text-sm font-black text-ok">
+                            <Check size={13} strokeWidth={3} />
+                            {t('schichten.bestaetigt')}
+                          </span>
+                        ) : null}
+                        {c.bestaetigt === false ? (
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">
+                            <X size={13} strokeWidth={3} />
+                            {t('schichten.verneint')}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </div>
 
                   {canEdit ? (
                     <IconButton
@@ -568,7 +720,7 @@ export default function ItemDetail() {
                       size="sm"
                       onClick={() => {
                         setContents((list) => list.filter((x) => x.id !== c.id))
-                        void deleteContent(c.id).catch((err: unknown) => {
+                        void deleteContent(c.id, c.ausschnitt_pfad).catch((err: unknown) => {
                           toast(err instanceof Error ? err.message : String(err), 'error')
                           void reload()
                         })
@@ -795,10 +947,28 @@ export default function ItemDetail() {
                             size="sm"
                             onClick={() => {
                               setPhotos((list) => list.filter((x) => x.id !== p.id))
-                              void deletePhoto(p).catch((err: unknown) => {
-                                toast(err instanceof Error ? err.message : String(err), 'error')
-                                void reload()
-                              })
+                              void deletePhoto(p)
+                                .then(() =>
+                                  // Die Datenbank nimmt den Zeilen den Ort (0019). Hier
+                                  // genauso, sonst fuehrt ein Tippen auf sie ins Leere.
+                                  setContents((list) =>
+                                    list.map((x) =>
+                                      x.photo_id === p.id
+                                        ? {
+                                            ...x,
+                                            photo_id: null,
+                                            punkt_x: null,
+                                            punkt_y: null,
+                                            bestaetigt: null,
+                                          }
+                                        : x,
+                                    ),
+                                  ),
+                                )
+                                .catch((err: unknown) => {
+                                  toast(err instanceof Error ? err.message : String(err), 'error')
+                                  void reload()
+                                })
                             }}
                           >
                             <Trash2 size={17} />
@@ -820,19 +990,25 @@ export default function ItemDetail() {
                             list.map((x) => (x.id === p.id ? { ...x, schicht: naechste } : x)),
                           )
                           void setPhotoSchicht(p.id, naechste)
-                            .then(() =>
+                            .then(() => {
+                              // Die Zeilen auf diesem Foto ziehen mit, wie in der Datenbank.
+                              setContents((list) =>
+                                list.map((x) =>
+                                  x.photo_id === p.id ? { ...x, schicht: naechste } : x,
+                                ),
+                              )
                               toast(
                                 naechste === null
                                   ? t('schichten.entfernt')
                                   : t('schichten.gesetzt', { n: naechste }),
                                 'ok',
-                              ),
-                            )
-                            .catch((err: unknown) => {
-                              setPhotos((list) =>
-                                list.map((x) => (x.id === p.id ? { ...x, schicht: p.schicht } : x)),
                               )
+                            })
+                            .catch((err: unknown) => {
                               toast(err instanceof Error ? err.message : String(err), 'error')
+                              // Ob das Foto oder erst die Zeilen scheiterten, weiss hier
+                              // niemand. Also den Stand der Datenbank holen, nicht raten.
+                              void reload()
                             })
                         }}
                         className={cx(
@@ -844,6 +1020,20 @@ export default function ItemDetail() {
                         <Layers size={15} />
                         <span className="t-serial">{p.schicht ?? '-'}</span>
                       </button>
+
+                      {/* Ein Ding, das die Erkennung uebersehen hat, hier
+                          von Hand markieren. */}
+                      {canEdit && url ? (
+                        <button
+                          type="button"
+                          onClick={() => setMarkierFoto(p)}
+                          title={t('schichten.markieren')}
+                          aria-label={t('schichten.markieren')}
+                          className="absolute bottom-1.5 end-1.5 flex h-9 w-9 items-center justify-center rounded-xl bg-black/60 text-white transition active:scale-95"
+                        >
+                          <Crosshair size={17} />
+                        </button>
+                      ) : null}
                     </div>
                   )
                 })}
@@ -960,20 +1150,6 @@ export default function ItemDetail() {
             </Field>
           </div>
 
-          {/* Der Weg von der Kiste zum Zimmer: zeig mir, wo sie steht.
-              Der Plan hebt sie dann hervor. Hat sie noch keinen Platz,
-              steht sie dort unten bei den Kisten ohne Platz. */}
-          {item.room_id ? (
-            <Link
-              to={`/app/p/${project.id}/zimmer/${item.room_id}/plan?kiste=${item.id}`}
-              className="block"
-            >
-              <Button variant="soft" size="lg" full className="sm:w-auto">
-                <LayoutGrid size={20} /> {t('raumplan.zeigen')}
-              </Button>
-            </Link>
-          ) : null}
-
           {item.room_id && item.person_id ? (
             <Field label={t('kisten.kuerzel_im_code')}>
               <Select
@@ -991,8 +1167,59 @@ export default function ItemDetail() {
           ) : null}
 
           <Field label={t('begriff.groesse')}>
-            <SizePicker value={item.size} onChange={(size) => void patch({ size })} />
+            <SizePicker
+              value={item.size}
+              kind={item.kind}
+              onChange={(size) => void patch({ size })}
+            />
           </Field>
+
+          {/* Eine eigene Hoehe nur fuer Kisten, die anders hoch sind als
+              ihre Groesse, etwa eine Kleiderbox. Der Raumplan stapelt mit
+              dieser Hoehe (0022). Leer heisst: die Hoehe der Groesse. */}
+          {item.kind !== 'furniture' ? (
+            <Field
+              label={t('kisten.eigene_hoehe')}
+              hint={t('kisten.eigene_hoehe_hinweis', {
+                h: groessen?.get(item.size)?.hoehe_cm ?? '?',
+              })}
+              error={hoeheFehler}
+            >
+              <Input
+                inputMode="numeric"
+                dir="ltr"
+                value={hoeheText}
+                onChange={(e) => setHoeheText(e.target.value)}
+                className="t-serial"
+                onBlur={() => {
+                  const vorher = item.eigene_hoehe_cm != null ? String(item.eigene_hoehe_cm) : ''
+                  const roh = hoeheText.trim()
+                  if (!roh) {
+                    setHoeheFehler(null)
+                    if (item.eigene_hoehe_cm !== null) {
+                      void patch({ eigene_hoehe_cm: null }).then((ok) => {
+                        if (!ok) setHoeheText(vorher)
+                      })
+                    }
+                    return
+                  }
+                  const z = zahlLesen(roh)
+                  if (z === null || z < 5 || z > 300) {
+                    setHoeheFehler(t('kisten.eigene_hoehe_fehler'))
+                    return
+                  }
+                  setHoeheFehler(null)
+                  if (Math.round(z) !== item.eigene_hoehe_cm) {
+                    // Lehnt die Datenbank ab (etwa: Stapel zu hoch), steht
+                    // wieder die alte Hoehe im Feld, nicht die abgelehnte.
+                    void patch({ eigene_hoehe_cm: Math.round(z) }).then((ok) => {
+                      if (!ok) setHoeheText(vorher)
+                    })
+                  }
+                }}
+              />
+            </Field>
+          ) : null}
 
           <Field label={t('kisten.art')}>
             <Select
@@ -1036,6 +1263,7 @@ export default function ItemDetail() {
         projectId={project.id}
         itemId={item.id}
         fotos={photos}
+        fotoUrls={urls}
         art={item.kind === 'furniture' ? 'moebel' : 'kiste'}
         vorhandeneInhalte={contents}
         canEdit={canEdit}
@@ -1044,12 +1272,21 @@ export default function ItemDetail() {
       />
 
       <PunktBild
-        offen={punktEintrag !== null}
-        onClose={() => setPunktEintrag(null)}
+        offen={punktEintrag !== null || markierFoto !== null}
+        onClose={() => {
+          setPunktEintrag(null)
+          setMarkierFoto(null)
+        }}
         eintrag={punktEintrag}
         geschwister={contents}
-        foto={photos.find((p) => p.id === punktEintrag?.photo_id) ?? null}
+        foto={
+          punktEintrag
+            ? (photos.find((p) => p.id === punktEintrag.photo_id) ?? null)
+            : markierFoto
+        }
         canEdit={canEdit}
+        onRahmen={rahmenSpeichern}
+        onNeu={dingMarkieren}
         onAntwort={(eintrag, wert) => {
           /* Sofort speichern, nicht erst beim Schliessen. Wer das
            * Fenster zuwirft, hat trotzdem geantwortet. */
@@ -1061,7 +1298,9 @@ export default function ItemDetail() {
             setContents((list) =>
               list.map((x) => (x.id === eintrag.id ? { ...x, bestaetigt: eintrag.bestaetigt } : x)),
             )
-            setPunktEintrag({ ...eintrag })
+            // Nur zuruecksetzen, wenn das Bild noch offen ist. Ein schon
+            // geschlossenes Bild darf nicht von selbst wieder aufgehen.
+            setPunktEintrag((cur) => (cur?.id === eintrag.id ? { ...eintrag } : cur))
             toast(err instanceof Error ? err.message : String(err), 'error')
           })
         }}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Eye, RefreshCw, Sparkles } from 'lucide-react'
 import {
   Button,
@@ -10,8 +10,10 @@ import {
   Modal,
   useToast,
 } from './ui'
+import { Ausschnitt } from './Ausschnitt'
 import { useSprache } from '../lib/i18n'
-import { addContent } from '../lib/api'
+import { addContent, updateContent } from '../lib/api'
+import { ausschnittErstellen, type Rahmen } from '../lib/media'
 import {
   BildFehler,
   MAX_BILDER_JE_LAUF,
@@ -19,14 +21,13 @@ import {
   erkennungVerwerfen,
   lesbareFotos,
   restGuthaben,
-  schonVorhanden,
   stufeVon,
   vorhandeneErkennungen,
   type BildErgebnis,
   type Erkennungsart,
 } from '../lib/bildki'
 import type { ErkanntesDing, ItemContent, ItemPhoto } from '../lib/types'
-import { cx } from '../lib/util'
+import { cx, uid } from '../lib/util'
 
 /* Vorschlaege aus einem Foto.
  *
@@ -56,12 +57,26 @@ interface Zeile {
    * damit man den Gegenstand spaeter im Bild wiederfindet. */
   x: number | null
   y: number | null
+  /** Der Rahmen um das Ding, wenn die Erkennung einen geliefert hat. */
+  rahmen: Rahmen | null
+  /** Suchwoerter und beide Namen, fuer die Suche ueber alle Umzuege. */
+  suchwoerter: string[]
   schicht: number | null
+}
+
+/** Steht genau dieser Vorschlag schon in der Liste? Derselbe Text reicht
+ *  nicht: dasselbe Ding kann in Schicht 1 und in Schicht 3 liegen, und
+ *  beides gehoert in die Liste. Schon drin ist ein Vorschlag nur, wenn
+ *  eine Zeile mit demselben Text von DIESEM Foto uebernommen wurde. Der
+ *  Vergleich ist ohne Gross- und Kleinschreibung, aber nicht unscharf. */
+function schonUebernommen(text: string, photoId: string, vorhanden: ItemContent[]): boolean {
+  const a = text.trim().toLowerCase()
+  return vorhanden.some((v) => v.photo_id === photoId && v.text.trim().toLowerCase() === a)
 }
 
 function zeilenAus(
   ergebnisse: BildErgebnis[],
-  vorhanden: string[],
+  vorhanden: ItemContent[],
   reihenfolge: string[],
   /** Welches Bild in welcher Schicht aufgenommen wurde. */
   schichtVon: Map<string, number | null>,
@@ -70,7 +85,7 @@ function zeilenAus(
   for (const e of ergebnisse) {
     const nr = reihenfolge.indexOf(e.photo_id) + 1
     e.dinge.forEach((d: ErkanntesDing, i) => {
-      const drin = schonVorhanden(d.text, vorhanden)
+      const drin = schonUebernommen(d.text, e.photo_id, vorhanden)
       out.push({
         schluessel: `${e.photo_id}:${i}`,
         photoId: e.photo_id,
@@ -86,6 +101,20 @@ function zeilenAus(
         // Beide oder keiner. Ein halber Punkt zeigt auf nichts.
         x: typeof d.x === 'number' && typeof d.y === 'number' ? d.x : null,
         y: typeof d.x === 'number' && typeof d.y === 'number' ? d.y : null,
+        rahmen:
+          typeof d.x0 === 'number' &&
+          typeof d.y0 === 'number' &&
+          typeof d.x1 === 'number' &&
+          typeof d.y1 === 'number' &&
+          d.x0 < d.x1 &&
+          d.y0 < d.y1
+            ? { x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1 }
+            : null,
+        suchwoerter: [
+          ...(Array.isArray(d.suchwoerter) ? d.suchwoerter : []),
+          d.name_de ?? '',
+          d.name_ar ?? '',
+        ].filter((w): w is string => typeof w === 'string' && w.trim().length > 0),
         schicht: schichtVon.get(e.photo_id) ?? null,
       })
     })
@@ -99,6 +128,7 @@ export function BildLesen({
   projectId,
   itemId,
   fotos,
+  fotoUrls,
   art,
   vorhandeneInhalte,
   canEdit,
@@ -111,6 +141,9 @@ export function BildLesen({
   /** Wohin die uebernommenen Zeilen gehen. */
   itemId: string
   fotos: ItemPhoto[]
+  /** Signierte Adressen der Fotos, nach Pfad. Fuer die Vorschau der
+   *  Ausschnitte in der Tabelle. */
+  fotoUrls: Map<string, string>
   art: Erkennungsart
   vorhandeneInhalte: ItemContent[]
   canEdit: boolean
@@ -129,10 +162,13 @@ export function BildLesen({
   const [neuLesen, setNeuLesen] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  const brauchbar = lesbareFotos(fotos).slice(0, MAX_BILDER_JE_LAUF)
-  const reihenfolge = brauchbar.map((f) => f.id)
-  const schichtVon = new Map(brauchbar.map((f) => [f.id, f.schicht]))
-  const vorhandeneTexte = vorhandeneInhalte.map((c) => c.text)
+  /* Alle lesbaren Fotos, nicht nur die ersten vier. Gelesen wird je
+   * Durchgang hoechstens MAX_BILDER_JE_LAUF, und zwar zuerst die, die noch
+   * niemand gelesen hat. Sonst kaemen die tieferen Schichten nie dran. */
+  const alle = lesbareFotos(fotos)
+  const reihenfolge = alle.map((f) => f.id)
+  const schichtVon = new Map(alle.map((f) => [f.id, f.schicht]))
+  const nochOffen = alle.filter((f) => !schonGelesen.has(f.id)).length
 
   /* Beim Oeffnen wird nur nachgesehen, was schon einmal gelesen wurde.
    * Gelesen wird erst auf Tippen: es kostet Geld, und Geld gibt niemand
@@ -151,8 +187,10 @@ export function BildLesen({
         ])
         if (!alive) return
         setRest(guthaben)
-        setSchonGelesen(new Set([...alt.keys()]))
+        /* Gelesen ist nur, was fertig ist. Ein gescheitertes Foto soll beim
+         * naechsten Mal wieder drankommen, nicht fuer immer liegen bleiben. */
         const fertige = [...alt.values()].filter((a) => a.status === 'fertig')
+        setSchonGelesen(new Set(fertige.map((a) => a.photo_id)))
         if (fertige.length > 0) {
           setZeilen(
             zeilenAus(
@@ -162,7 +200,7 @@ export function BildLesen({
                 aus_speicher: true,
                 dinge: a.ergebnis,
               })),
-              vorhandeneTexte,
+              vorhandeneInhalte,
               reihenfolge,
               schichtVon,
             ),
@@ -178,40 +216,64 @@ export function BildLesen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offen, projectId, userId, lang])
 
-  const lesen = useCallback(async () => {
-    if (brauchbar.length === 0) {
+  /* Eine gewoehnliche Funktion, kein useCallback: sie soll bei jedem
+   * Aufruf die aktuellen Fotos und ihre Schicht sehen. Eine eingefrorene
+   * Fassung gab neu gelesenen Vorschlaegen die Schicht von vorhin.
+   * `gelesen` erlaubt dem Neu-Lesen, den gerade geleerten Stand
+   * mitzugeben, bevor React ihn gesetzt hat. */
+  async function lesen(gelesen: Set<string> = schonGelesen) {
+    if (alle.length === 0) {
       setFehler({ code: 'leer', text: t('bildki.keine_bilder') })
       return
     }
+    const ungelesen = alle.filter((f) => !gelesen.has(f.id))
+    /* Alles schon gelesen: nichts neu holen. Sonst ersetzte die Antwort die
+     * Zeilen samt Auswahl und Aenderungen. Neu lesen geht ueber den eigenen
+     * Knopf daneben. */
+    if (ungelesen.length === 0) {
+      toast(t('bildki.alles_gelesen'), 'info')
+      return
+    }
+    const lauf = ungelesen.slice(0, MAX_BILDER_JE_LAUF)
     setLaeuft(true)
     setFehler(null)
     try {
-      const antwort = await bilderLesen(projectId, reihenfolge, art, lang)
+      const antwort = await bilderLesen(
+        projectId,
+        lauf.map((f) => f.id),
+        art,
+        lang,
+      )
       setRest({ projekt: antwort.rest_projekt, nutzer: antwort.rest_nutzer })
       setGrenzeUebrig(antwort.uebersprungen_wegen_grenze)
-      setSchonGelesen(new Set(antwort.ergebnisse.map((e) => e.photo_id)))
+      const fertig = antwort.ergebnisse.filter((e) => e.status === 'fertig')
+      setSchonGelesen((alt) => new Set([...alt, ...fertig.map((e) => e.photo_id)]))
 
-      // Fehlgeschlagene Bilder werden gemeldet, nicht uebergangen.
+      // Fehlgeschlagene Bilder werden gemeldet, nicht uebergangen. Hat der
+      // Fehler eine Kennung, kommt der eigene Satz dazu.
       const kaputt = antwort.ergebnisse.filter((e) => e.status === 'fehler')
       if (kaputt.length > 0) {
-        toast(kaputt[0].fehler ?? t('zustand.unbekannter_fehler'), 'error')
+        const k = kaputt[0]
+        const key = k.code ? `bildki.fehler.${k.code}` : ''
+        const satz = key ? t(key) : ''
+        toast(
+          satz && satz !== key ? satz : (k.fehler ?? t('zustand.unbekannter_fehler')),
+          'error',
+        )
       }
-      setZeilen(
-        zeilenAus(
-          antwort.ergebnisse.filter((e) => e.status === 'fertig'),
-          vorhandeneTexte,
-          reihenfolge,
-          schichtVon,
-        ),
-      )
+      /* Die neuen Zeilen kommen zu den alten dazu. Was schon in der
+       * Tabelle steht, bleibt mit seinen Aenderungen stehen; nur die
+       * Zeilen eines gerade neu gelesenen Fotos werden ersetzt. */
+      const neu = zeilenAus(fertig, vorhandeneInhalte, reihenfolge, schichtVon)
+      const neuVon = new Set(fertig.map((e) => e.photo_id))
+      setZeilen((alt) => [...(alt ?? []).filter((z) => !neuVon.has(z.photoId)), ...neu])
     } catch (err) {
       if (err instanceof BildFehler) setFehler({ code: err.code, text: err.message })
       else setFehler({ code: 'unbekannt', text: err instanceof Error ? err.message : String(err) })
     } finally {
       setLaeuft(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, art, lang, brauchbar.length, t, toast])
+  }
 
   async function uebernehmen() {
     const gewaehlt = (zeilen ?? []).filter((z) => z.gewaehlt && z.text.trim())
@@ -222,21 +284,52 @@ export function BildLesen({
     setBusy(true)
     const neu: ItemContent[] = []
     const fehlgeschlagen: string[] = []
+    let ohneAusschnitt = 0
     for (const z of gewaehlt) {
+      const text = z.text.trim()
       try {
-        neu.push(
-          await addContent(projectId, itemId, z.text.trim(), z.menge, 'bild', {
+        // Der Name, wie er uebernommen wird, zaehlt immer zu den
+        // Suchwoertern, auch wenn er von Hand geaendert wurde.
+        const woerter = [...new Set([text, ...z.suchwoerter].map((w) => w.trim()).filter(Boolean))]
+        const zeile = await addContent(
+          projectId,
+          itemId,
+          text,
+          z.menge,
+          'bild',
+          {
             photo_id: z.photoId,
             schicht: z.schicht,
             punkt_x: z.x,
             punkt_y: z.y,
-          }),
+            rahmen: z.rahmen,
+          },
+          { suchwoerter: woerter.slice(0, 30), sicherheit: z.sicherheit },
         )
+        /* Das kleine Bild des Dings gleich mit anlegen. Scheitert es, steht
+         * der Eintrag trotzdem da, und das Bild wird live aus dem Foto
+         * geschnitten; gemeldet wird es aber. */
+        const foto = fotos.find((f) => f.id === z.photoId)
+        if (z.rahmen && foto) {
+          try {
+            const pfad = await ausschnittErstellen(
+              foto.path,
+              z.rahmen,
+              `${projectId}/${itemId}/ausschnitt-${uid()}.jpg`,
+            )
+            await updateContent(zeile.id, { ausschnitt_pfad: pfad })
+            zeile.ausschnitt_pfad = pfad
+          } catch {
+            ohneAusschnitt++
+          }
+        }
+        neu.push(zeile)
       } catch (err) {
         fehlgeschlagen.push(err instanceof Error ? err.message : String(err))
       }
     }
     setBusy(false)
+    if (ohneAusschnitt > 0) toast(tn('schichten.ausschnitt_fehlt', ohneAusschnitt), 'info')
     if (neu.length > 0) {
       onUebernommen(neu)
       toast(tn('bildki.uebernommen', neu.length), 'ok')
@@ -305,11 +398,21 @@ export function BildLesen({
             <ErrorBox error={t('bildki.grenze_erreicht', { n: grenzeUebrig })} />
           ) : null}
 
+          {/* Was noch nicht gelesen ist, steht da. Still liegen gebliebene
+              Fotos saehen aus wie Fotos ohne Inhalt. */}
+          {canEdit &&
+          nochOffen > 0 &&
+          (schonGelesen.size > 0 || alle.length > MAX_BILDER_JE_LAUF) ? (
+            <p className="rounded-xl border border-dashed border-line px-3 py-3 text-base">
+              {tn('bildki.noch_ungelesen', nochOffen, { max: MAX_BILDER_JE_LAUF })}
+            </p>
+          ) : null}
+
           {!canEdit ? (
             <ErrorBox error={t('bildki.nur_lesen')} />
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <Button loading={laeuft} onClick={() => void lesen()} disabled={brauchbar.length === 0}>
+              <Button loading={laeuft} onClick={() => void lesen()} disabled={alle.length === 0}>
                 <Sparkles size={17} />
                 {schonGelesen.size > 0 ? t('bildki.knopf_kurz') : t('bildki.knopf')}
               </Button>
@@ -358,6 +461,19 @@ export function BildLesen({
                       {z.gewaehlt ? <Check size={17} /> : null}
                     </button>
 
+                    {z.rahmen ? (
+                      <Ausschnitt
+                        pfad={null}
+                        fotoUrl={(() => {
+                          const f = fotos.find((x) => x.id === z.photoId)
+                          return f ? (fotoUrls.get(f.path) ?? null) : null
+                        })()}
+                        rahmen={z.rahmen}
+                        groesse={52}
+                        alt={z.text}
+                      />
+                    ) : null}
+
                     <div className="min-w-0 flex-1">
                       <Input
                         value={z.text}
@@ -377,7 +493,7 @@ export function BildLesen({
                         {z.schonDrin ? (
                           <span className="t-sub font-bold">{t('bildki.schon_drin')}</span>
                         ) : null}
-                        {brauchbar.length > 1 ? (
+                        {alle.length > 1 ? (
                           <span className="t-sub">{t('bildki.bild_nummer', { n: z.bildNr })}</span>
                         ) : null}
                         {z.schicht ? (
@@ -414,6 +530,7 @@ export function BildLesen({
           ) : null}
 
           <p className="t-sub border-t border-line pt-3">{t('bildki.kostet')}</p>
+          <p className="t-sub">{t('bildki.dienst')}</p>
           <p className="t-sub flex items-start gap-1.5">
             <Eye size={15} className="mt-0.5 shrink-0" />
             {t('bildki.datenschutz')}
@@ -432,9 +549,10 @@ export function BildLesen({
           setNeuLesen(false)
           try {
             for (const id of reihenfolge) await erkennungVerwerfen(id, lang)
-            setSchonGelesen(new Set())
+            const leer = new Set<string>()
+            setSchonGelesen(leer)
             setZeilen(null)
-            await lesen()
+            await lesen(leer)
           } catch (err) {
             toast(err instanceof Error ? err.message : String(err), 'error')
           }

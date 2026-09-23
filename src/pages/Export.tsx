@@ -16,6 +16,7 @@ import {
 import { useProject } from './ProjectLayout'
 import { listAllItems, listContentsForItems } from '../lib/api'
 import { useSprache } from '../lib/i18n'
+import { hatLiter, literText, useKistenGroessenStand } from '../lib/groessen'
 import { useWischen } from '../lib/wischen'
 import {
   SPALTEN,
@@ -95,7 +96,17 @@ function pruefen(roh: unknown): Einstellung {
 
 export default function Export() {
   const { project, rooms, people, tagById } = useProject()
-  const { t, tn, rtl } = useSprache()
+  const { t, tn, rtl, lang } = useSprache()
+  const { tabelle: groessen, fehler: groessenFehler, nochmal: groessenNochmal } =
+    useKistenGroessenStand()
+  /* Die Liter einer Zeile, fuer Blatt und CSV gleich. Moebel haben keine. */
+  const literVon = useMemo(
+    () => (i: Item) => {
+      const g = hatLiter(i.kind) ? groessen?.get(i.size) : undefined
+      return g ? literText(g.liter, lang) : ''
+    },
+    [groessen, lang],
+  )
   const toast = useToast()
   useWischen()
 
@@ -165,9 +176,10 @@ export default function Export() {
       symbole: cfg.symbole,
       rtl,
       qrGroesse: cfg.qr,
+      literVon,
       t,
     })
-  }, [bereit, project.name, zeilen, tagById, inhalte, cfg, rtl, t])
+  }, [bereit, project.name, zeilen, tagById, inhalte, cfg, rtl, t, literVon])
 
   /* Ohne eigene Regel druckt der Browser immer A4. Die Regel haengt zur
    * Laufzeit im Dokumentkopf, genau wie auf der Etikettenseite. */
@@ -243,6 +255,11 @@ export default function Export() {
         return tagById(i.person_id)?.name ?? ''
       case 'groesse':
         return i.size
+      case 'liter': {
+        // Immer mit Komma, siehe Kistenliste: sonst wird es in Excel ein Datum.
+        const g = hatLiter(i.kind) ? groessen?.get(i.size) : undefined
+        return g ? literText(g.liter, 'de') : ''
+      }
       case 'status':
         return t(`status.${i.status}`)
       case 'inhalt':
@@ -264,6 +281,13 @@ export default function Export() {
         back={`/app/p/${project.id}`}
       />
       <Page wide>
+        {/* Die Literspalte ist gewaehlt, die Liter kamen aber nicht: das
+            steht hier, statt dass die Spalte still leer bleibt. */}
+        {groessenFehler && cfg.spalten.includes('liter') ? (
+          <div className="no-print mb-5">
+            <ErrorBox error={t('groessen.liter_fehlen')} onRetry={groessenNochmal} />
+          </div>
+        ) : null}
         {fehler ? (
           <div className="no-print mb-5">
             <ErrorBox error={fehler} onRetry={() => setNonce((n) => n + 1)} />

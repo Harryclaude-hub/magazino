@@ -48,8 +48,8 @@ export const start: Woerterbuch = {
     ar: 'غرفة أو شخص. W لغرفة المعيشة، KZ لغرفة الأطفال، S لسارة.',
   },
   'start.teil_groesse_text': {
-    de: '1 ist winzig, 10 ist sperrig. Steht immer rot, damit man die Traglast sofort sieht.',
-    ar: '1 ضئيل و10 ضخم وثقيل. يظهر بالأحمر دائمًا لترى الوزن فورًا.',
+    de: '1 ist die kleinste Kiste mit 15 Litern, 10 die größte mit 100 Litern. Steht immer rot, damit man die Traglast sofort sieht.',
+    ar: '1 أصغر صندوق بسعة 15 لترًا، و10 أكبرها بسعة 100 لتر. يظهر بالأحمر دائمًا لترى الوزن فورًا.',
   },
   'start.teil_nummer_titel': { de: 'Laufnummer', ar: 'الرقم المتسلسل' },
   'start.teil_nummer_text': {

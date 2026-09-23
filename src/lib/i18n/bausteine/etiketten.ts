@@ -33,6 +33,10 @@ export const etiketten: Woerterbuch = {
 
   // ------------------------------------------------------------- Auswahl
   'etiketten.welche_kisten': { de: 'Welche Kisten', ar: 'أي الصناديق' },
+  'etiketten.nur_auswahl': {
+    de: 'Nur die {n} ausgewählten Kisten.',
+    ar: 'فقط الصناديق المحددة، وعددها {n}.',
+  },
   'etiketten.nur_eine_kiste': {
     de: 'Es wird nur diese eine Kiste gedruckt. Ohne den Link oben kommst du zur vollständigen Auswahl.',
     ar: 'يُطبع هذا الصندوق وحده. افتح الملصقات من صفحة النقلة لترى كل الصناديق.',
@@ -102,6 +106,7 @@ export const etiketten: Woerterbuch = {
 
   // ----------------------------------------------- Auf dem Etikett selbst
   'etiketten.groesse_von_zehn': { de: 'Größe {n} von 10', ar: 'الحجم {n} من 10' },
+  'etiketten.groesse_liter': { de: 'Größe {n} · {liter} l', ar: 'الحجم {n} · {liter} لتر' },
   'etiketten.zerbrechlich': { de: 'ZERBRECHLICH', ar: 'قابل للكسر' },
   'etiketten.nach_ziel': { de: 'nach {ziel}', ar: 'إلى {ziel}' },
   'etiketten.kein_inhalt': { de: 'Kein Inhalt eingetragen', ar: 'لم تُسجَّل محتويات' },

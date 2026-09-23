@@ -63,6 +63,17 @@ export const kisten: Woerterbuch = {
 
   // ------------------------------------------------------------ Groesse
   'kisten.groesse_knopf': { de: 'Größe {n}, {wort}', ar: 'الحجم {n}، {wort}' },
+  'kisten.eigene_hoehe': { de: 'Eigene Höhe in cm', ar: 'ارتفاع خاص بالسنتيمتر' },
+  'kisten.eigene_hoehe_hinweis': {
+    de: 'Leer lassen, dann gilt die typische Höhe der Größe: {h} cm. Nur für Kisten, die anders hoch sind, etwa eine Kleiderbox.',
+    ar: 'اتركه فارغًا ليُعتمد الارتفاع المعتاد للحجم: {h} سم. فقط للصناديق ذات الارتفاع المختلف، مثل صندوق الملابس.',
+  },
+  'kisten.eigene_hoehe_fehler': {
+    de: 'Erlaubt sind 5 bis 300 cm.',
+    ar: 'المسموح من 5 إلى 300 سم.',
+  },
+  'kisten.groesse_knopf_liter': { de: 'Größe {n}, {liter} Liter', ar: 'الحجم {n}، {liter} لتر' },
+  'kisten.art_und_satz': { de: '{art}, {groesse}', ar: '{art}، {groesse}' },
   'kisten.groesse_hinweis': {
     de: 'Die Ziffer steht rot mitten in der Nummer.',
     ar: 'تظهر خانة الحجم بالأحمر في وسط رقم الصندوق.',

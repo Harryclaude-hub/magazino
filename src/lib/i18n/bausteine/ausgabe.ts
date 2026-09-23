@@ -24,6 +24,7 @@ export const ausgabe: Woerterbuch = {
   'ausgabe.spalte_zimmer': { de: 'Zimmer', ar: 'الغرفة' },
   'ausgabe.spalte_person': { de: 'Person', ar: 'الشخص' },
   'ausgabe.spalte_groesse': { de: 'Größe', ar: 'الحجم' },
+  'ausgabe.spalte_liter': { de: 'Liter', ar: 'لتر' },
   'ausgabe.spalte_status': { de: 'Status', ar: 'الحالة' },
   'ausgabe.spalte_inhalt': { de: 'Inhalt', ar: 'المحتوى' },
   'ausgabe.spalte_notiz': { de: 'Notiz', ar: 'ملاحظة' },
