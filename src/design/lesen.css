@@ -1,0 +1,138 @@
+/* =====================================================================
+ * Kistly: Ladeanzeige der Bilderkennung
+ *
+ * Reine Optik. Diese Datei und LeseBuehne.tsx duerfen weg, dann steht
+ * beim Lesen nur noch der Text mit dem Stand da, und alles laeuft weiter.
+ * Hier steht keine Berechnung: wie weit das Lesen ist, kommt als
+ * Variable --anteil (0 bis 1) aus BildLesen.tsx.
+ *
+ * Bewegung haengt an data-motion auf dem html-Element, wie in buehne.css:
+ *   ruhig   nichts bewegt sich
+ *   normal  ein Lichtstreifen faehrt langsam ueber die Kiste
+ *   voll    dazu blinken kleine Funken auf den erkannten Dingen
+ * Wer im Betriebssystem weniger Bewegung eingestellt hat, bekommt keine.
+ * ===================================================================== */
+
+:root {
+  --lese-grund: #f6efe2;
+  --lese-rand: #e2d5bd;
+  --lese-karton: #cfa572;
+  --lese-karton-seite: #b98e5b;
+  --lese-klappe: #dbb686;
+  --lese-band: #eddcc1;
+  --lese-ding-1: #3f7d5a;
+  --lese-ding-2: #b8412f;
+  --lese-ding-3: #3d6f99;
+  --lese-ecke: #1d1b16;
+  --lese-strahl: rgba(233, 120, 40, 0.55);
+  --lese-strahl-kern: #e97828;
+  --lese-balken-grund: #eadfcb;
+  --lese-balken: #e97828;
+}
+
+.dark {
+  --lese-grund: #1d1a14;
+  --lese-rand: #3b362c;
+  --lese-karton: #8a6a45;
+  --lese-karton-seite: #6f5537;
+  --lese-klappe: #97744c;
+  --lese-band: #b49a74;
+  --lese-ding-1: #5fae83;
+  --lese-ding-2: #e0705c;
+  --lese-ding-3: #6d9fcb;
+  --lese-ecke: #f3efe6;
+  --lese-strahl: rgba(245, 150, 70, 0.5);
+  --lese-strahl-kern: #f59646;
+  --lese-balken-grund: #2c281f;
+  --lese-balken: #f59646;
+}
+
+.lese-karte {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.25rem 1rem 1.1rem;
+  border: 2px solid var(--lese-rand);
+  border-radius: 1.25rem;
+  background: var(--lese-grund);
+}
+
+.lese-buehne {
+  width: min(220px, 70%);
+  height: auto;
+  overflow: visible;
+}
+
+.lese-buehne .ecke {
+  fill: none;
+  stroke: var(--lese-ecke);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lese-buehne .karton { fill: var(--lese-karton); }
+.lese-buehne .karton-seite { fill: var(--lese-karton-seite); }
+.lese-buehne .klappe { fill: var(--lese-klappe); }
+.lese-buehne .band { fill: var(--lese-band); }
+.lese-buehne .ding-1 { fill: var(--lese-ding-1); }
+.lese-buehne .ding-2 { fill: var(--lese-ding-2); }
+.lese-buehne .ding-3 { fill: var(--lese-ding-3); }
+.lese-buehne .strahl { fill: var(--lese-strahl); }
+.lese-buehne .strahl-kern { fill: var(--lese-strahl-kern); }
+.lese-buehne .funke { fill: #fff7d6; stroke: var(--lese-strahl-kern); stroke-width: 1.5; opacity: 0; }
+
+/* Ruhig: der Streifen steht in der Mitte still. */
+.lese-buehne .strahl-gruppe { transform: translateY(0); }
+
+/* Der Fortschritt: ein dicker Balken, gefuellt bis --anteil. */
+.lese-balken {
+  width: min(260px, 85%);
+  height: 10px;
+  border-radius: 999px;
+  background: var(--lese-balken-grund);
+  overflow: hidden;
+}
+
+.lese-balken > span {
+  display: block;
+  height: 100%;
+  width: calc(var(--anteil, 0) * 100%);
+  min-width: 10px;
+  border-radius: 999px;
+  background: var(--lese-balken);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-motion='normal'] .lese-buehne .strahl-gruppe,
+  html[data-motion='voll'] .lese-buehne .strahl-gruppe,
+  html:not([data-motion]) .lese-buehne .strahl-gruppe {
+    animation: lese-fahrt 2.6s ease-in-out infinite alternate;
+  }
+
+  html[data-motion='normal'] .lese-balken > span,
+  html[data-motion='voll'] .lese-balken > span,
+  html:not([data-motion]) .lese-balken > span {
+    transition: width 0.5s ease-out;
+  }
+
+  html[data-motion='voll'] .lese-buehne .funke {
+    animation: lese-funke 2.6s ease-in-out infinite;
+  }
+  html[data-motion='voll'] .lese-buehne .funke-2 { animation-delay: 0.9s; }
+  html[data-motion='voll'] .lese-buehne .funke-3 { animation-delay: 1.7s; }
+}
+
+@keyframes lese-fahrt {
+  from { transform: translateY(-34px); }
+  to { transform: translateY(34px); }
+}
+
+@keyframes lese-funke {
+  0%, 60%, 100% { opacity: 0; transform: scale(0.6); }
+  70% { opacity: 1; transform: scale(1.15); }
+  85% { opacity: 0.8; transform: scale(1); }
+}
+
+.lese-buehne .funke { transform-box: fill-box; transform-origin: center; }

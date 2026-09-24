@@ -11,6 +11,15 @@ export const bildki: Woerterbuch = {
   'bildki.knopf': { de: 'Inhalt aus Foto lesen', ar: 'قراءة المحتوى من الصورة' },
   'bildki.knopf_kurz': { de: 'Foto lesen', ar: 'قراءة الصورة' },
   'bildki.laeuft': { de: 'Das Bild wird gelesen', ar: 'جارٍ قراءة الصورة' },
+  'bildki.fortschritt': {
+    de: 'Foto {n} von {gesamt} wird gelesen',
+    ar: 'جارٍ قراءة الصورة {n} من {gesamt}',
+  },
+  'bildki.seit': { de: 'Läuft seit', ar: 'يعمل منذ' },
+  'bildki.dauer': {
+    de: 'Ein Foto dauert meist bis zu einer Minute. Lass die Seite so lange offen.',
+    ar: 'تستغرق الصورة عادةً حتى دقيقة واحدة. أبقِ الصفحة مفتوحة خلال ذلك.',
+  },
   'bildki.erklaerung': {
     de: 'Die Erkennung sieht sich das Foto an und schlägt vor, was darauf liegt. Nichts wird von allein eingetragen: du entscheidest Zeile für Zeile.',
     ar: 'يفحص التعرّف الصورة ويقترح ما فيها. لا يُسجَّل شيء تلقائياً: أنت تقرر سطراً بسطر.',
@@ -108,6 +117,42 @@ export const bildki: Woerterbuch = {
   'bildki.fehler.zeit': {
     de: 'Die Erkennung hat zu lange gebraucht. Versuch es gleich noch einmal.',
     ar: 'استغرق التعرّف وقتاً طويلاً. حاول مرة أخرى بعد قليل.',
+  },
+  'bildki.fehler.abgemeldet': {
+    de: 'Deine Anmeldung ist abgelaufen. Melde dich neu an und versuch es dann noch einmal.',
+    ar: 'انتهت صلاحية تسجيل دخولك. سجّل الدخول من جديد ثم حاول مرة أخرى.',
+  },
+  'bildki.fehler.langsam': {
+    de: 'Der Erkennungsdienst hat nicht geantwortet. Versuch es gleich noch einmal.',
+    ar: 'لم تستجب خدمة التعرّف. حاول مرة أخرى بعد قليل.',
+  },
+  'bildki.fehler.modell_fehler': {
+    de: 'Der Erkennungsdienst hat einen Fehler gemeldet. Versuch es noch einmal.',
+    ar: 'أبلغت خدمة التعرّف عن خطأ. حاول مرة أخرى.',
+  },
+  'bildki.fehler.denkt': {
+    de: 'Die Erkennung hat zu lange überlegt statt zu antworten. Versuch es noch einmal.',
+    ar: 'استغرق التعرّف وقتاً طويلاً في التفكير بدل الإجابة. حاول مرة أخرى.',
+  },
+  'bildki.fehler.kein_mitglied': {
+    de: 'Du bist in diesem Umzug nicht Mitglied.',
+    ar: 'لست عضواً في هذه النقلة.',
+  },
+  'bildki.fehler.foto_weg': {
+    de: 'Dieses Foto gibt es nicht mehr. Lade die Seite neu.',
+    ar: 'هذه الصورة لم تعد موجودة. أعد تحميل الصفحة.',
+  },
+  'bildki.fehler.zu_viele': {
+    de: 'Zu viele Fotos auf einmal. Versuch es noch einmal.',
+    ar: 'صور كثيرة جداً دفعة واحدة. حاول مرة أخرى.',
+  },
+  'bildki.fehler.netz': {
+    de: 'Keine Verbindung zur Erkennung. Prüf das Internet und versuch es noch einmal.',
+    ar: 'لا يوجد اتصال بخدمة التعرّف. تحقّق من الإنترنت وحاول مرة أخرى.',
+  },
+  'bildki.fehler.unbekannt': {
+    de: 'Das Lesen hat nicht geklappt. Versuch es noch einmal.',
+    ar: 'لم تنجح القراءة. حاول مرة أخرى.',
   },
   'bildki.fehler.dienst_voll': {
     de: 'Der Erkennungsdienst ist gerade ausgelastet. Versuch es in einer Minute noch einmal.',

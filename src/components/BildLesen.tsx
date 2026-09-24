@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Check, Eye, RefreshCw, Sparkles } from 'lucide-react'
 import {
   Button,
@@ -6,11 +6,12 @@ import {
   ConfirmDialog,
   ErrorBox,
   Input,
-  Loading,
   Modal,
   useToast,
 } from './ui'
 import { Ausschnitt } from './Ausschnitt'
+// Reine Optik aus der Designschicht. Rueckweg: siehe src/design/README.md.
+import { LeseBuehne } from '../design/LeseBuehne'
 import { useSprache } from '../lib/i18n'
 import { addContent, updateContent } from '../lib/api'
 import { ausschnittErstellen, type Rahmen } from '../lib/media'
@@ -154,6 +155,19 @@ export function BildLesen({
   const toast = useToast()
 
   const [laeuft, setLaeuft] = useState(false)
+  const laeuftRef = useRef(false)
+  /** Wie viele Fotos dieses Durchgangs schon fertig sind. */
+  const [fortschritt, setFortschritt] = useState<{ fertig: number; gesamt: number } | null>(null)
+  /** Wie lange der Durchgang schon laeuft, in Sekunden. Eine Uhr, die
+   *  weiterzaehlt, zeigt: es arbeitet noch, es ist nicht haengen geblieben. */
+  const [sekunden, setSekunden] = useState(0)
+  useEffect(() => {
+    if (!laeuft) return
+    const start = Date.now()
+    setSekunden(0)
+    const uhr = window.setInterval(() => setSekunden(Math.floor((Date.now() - start) / 1000)), 1000)
+    return () => window.clearInterval(uhr)
+  }, [laeuft])
   const [fehler, setFehler] = useState<{ code: string; text: string } | null>(null)
   const [zeilen, setZeilen] = useState<Zeile[] | null>(null)
   const [rest, setRest] = useState<{ projekt: number; nutzer: number } | null>(null)
@@ -222,6 +236,10 @@ export function BildLesen({
    * `gelesen` erlaubt dem Neu-Lesen, den gerade geleerten Stand
    * mitzugeben, bevor React ihn gesetzt hat. */
   async function lesen(gelesen: Set<string> = schonGelesen) {
+    /* Nie zwei Durchgaenge gleichzeitig: "Neu lesen" laeuft ueber einen
+     * Bestaetigungsdialog und koennte sonst neben einem laufenden starten.
+     * Ein Ref, weil der Zustand beim zweiten Tipp noch der alte waere. */
+    if (laeuftRef.current) return
     if (alle.length === 0) {
       setFehler({ code: 'leer', text: t('bildki.keine_bilder') })
       return
@@ -235,16 +253,27 @@ export function BildLesen({
       return
     }
     const lauf = ungelesen.slice(0, MAX_BILDER_JE_LAUF)
+    laeuftRef.current = true
     setLaeuft(true)
     setFehler(null)
+    setFortschritt(null)
     try {
       const antwort = await bilderLesen(
         projectId,
         lauf.map((f) => f.id),
         art,
         lang,
+        (fertig, gesamt) => setFortschritt({ fertig, gesamt }),
       )
-      setRest({ projekt: antwort.rest_projekt, nutzer: antwort.rest_nutzer })
+      /* Kam kein Aufruf durch, ist der Rest unbekannt, nicht null. Dann
+       * frisch nachsehen, statt "0 frei" zu zeigen. */
+      if (antwort.rest_projekt !== null && antwort.rest_nutzer !== null) {
+        setRest({ projekt: antwort.rest_projekt, nutzer: antwort.rest_nutzer })
+      } else {
+        void restGuthaben(projectId, userId)
+          .then(setRest)
+          .catch(() => setRest(null))
+      }
       setGrenzeUebrig(antwort.uebersprungen_wegen_grenze)
       const fertig = antwort.ergebnisse.filter((e) => e.status === 'fertig')
       setSchonGelesen((alt) => new Set([...alt, ...fertig.map((e) => e.photo_id)]))
@@ -254,7 +283,9 @@ export function BildLesen({
       const kaputt = antwort.ergebnisse.filter((e) => e.status === 'fehler')
       if (kaputt.length > 0) {
         const k = kaputt[0]
-        const key = k.code ? `bildki.fehler.${k.code}` : ''
+        // Ein eigener Satz nur fuer bekannte Kennungen. Bei "unbekannt" ist
+        // der Text des Servers der einzige Hinweis auf den Grund.
+        const key = k.code && k.code !== 'unbekannt' ? `bildki.fehler.${k.code}` : ''
         const satz = key ? t(key) : ''
         toast(
           satz && satz !== key ? satz : (k.fehler ?? t('zustand.unbekannter_fehler')),
@@ -271,7 +302,9 @@ export function BildLesen({
       if (err instanceof BildFehler) setFehler({ code: err.code, text: err.message })
       else setFehler({ code: 'unbekannt', text: err instanceof Error ? err.message : String(err) })
     } finally {
+      laeuftRef.current = false
       setLaeuft(false)
+      setFortschritt(null)
     }
   }
 
@@ -417,7 +450,7 @@ export function BildLesen({
                 {schonGelesen.size > 0 ? t('bildki.knopf_kurz') : t('bildki.knopf')}
               </Button>
               {schonGelesen.size > 0 ? (
-                <Button variant="outline" size="sm" onClick={() => setNeuLesen(true)}>
+                <Button variant="outline" size="sm" disabled={laeuft} onClick={() => setNeuLesen(true)}>
                   <RefreshCw size={16} />
                   {t('bildki.neu_lesen')}
                 </Button>
@@ -430,7 +463,45 @@ export function BildLesen({
             </div>
           )}
 
-          {laeuft ? <Loading label={t('bildki.laeuft')} /> : null}
+          {/* Waehrend gelesen wird: die Zeichnung (Designschicht), der
+              Stand, wie lange es schon laeuft, und wie lange es dauern
+              darf. Ohne das sieht eine Minute Warten aus wie ein Absturz.
+              Die Zeichnung und der Balken sind reine Optik; der Text
+              allein sagt schon alles. */}
+          {laeuft ? (
+            <div className="lese-karte">
+              <LeseBuehne />
+              {/* Nur dieser Satz wird vorgelesen, nicht die Uhr: die aendert
+                  sich jede Sekunde und uebertoente sonst alles. */}
+              <p className="t-name text-center" role="status" aria-live="polite">
+                {fortschritt && fortschritt.gesamt > 1
+                  ? t('bildki.fortschritt', {
+                      n: Math.min(fortschritt.fertig + 1, fortschritt.gesamt),
+                      gesamt: fortschritt.gesamt,
+                    })
+                  : t('bildki.laeuft')}
+              </p>
+              {fortschritt && fortschritt.gesamt > 1 ? (
+                <div
+                  className="lese-balken"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={fortschritt.gesamt}
+                  aria-valuenow={fortschritt.fertig}
+                  style={{ '--anteil': fortschritt.fertig / fortschritt.gesamt } as CSSProperties}
+                >
+                  <span />
+                </div>
+              ) : null}
+              <p className="t-sub text-center" aria-hidden="true">
+                {t('bildki.seit')}{' '}
+                <span className="t-serial">
+                  {Math.floor(sekunden / 60)}:{String(sekunden % 60).padStart(2, '0')}
+                </span>
+              </p>
+              <p className="t-sub text-center">{t('bildki.dauer')}</p>
+            </div>
+          ) : null}
 
           {zeilen && zeilen.length === 0 && !laeuft ? (
             <p className="rounded-xl border border-dashed border-line px-3 py-4 text-base text-muted">

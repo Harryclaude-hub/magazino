@@ -38,13 +38,32 @@ const MAX_BILDER = 4
 const MAX_BYTES = 5 * 1024 * 1024
 const ENDPUNKT_STANDARD = 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions'
 const MODELL_STANDARD = 'Qwen3.5-9B'
-/** So lange wird auf ein Bild gewartet. Danach gilt es als gescheitert
- *  statt den ganzen Aufruf haengen zu lassen. */
-const ZEIT_MS = 90_000
-/** Genug fuer rund 60 Dinge mit zwei Namen und Suchwoertern. Reicht es
+/** Das Ersatzmodell, wenn das erste nachdenkt statt zu antworten.
+ *  Qwen3.8-27B ist das einzige Bildmodell im OVH-Katalog, bei dem
+ *  reasoning_effort "none" ausdruecklich gelistet ist (Stand 24.09.2026).
+ *  Teurer (0,40 / 2,70 EUR je Mio. Token statt 0,10 / 0,15), darum nur
+ *  als Ersatz. Ueberschreibbar ueber das Geheimnis BILD_MODELL_ERSATZ. */
+const ERSATZ_STANDARD = 'Qwen3.8-27B'
+/** Zeitrahmen fuer ein Foto, ab dem Eingang der Anfrage. Supabase beendet
+ *  einen Aufruf nach 150 Sekunden hart (Free-Plan), darum bleibt Luft fuer
+ *  Anmeldung, Herunterladen und Speichern. Die App schickt je Aufruf nur
+ *  EIN Foto. */
+const RAHMEN_MS = 125_000
+/** Fuer das Speichern nach der Antwort freigehalten. */
+const SPEICHERN_MS = 6_000
+/** Faengt das Modell so lange nicht mit der Liste an und hat es schon
+ *  nachgedacht, wird dieser Versuch abgebrochen. Ohne Nachdenken beginnt
+ *  die Liste nach wenigen Sekunden. */
+const DENKGRENZE_MS = 25_000
+/** Kam bis hierhin gar nichts an (Warteschlange, langsames Bild), wird
+ *  der Versuch ebenfalls abgebrochen, damit fuer das Ersatzmodell noch
+ *  Zeit bleibt. */
+const LANGSAM_MS = 45_000
+/** Reicht fuer rund 30 Dinge mit zwei Namen und Suchwoertern. Reicht es
  *  nicht, meldet finish_reason 'length', und das wird gesagt, nicht als
- *  halbe Liste uebernommen. */
-const MAX_TOKENS = 8000
+ *  halbe Liste uebernommen. Weniger als frueher (8000): denkt ein Modell
+ *  doch, ist es so schneller am Ende statt an der Zeitgrenze. */
+const MAX_TOKENS = 4000
 
 /* Wer darf diese Funktion von einer Seite aus aufrufen. Ueberschreibbar
  * ueber das Geheimnis APP_ORIGINS. */
@@ -134,11 +153,10 @@ function anweisung(was: Was, sprache: Sprache): string {
     'sicherheit ist 0 bis 1. Bist du unsicher, nimm das Ding trotzdem auf, mit niedriger sicherheit. Weglassen wäre schlimmer.',
     'hinweis nur, wenn es beim Tragen zählt, etwa zerbrechlich oder schwer, sonst leer.',
     'Zähle nur, was du wirklich siehst. Rate nicht, was darunter liegen könnte.',
-    // Qwen3.5 denkt sonst erst lange nach, und das kostet. OVH nimmt den
-    // Schalter enable_thinking nicht an (am 23.09.2026 ausprobiert: "feature
-    // extra arguments is not currently supported"), darum der Kurzbefehl im
-    // Text. Kommt trotzdem ein Denkblock, filtert jsonAus ihn heraus.
-    '/no_think',
+    // Kein "/no_think" mehr: Qwen3.5 unterstuetzt den Kurzbefehl laut
+    // Modellkarte nicht. Das Nachdenken schaltet reasoning_effort "none"
+    // in der Anfrage ab (siehe erkennen), und was trotzdem kommt, filtert
+    // jsonAus heraus.
   ].join('\n')
 }
 
@@ -187,12 +205,33 @@ function promille(v: unknown): number | null {
   return null
 }
 
+/** Was nach dem Nachdenken kommt. Bei Qwen3.5 steht das oeffnende <think>
+ *  schon in der Vorlage, in der Antwort steht dann nur das schliessende.
+ *  Darum alles bis einschliesslich zum LETZTEN </think> weg. */
+function nachDemDenken(inhalt: string): string {
+  const ende = inhalt.lastIndexOf('</think>')
+  return ende >= 0 ? inhalt.slice(ende + '</think>'.length) : inhalt
+}
+
+/** Hat die eigentliche Liste schon angefangen? Dann denkt das Modell
+ *  nicht mehr, sondern schreibt. */
+function listeBegonnen(inhalt: string): boolean {
+  const rest = nachDemDenken(inhalt).trimStart()
+  if (inhalt.includes('<think>') && !inhalt.includes('</think>')) return false
+  return rest.startsWith('{') || rest.startsWith('[') || rest.startsWith('```')
+}
+
 /** Aus der Antwort des Modells das JSON holen: ohne Denkblock, ohne
  *  Codezaun, vom ersten { bis zur letzten }. */
 function jsonAus(inhalt: string): unknown {
-  const ohneDenken = inhalt.replace(/<think>[\s\S]*?<\/think>/g, '')
-  const start = ohneDenken.indexOf('{')
-  const ende = ohneDenken.lastIndexOf('}')
+  const ohneDenken = nachDemDenken(inhalt)
+  /* Ein Objekt {"dinge":[...]} oder gleich eine Liste [...]: je nachdem,
+   * was zuerst kommt, bis zur passenden letzten Klammer. */
+  const auf = ohneDenken.indexOf('{')
+  const eckig = ohneDenken.indexOf('[')
+  const liste = eckig >= 0 && (auf < 0 || eckig < auf)
+  const start = liste ? eckig : auf
+  const ende = liste ? ohneDenken.lastIndexOf(']') : ohneDenken.lastIndexOf('}')
   if (start < 0 || ende <= start) {
     throw new BildFehler('unlesbar', 'Das Bildmodell hat keine verwertbare Liste geliefert.')
   }
@@ -269,6 +308,41 @@ function aufraeumen(roh: unknown, sprache: Sprache): Ding[] {
   return out
 }
 
+/** Was ein Versuch zurueckgibt: die Dinge und die Zahlen fuers Protokoll. */
+interface Versuch {
+  dinge: Ding[]
+  modell: string
+}
+
+/** Denkt ein Modell trotz Schalter nach, heisst der Fehler so. Dann
+ *  kommt das Ersatzmodell dran. */
+const DENKT = 'denkt'
+
+/** Diese Modelle haben reasoning_effort im OVH-Schema (am 24.09.2026
+ *  nachgesehen). Nur ihnen wird der Schalter geschickt, nach Namen, nicht
+ *  nach Muster. Lehnt OVH ihn trotzdem ab, wird ohne wiederholt. */
+const SCHALTER_MODELLE = new Set(['Qwen3.5-9B', 'Qwen3.5-397B-A17B', 'Qwen3.6-27B', 'Qwen3.8-27B'])
+
+/** Der Schalter wurde abgelehnt: dann dasselbe Modell ohne ihn. */
+const SCHALTER = 'schalter'
+/** Es kam nach LANGSAM_MS noch gar nichts an. */
+const LANGSAM = 'langsam'
+/** Der Dienst hat mit einem Fehler geantwortet, nicht mit einer Liste. */
+const MODELL_FEHLER = 'modell_fehler'
+
+/** Einen Fehler des Dienstes in eine Kennung uebersetzen. */
+function dienstFehler(status: number, text: string, modell: string, mitSchalter: boolean): BildFehler {
+  if (status === 429) return new BildFehler('dienst_voll', 'Der Erkennungsdienst ist gerade ausgelastet.')
+  if (status === 401 || status === 403) {
+    return new BildFehler('schluessel_falsch', 'Der Schlüssel für den Erkennungsdienst wird nicht angenommen.')
+  }
+  const kurz = text.slice(0, 300)
+  if ((status === 400 || status === 422) && mitSchalter && /reasoning|extra|argument/i.test(kurz)) {
+    return new BildFehler(SCHALTER, `${modell} nimmt reasoning_effort nicht an: ${kurz}`)
+  }
+  return new BildFehler(MODELL_FEHLER, `${modell} antwortete mit ${status}: ${kurz}`)
+}
+
 async function erkennen(
   endpunkt: string,
   schluessel: string,
@@ -277,12 +351,54 @@ async function erkennen(
   typ: string,
   was: Was,
   sprache: Sprache,
-): Promise<Ding[]> {
+  frist: number,
+  mitSchalter: boolean,
+  /** Beim Ersatzmodell aus: nach ihm kommt nichts mehr, es darf bis zur
+   *  Frist brauchen. */
+  mitDenkgrenze: boolean,
+): Promise<Versuch> {
   const abbruch = new AbortController()
-  const uhr = setTimeout(() => abbruch.abort(), ZEIT_MS)
-  let antwort: Response
+  const start = Date.now()
+  const uhr = setTimeout(() => abbruch.abort(), Math.max(1_000, frist - start))
+  /* Was beim Lesen passiert, fuer das Protokoll der Funktion. Ohne diese
+   * Zahlen sieht man bei "hat zu lange gebraucht" nicht, ob das Modell
+   * nachgedacht, langsam geschrieben oder gar nicht angefangen hat. */
+  const tempo = {
+    modell,
+    bytes: bild.length,
+    ms_bis_erstes: null as number | null,
+    ms_bis_liste: null as number | null,
+    ms_gesamt: 0,
+    denken_zeichen: 0,
+    antwort_zeichen: 0,
+    ende: null as string | null,
+  }
+  let inhalt = ''
+  // Mit 'as' deklariert: die Uhren aendern den Wert, das sieht TypeScript sonst nicht.
+  let grund = 'zeit' as 'zeit' | typeof DENKT | typeof LANGSAM
+  /* Eigene Uhren fuer das Nachdenken, unabhaengig davon, ob gerade etwas
+   * ankommt: wer nichts schickt, wird sonst nie abgebrochen. */
+  const denkUhren: number[] = []
+  if (mitDenkgrenze) {
+    denkUhren.push(
+      setTimeout(() => {
+        if (tempo.ms_bis_liste !== null) return
+        // Nur wer schon nachgedacht hat, gilt hier als denkend. Wer gar
+        // nichts geschickt hat, bekommt bis LANGSAM_MS.
+        if (tempo.denken_zeichen > 0 || inhalt.length > 0) {
+          grund = DENKT
+          abbruch.abort()
+        }
+      }, DENKGRENZE_MS),
+      setTimeout(() => {
+        if (tempo.ms_bis_liste !== null) return
+        grund = tempo.denken_zeichen > 0 || inhalt.length > 0 ? DENKT : LANGSAM
+        abbruch.abort()
+      }, LANGSAM_MS),
+    )
+  }
   try {
-    antwort = await fetch(endpunkt, {
+    const antwort = await fetch(endpunkt, {
       method: 'POST',
       signal: abbruch.signal,
       headers: {
@@ -293,6 +409,12 @@ async function erkennen(
         model: modell,
         max_tokens: MAX_TOKENS,
         temperature: 0.2,
+        // Nicht nachdenken. OVH nimmt chat_template_kwargs nicht an, dieses
+        // Feld steht aber im OVH-Schema der Qwen3-Modelle.
+        ...(mitSchalter ? { reasoning_effort: 'none' } : {}),
+        // Gestreamt, damit man sieht, was das Modell tut, solange es noch
+        // nicht fertig ist, und frueh abbrechen kann, wenn es nachdenkt.
+        stream: true,
         messages: [
           {
             role: 'user',
@@ -304,38 +426,110 @@ async function erkennen(
         ],
       }),
     })
-  } catch (err) {
-    if (abbruch.signal.aborted) {
-      throw new BildFehler('zeit', 'Das Bildmodell hat zu lange gebraucht.')
+
+    if (!antwort.ok) {
+      throw dienstFehler(antwort.status, await antwort.text(), modell, mitSchalter)
     }
-    throw err
+
+    const art = antwort.headers.get('content-type') ?? ''
+    if (!art.includes('text/event-stream')) {
+      // Der Dienst hat das Streamen ignoriert und alles auf einmal geschickt.
+      const daten = (await antwort.json()) as {
+        choices?: Array<{
+          finish_reason?: string
+          message?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null }
+        }>
+      }
+      const wahl = daten.choices?.[0]
+      inhalt = wahl?.message?.content ?? ''
+      tempo.denken_zeichen = (wahl?.message?.reasoning ?? wahl?.message?.reasoning_content ?? '').length
+      tempo.ende = wahl?.finish_reason ?? null
+      tempo.ms_bis_erstes = Date.now() - start
+    } else {
+      const leser = antwort.body!.pipeThrough(new TextDecoderStream()).getReader()
+      let puffer = ''
+      lesen: while (true) {
+        const { value, done } = await leser.read()
+        if (done) break
+        puffer += value
+        let umbruch: number
+        while ((umbruch = puffer.indexOf('\n')) >= 0) {
+          const zeile = puffer.slice(0, umbruch).trim()
+          puffer = puffer.slice(umbruch + 1)
+          if (!zeile.startsWith('data:')) continue
+          const daten = zeile.slice(5).trim()
+          if (daten === '[DONE]') break lesen
+          let stueck: {
+            object?: string
+            error?: { message?: string; code?: number | string } | string
+            message?: string
+            code?: number | string
+            choices?: Array<{
+              finish_reason?: string | null
+              delta?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null }
+            }>
+          }
+          try {
+            stueck = JSON.parse(daten)
+          } catch {
+            continue
+          }
+          // Ein Fehler mitten im Strom kommt als eigenes Ereignis. Er wird
+          // gemeldet, nicht als leere Antwort uebergangen.
+          if (stueck.error || stueck.object === 'error') {
+            const f = typeof stueck.error === 'object' ? stueck.error : null
+            const nachricht = (typeof stueck.error === 'string' ? stueck.error : f?.message) ?? stueck.message ?? daten
+            const status = Number(f?.code ?? stueck.code ?? 500)
+            throw dienstFehler(Number.isFinite(status) ? status : 500, String(nachricht), modell, mitSchalter)
+          }
+          const wahl = stueck.choices?.[0]
+          if (!wahl) continue
+          const denken = wahl.delta?.reasoning ?? wahl.delta?.reasoning_content ?? ''
+          const teil = wahl.delta?.content ?? ''
+          const jetzt = Date.now()
+          if ((denken || teil) && tempo.ms_bis_erstes === null) tempo.ms_bis_erstes = jetzt - start
+          tempo.denken_zeichen += denken.length
+          inhalt += teil
+          if (wahl.finish_reason) tempo.ende = wahl.finish_reason
+          if (tempo.ms_bis_liste === null && listeBegonnen(inhalt)) tempo.ms_bis_liste = jetzt - start
+        }
+      }
+    }
+  } catch (err) {
+    if (!abbruch.signal.aborted) throw err
   } finally {
     clearTimeout(uhr)
+    for (const u of denkUhren) clearTimeout(u)
   }
 
-  if (antwort.status === 429) {
-    throw new BildFehler('dienst_voll', 'Der Erkennungsdienst ist gerade ausgelastet.')
-  }
-  if (antwort.status === 401 || antwort.status === 403) {
-    throw new BildFehler('schluessel_falsch', 'Der Schlüssel für den Erkennungsdienst wird nicht angenommen.')
-  }
-  if (!antwort.ok) {
-    const t = await antwort.text()
-    throw new Error(`Bildmodell antwortete mit ${antwort.status}: ${t.slice(0, 300)}`)
-  }
+  const imText = inhalt.lastIndexOf('</think>')
+  if (imText >= 0) tempo.denken_zeichen += imText
+  tempo.ms_gesamt = Date.now() - start
+  tempo.antwort_zeichen = inhalt.length
 
-  const daten = (await antwort.json()) as {
-    choices?: Array<{ finish_reason?: string; message?: { content?: string | null } }>
+  if (abbruch.signal.aborted) {
+    console.warn('[bild-analyse] tempo', JSON.stringify({ ...tempo, ende: grund }))
+    throw new BildFehler(
+      grund,
+      `${modell}: ${grund === DENKT ? 'denkt nach statt zu antworten' : grund === LANGSAM ? 'antwortet nicht' : 'zu langsam'} ` +
+        `(${Math.round(tempo.ms_gesamt / 1000)} s, ${tempo.denken_zeichen} Zeichen Nachdenken, ` +
+        `${inhalt.length} Zeichen Antwort).`,
+    )
   }
-  const wahl = daten.choices?.[0]
-  if (wahl?.finish_reason === 'length') {
+  console.log('[bild-analyse] tempo', JSON.stringify(tempo))
+
+  if (tempo.ende === 'length') {
+    // Hat das Modell nachgedacht, hat das Denken die Tokens verbraucht,
+    // nicht die Liste. Dann ist es ein Fall fuers Ersatzmodell.
+    if (tempo.denken_zeichen > 0) {
+      throw new BildFehler(DENKT, `${modell}: Nachdenken hat alle Tokens verbraucht (${tempo.denken_zeichen} Zeichen).`)
+    }
     throw new BildFehler(
       'zu_lang',
       'Die Antwort des Bildmodells war zu lang und wurde abgeschnitten. Fotografiere weniger auf einmal.',
     )
   }
-  const inhalt = wahl?.message?.content ?? ''
-  return aufraeumen(jsonAus(inhalt), sprache)
+  return { dinge: aufraeumen(jsonAus(inhalt), sprache), modell }
 }
 
 /* ------------------------------------------------------------------ Lauf */
@@ -350,6 +544,7 @@ Deno.serve(async (req: Request) => {
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
 
+  const eingang = Date.now()
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
     const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -401,6 +596,10 @@ Deno.serve(async (req: Request) => {
     const schluessel = Deno.env.get('OVH_AI_ENDPOINTS_TOKEN')
     const endpunkt = Deno.env.get('BILD_ENDPUNKT') || ENDPUNKT_STANDARD
     const modell = Deno.env.get('BILD_MODELL') || MODELL_STANDARD
+    const ersatz = Deno.env.get('BILD_MODELL_ERSATZ') || ERSATZ_STANDARD
+    /* Der Zeitrahmen beginnt mit der Anfrage, nicht erst beim Modell:
+     * Anmeldung und Herunterladen zaehlen bei Supabase mit. */
+    const frist = eingang + RAHMEN_MS - SPEICHERN_MS
     if (!schluessel) {
       return json(
         {
@@ -462,6 +661,10 @@ Deno.serve(async (req: Request) => {
         continue
       }
 
+      /* Welches Modell zuletzt gefragt wurde, und was vorher schiefging.
+       * Beides kommt bei einem Fehlschlag in photo_analyses. */
+      let letztesModell = modell
+      const fehlerKette: string[] = []
       try {
         const { data: datei, error: ladeFehler } = await ich.storage
           .from('item-photos')
@@ -481,7 +684,46 @@ Deno.serve(async (req: Request) => {
           )
         }
 
-        const dinge = await erkennen(endpunkt, schluessel, modell, bytes, typ, was, sprache)
+        /* Ein Modell versuchen. Lehnt OVH den Schalter gegen das Nachdenken
+         * ab, dasselbe Modell noch einmal ohne ihn. */
+        const versuchen = async (m: string, mitDenkgrenze: boolean): Promise<Versuch> => {
+          letztesModell = m
+          const schalter = SCHALTER_MODELLE.has(m)
+          try {
+            return await erkennen(endpunkt, schluessel, m, bytes, typ, was, sprache, frist, schalter, mitDenkgrenze)
+          } catch (err) {
+            if (!(err instanceof BildFehler) || err.code !== SCHALTER || frist - Date.now() < 20_000) throw err
+            fehlerKette.push(err.message)
+            console.warn('[bild-analyse] ohne Schalter weiter:', err.message)
+            return await erkennen(endpunkt, schluessel, m, bytes, typ, was, sprache, frist, false, mitDenkgrenze)
+          }
+        }
+
+        /* Erst das guenstige Modell. Denkt es nach statt zu antworten, ist
+         * es zu langsam, liefert es nichts Lesbares oder einen Fehler, und
+         * ist noch genug Zeit, kommt das Ersatzmodell dran. Es wird eigens
+         * gebucht, denn es kostet eigens. */
+        let versuch: Versuch
+        try {
+          versuch = await versuchen(modell, true)
+        } catch (err) {
+          const nochZeit = frist - Date.now() > 30_000
+          const wechseln =
+            err instanceof BildFehler &&
+            [DENKT, LANGSAM, 'zeit', 'unlesbar', MODELL_FEHLER, SCHALTER].includes(err.code)
+          if (!wechseln || !nochZeit || ersatz === modell) throw err
+          fehlerKette.push((err as Error).message)
+          const { data: darfErsatz } = await ich.rpc('bild_lesen_buchen', {
+            p_project: body.project_id,
+            p_photo: foto.id,
+            p_modell: ersatz,
+            p_bezahlt: true,
+          })
+          if (darfErsatz !== true) throw err
+          console.warn('[bild-analyse] Ersatzmodell', ersatz, 'nach', (err as Error).message)
+          versuch = await versuchen(ersatz, false)
+        }
+        const dinge = versuch.dinge
 
         const { error: speicherFehler } = await ich.from('photo_analyses').upsert(
           {
@@ -489,7 +731,7 @@ Deno.serve(async (req: Request) => {
             photo_id: foto.id,
             sprache,
             status: 'fertig',
-            modell,
+            modell: versuch.modell,
             ergebnis: dinge,
             fehler: null,
             created_by: me.user.id,
@@ -499,7 +741,7 @@ Deno.serve(async (req: Request) => {
         if (speicherFehler) console.warn('[bild-analyse] Ergebnis nicht gespeichert:', speicherFehler.message)
         ergebnisse.push({ photo_id: foto.id, status: 'fertig', aus_speicher: false, dinge })
       } catch (err) {
-        const grund = err instanceof Error ? err.message : String(err)
+        const grund = [...fehlerKette, err instanceof Error ? err.message : String(err)].join(' | ')
         const code = err instanceof BildFehler ? err.code : 'unbekannt'
         /* Der Fehlschlag wird festgehalten, nicht verschwiegen. Beim
          * naechsten Versuch wird es erneut probiert, weil nur ein fertiger
@@ -511,7 +753,7 @@ Deno.serve(async (req: Request) => {
             photo_id: foto.id,
             sprache,
             status: 'fehler',
-            modell,
+            modell: letztesModell,
             ergebnis: [],
             fehler: grund.slice(0, 500),
             created_by: me.user.id,

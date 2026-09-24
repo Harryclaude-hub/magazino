@@ -10,6 +10,8 @@ Startseite schlicht aus und die App funktioniert unveraendert weiter.
 | `Kisten.tsx` | die gezeichneten Umzugskisten als SVG |
 | `Buehne.tsx` | haengt die Hintergrundebenen ein und schreibt die Scrollhoehe nach `--sy` |
 | `motion.tsx` | Bewegungsstufe und der Schalter dazu |
+| `lesen.css` | Farben und Bewegung der Ladeanzeige beim Bilderlesen |
+| `LeseBuehne.tsx` | die Zeichnung dazu: Kiste im Sucher, Lichtstreifen, Funken |
 
 ## Bewegungsstufen
 
@@ -48,3 +50,9 @@ Die Klassen `kn-glanz`, `kn-gross`, `kn-pfeil`, `karte-glas`,
 Wer auch die wegraeumen will, entfernt sie aus `Landing.tsx`.
 
 `src/main.tsx` setzt nur ein Attribut und bricht ohne diesen Ordner nicht.
+
+Soll nur die Ladeanzeige beim Bilderlesen schlicht werden: in
+`src/components/BildLesen.tsx` die Zeile
+`import { LeseBuehne } from '../design/LeseBuehne'` und `<LeseBuehne />`
+loeschen, dann `LeseBuehne.tsx` und `lesen.css` loeschen. Stand, Uhr und
+Hinweis bleiben als Text stehen, das Lesen selbst aendert sich nicht.
