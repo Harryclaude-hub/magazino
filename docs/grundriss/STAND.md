@@ -1,48 +1,34 @@
 # Grundriss-Umbau: Stand
 
-Stand: 25.09.2026, nach Etappe 0.
+Stand: 25.09.2026, nach Etappe 1.
 
-## Fertig: Etappe 0 (Bauplan)
+## Fertig und live (auf `main`, Commit `f7a2cf7`)
 
-- `docs/grundriss/BAUPLAN.md` liegt vor. Er ersetzt das Lesen von
-  `entwurf-teile.json`: spaetere Sitzungen lesen nur noch den Bauplan.
-- Inhalt: Code-Karten mit Zeilenangaben, Datenmodell mit fertigem SQL fuer
-  die Migrationen 0027 bis 0031 (jede mit Probelauf-Block), Geometrie,
-  neue Funktionen in `api.ts`, Oberflaeche je Etappe, Reihenfolge und
-  Pruefkriterien, offene Punkte.
-- Das SQL wurde in einer Wegwerf-Datenbank auf dieser Maschine
-  durchgespielt (leeres PostgreSQL 16, Migrationen 0001 bis 0031 der Reihe
-  nach). Karams Supabase-Projekt wurde dabei nicht beruehrt.
-- Noch nichts an Code oder Datenbank geaendert, nichts committet.
+- **Etappe 0:** `BAUPLAN.md` (ersetzt `entwurf-teile.json`).
+- **Etappe 1:**
+  - Migrationen 0027 (eigene Groessen), 0028 (Grundriss-Modell mit allen
+    Regeln), 0029 (Umrechnung) sind angewandt, jeweils nach Probelauf auf
+    der echten Datenbank ohne Fehler. 0028 wurde vorher von zwei Pruefern
+    gegengelesen (Funde eingearbeitet, siehe `ENTSCHEIDUNGEN.md` E20).
+  - Umrechnung: 2 alte Raumplaene wurden je ein Raum im Grundriss "Neue
+    Wohnung" ihres Umzugs; es standen keine Kisten darin, keine Regale.
+  - Oberflaeche: eigene Groessen (Seite Groessen, Auswahl beim Anlegen von
+    Kisten und Moebeln, Etiketten mit Namen), `src/lib/geometrie.ts` mit
+    Pruefskript, Seitenleiste am Computer, alter Raumplan nur lesend.
 
-## Geplante Migrationen
+## In Arbeit: Etappe 2 (Zeichner)
 
-| Nummer | Name | Etappe |
-|---|---|---|
-| 0027 | eigene_groessen | 1 |
-| 0028 | grundriss_modell | 1 |
-| 0029 | grundriss_umrechnung | 1 |
-| 0030 | suche_mit_platz | 3 |
-| 0031 | raster_entfernen | 4 |
+Laeuft auf dem Arbeitszweig `claude/vibrant-planck-jlsatf`, noch nicht
+committet. Plan: `BAUPLAN.md` Abschnitt 5.2.
 
-Angewandt sind weiterhin nur 0001 bis 0026.
+## Danach
 
-## Naechster Schritt: Etappe 1
+- Etappe 3: Handy platzieren, Kistenseite mit Lageplan, 0030 neue Suche.
+- Etappe 4: 3D, Redesign, 0031 altes Raster entfernen.
 
-Genaue Reihenfolge und "Fertig, wenn" stehen in BAUPLAN Abschnitt 6.
-Kurz:
+## Arbeitsweise fuer eine neue Sitzung
 
-1. `src/lib/geometrie.ts` und `scripts/geometrie-pruefen.mjs`.
-2. 0027: Probelauf, Bericht an Karam, anwenden.
-3. 0028: Probelauf, Bericht an Karam, anwenden.
-4. `types.ts`, `api.ts`, `errText`, Woerterbuecher (de und ar).
-5. Eigene Groessen in der Oberflaeche, alter Raumplan nur noch lesend,
-   `sw.js` auf `kistly-v3`. Commit, push.
-6. 0029 (Umrechnung der alten Plaene): Probelauf auf echten Daten, Bericht
-   an Karam, anwenden, Suche pruefen.
-7. STAND.md und ENTSCHEIDUNGEN.md nachziehen, Commit, push.
-
-## Offen fuer Karam
-
-Die Punkte zum Entscheiden stehen in BAUPLAN Abschnitt 7. Sie kommen mit
-Etappe 1 nach `docs/grundriss/ENTSCHEIDUNGEN.md`.
+1. `CLAUDE.md`, `docs/cloud/START.md`, dieses Dokument und
+   `BAUPLAN.md` (nur die Abschnitte der naechsten Etappe) lesen.
+2. Migrationen: erst Probelauf (`do $probe$ ... raise exception`), dann
+   anwenden. Angewandte Dateien nie aendern.

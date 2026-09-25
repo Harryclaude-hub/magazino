@@ -1,0 +1,108 @@
+# Grundriss-Umbau: Entscheidungen
+
+Was START.md offen liess und wie es entschieden wurde. Die Liste E1 bis E19
+stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
+
+- **E1 Platz an `items`, keine eigene Tabelle.** Grund: START 5.1 beschreibt
+  den Platz als Eigenschaft der Kiste, 0017 hat genau das begruendet (eine
+  Fassung, keine zweite Tabelle), die Oberflaeche liest ihn mit der Kiste. Die
+  Bewertungen empfahlen `kisten_plaetze`; ihr Hauptargument (weniger Trigger an
+  `items`) ist durch klare Trigger-Namen und -Reihenfolge abgefangen.
+- **E2 Kein `grundriss_id` an `items`.** Der Grundriss folgt aus dem Raum. Eine
+  zweite Spalte waere eine zweite Wahrheit und machte die Loesch-Kaskaden
+  reihenfolgeabhaengig.
+- **E3 Objektlage.** `x, y` ist die Ecke, die ungedreht links oben liegt;
+  gedreht wird um diese Ecke (START: "linke obere Ecke vor dem Drehen"). Damit
+  bleibt jede Ecke ganzzahlig, Mitnehmen von Kisten ist exakt. Der Zeichner
+  dreht "auf der Stelle", indem er x/y passend mitschiebt.
+- **E4 L-Form** nur fuer Moebel, mit zusaetzlicher Spalte `ausschnitt_ecke`
+  (lo, ro, ru, lu); ohne sie liesse sich eine linke und eine rechte L-Couch
+  nicht unterscheiden.
+- **E5 Faecher.** `brett_cm` sind Oberkanten der Fachboeden; Ebene e reicht bis
+  `brett[e+1] - 2` bzw. `hoehe - 2`; oben auf dem Regal ist Unterlage "objekt"
+  bis zur Decke. Spalten gleich breit mit 2 cm Teilern. Fach = (Ebene, Spalte).
+  Aendern sich die Bretter, bleibt eine Kiste auf ihrer Brett-Hoehe (Ebene wird
+  umgerechnet), damit "Fach 3" nicht still wandert (Fund der Bewertung).
+- **E6 Nachruecken.** Entfernt oder versetzt man eine Kiste, bleiben Kisten,
+  deren Mitte weiter ueber ihr liegt, liegen (feines Nachstellen wirft nichts
+  herunter). Die anderen uebernehmen ihre alte Unterlage (START 5.2); sie
+  behalten ihre Mitte, wenn sie dort gilt, sonst nehmen sie die alte Mitte der
+  entfernten Kiste; was auf ihnen liegt, faehrt mit. Aendert sich nur die
+  Groesse, wird nichts verschoben, sondern abgelehnt, wenn etwas nicht mehr
+  passt (START 5.1a).
+- **E7 Moebel, Regale und Schraenke nehmen mit.** Wird ein Objekt versetzt oder
+  gedreht, fahren die Kisten darauf und darin mit (rigide Bewegung); wird es
+  geloescht, stehen sie auf dem Boden. "Nachruecken" gilt fuer Kisten auf
+  Kisten. Grund: einen Schrank im Zeichner verschieben darf seinen Inhalt nicht
+  auf den Boden kippen.
+- **E8 Platz unabhaengig vom Zimmer-Kuerzel.** Eine Kiste darf in einem Raum
+  stehen, der nicht ihr Zimmer ist (Lager, Keller); ihre Nummer aendert sich
+  beim Hinstellen nie. Die Oberflaeche sagt "gehoert in ...".
+- **E9 Moebel-Platz ueber das Objekt.** Ein Moebel-Eintrag (`kind furniture`)
+  bekommt keinen Kistenplatz (DB lehnt ab); sein Platz ist das verknuepfte
+  Objekt (`objekte.item_id`, eindeutig). Dinge im Moebel findet die Suche mit
+  diesem Platz, Hoehe 0 bis Objekthoehe.
+- **E10 Pruefmodus fuer den Zeichner.** Direkte Schreibvorgaenge pruefen sofort;
+  `grundriss_speichern` schaltet transaktionslokal `kistly.spaeter` ein und
+  prueft am Ende jeden beruehrten Raum vollstaendig. Einfacher als aufgeschobene
+  Constraint-Trigger, und kein Client kann den Schalter setzen. Kein
+  `security definer` irgendwo.
+- **E11 Sperren:** eine exklusive Advisory-Sperre je Raum (`raum_sperre` aus
+  0025 wiederverwendet), mehrere immer aufsteigend.
+- **E12 Nur die Oberflaeche prueft:** Ueberlappung von Kisten, Objekten und
+  Raeumen (START 5.2 fuer den Boden; fuer Raeume und Objekte gleich gehalten,
+  weil die Kistenregeln nur den eigenen Raum brauchen).
+- **E13 Die Datenbank prueft zusaetzlich:** Objekt ganz im Raum und nicht hoeher
+  als der Raum; Oeffnung passt auf ihre Kante (ganzzahlig im Quadrat), nicht
+  hoeher als der Raum, keine zwei Oeffnungen uebereinander.
+- **E14 Eigene Groesse aendern:** alle Kisten mit dieser Groesse werden neu
+  eingestuft; aendert sich die Stufe, bekommen sie eine neue Nummer (alte bleibt
+  scannbar). Die Oberflaeche zeigt vorher die Folgen (`eigene_groesse_folgen`).
+  Die Art (Kiste/Moebel) filtert nur die Auswahl, die DB erzwingt sie nicht.
+  Ein Moebel "aus meiner Groesse" im Zeichner kopiert die Masse (keine
+  Verknuepfung). Liter = Aussenmasse L x B x H / 1000 (wie START 5.1a).
+- **E15 Umrechnung schon in Etappe 1** (START), danach friert 0029 das Raster
+  ein (Setzen abgelehnt, Leeren erlaubt), leert `plan_*` nach der Sicherung und
+  stellt `inhalt_suchen` uebergangsweise auf das neue Modell um, damit die
+  Suche bis Etappe 3 Platz und Hoehe zeigt. `RaumPlan.tsx` ist bis Etappe 2 nur
+  lesend.
+- **E16 Umrechnung verliert nichts still:** Raeume nebeneinander (100 cm
+  Abstand, neue Reihe ab 200 m), gesperrte Zellen nur gezaehlt, Tuer an
+  innerer Zellkante auf die Aussenkante derselben Seite mit Hinweis, Regal auf
+  zu schmaler Randzelle oder mit zu engen Brettern und Stapel, die mit 2 cm
+  Brettdicke nicht mehr passen, in den Bericht; Unterkanten muessen exakt
+  gleich bleiben, sonst Abbruch.
+- **E17 `inhalt_suchen` behaelt den Namen** (START 5.8) und wird in 0030 per
+  drop/create neu gebaut; die Oberflaeche geht sofort danach live.
+- **E18 Grundriss-Name** ist ein Datenwert; der erste heisst in der Sprache
+  dessen, der ihn anlegt ("Neue Wohnung"/"الشقة الجديدة"); die Umrechnung legt
+  "Neue Wohnung" an.
+- **E19 Koordinaten 0 bis 50000 cm**, Polygone 3 bis 200 Punkte, schraege
+  Waende erlaubt (Zeichner rastet auf 90 Grad, Umschalt frei).
+- **E20 Kiste in Kistenmitte**, Drehung 0/90; beim Drehen eines Objekts um 90
+  oder 270 Grad wechselt die Drehung der Kisten darin mit.
+- **E21 Anlegen und Hinstellen getrennt:** `createItem` schickt nie einen Platz
+  mit; ein abgelehnter Platz darf das Anlegen nicht verhindern.
+- **E22 Etappe 2 ersetzt Fundort schon** durch `Lageplan`, weil der alte
+  Mini-Plan nach 0029 nichts mehr zeigt.
+- **E23 Rueckgaengig** gilt fuer die Sitzung; jede Aktion ist sofort
+  gespeichert, Rueckgaengig speichert den Vorher-Stand als neue Version.
+
+
+## Beim Bauen entschieden (Etappe 1)
+
+- **E20 Gegenpruefung der Datenbank:** drei Pruefer-Funde zur Stapel-Logik
+  und fuenf zu Rechten und Sperren wurden vor dem Anwenden in 0028
+  eingearbeitet: Fach ohne Ebene wird abgelehnt, ein belegtes Brett kann nicht
+  verschwinden (neuer Hinweis `brett_belegt`), eine leere Unterlage raeumt den
+  Platz nicht still, `platz_setzen` sperrt erst die Raeume und dann die Zeile,
+  eine gleichzeitig geaenderte eigene Groesse wird abgewartet, falsche
+  Drehung (`drehung`) und fremde ids (`fremde_id`) bekommen einen Hinweis.
+- **E21 Laengen-Eingabe** versteht auch die arabischen Einheiten "م" und "سم".
+- **E22 Meine Groessen** zeigt Liter (L x B x H / 1000), aber keine Stufe;
+  die Stufe steht erst nach dem Speichern an der Kiste, gerechnet von der
+  Datenbank.
+- **E23 Masse einer benutzten Groesse aendern** zeigt zuerst die Folgen und
+  speichert erst beim zweiten Tipp auf "Ja, so speichern".
+- **E24 Der alte Raumplan** blieb bis Etappe 2 als Nur-Lese-Seite stehen
+  (`const schreiben = false`), statt Code zu loeschen.
