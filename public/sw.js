@@ -3,7 +3,7 @@
  * Anrufe so lange erneut melden, wie es klingelt.
  * Bewusst ohne Build-Schritt, damit hier nichts still auseinanderlaeuft.
  */
-const VERSION = 'kistly-v2'
+const VERSION = 'kistly-v3'
 const SHELL = `${VERSION}-shell`
 
 /* Die App kann unter einem Unterordner liegen (GitHub Pages liefert unter

@@ -17,7 +17,7 @@ import {
 import { useProject } from './ProjectLayout'
 import { listAllItems, listContentsForItems } from '../lib/api'
 import { useSprache } from '../lib/i18n'
-import { hatLiter, literText, useKistenGroessen } from '../lib/groessen'
+import { hatLiter, literText, useEigeneGroessen, useKistenGroessen } from '../lib/groessen'
 import type { Item, ItemContent, ItemStatus } from '../lib/types'
 import { appUrl, useLocalState } from '../lib/util'
 
@@ -251,6 +251,7 @@ function Label({
   personName,
   color,
   projectName,
+  eigeneName,
 }: {
   item: Item
   contents: ItemContent[]
@@ -260,6 +261,8 @@ function Label({
   personName?: string
   color: string
   projectName: string
+  /** Name der eigenen Groesse, wenn die Kiste eine hat. */
+  eigeneName?: string
 }) {
   const { t, lang } = useSprache()
   const groessen = useKistenGroessen()
@@ -395,8 +398,11 @@ function Label({
           >
             {cfg.showSizeWord ? (
               <span>
-                {/* Bei Kisten die Liter, bei Moebeln nur die Stufe. */}
-                {hatLiter(item.kind) && groessen?.get(item.size)
+                {/* Bei eigener Groesse deren Name, sonst bei Kisten die
+                    Liter, bei Moebeln nur die Stufe. */}
+                {eigeneName
+                  ? t('etiketten.groesse_eigene', { name: eigeneName })
+                  : hatLiter(item.kind) && groessen?.get(item.size)
                   ? t('etiketten.groesse_liter', {
                       n: item.size,
                       liter: literText(groessen.get(item.size)!.liter, lang),
@@ -543,6 +549,13 @@ export default function Labels() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
+  /* Die eigenen Groessen einmal je Umzug, fuer ihren Namen auf dem
+   * Etikett. Fehlen sie, steht dort die Stufe; das steht dann auch da. */
+  const eigene = useEigeneGroessen(project.id)
+  const eigeneNamen = useMemo(
+    () => new Map((eigene.liste ?? []).map((g) => [g.id, g.name])),
+    [eigene.liste],
+  )
 
   useEffect(() => {
     let alive = true
@@ -873,6 +886,11 @@ export default function Labels() {
         </Card>
 
         {error ? <ErrorBox error={error} onRetry={() => setNonce((n) => n + 1)} /> : null}
+        {eigene.fehler ? (
+          <div className="no-print mb-3">
+            <ErrorBox error={eigene.fehler} onRetry={eigene.nochmal} />
+          </div>
+        ) : null}
         {loading ? <Loading label={t('etiketten.kisten_laden')} /> : null}
         {ready && selected.length === 0 ? (
           <Empty
@@ -952,6 +970,9 @@ export default function Labels() {
                         personName={person?.name}
                         color={room?.color ?? person?.color ?? '#111111'}
                         projectName={project.name}
+                        eigeneName={
+                          item.eigene_groesse_id ? eigeneNamen.get(item.eigene_groesse_id) : undefined
+                        }
                       />
                     )
                   })}

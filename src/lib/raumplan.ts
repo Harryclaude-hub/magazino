@@ -235,35 +235,6 @@ export function randSeite(
   return moeglich.sort((a, b) => abstand[a] - abstand[b])[0]
 }
 
-/** Eine Zahl aus einem Eingabefeld, wie Menschen sie tippen: mit Komma
- *  oder Punkt, mit arabisch-indischen oder persischen Ziffern, mit dem
- *  arabischen Dezimaltrenner. Keine Zahl heisst null, nie ein Ersatzwert. */
-export function zahlLesen(text: string): number | null {
-  const ziffern = text
-    .trim()
-    .replace(/[٠-٩]/g, (z) => String(z.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (z) => String(z.charCodeAt(0) - 0x06f0))
-    .replace(/[٫,]/g, '.')
-    .replace(/\s+/g, '')
-  if (!/^\d+(\.\d+)?$/.test(ziffern)) return null
-  const zahl = Number.parseFloat(ziffern)
-  return Number.isFinite(zahl) ? zahl : null
-}
-
-/** Bretterhoehen aus einem Feld wie "0, 40, 80". Das Komma trennt hier
- *  die Bretter, es ist kein Dezimalzeichen: Bretter stehen auf ganzen
- *  Zentimetern. null bei Unsinn. */
-export function brettListeLesen(text: string): number[] | null {
-  const teile = text
-    .split(/[,;\s،]+/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-  if (teile.length === 0) return null
-  const zahlen: number[] = []
-  for (const t of teile) {
-    const z = zahlLesen(t)
-    if (z === null) return null
-    zahlen.push(Math.round(z))
-  }
-  return zahlen
-}
+/* zahlLesen und brettListeLesen wohnen seit Etappe 1 in geometrie.ts. Der
+ * alte Raumplan importiert sie bis Etappe 2 weiter von hier. */
+export { zahlLesen, brettListeLesen } from './geometrie'

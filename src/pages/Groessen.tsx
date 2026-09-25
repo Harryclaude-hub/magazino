@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Printer, Ruler } from 'lucide-react'
+import { Pencil, Plus, Printer, Ruler, Trash2 } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
+import { EigeneGroesseDialog } from '../components/EigeneGroesseDialog'
 import {
   Button,
   Card,
+  ConfirmDialog,
   Empty,
   ErrorBox,
   Field,
+  IconButton,
   Input,
   Loading,
   SectionTitle,
@@ -15,11 +18,17 @@ import {
   useToast,
 } from '../components/ui'
 import { useProject } from './ProjectLayout'
-import { listAllItems, updateItem } from '../lib/api'
+import { listAllItems, loescheEigeneGroesse, updateItem } from '../lib/api'
 import { useSprache } from '../lib/i18n'
-import { literText, stufeFuerLiter, useKistenGroessenStand } from '../lib/groessen'
-import { zahlLesen } from '../lib/raumplan'
-import type { Item } from '../lib/types'
+import {
+  eigeneGroesseMasse,
+  literText,
+  stufeFuerLiter,
+  useEigeneGroessen,
+  useKistenGroessenStand,
+} from '../lib/groessen'
+import { zahlLesen } from '../lib/geometrie'
+import type { EigeneGroesse, Item } from '../lib/types'
 import { useLocalState } from '../lib/util'
 
 /* Groessen pruefen.
@@ -91,6 +100,40 @@ export default function Groessen() {
     () => geaendert.filter((id) => kisten.some((k) => k.id === id)),
     [geaendert, kisten],
   )
+
+  /* ---------------------------------------------------- Meine Groessen */
+  const eigene = useEigeneGroessen(project.id)
+  /* undefined = zu, null = neue Groesse, sonst die zu aendernde. */
+  const [dialog, setDialog] = useState<EigeneGroesse | null | undefined>(undefined)
+  const [weg, setWeg] = useState<EigeneGroesse | null>(null)
+  const [loeschFehler, setLoeschFehler] = useState<string | null>(null)
+  const eigeneNamen = useMemo(
+    () => new Map((eigene.liste ?? []).map((g) => [g.id, g.name])),
+    [eigene.liste],
+  )
+
+  function gespeichert(g: EigeneGroesse) {
+    setDialog(undefined)
+    toast(t('groessen.eigene_gespeichert', { name: g.name }), 'ok')
+    eigene.neuLaden()
+    // Neue Masse koennen Kisten neu einstufen; ihre Nummern kommen frisch.
+    setNonce((n) => n + 1)
+  }
+
+  /* ConfirmDialog laesst Fehler nicht durch: sie werden hier gefangen und
+   * stehen danach ueber der Liste, samt der Zahl der Kisten. */
+  async function loeschen(g: EigeneGroesse) {
+    setLoeschFehler(null)
+    try {
+      await loescheEigeneGroesse(g.id)
+      toast(t('groessen.eigene_geloescht', { name: g.name }), 'ok')
+      eigene.neuLaden()
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err)
+      setLoeschFehler(text)
+      toast(text, 'error')
+    }
+  }
 
   /* Auch arabisch-indische Ziffern und das Komma zaehlen. */
   const stufe = useMemo(() => {
@@ -167,6 +210,105 @@ export default function Groessen() {
             </p>
           </div>
         </Card>
+
+        {/* Meine Groessen: eigene Masse des Umzugs. Die Stufe in der Nummer
+            setzt die Datenbank; hier steht sie nicht, sie steht an den
+            Kisten. Betrachter sehen die Liste ohne Knoepfe. */}
+        <SectionTitle
+          action={
+            canEdit ? (
+              <Button size="sm" variant="outline" onClick={() => setDialog(null)}>
+                <Plus size={16} /> {t('groessen.eigene_anlegen')}
+              </Button>
+            ) : null
+          }
+        >
+          {t('groessen.eigene_titel')}
+        </SectionTitle>
+        {loeschFehler ? (
+          <div className="mb-3">
+            <ErrorBox error={loeschFehler} />
+          </div>
+        ) : null}
+        <div className="mb-5">
+          {eigene.fehler ? (
+            <ErrorBox error={eigene.fehler} onRetry={eigene.nochmal} />
+          ) : eigene.liste === null ? (
+            <Loading />
+          ) : eigene.liste.length === 0 ? (
+            <Empty
+              icon={<Ruler size={28} />}
+              title={t('groessen.eigene_leer')}
+              hint={t('groessen.eigene_leer_hinweis')}
+              action={
+                canEdit ? (
+                  <Button onClick={() => setDialog(null)}>
+                    <Plus size={16} /> {t('groessen.eigene_anlegen')}
+                  </Button>
+                ) : null
+              }
+            />
+          ) : (
+            <Card className="overflow-hidden">
+              <ul className="zebra divide-y divide-line">
+                {eigene.liste.map((g) => (
+                  <li key={g.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="t-name break-words">{g.name}</p>
+                      <p className="t-sub">
+                        {g.art === 'moebel'
+                          ? t('groessen.eigene_art_moebel')
+                          : t('groessen.eigene_art_kiste')}
+                        {' . '}
+                        <span className="t-serial">{eigeneGroesseMasse(t, g)}</span>
+                        {g.art === 'kiste' ? (
+                          <>
+                            {' . '}
+                            <span className="t-serial">
+                              {t('groesse.liter_kurz', {
+                                liter: literText((g.laenge_cm * g.breite_cm * g.hoehe_cm) / 1000, lang),
+                              })}
+                            </span>
+                          </>
+                        ) : null}
+                        {g.ausschnitt_breite_cm !== null && g.ausschnitt_tiefe_cm !== null ? (
+                          <>
+                            {' . '}
+                            {t('groessen.eigene_l_form')}{' '}
+                            <span className="t-serial">
+                              {t('groessen.eigene_ausschnitt_masse', {
+                                breite: g.ausschnitt_breite_cm,
+                                tiefe: g.ausschnitt_tiefe_cm,
+                              })}
+                            </span>
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
+                    {canEdit ? (
+                      <div className="flex shrink-0 gap-1">
+                        <IconButton label={t('groessen.eigene_aendern')} size="sm" onClick={() => setDialog(g)}>
+                          <Pencil size={17} />
+                        </IconButton>
+                        <IconButton
+                          label={t('groessen.eigene_loeschen')}
+                          size="sm"
+                          tone="danger"
+                          onClick={() => {
+                            setLoeschFehler(null)
+                            setWeg(g)
+                          }}
+                        >
+                          <Trash2 size={17} />
+                        </IconButton>
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </div>
 
         {/* Die zehn Stufen auf einen Blick. */}
         <SectionTitle>{t('groessen.tabelle_titel')}</SectionTitle>
@@ -273,6 +415,13 @@ export default function Groessen() {
                         ) : null}
                       </p>
                     </div>
+                    {/* Mit eigener Groesse setzt die Datenbank die Stufe;
+                        eine Auswahl hier wuerde sie nur ueberschreiben. */}
+                    {k.eigene_groesse_id ? (
+                      <span className="w-40 shrink-0 text-sm font-bold">
+                        {eigeneNamen.get(k.eigene_groesse_id) ?? t('kisten.eigene_groesse')}
+                      </span>
+                    ) : (
                     <Select
                       aria-label={t('begriff.groesse')}
                       value={k.size}
@@ -291,6 +440,7 @@ export default function Groessen() {
                         )
                       })}
                     </Select>
+                    )}
                   </li>
                 )
               })}
@@ -298,6 +448,23 @@ export default function Groessen() {
           </Card>
         )}
       </Page>
+
+      <EigeneGroesseDialog
+        offen={dialog !== undefined}
+        projectId={project.id}
+        groesse={dialog ?? null}
+        onClose={() => setDialog(undefined)}
+        onGespeichert={gespeichert}
+      />
+      <ConfirmDialog
+        open={weg !== null}
+        title={t('groessen.eigene_loeschen')}
+        body={weg ? t('groessen.eigene_loeschen_frage', { name: weg.name }) : ''}
+        onConfirm={async () => {
+          if (weg) await loeschen(weg)
+        }}
+        onClose={() => setWeg(null)}
+      />
 
       {/* Unten fest: wie viele neu eingestuft sind, und der Weg zum Druck.
           Nur die geaenderten Etiketten, nicht der ganze Umzug. */}

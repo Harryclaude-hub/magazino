@@ -18,10 +18,11 @@ import {
   Textarea,
   useToast,
 } from '../components/ui'
-import { SizePicker } from './Items'
+import { SizePicker } from '../components/SizePicker'
 import { useProject } from './ProjectLayout'
 import { createItem, listItems, setItemStatus } from '../lib/api'
 import { useSprache } from '../lib/i18n'
+import { useEigeneGroessen } from '../lib/groessen'
 import { notifyItemStatus } from '../lib/push'
 import { useWischen } from '../lib/wischen'
 import type { Item, ItemStatus } from '../lib/types'
@@ -44,6 +45,8 @@ interface Entwurf {
   title: string
   room_id: string
   size: number
+  /** Eigene Groesse der Art moebel, oder null. Die Stufe setzt die DB. */
+  eigene_groesse_id: string | null
   hersteller: string
   modell: string
   masse: string
@@ -97,6 +100,7 @@ export default function Furniture() {
     title: '',
     room_id: zimmerFilter !== 'all' ? zimmerFilter : (rooms[0]?.id ?? ''),
     size: 8,
+    eigene_groesse_id: null,
     hersteller: '',
     modell: '',
     masse: '',
@@ -117,6 +121,7 @@ export default function Furniture() {
     setFormFehler(null)
   }, [offen, zimmerFilter, rooms])
 
+  const eigene = useEigeneGroessen(canEdit ? project.id : null)
   const vorschau = tagById(entwurf.room_id)?.short ?? '??'
 
   async function anlegen(e: FormEvent) {
@@ -135,6 +140,7 @@ export default function Furniture() {
         room_id: entwurf.room_id,
         code_source: 'room',
         size: entwurf.size,
+        eigene_groesse_id: entwurf.eigene_groesse_id,
         note: entwurf.note.trim() || null,
         hersteller: entwurf.hersteller.trim() || null,
         modell: entwurf.modell.trim() || null,
@@ -307,17 +313,24 @@ export default function Furniture() {
 
           <Field label={t('begriff.groesse')}>
             <SizePicker
-            value={entwurf.size}
-            kind="furniture"
-            onChange={(v) => setEntwurf({ ...entwurf, size: v })}
-          />
+              value={entwurf.size}
+              kind="furniture"
+              onChange={(v) => setEntwurf((d) => ({ ...d, size: v }))}
+              eigene={eigene.liste}
+              eigeneFehler={eigene.fehler}
+              eigeneId={entwurf.eigene_groesse_id}
+              onEigene={(id) => setEntwurf((d) => ({ ...d, eigene_groesse_id: id }))}
+              onEigeneNochmal={eigene.nochmal}
+            />
           </Field>
 
           <p className="t-sub">
             {t('kisten.nummer_wird')}{' '}
             <span className="t-serial font-black">
-              {vorschau}-<span className="text-danger">{entwurf.size}</span>-...
+              {vorschau}-
+              <span className="text-danger">{entwurf.eigene_groesse_id ? '?' : entwurf.size}</span>-...
             </span>
+            {entwurf.eigene_groesse_id ? <> {t('groessen.stufe_setzt_db')}</> : null}
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">

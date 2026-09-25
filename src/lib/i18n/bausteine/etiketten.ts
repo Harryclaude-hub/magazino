@@ -116,4 +116,5 @@ export const etiketten: Woerterbuch = {
     de: 'weitere, hier nicht gedruckt',
     ar: 'أخرى غير مطبوعة هنا',
   },
+  'etiketten.groesse_eigene': { de: 'Größe: {name}', ar: 'الحجم: {name}' },
 }

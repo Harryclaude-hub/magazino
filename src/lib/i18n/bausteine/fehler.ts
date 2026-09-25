@@ -408,4 +408,204 @@ export const fehler: Woerterbuch = {
     de: 'Keine Verbindung zum Server. Internet prüfen.',
     ar: 'لا يوجد اتصال بالخادم. تحقق من الإنترنت.',
   },
+
+  // ---------------------------------------- Eigene Groessen und Grundriss
+  'fehler.eigene_groessen_laden': {
+    de: 'Eigene Größen laden: {grund}',
+    ar: 'تعذّر تحميل الأحجام الخاصة: {grund}',
+  },
+  'fehler.eigene_groesse_speichern': { de: 'Größe speichern: {grund}', ar: 'تعذّر حفظ الحجم: {grund}' },
+  'fehler.eigene_groesse_loeschen': { de: 'Größe löschen: {grund}', ar: 'تعذّر حذف الحجم: {grund}' },
+  'fehler.eigene_groesse_folgen': {
+    de: 'Folgen prüfen: {grund}',
+    ar: 'تعذّر فحص ما سيتغيّر: {grund}',
+  },
+  'fehler.grundrisse_laden': { de: 'Grundrisse laden: {grund}', ar: 'تعذّر تحميل المخططات: {grund}' },
+  'fehler.grundriss_laden': { de: 'Grundriss laden: {grund}', ar: 'تعذّر تحميل المخطط: {grund}' },
+  'fehler.grundriss_anlegen': { de: 'Grundriss anlegen: {grund}', ar: 'تعذّر إنشاء المخطط: {grund}' },
+  'fehler.raeume_laden': { de: 'Räume laden: {grund}', ar: 'تعذّر تحميل الغرف: {grund}' },
+  'fehler.platz_setzen': { de: 'Platz setzen: {grund}', ar: 'تعذّر تحديد الموضع: {grund}' },
+  'fehler.platz_raeumen': { de: 'Vom Platz nehmen: {grund}', ar: 'تعذّرت الإزالة من الموضع: {grund}' },
+  'fehler.kiste_lage_laden': {
+    de: 'Platz der Kiste laden: {grund}',
+    ar: 'تعذّر تحميل موضع الصندوق: {grund}',
+  },
+  'fehler.bitte_nochmal': {
+    de: 'Das kam einer anderen Änderung in die Quere. Bitte nochmal versuchen.',
+    ar: 'تزامن هذا مع تعديل آخر. حاول مرة أخرى من فضلك.',
+  },
+  // Ersatzwoerter, wenn die Datenbank keinen Namen mitschickt.
+  'fehler.dieses_zimmer': { de: 'Dieses Zimmer', ar: 'هذه الغرفة' },
+  'fehler.objekt_art.moebel': { de: 'Möbelstück', ar: 'قطعة الأثاث' },
+  'fehler.objekt_art.regal': { de: 'Regal', ar: 'الرف' },
+  'fehler.objekt_art.schrank': { de: 'Schrank', ar: 'الخزانة' },
+  'fehler.objekt_art.objekt': { de: 'Objekt', ar: 'العنصر' },
+
+  // Ablehnungen fuer eigene Groessen (0027): hint kistly:groesse.xyz,
+  // Platzhalter aus details.
+  'fehler.db.groesse.benutzt': {
+    de: 'Diese Größe benutzen noch {kisten} Kisten und {moebel} Möbel.',
+    ar: 'ما زال {kisten} صناديق و{moebel} قطع أثاث تستخدم هذا الحجم.',
+  },
+  'fehler.db.groesse.anderer_umzug': {
+    de: 'Diese Größe gehört zu einem anderen Umzug.',
+    ar: 'هذا الحجم يتبع نقلة أخرى.',
+  },
+  'fehler.db.groesse.name_doppelt': {
+    de: 'Eine Größe mit diesem Namen gibt es schon.',
+    ar: 'يوجد حجم بهذا الاسم بالفعل.',
+  },
+  // Alte, noch zwischengespeicherte Apps nach 0029.
+  'fehler.db.raumplan.eingefroren': {
+    de: 'Der alte Raumplan ist abgelöst. Bitte die App neu laden.',
+    ar: 'حلّ المخطط الجديد محلّ مخطط الغرفة القديم. أعد تحميل التطبيق من فضلك.',
+  },
+
+  // Ablehnungen des Grundrisses (0028): hint kistly:grundriss.xyz,
+  // Platzhalter aus details. Liste im Bauplan, Abschnitt 5.5.
+  'fehler.db.grundriss.raum_punkte': {
+    de: 'Ein Raum braucht 3 bis 200 Ecken.',
+    ar: 'تحتاج الغرفة إلى 3 حتى 200 زاوية.',
+  },
+  'fehler.db.grundriss.raum_bereich': {
+    de: 'Der Raum liegt außerhalb der Zeichenfläche.',
+    ar: 'الغرفة خارج مساحة الرسم.',
+  },
+  'fehler.db.grundriss.raum_doppelt': {
+    de: 'Zwei Ecken liegen aufeinander.',
+    ar: 'توجد زاويتان في الموضع نفسه.',
+  },
+  'fehler.db.grundriss.raum_kreuzt': {
+    de: 'Die Wände dieses Raums kreuzen sich.',
+    ar: 'جدران هذه الغرفة تتقاطع.',
+  },
+  'fehler.db.grundriss.raum_umlauf': {
+    de: 'Der Raum ist falsch herum gezeichnet. Bitte neu laden.',
+    ar: 'رُسمت الغرفة بالاتجاه المعاكس. أعد التحميل من فضلك.',
+  },
+  'fehler.db.grundriss.raum_umhaengen': {
+    de: 'Ein Raum bleibt in seinem Grundriss.',
+    ar: 'تبقى الغرفة في مخططها.',
+  },
+  'fehler.db.grundriss.grundriss_fehlt': {
+    de: 'Diesen Grundriss gibt es nicht mehr.',
+    ar: 'هذا المخطط لم يعد موجودًا.',
+  },
+  'fehler.db.grundriss.zimmer_falsch': {
+    de: 'Das ist kein Zimmer dieses Umzugs.',
+    ar: 'هذه ليست غرفة من هذه النقلة.',
+  },
+  'fehler.db.grundriss.zimmer_doppelt': {
+    de: '{name} ist in diesem Grundriss schon gezeichnet.',
+    ar: '{name} مرسومة بالفعل في هذا المخطط.',
+  },
+  'fehler.db.grundriss.farbe_ungueltig': { de: 'Diese Farbe geht nicht.', ar: 'هذا اللون غير صالح.' },
+  'fehler.db.grundriss.kisten_draussen': {
+    de: 'Danach stünden {n} Kisten außerhalb, zum Beispiel {code}.',
+    ar: 'ستصبح {n} صناديق خارج الغرفة بعد ذلك، مثل {code}.',
+  },
+  'fehler.db.grundriss.zu_niedrig': {
+    de: 'So niedrig passen {n} Kisten nicht mehr, zum Beispiel {code}.',
+    ar: 'بهذا الارتفاع لن تتسع {n} صناديق بعد الآن، مثل {code}.',
+  },
+  'fehler.db.grundriss.raum_fehlt': {
+    de: 'Diesen Raum gibt es nicht mehr.',
+    ar: 'هذه الغرفة لم تعد موجودة.',
+  },
+  'fehler.db.grundriss.oeffnung_kante': {
+    de: 'Diese Wand gibt es nicht mehr.',
+    ar: 'هذا الجدار لم يعد موجودًا.',
+  },
+  'fehler.db.grundriss.oeffnung_zu_breit': {
+    de: 'Tür oder Fenster ist breiter als die Wand.',
+    ar: 'الباب أو النافذة أعرض من الجدار.',
+  },
+  'fehler.db.grundriss.oeffnung_zu_hoch': {
+    de: 'Tür oder Fenster ist höher als der Raum.',
+    ar: 'الباب أو النافذة أعلى من الغرفة.',
+  },
+  'fehler.db.grundriss.oeffnungen_ueberlappen': {
+    de: 'Hier ist schon eine Tür oder ein Fenster.',
+    ar: 'يوجد هنا باب أو نافذة بالفعل.',
+  },
+  'fehler.db.grundriss.objekt_draussen': {
+    de: '{name} ragt aus dem Raum.',
+    ar: '{name} يبرز خارج الغرفة.',
+  },
+  'fehler.db.grundriss.objekt_zu_hoch': {
+    de: '{name} ist höher als der Raum.',
+    ar: '{name} أعلى من الغرفة.',
+  },
+  'fehler.db.grundriss.objekt_umhaengen': {
+    de: 'Möbel bleiben im selben Grundriss.',
+    ar: 'يبقى الأثاث في المخطط نفسه.',
+  },
+  'fehler.db.grundriss.faecher_ungueltig': {
+    de: 'Die Fächer von {name} passen nicht (mindestens 1 cm Platz je Fach).',
+    ar: 'خانات {name} غير صالحة (يلزم 1 سم على الأقل في كل خانة).',
+  },
+  'fehler.db.grundriss.moebel_verknuepfung': {
+    de: 'Nur ein Möbel-Eintrag dieses Umzugs lässt sich verknüpfen.',
+    ar: 'يمكن الربط بقطعة أثاث من هذه النقلة فقط.',
+  },
+  'fehler.db.grundriss.moebel_schon_verknuepft': {
+    de: 'Dieser Möbel-Eintrag gehört schon zu einem anderen Möbel.',
+    ar: 'قطعة الأثاث هذه مرتبطة بالفعل بعنصر آخر في المخطط.',
+  },
+  'fehler.db.grundriss.moebel_kein_platz': {
+    de: 'Möbel stehen im Grundriss, nicht als Kiste.',
+    ar: 'يوضع الأثاث في المخطط، لا كصندوق.',
+  },
+  'fehler.db.grundriss.draussen': {
+    de: '{code} stünde außerhalb des Raums.',
+    ar: 'سيكون {code} خارج الغرفة.',
+  },
+  'fehler.db.grundriss.unterlage_fehlt': {
+    de: 'Darunter steht nichts mehr. Bitte neu laden.',
+    ar: 'لم يعد هناك شيء تحته. أعد التحميل من فضلك.',
+  },
+  'fehler.db.grundriss.unterlage_anderer_raum': {
+    de: 'Die Unterlage steht in einem anderen Raum.',
+    ar: 'ما يوضع عليه موجود في غرفة أخرى.',
+  },
+  'fehler.db.grundriss.kreis': {
+    de: '{code} kann nicht auf {unter} liegen, das liegt schon auf {code}.',
+    ar: 'لا يمكن وضع {code} على {unter}، لأنه موضوع بالفعل على {code}.',
+  },
+  'fehler.db.grundriss.nicht_darauf': {
+    de: '{code} liegt nicht auf {unter}: die Mitte muss über der Kiste darunter sein.',
+    ar: '{code} ليس فوق {unter}: يجب أن يكون منتصفه فوق الصندوق الذي تحته.',
+  },
+  'fehler.db.grundriss.nicht_darauf_objekt': {
+    de: '{code} steht nicht auf {name}.',
+    ar: '{code} ليس فوق {name}.',
+  },
+  'fehler.db.grundriss.kein_regal': {
+    de: '{name} hat keine Fächer.',
+    ar: 'لا توجد خانات في {name}.',
+  },
+  'fehler.db.grundriss.fach_fehlt': {
+    de: 'Dieses Fach gibt es in {name} nicht.',
+    ar: 'هذه الخانة غير موجودة في {name}.',
+  },
+  'fehler.db.grundriss.nicht_im_fach': {
+    de: '{code} steht nicht in diesem Fach.',
+    ar: '{code} ليس داخل هذه الخانة.',
+  },
+  'fehler.db.grundriss.zu_hoch': {
+    de: '{code} ginge bis {oben} cm, Platz ist bis {grenze} cm.',
+    ar: 'سيصل {code} إلى {oben} سم، والمساحة المتاحة حتى {grenze} سم فقط.',
+  },
+  'fehler.db.grundriss.veraltet': {
+    de: 'Jemand hat den Grundriss inzwischen geändert. Bitte neu laden.',
+    ar: 'غيّر أحدهم المخطط في هذه الأثناء. أعد التحميل من فضلك.',
+  },
+  'fehler.db.grundriss.keine_rechte': {
+    de: 'Das dürfen nur Bearbeiter.',
+    ar: 'هذا مسموح للمحرّرين فقط.',
+  },
+  'fehler.db.grundriss.fremde_id': {
+    de: 'Das gehört zu einem anderen Grundriss. Bitte neu laden.',
+    ar: 'هذا يتبع مخططًا آخر. أعد التحميل من فضلك.',
+  },
 }

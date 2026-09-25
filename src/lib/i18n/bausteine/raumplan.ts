@@ -258,4 +258,10 @@ export const raumplan: Woerterbuch = {
     de: 'Diese Kiste steht auf keinem Platz im Raumplan.',
     ar: 'هذا الصندوق ليس له موضع في مخطط الغرفة.',
   },
+
+  // ------------------------------------------ Umzug in den Grundriss
+  'raumplan.zieht_um': {
+    de: 'Der Raumplan zieht in den neuen Grundriss um. Plätze setzt du bald dort.',
+    ar: 'ينتقل مخطط الغرفة إلى المخطط الأرضي الجديد. قريبًا تحدد المواضع هناك.',
+  },
 }

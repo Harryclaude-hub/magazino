@@ -92,7 +92,12 @@ function meterText(cm: number, lang: Lang): string {
 }
 
 export default function RaumPlan() {
-  const { project, tagById, canEdit } = useProject()
+  const { project, tagById } = useProject()
+  /* Der alte Raumplan ist nur noch zum Nachsehen da (Etappe 1). Die
+   * Plaetze zieht Migration 0029 in den neuen Grundriss um; danach lehnt
+   * die Datenbank jedes Schreiben ins alte Raster ab. Darum bietet die
+   * Seite keinen Schreibweg mehr an, auch nicht fuer Bearbeiter. */
+  const schreiben: boolean = false
   const { tagId = '' } = useParams()
   const { t, tn, lang } = useSprache()
   const toast = useToast()
@@ -196,7 +201,7 @@ export default function RaumPlan() {
   )
 
   const ohnePlatz = useMemo(() => kisten.filter((k) => k.plan_x === null), [kisten])
-  const inHand = hand && canEdit ? (ohnePlatz.find((k) => k.id === hand) ?? null) : null
+  const inHand = hand && schreiben ? (ohnePlatz.find((k) => k.id === hand) ?? null) : null
   const steht = raster ? kisten.some((k) => k.plan_x !== null) || regale.length > 0 : false
 
   /* Die gesuchte Kiste einmal zeigen: markieren, ihre Reihe in der
@@ -381,7 +386,7 @@ export default function RaumPlan() {
     const regal = raster.regalAuf.get(key) ?? null
     const boden = raster.stapel.get(stapelKey(x, y, null)) ?? null
 
-    if (modus === 'umriss' && canEdit && ansicht === '2d') {
+    if (modus === 'umriss' && schreiben && ansicht === '2d') {
       if (!aus && (boden || regal)) {
         toast(t(regal ? 'fehler.db.raumplan.regal_draussen' : 'raumplan.zelle_belegt'), 'info')
         return
@@ -400,7 +405,7 @@ export default function RaumPlan() {
       return
     }
 
-    if (modus === 'tuer' && canEdit && ansicht === '2d') {
+    if (modus === 'tuer' && schreiben && ansicht === '2d') {
       if (aus) {
         toast(t('raumplan.zelle_gesperrt'), 'info')
         return
@@ -426,7 +431,7 @@ export default function RaumPlan() {
       return
     }
 
-    if (modus === 'regal' && canEdit && ansicht === '2d') {
+    if (modus === 'regal' && schreiben && ansicht === '2d') {
       if (regal) {
         setRegalDialog({ regal, x: regal.x, y: regal.y })
         return
@@ -448,7 +453,7 @@ export default function RaumPlan() {
     }
 
     // Kisten setzen, nur im Modus "Kisten setzen".
-    if (inHand && canEdit && modus === 'setzen') {
+    if (inHand && schreiben && modus === 'setzen') {
       if (aus) {
         toast(t('raumplan.zelle_gesperrt'), 'info')
         return
@@ -608,6 +613,13 @@ export default function RaumPlan() {
         back={`/app/p/${project.id}/zimmer/${tagId}`}
       />
       <Page>
+        {/* Hinweis: der Plan zieht in den Grundriss um, hier nur lesen. */}
+        <p
+          role="status"
+          className="mb-3 rounded-2xl border-2 border-warn/40 bg-warn/10 px-4 py-3 text-[0.9375rem] font-bold"
+        >
+          {t('raumplan.zieht_um')}
+        </p>
         {fehler ? <ErrorBox error={fehler} onRetry={() => void laden()} /> : null}
         {/* Nur beim ersten Laden. Beim Nachladen bleibt der Plan stehen,
             statt kurz zu verschwinden und wieder aufzutauchen. */}
@@ -624,7 +636,7 @@ export default function RaumPlan() {
             Nach einem Ladefehler steht nur die Fehlermeldung da, sonst
             legte man einen Plan an, den es schon gibt. */}
         {geladen && !laedt && !fehler && !plan ? (
-          canEdit ? (
+          schreiben ? (
             <PlanFormular
               werte={null}
               busy={busy}
@@ -635,14 +647,13 @@ export default function RaumPlan() {
           ) : (
             <Card className="mb-3 p-5">
               <p className="t-name">{t('raumplan.nur_lesen_leer')}</p>
-              <p className="t-sub mt-1.5">{t('raumplan.nur_lesen')}</p>
             </Card>
           )
         ) : null}
 
         {plan && raster ? (
           <>
-            {formular && canEdit ? (
+            {formular && schreiben ? (
               <PlanFormular
                 werte={plan}
                 busy={busy}
@@ -662,7 +673,7 @@ export default function RaumPlan() {
                     reihen: raster.reihen,
                   })}
                 </p>
-                {canEdit ? (
+                {schreiben ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" onClick={() => setFormular(true)}>
                       <Ruler size={16} /> {t('raumplan.masse_aendern')}
@@ -671,9 +682,7 @@ export default function RaumPlan() {
                       <Trash2 size={16} /> {t('raumplan.plan_loeschen')}
                     </Button>
                   </div>
-                ) : (
-                  <p className="t-sub mt-2">{t('raumplan.nur_lesen')}</p>
-                )}
+                ) : null}
               </Card>
             )}
 
@@ -700,7 +709,7 @@ export default function RaumPlan() {
             {/* Was ein Tippen gerade tut. Umriss, Tuer und Regale nur von
                 oben: schraeg und von der Seite traefe man die Zellen nicht
                 sicher. */}
-            {canEdit ? (
+            {schreiben ? (
               <div className="-mx-3 mb-2 flex flex-nowrap gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0">
                 <Chip active={modus === 'setzen'} onClick={() => setModus('setzen')}>
                   <Hand size={16} /> {t('raumplan.modus_setzen')}
@@ -720,7 +729,7 @@ export default function RaumPlan() {
                 ) : null}
               </div>
             ) : null}
-            {canEdit ? (
+            {schreiben ? (
               <p className="t-sub mb-3">
                 {nurVonOben && modus !== 'setzen'
                   ? t('raumplan.nur_von_oben')
@@ -877,7 +886,7 @@ export default function RaumPlan() {
                       <PanelTop size={16} /> {t('raumplan.seitenansicht')}
                     </Button>
                   ) : null}
-                  {canEdit && fund ? (
+                  {schreiben && fund ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -939,7 +948,7 @@ export default function RaumPlan() {
                     })}
                 </ul>
                 <div className="flex flex-wrap gap-2">
-                  {canEdit ? (
+                  {schreiben ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -979,7 +988,7 @@ export default function RaumPlan() {
               <Card className="mb-6 p-4">
                 <div className="flex flex-wrap gap-2">
                   {ohnePlatz.map((k) =>
-                    canEdit ? (
+                    schreiben ? (
                       <Chip
                         key={k.id}
                         active={hand === k.id || markiert === k.id}
@@ -1004,7 +1013,7 @@ export default function RaumPlan() {
                     ),
                   )}
                 </div>
-                {canEdit ? (
+                {schreiben ? (
                   <Button
                     variant="soft"
                     size="lg"

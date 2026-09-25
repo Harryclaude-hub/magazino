@@ -5,14 +5,20 @@
  */
 import { supabase, errText } from './supabase'
 import { tg } from './i18n'
+import { zuPunkten } from './geometrie'
 import type {
   Call,
   CallParticipant,
+  EigeneGroesse,
+  Grundriss,
+  GrundrissDaten,
+  GroessenFolgen,
   Item,
   ItemContent,
   ItemEvent,
   ItemPhoto,
   ItemStatus,
+  KisteLage,
   KistenGroesse,
   MemberRole,
   Message,
@@ -24,6 +30,9 @@ import type {
   ProjectInvite,
   ProjectMember,
   ProjectStats,
+  Platz,
+  Raum,
+  RaumEintrag,
   Raumplan,
   Regal,
   SuchTreffer,
@@ -321,6 +330,10 @@ export interface ItemFilter {
   kind?: Item['kind'] | 'all'
   /** Moebel aus der Kistenliste heraushalten und umgekehrt. */
   kindNot?: Item['kind']
+  /** Nur Kisten ohne Platz im Grundriss (platz_raum_id is null). */
+  ohnePlatz?: boolean
+  /** Nur Kisten mit Platz in diesem Raum des Grundrisses. */
+  platzRaumId?: string
   limit?: number
   offset?: number
   sort?: 'code' | 'newest' | 'size'
@@ -348,6 +361,8 @@ export async function listItems(projectId: string, f: ItemFilter = {}): Promise<
   else if (f.roomId && f.roomId !== 'all') q = q.eq('room_id', f.roomId)
   if (f.personId === 'none') q = q.is('person_id', null)
   else if (f.personId && f.personId !== 'all') q = q.eq('person_id', f.personId)
+  if (f.ohnePlatz) q = q.is('platz_raum_id', null)
+  if (f.platzRaumId) q = q.eq('platz_raum_id', f.platzRaumId)
   if (f.search?.trim()) {
     const s = f.search.trim().replace(/[%,()*\\"]/g, '')
     if (s) {
@@ -401,6 +416,11 @@ export async function createItem(input: {
   person_id?: string | null
   code_source?: Item['code_source']
   size?: number
+  /* Eigene Groesse (0027). Die Stufe in der Nummer setzt dann die
+   * Datenbank selbst; size wird von ihr ueberschrieben. Einen Platz
+   * schickt createItem nie mit: ein abgelehnter Platz darf das Anlegen
+   * nicht verhindern, Hinstellen ist ein zweiter Schritt. */
+  eigene_groesse_id?: string | null
   note?: string | null
   fragile?: boolean
   target_room?: string | null
@@ -533,6 +553,170 @@ export async function ladeKistenGroessen(): Promise<KistenGroesse[]> {
     breite_cm: Number(z.breite_cm),
     hoehe_cm: Number(z.hoehe_cm),
   }))
+}
+
+/* ----------------------------------------------------- Eigene Groessen */
+
+/** Was man an einer eigenen Groesse eingibt. Die Stufe fehlt mit Absicht:
+ *  die rechnet nur die Datenbank (0027). */
+export interface EigeneGroesseWerte {
+  name: string
+  art: EigeneGroesse['art']
+  laenge_cm: number
+  breite_cm: number
+  hoehe_cm: number
+  ausschnitt_breite_cm: number | null
+  ausschnitt_tiefe_cm: number | null
+}
+
+export async function listEigeneGroessen(projectId: string): Promise<EigeneGroesse[]> {
+  const res = await supabase
+    .from('eigene_groessen')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('art')
+    .order('name')
+  return unwrap(res, 'fehler.eigene_groessen_laden') as EigeneGroesse[]
+}
+
+export async function legeEigeneGroesseAn(
+  projectId: string,
+  w: EigeneGroesseWerte,
+): Promise<EigeneGroesse> {
+  const res = await supabase
+    .from('eigene_groessen')
+    .insert({ project_id: projectId, ...w })
+    .select('*')
+    .single()
+  return unwrap(res, 'fehler.eigene_groesse_speichern') as EigeneGroesse
+}
+
+/** Aendern der Masse stuft alle Kisten mit dieser Groesse neu ein. Passt
+ *  eine davon dann nicht mehr auf ihren Platz, lehnt die Datenbank ab
+ *  (kistly:grundriss.zu_hoch u. a.); der Satz kommt ueber errText. */
+export async function aendereEigeneGroesse(
+  id: string,
+  w: Partial<EigeneGroesseWerte>,
+): Promise<EigeneGroesse> {
+  const res = await supabase.from('eigene_groessen').update(w).eq('id', id).select('*').single()
+  return unwrap(res, 'fehler.eigene_groesse_speichern') as EigeneGroesse
+}
+
+/** Eine benutzte Groesse lehnt die Datenbank ab (kistly:groesse.benutzt
+ *  mit der Zahl der Kisten und Moebel). */
+export async function loescheEigeneGroesse(id: string): Promise<void> {
+  const { error } = await supabase.from('eigene_groessen').delete().eq('id', id)
+  if (error) throw new Error(tg('fehler.eigene_groesse_loeschen', { grund: errText(error) }))
+}
+
+/** Was eine Aenderung der Masse ausloesen wuerde, bevor man speichert. */
+export async function eigeneGroesseFolgen(
+  id: string,
+  laenge: number,
+  breite: number,
+  hoehe: number,
+): Promise<GroessenFolgen> {
+  const res = await supabase.rpc('eigene_groesse_folgen', {
+    p_id: id,
+    p_laenge: laenge,
+    p_breite: breite,
+    p_hoehe: hoehe,
+  })
+  const d = unwrap(res, 'fehler.eigene_groesse_folgen') as Record<string, unknown>
+  return {
+    kisten: Number(d.kisten ?? 0),
+    moebel: Number(d.moebel ?? 0),
+    stufe_neu: Number(d.stufe_neu ?? 0),
+    neue_nummer: Number(d.neue_nummer ?? 0),
+  }
+}
+
+/* ------------------------------------------------------------ Grundriss */
+
+export async function ladeGrundrisse(projectId: string): Promise<Grundriss[]> {
+  const res = await supabase
+    .from('grundrisse')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('sort')
+    .order('created_at')
+  return unwrap(res, 'fehler.grundrisse_laden') as Grundriss[]
+}
+
+/** Der erste Grundriss des Umzugs; gibt es keinen, legt ein Bearbeiter
+ *  ihn mit diesem Namen an. null bei Betrachtern ohne Grundriss. */
+export async function grundrissSicherstellen(projectId: string, name: string): Promise<string | null> {
+  const res = await supabase.rpc('grundriss_sicherstellen', { p_project: projectId, p_name: name })
+  if (res.error) throw new Error(tg('fehler.grundriss_anlegen', { grund: errText(res.error) }))
+  return (res.data as string | null) ?? null
+}
+
+/** Alles eines Grundrisses (oder nur eines Raums) mit fertigen Hoehen.
+ *  null heisst: diesen Grundriss gibt es nicht (mehr). */
+export async function ladeGrundriss(id: string, raumId?: string): Promise<GrundrissDaten | null> {
+  const res = await supabase.rpc('grundriss_laden', { p_grundriss: id, p_raum: raumId ?? null })
+  if (res.error) throw new Error(tg('fehler.grundriss_laden', { grund: errText(res.error) }))
+  const d = res.data as (Omit<GrundrissDaten, 'raeume'> & { raeume: Array<Omit<Raum, 'punkte'> & { punkte: number[] }> }) | null
+  if (!d) return null
+  return {
+    grundriss: d.grundriss,
+    raeume: (d.raeume ?? []).map((r) => ({ ...r, punkte: zuPunkten(r.punkte ?? []) })),
+    oeffnungen: d.oeffnungen ?? [],
+    objekte: d.objekte ?? [],
+    kisten: d.kisten ?? [],
+  }
+}
+
+/** Alle Raeume des Umzugs ueber alle Grundrisse, fuer Auswahllisten. */
+export async function ladeRaeumeDesUmzugs(projectId: string): Promise<RaumEintrag[]> {
+  const res = await supabase
+    .from('raeume')
+    .select('id, grundriss_id, tag_id, name, grundrisse(name)')
+    .eq('project_id', projectId)
+    .order('sort')
+  const zeilen = unwrap(res, 'fehler.raeume_laden') as unknown as Array<{
+    id: string
+    grundriss_id: string
+    tag_id: string | null
+    name: string
+    grundrisse: { name: string } | { name: string }[] | null
+  }>
+  return zeilen.map((z) => {
+    const g = Array.isArray(z.grundrisse) ? z.grundrisse[0] : z.grundrisse
+    return { id: z.id, grundriss_id: z.grundriss_id, tag_id: z.tag_id, name: z.name, grundriss_name: g?.name ?? '' }
+  })
+}
+
+/** Eine Kiste hinstellen. Ob der Platz gilt (im Raum, auf der Unterlage,
+ *  unter der Decke), entscheidet die Datenbank; die Antwort ist die neue
+ *  Lage. Nicht zu verwechseln mit dem alten setzePlatz (Raster). */
+export async function platzSetzen(itemId: string, p: Platz): Promise<KisteLage> {
+  const res = await supabase.rpc('platz_setzen', {
+    p_item: itemId,
+    p_raum: p.raum_id,
+    p_x: p.x,
+    p_y: p.y,
+    p_drehung: p.drehung,
+    p_unterlage: p.unterlage,
+    p_unterlage_item: p.unterlage_item_id,
+    p_unterlage_objekt: p.unterlage_objekt_id,
+    p_ebene: p.ebene,
+    p_spalte: p.spalte,
+  })
+  return unwrap(res, 'fehler.platz_setzen') as KisteLage
+}
+
+/** Vom Platz nehmen. Was darauf lag, rutscht die Datenbank nach. */
+export async function platzRaeumen(itemId: string): Promise<void> {
+  const { error } = await supabase.rpc('platz_raeumen', { p_item: itemId })
+  if (error) throw new Error(tg('fehler.platz_raeumen', { grund: errText(error) }))
+}
+
+/** Wo eine Kiste steht, oder null, wenn sie keinen Platz hat. */
+export async function ladeKisteLage(itemId: string): Promise<KisteLage | null> {
+  const res = await supabase.rpc('kiste_lage', { p_item: itemId })
+  if (res.error) throw new Error(tg('fehler.kiste_lage_laden', { grund: errText(res.error) }))
+  return (res.data as KisteLage | null) ?? null
 }
 
 /* ---------------------------------------------------------------- Suche */

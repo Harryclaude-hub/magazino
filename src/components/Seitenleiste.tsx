@@ -129,6 +129,7 @@ export function Seitenleiste({
             to={e.to}
             title={zu ? e.label : undefined}
             aria-label={e.label}
+            aria-current={e.active ? 'page' : undefined}
             className={cx(
               'relative flex min-h-11 items-center gap-3 rounded-xl px-3 font-bold transition',
               e.active ? 'bg-ink text-paper' : 'text-muted hover:bg-raised hover:text-ink',

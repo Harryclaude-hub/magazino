@@ -231,4 +231,12 @@ export const kisten: Woerterbuch = {
     ar: 'سيُحذف الصندوق ومحتوياته وصوره وسجله. لا يمكن التراجع عن ذلك.',
   },
   'kisten.geloescht': { de: 'Kiste gelöscht', ar: 'تم حذف الصندوق' },
+
+  // ------------------------------------------- Eigene Groessen (0027)
+  'kisten.eigene_groesse': { de: 'Eigene Größe', ar: 'حجم خاص' },
+  'kisten.eigene_hoehe_durch_groesse': {
+    de: 'Die Höhe kommt aus der eigenen Größe.',
+    ar: 'يأتي الارتفاع من الحجم الخاص.',
+  },
+  'kisten.zimmer_waehlen_pflicht': { de: 'Bitte ein Zimmer wählen', ar: 'اختر غرفة من فضلك' },
 }

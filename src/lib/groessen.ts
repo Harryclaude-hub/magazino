@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { ladeKistenGroessen } from './api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ladeKistenGroessen, listEigeneGroessen } from './api'
 import type { Lang, Vars } from './i18n'
-import type { ItemKind, KistenGroesse } from './types'
+import type { EigeneGroesse, ItemKind, KistenGroesse } from './types'
 
 /* Kistengroessen in Litern.
  *
@@ -119,4 +119,70 @@ export function groesseSatz(
   return g
     ? t('groesse.von_zehn_liter', { n, liter: literText(g.liter, lang) })
     : t('groesse.von_zehn', { n, wort: t(`groesse.${n}`) })
+}
+
+/* ------------------------------------------------------ Eigene Groessen */
+
+export interface EigeneGroessenStand {
+  /** Die Liste, oder null, solange sie laedt (oder nach einem Fehler). */
+  liste: EigeneGroesse[] | null
+  /** Warum sie nicht kam. null, solange sie laedt oder da ist. */
+  fehler: string | null
+  /** Nach einem Fehler: von vorn laden, mit Ladeanzeige. */
+  nochmal: () => void
+  /** Nach dem Speichern: still neu holen, die alte Liste bleibt stehen. */
+  neuLaden: () => void
+}
+
+/** Die eigenen Groessen eines Umzugs (0027) mit den drei Zustaenden
+ *  laedt, da, Fehler. projectId null laedt nichts. */
+export function useEigeneGroessen(projectId: string | null): EigeneGroessenStand {
+  const [liste, setListe] = useState<EigeneGroesse[] | null>(null)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [versuch, setVersuch] = useState(0)
+  /* Beim stillen Nachladen bleibt die alte Liste stehen. */
+  const leise = useRef(false)
+
+  useEffect(() => {
+    if (!projectId) return
+    let alive = true
+    if (!leise.current) setListe(null)
+    leise.current = false
+    setFehler(null)
+    listEigeneGroessen(projectId)
+      .then((l) => {
+        if (alive) setListe(l)
+      })
+      .catch((err: unknown) => {
+        if (!alive) return
+        setListe(null)
+        setFehler(err instanceof Error ? err.message : String(err))
+      })
+    return () => {
+      alive = false
+    }
+  }, [projectId, versuch])
+
+  const nochmal = useCallback(() => setVersuch((v) => v + 1), [])
+  const neuLaden = useCallback(() => {
+    leise.current = true
+    setVersuch((v) => v + 1)
+  }, [])
+  return { liste, fehler, nochmal, neuLaden }
+}
+
+/** "Grosse Box (60 x 40 x 35 cm)" in der Sprache des Uebersetzers. */
+export function eigeneGroesseText(
+  t: Uebersetzer,
+  g: Pick<EigeneGroesse, 'name' | 'laenge_cm' | 'breite_cm' | 'hoehe_cm'>,
+): string {
+  return `${g.name} (${eigeneGroesseMasse(t, g)})`
+}
+
+/** Nur die Masse: "60 × 40 × 35 cm". */
+export function eigeneGroesseMasse(
+  t: Uebersetzer,
+  g: Pick<EigeneGroesse, 'laenge_cm' | 'breite_cm' | 'hoehe_cm'>,
+): string {
+  return t('groessen.eigene_masse', { l: g.laenge_cm, b: g.breite_cm, h: g.hoehe_cm })
 }

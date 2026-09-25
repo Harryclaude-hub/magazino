@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { tg } from './i18n'
+import { tg, type Vars } from './i18n'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
@@ -32,6 +32,36 @@ export const supabase: SupabaseClient = createClient(
 export const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? ''
 export const SUPABASE_URL = url ?? ''
 
+/** Die Platzhalter einer Ablehnung aus details lesen. Nur Zahlen und
+ *  Text werden uebernommen. Ist {name} leer (Objekt ohne Namen), steht
+ *  dort das Wort der Art, damit der Satz nicht mit einer Luecke beginnt. */
+function dbWerte(details: unknown): Vars | undefined {
+  if (typeof details !== 'string' || !details.trim().startsWith('{')) return undefined
+  let roh: unknown
+  try {
+    roh = JSON.parse(details)
+  } catch {
+    return undefined
+  }
+  if (!roh || typeof roh !== 'object' || Array.isArray(roh)) return undefined
+  const werte: Vars = {}
+  for (const [k, v] of Object.entries(roh as Record<string, unknown>)) {
+    if (typeof v === 'string' || typeof v === 'number') werte[k] = v
+  }
+  /* Seriennummern laufen immer von links nach rechts, auch mitten im
+   * arabischen Satz: als eigene Richtungsinsel (FSI ... PDI). */
+  for (const k of ['code', 'unter']) {
+    if (typeof werte[k] === 'string') werte[k] = `\u2068${werte[k]}\u2069`
+  }
+  if ('name' in werte && String(werte.name).trim() === '') {
+    const art = String(werte.art ?? '')
+    werte.name = ['moebel', 'regal', 'schrank'].includes(art)
+      ? tg(`fehler.objekt_art.${art}`)
+      : tg('fehler.objekt_art.objekt')
+  }
+  return werte
+}
+
 /** Supabase-Fehler in einen Satz uebersetzen, den man lesen kann.
  *
  *  Laeuft ausserhalb von React, darum tg und nicht useT. Die englischen
@@ -54,13 +84,27 @@ export function errText(err: unknown): string {
   /* Die Datenbank gibt ihren Ablehnungen eine Kennung mit (seit 0022):
    * hint = 'kistly:raumplan.zu_hoch'. Der Satz dazu steht im Woerterbuch
    * unter fehler.db.raumplan.zu_hoch, auf Deutsch und Arabisch. Sonst
-   * stuende der deutsche Satz der Datenbank auch im arabischen Satz. */
+   * stuende der deutsche Satz der Datenbank auch im arabischen Satz.
+   * Seit 0027 stehen die Platzhalter als JSON in details
+   * ({"code":"W-3-007","n":2}). Fehlt es oder ist es kaputt, kommt der
+   * Satz ohne Werte. */
   if (typeof e.hint === 'string' && e.hint.startsWith('kistly:')) {
     const key = 'fehler.db.' + e.hint.slice(7)
-    const text = tg(key)
+    const text = tg(key, dbWerte(e.details))
     if (text !== key) return text
   }
   if (raw.includes('items_plan_platz2')) return tg('fehler.db.raumplan.platz_belegt')
+
+  /* Eindeutige Indizes aus 0027 und 0028. Sie melden sich ohne Kennung,
+   * nur mit ihrem Namen in der Meldung. */
+  if (raw.includes('eigene_groessen_name_key')) return tg('fehler.db.groesse.name_doppelt')
+  if (raw.includes('raeume_tag_je_grundriss')) {
+    return tg('fehler.db.grundriss.zimmer_doppelt', { name: tg('fehler.dieses_zimmer') })
+  }
+  if (raw.includes('objekte_item_key')) return tg('fehler.db.grundriss.moebel_schon_verknuepft')
+  if (code === '42501') return tg('fehler.keine_berechtigung')
+  // Verklemmung zweier gleichzeitiger Vorgaenge: einfach nochmal.
+  if (code === '40P01') return tg('fehler.bitte_nochmal')
 
   /* Supabase verschickt beim Registrieren eine Bestaetigungsmail, solange in
    * der Projektverwaltung "Confirm email" aktiv ist. Der eingebaute

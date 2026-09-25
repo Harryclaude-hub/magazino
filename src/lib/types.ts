@@ -3,6 +3,7 @@
  * Arbeitsgang. Zwei Fassungen, die auseinanderlaufen, sind der teuerste
  * Fehler in diesem Projekt.
  */
+import type { ObjektForm, Punkt } from './geometrie'
 
 export type MemberRole = 'owner' | 'editor' | 'viewer'
 export type TagKind = 'room' | 'person'
@@ -109,6 +110,20 @@ export interface Item {
   /* Eigene Hoehe in cm, wenn die Kiste nicht so hoch ist wie ihre
    * Groesse, etwa eine Kleiderbox. null heisst: die Hoehe der Groesse. */
   eigene_hoehe_cm: number | null
+  /* Eigene Groesse des Umzugs (0027). Ist sie gesetzt, bestimmt sie Laenge,
+   * Breite und Hoehe; die Stufe in der Nummer setzt dann die Datenbank. */
+  eigene_groesse_id: string | null
+  /* Platz im Grundriss (0028): Raum, Mittelpunkt, Drehung und genau eine
+   * Unterlage. Entweder alles oder nichts; die Hoehe wird nie gespeichert. */
+  platz_raum_id: string | null
+  platz_x: number | null
+  platz_y: number | null
+  platz_drehung: 0 | 90 | null
+  unterlage_art: UnterlageArt | null
+  unterlage_item_id: string | null
+  unterlage_objekt_id: string | null
+  fach_ebene: number | null
+  fach_spalte: number | null
   /* Das Bild, das beim Scannen sofort erscheint. Verweis auf eine Zeile
    * in item_photos, kein zweiter Pfad. Siehe Migration 0012. */
   cover_photo_id: string | null
@@ -394,6 +409,202 @@ export interface ProjectStats {
   items_arrived: number
   items_transit: number
   items_open: number
+}
+
+/* ---------------------------------------------------- Eigene Groessen */
+
+/** Eine eigene Groesse des Umzugs (0027). Bei Moebeln optional L-Form als
+ *  Rechteck mit rechteckigem Ausschnitt. */
+export interface EigeneGroesse {
+  id: string
+  project_id: string
+  name: string
+  art: 'kiste' | 'moebel'
+  laenge_cm: number
+  breite_cm: number
+  hoehe_cm: number
+  ausschnitt_breite_cm: number | null
+  ausschnitt_tiefe_cm: number | null
+  created_at: string
+  updated_at: string
+}
+
+/** Was eine Aenderung der Masse ausloest (eigene_groesse_folgen). */
+export interface GroessenFolgen {
+  kisten: number
+  moebel: number
+  stufe_neu: number
+  neue_nummer: number
+}
+
+/* ------------------------------------------------------------ Grundriss */
+
+export interface Grundriss {
+  id: string
+  project_id: string
+  name: string
+  sort: number
+  version: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Raum {
+  id: string
+  grundriss_id: string
+  project_id: string
+  tag_id: string | null
+  name: string
+  art: 'innen' | 'draussen'
+  /** In der Datenbank flach, hier schon als Punkte (api.ts wandelt). */
+  punkte: Punkt[]
+  hoehe_cm: number
+  bodenfarbe: string | null
+  wandfarben: (string | null)[] | null
+  sort: number
+  /* aus grundriss_laden */
+  tag_name: string | null
+  tag_short: string | null
+  tag_color: string | null
+}
+
+export interface Oeffnung {
+  id: string
+  raum_id: string
+  art: 'tuer' | 'fenster'
+  kante: number
+  abstand_cm: number
+  breite_cm: number
+  hoehe_cm: number
+  bruestung_cm: number
+  anschlag: 'links' | 'rechts'
+  aufschlag: 'innen' | 'aussen'
+}
+
+export type ObjektArt = 'moebel' | 'regal' | 'schrank'
+
+export interface Objekt extends ObjektForm {
+  id: string
+  raum_id: string
+  art: ObjektArt
+  name: string
+  farbe: string | null
+  item_id: string | null
+  item_code: string | null
+  item_title: string | null
+}
+
+export type UnterlageArt = 'boden' | 'kiste' | 'objekt' | 'fach'
+
+export interface Platz {
+  raum_id: string
+  x: number
+  y: number
+  drehung: 0 | 90
+  unterlage: UnterlageArt
+  unterlage_item_id: string | null
+  unterlage_objekt_id: string | null
+  ebene: number | null
+  spalte: number | null
+}
+
+/** Eine Kiste in grundriss_laden, mit fertigen Massen und Hoehen. */
+export interface PlanKiste {
+  id: string
+  code: string
+  prefix: string
+  size: number
+  seq: number
+  kind: ItemKind
+  status: ItemStatus
+  title: string | null
+  room_id: string | null
+  room_color: string | null
+  mark_color: string | null
+  eigene_groesse_name: string | null
+  platz_raum_id: string
+  platz_x: number
+  platz_y: number
+  platz_drehung: 0 | 90
+  unterlage_art: UnterlageArt
+  unterlage_item_id: string | null
+  unterlage_objekt_id: string | null
+  fach_ebene: number | null
+  fach_spalte: number | null
+  laenge_cm: number
+  breite_cm: number
+  hoehe_cm: number
+  unten_cm: number
+  oben_cm: number
+  grenze_cm: number
+  wurzel_art: 'boden' | 'objekt' | 'fach'
+  nr: number
+}
+
+export interface GrundrissDaten {
+  grundriss: Grundriss
+  raeume: Raum[]
+  oeffnungen: Oeffnung[]
+  objekte: Objekt[]
+  kisten: PlanKiste[]
+}
+
+type LageGrundriss = { id: string; name: string }
+type LageRaum = { id: string; name: string | null; tag_id: string | null }
+type LageObjekt = { id: string; name: string; art: ObjektArt }
+
+/** Wo eine Kiste steht (kiste_lage), oder bei Moebeln, wo ihr Objekt steht. */
+export type KisteLage =
+  | {
+      art: 'kiste'
+      grundriss: LageGrundriss
+      raum: LageRaum
+      platz_x: number
+      platz_y: number
+      drehung: 0 | 90
+      unterlage_art: UnterlageArt
+      unterlage_item_id: string | null
+      unterlage_code: string | null
+      objekt: LageObjekt | null
+      fach_ebene: number | null
+      fach_spalte: number | null
+      laenge_cm: number
+      breite_cm: number
+      hoehe_cm: number
+      unten_cm: number
+      oben_cm: number
+      grenze_cm: number
+      nr: number
+      auf_ihr: string[]
+    }
+  | {
+      art: 'moebel'
+      grundriss: LageGrundriss
+      raum: LageRaum
+      objekt: LageObjekt
+      unten_cm: 0
+      oben_cm: number
+    }
+
+/** Aenderungen fuer grundriss_speichern (Etappe 2). */
+export interface GrundrissAenderung {
+  oeffnungen_loeschen?: string[]
+  objekte_loeschen?: string[]
+  raeume_loeschen?: string[]
+  raeume?: Omit<Raum, 'project_id' | 'grundriss_id' | 'tag_name' | 'tag_short' | 'tag_color'>[]
+  verschieben?: { raum_id: string; dx: number; dy: number }[]
+  objekte?: Omit<Objekt, 'item_code' | 'item_title'>[]
+  zuordnen?: { von_raum_id: string; nach_raum_id: string }[]
+  oeffnungen?: Oeffnung[]
+}
+
+/** Ein Raum aus der Liste aller Raeume eines Umzugs. */
+export interface RaumEintrag {
+  id: string
+  grundriss_id: string
+  grundriss_name: string
+  tag_id: string | null
+  name: string
 }
 
 /* --------------------------------------------------------- Anzeigehilfen */

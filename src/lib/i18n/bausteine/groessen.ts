@@ -64,4 +64,69 @@ export const groessen: Woerterbuch = {
     de: 'Größen haben jetzt Liter. Stuf deine Kisten einmal neu ein.',
     ar: 'للأحجام الآن لترات. أعد تصنيف صناديقك مرة واحدة.',
   },
+
+  // ------------------------------------------- Meine Groessen (0027)
+  // Eigene Masse je Umzug. Die Stufe in der Nummer setzt die Datenbank.
+  'groessen.eigene_titel': { de: 'Meine Größen', ar: 'أحجامي' },
+  'groessen.eigene_leer': { de: 'Noch keine eigenen Größen.', ar: 'لا توجد أحجام خاصة بعد.' },
+  'groessen.eigene_leer_hinweis': {
+    de: 'Leg eine an, wenn du viele gleiche Kisten hast, etwa Boxen aus dem Baumarkt. Beim Anlegen einer Kiste wählst du sie dann mit einem Tipp.',
+    ar: 'أنشئ حجمًا إذا كانت لديك صناديق كثيرة متشابهة، مثل صناديق من متجر العُدد. وعند إنشاء صندوق تختاره بلمسة واحدة.',
+  },
+  'groessen.eigene_anlegen': { de: 'Eigene Größe anlegen', ar: 'إنشاء حجم خاص' },
+  'groessen.eigene_aendern': { de: 'Größe ändern', ar: 'تعديل الحجم' },
+  'groessen.eigene_loeschen': { de: 'Größe löschen', ar: 'حذف الحجم' },
+  'groessen.eigene_loeschen_frage': {
+    de: '{name} löschen? Das geht nur, solange keine Kiste und kein Möbel diese Größe benutzt.',
+    ar: 'حذف {name}؟ هذا ممكن فقط ما دام لا يستخدم هذا الحجم أي صندوق أو قطعة أثاث.',
+  },
+  'groessen.eigene_geloescht': { de: '{name} gelöscht', ar: 'تم حذف {name}' },
+  'groessen.eigene_gespeichert': { de: '{name} gespeichert', ar: 'تم حفظ {name}' },
+  'groessen.eigene_name': { de: 'Name', ar: 'الاسم' },
+  'groessen.eigene_name_platzhalter': { de: 'Große Box IKEA', ar: 'صندوق إيكيا كبير' },
+  'groessen.eigene_art': { de: 'Art', ar: 'النوع' },
+  'groessen.eigene_art_kiste': { de: 'Kiste', ar: 'صندوق' },
+  'groessen.eigene_art_moebel': { de: 'Möbel', ar: 'أثاث' },
+  'groessen.eigene_laenge': { de: 'Länge', ar: 'الطول' },
+  'groessen.eigene_breite': { de: 'Breite', ar: 'العرض' },
+  'groessen.eigene_hoehe': { de: 'Höhe', ar: 'الارتفاع' },
+  'groessen.eigene_in_cm': { de: '= {cm} cm', ar: '= {cm} سم' },
+  'groessen.eigene_eingabe_hinweis': {
+    de: '60 sind Zentimeter, 0,6 sind Meter.',
+    ar: 'الرقم 60 يعني سنتيمترات، و0.6 يعني أمتارًا.',
+  },
+  'groessen.eigene_l_form': { de: 'L-Form', ar: 'شكل L' },
+  'groessen.eigene_l_form_hinweis': {
+    de: 'Etwa ein Ecksofa: ein Rechteck, an einer Ecke fehlt ein Stück.',
+    ar: 'مثل أريكة الزاوية: مستطيل ينقصه جزء عند إحدى زواياه.',
+  },
+  'groessen.eigene_ausschnitt': { de: 'Das fehlende Stück an der Ecke.', ar: 'الجزء الناقص عند الزاوية.' },
+  'groessen.eigene_ausschnitt_breite': { de: 'Ausschnitt Breite', ar: 'عرض الجزء الناقص' },
+  'groessen.eigene_ausschnitt_tiefe': { de: 'Ausschnitt Tiefe', ar: 'عمق الجزء الناقص' },
+  'groessen.eigene_ausschnitt_masse': {
+    de: 'Ausschnitt {breite} × {tiefe} cm',
+    ar: 'الجزء الناقص {breite} × {tiefe} سم',
+  },
+  'groessen.eigene_masse': { de: '{l} × {b} × {h} cm', ar: '{l} × {b} × {h} سم' },
+  'groessen.eigene_folgen': {
+    de: 'Betrifft {kisten} Kisten und {moebel} Möbel; {neu} bekommen eine neue Nummer (Größe {stufe}). Alte Etiketten bleiben scannbar.',
+    ar: 'يشمل ذلك {kisten} صناديق و{moebel} قطع أثاث؛ منها {neu} ستحصل على رقم جديد (الحجم {stufe}). تبقى الملصقات القديمة قابلة للمسح.',
+  },
+  'groessen.eigene_bestaetigen': { de: 'Ja, so speichern', ar: 'نعم، احفظ هكذا' },
+  'groessen.eigene_fehler_name': {
+    de: 'Bitte einen Namen eingeben (höchstens 60 Zeichen).',
+    ar: 'أدخل اسمًا من فضلك (60 حرفًا على الأكثر).',
+  },
+  'groessen.eigene_fehler_mass': {
+    de: 'Zwischen 1 und 1000 cm, zum Beispiel 60 oder 0,6.',
+    ar: 'بين 1 و1000 سم، مثلًا 60 أو 0.6.',
+  },
+  'groessen.eigene_fehler_ausschnitt': {
+    de: 'Der Ausschnitt muss kleiner sein als Länge und Breite.',
+    ar: 'يجب أن يكون الجزء الناقص أصغر من الطول والعرض.',
+  },
+  'groessen.stufe_setzt_db': {
+    de: 'Die Größe in der Nummer berechnet Kistly aus Länge, Breite und Höhe.',
+    ar: 'يحسب Kistly رقم الحجم في الرقم من الطول والعرض والارتفاع.',
+  },
 }

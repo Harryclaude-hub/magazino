@@ -44,7 +44,8 @@ import {
   Textarea,
   useToast,
 } from '../components/ui'
-import { ARTEN, SizePicker } from './Items'
+import { SizePicker } from '../components/SizePicker'
+import { ARTEN } from '../lib/arten'
 import { useProject } from './ProjectLayout'
 import {
   addContent,
@@ -63,8 +64,8 @@ import {
   updateItem,
 } from '../lib/api'
 import { useSprache } from '../lib/i18n'
-import { groesseSatz, useKistenGroessen } from '../lib/groessen'
-import { zahlLesen } from '../lib/raumplan'
+import { groesseSatz, useEigeneGroessen, useKistenGroessen } from '../lib/groessen'
+import { zahlLesen } from '../lib/geometrie'
 import { markFlaeche } from '../lib/marken'
 import {
   ausschnittErstellen,
@@ -178,6 +179,8 @@ export default function ItemDetail() {
     setHoeheText(item?.eigene_hoehe_cm != null ? String(item.eigene_hoehe_cm) : '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editOpen])
+  /* Eigene Groessen des Umzugs, nur solange der Bearbeiten-Dialog offen ist. */
+  const eigene = useEigeneGroessen(editOpen ? project.id : null)
   const [delOpen, setDelOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -1167,10 +1170,20 @@ export default function ItemDetail() {
           ) : null}
 
           <Field label={t('begriff.groesse')}>
+            {/* Eine Stufe waehlt die eigene Groesse ab. Eine eigene Groesse
+                setzt die Datenbank samt Stufe und neuer Nummer; lehnt sie ab
+                (etwa: der Stapel wuerde zu hoch), setzt patch zurueck. */}
             <SizePicker
               value={item.size}
               kind={item.kind}
-              onChange={(size) => void patch({ size })}
+              onChange={(size) =>
+                void patch(item.eigene_groesse_id ? { size, eigene_groesse_id: null } : { size })
+              }
+              eigene={eigene.liste}
+              eigeneFehler={eigene.fehler}
+              eigeneId={item.eigene_groesse_id}
+              onEigene={(id) => void patch({ eigene_groesse_id: id })}
+              onEigeneNochmal={eigene.nochmal}
             />
           </Field>
 
@@ -1180,14 +1193,19 @@ export default function ItemDetail() {
           {item.kind !== 'furniture' ? (
             <Field
               label={t('kisten.eigene_hoehe')}
-              hint={t('kisten.eigene_hoehe_hinweis', {
-                h: groessen?.get(item.size)?.hoehe_cm ?? '?',
-              })}
-              error={hoeheFehler}
+              hint={
+                item.eigene_groesse_id
+                  ? t('kisten.eigene_hoehe_durch_groesse')
+                  : t('kisten.eigene_hoehe_hinweis', {
+                      h: groessen?.get(item.size)?.hoehe_cm ?? '?',
+                    })
+              }
+              error={item.eigene_groesse_id ? null : hoeheFehler}
             >
               <Input
                 inputMode="numeric"
                 dir="ltr"
+                disabled={Boolean(item.eigene_groesse_id)}
                 value={hoeheText}
                 onChange={(e) => setHoeheText(e.target.value)}
                 className="t-serial"

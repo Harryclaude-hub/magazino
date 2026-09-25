@@ -110,6 +110,7 @@ export function NavTab({
       <Link
         to={to}
         aria-label={label}
+        aria-current={active ? 'page' : undefined}
         className="relative flex flex-1 flex-col items-center gap-1 py-1.5 text-[0.6875rem] font-bold text-ink"
       >
         <span
@@ -127,6 +128,7 @@ export function NavTab({
   return (
     <Link
       to={to}
+      aria-current={active ? 'page' : undefined}
       className={cx(
         'relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[0.6875rem] font-bold transition',
         active ? 'text-ink' : 'text-muted hover:text-ink',

@@ -24,7 +24,9 @@ import {
 import { useProject } from './ProjectLayout'
 import { countItems, createItem, listItems, setItemStatus, listAllItems } from '../lib/api'
 import { useSprache } from '../lib/i18n'
-import { groesseSatz, hatLiter, literText, useKistenGroessen } from '../lib/groessen'
+import { hatLiter, literText, useEigeneGroessen, useKistenGroessen } from '../lib/groessen'
+import { ARTEN, groessenArt } from '../lib/arten'
+import { SizePicker } from '../components/SizePicker'
 import { notifyItemStatus } from '../lib/push'
 import { supabase } from '../lib/supabase'
 import {
@@ -41,71 +43,6 @@ const NEXT_STATUS: Record<ItemStatus, ItemStatus> = {
   arrived: 'open',
 }
 
-/* Die Kistenarten in fester Reihenfolge. Die Woerter dazu stehen im
- * Woerterbuch unter art.box und so weiter, nicht mehr in types.ts. */
-export const ARTEN: ItemKind[] = ['box', 'furniture', 'bag', 'other']
-
-/** Die Groesse 1 bis 10. Bei Kisten steht unter jeder Ziffer, wie viele
- *  Liter sie fasst, bei Moebeln bleibt es beim Wort. Die Liter kommen aus
- *  der Datenbank; solange sie fehlen, steht nur die Ziffer da. */
-export function SizePicker({
-  value,
-  onChange,
-  kind = 'box',
-}: {
-  value: number
-  onChange: (v: number) => void
-  kind?: ItemKind
-}) {
-  const { t, lang } = useSprache()
-  const tabelle = useKistenGroessen()
-  const mitLiter = hatLiter(kind) && tabelle !== null
-  const gewaehlt = mitLiter ? tabelle.get(value) : undefined
-  return (
-    <div>
-      <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
-          const g = mitLiter ? tabelle.get(n) : undefined
-          return (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onChange(n)}
-              aria-label={
-                g
-                  ? t('kisten.groesse_knopf_liter', { n, liter: literText(g.liter, lang) })
-                  : t('kisten.groesse_knopf', { n, wort: t(`groesse.${n}`) })
-              }
-              aria-pressed={value === n}
-              className={`flex w-full min-w-0 flex-col items-center justify-center rounded-xl border-2 font-mono transition active:scale-95 ${
-                g ? 'h-14' : 'h-12'
-              } ${
-                value === n
-                  ? 'border-danger bg-danger text-white'
-                  : 'border-line bg-surface text-ink hover:border-ink/35 hover:bg-raised'
-              }`}
-            >
-              <span className="text-lg font-black leading-none">{n}</span>
-              {g ? (
-                <span dir="ltr" className="mt-1 text-xs font-bold leading-none opacity-80">
-                  {literText(g.liter, lang)}
-                </span>
-              ) : null}
-            </button>
-          )
-        })}
-      </div>
-      <p className="t-sub mt-2.5">
-        {groesseSatz(t, lang, value, kind, tabelle)}
-        {gewaehlt
-          ? `, ${t('groesse.mass', { l: gewaehlt.laenge_cm, b: gewaehlt.breite_cm, h: gewaehlt.hoehe_cm })}`
-          : null}
-        . {t('kisten.groesse_hinweis')}
-      </p>
-    </div>
-  )
-}
-
 interface Draft {
   kind: ItemKind
   title: string
@@ -113,6 +50,8 @@ interface Draft {
   person_id: string
   code_source: TagKind
   size: number
+  /** Eigene Groesse (0027) oder null. Die Stufe setzt dann die Datenbank. */
+  eigene_groesse_id: string | null
   note: string
   fragile: boolean
   target_room: string
@@ -221,18 +160,59 @@ export default function Items() {
   const [open, setOpen] = useState(params.get('neu') === '1')
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [draft, setDraft] = useState<Draft>({
-    kind: 'box',
-    title: '',
-    room_id: roomId !== 'all' ? roomId : (rooms[0]?.id ?? ''),
-    person_id: personId !== 'all' ? personId : '',
-    code_source: 'room',
-    size: 5,
-    note: '',
-    fragile: false,
-    target_room: '',
-    count: 1,
-  })
+  /* Der Entwurf kommt beim Oeffnen frisch aus der Adresse. 'all' und
+   * 'none' sind Filter, keine Zimmer, und landen nie im Entwurf. Ohne
+   * ?room gibt es auch kein still vorgewaehltes erstes Zimmer: wer nicht
+   * hinschaut, legte sonst die Kiste im falschen Zimmer an, mit falscher
+   * Nummer. Dann ist das Zimmer eine Pflichtwahl. */
+  const leererEntwurf = useCallback(
+    (): Draft => ({
+      kind: 'box',
+      title: '',
+      room_id: roomId !== 'all' && roomId !== 'none' && tagById(roomId) ? roomId : '',
+      person_id: personId !== 'all' && personId !== 'none' && tagById(personId) ? personId : '',
+      code_source: 'room',
+      size: 5,
+      eigene_groesse_id: null,
+      note: '',
+      fragile: false,
+      target_room: '',
+      count: 1,
+    }),
+    [roomId, personId, tagById],
+  )
+  const [draft, setDraft] = useState<Draft>(leererEntwurf)
+  const eigene = useEigeneGroessen(canEdit ? project.id : null)
+
+  /* Dialoge setzen sich beim Oeffnen zurueck (Hausregel). */
+  useEffect(() => {
+    if (!open) return
+    setDraft(leererEntwurf())
+    setFormError(null)
+    // Nur beim Oeffnen, nicht bei jeder Aenderung der Adresse im offenen Dialog.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  /** Schliessen nimmt auch ?neu aus der Adresse, sonst oeffnete ein
+   *  Neuladen den Dialog von selbst wieder. */
+  function schliessen() {
+    setOpen(false)
+    if (params.get('neu')) {
+      const rest = new URLSearchParams(params)
+      rest.delete('neu')
+      setParams(rest, { replace: true })
+    }
+  }
+
+  /** Neue Kistenart: passt die gewaehlte eigene Groesse nicht mehr zur Art
+   *  (Kiste oder Moebel), faellt sie weg. */
+  function setzeArt(kind: ItemKind) {
+    setDraft((d) => {
+      const g = eigene.liste?.find((x) => x.id === d.eigene_groesse_id)
+      const passt = !g || g.art === groessenArt(kind)
+      return { ...d, kind, eigene_groesse_id: passt ? d.eigene_groesse_id : null }
+    })
+  }
 
   const previewPrefix =
     draft.code_source === 'person'
@@ -243,7 +223,7 @@ export default function Items() {
     e.preventDefault()
     setFormError(null)
     if (!draft.room_id && !draft.person_id) {
-      setFormError(t('kisten.fehler_kein_tag'))
+      setFormError(t('kisten.zimmer_waehlen_pflicht'))
       return
     }
     setBusy(true)
@@ -260,6 +240,7 @@ export default function Items() {
             person_id: draft.person_id || null,
             code_source: draft.code_source,
             size: draft.size,
+            eigene_groesse_id: draft.eigene_groesse_id,
             note: draft.note.trim() || null,
             fragile: draft.fragile,
             target_room: draft.target_room.trim() || null,
@@ -301,10 +282,7 @@ export default function Items() {
       return
     }
 
-    setOpen(false)
-    setDraft((d) => ({ ...d, title: '', note: '', count: 1 }))
-    params.delete('neu')
-    setParams(params, { replace: true })
+    schliessen()
   }
 
   async function cycleStatus(item: Item) {
@@ -656,12 +634,12 @@ export default function Items() {
       {/* Neue Kiste */}
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={schliessen}
         title={t('kisten.neu')}
         wide
         footer={
           <>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
+            <Button variant="ghost" onClick={schliessen}>
               {t('aktion.abbrechen')}
             </Button>
             <Button form="item-form" type="submit" loading={busy}>
@@ -680,24 +658,35 @@ export default function Items() {
             <p className="t-serial mt-2 text-4xl leading-none sm:text-5xl">
               {previewPrefix}
               <span className="opacity-40">-</span>
-              <span className="text-danger">{draft.size}</span>
+              <span className="text-danger">{draft.eigene_groesse_id ? '?' : draft.size}</span>
               <span className="opacity-40">-</span>
               <span className="opacity-60">###</span>
             </p>
-            <p className="t-sub mt-2">{t('kisten.nummer_hinweis')}</p>
+            <p className="t-sub mt-2">
+              {draft.eigene_groesse_id ? t('groessen.stufe_setzt_db') : t('kisten.nummer_hinweis')}
+            </p>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label={t('begriff.zimmer')} hint={t('kisten.zimmer_regel')}>
+            <Field
+              label={t('begriff.zimmer')}
+              hint={
+                !draft.room_id && !draft.person_id
+                  ? t('kisten.zimmer_waehlen_pflicht')
+                  : t('kisten.zimmer_regel')
+              }
+            >
               <Select
                 value={draft.room_id}
                 onChange={(e) => setDraft((d) => ({ ...d, room_id: e.target.value }))}
+                aria-invalid={!draft.room_id && !draft.person_id ? true : undefined}
               >
                 {/* Ohne Zimmer geht nur, wenn eine Person dransteht. Sonst
                     haette die Kiste gar keine Zuordnung, und die Datenbank
-                    weist sie ohnehin zurueck. */}
+                    weist sie ohnehin zurueck. Ohne Person ist die leere
+                    Zeile nur der Platzhalter der Pflichtwahl. */}
                 <option value="" disabled={!draft.person_id}>
-                  {t('kisten.kein_zimmer')}
+                  {draft.person_id ? t('kisten.kein_zimmer') : t('kisten.zimmer_waehlen_pflicht')}
                 </option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -749,6 +738,11 @@ export default function Items() {
               value={draft.size}
               kind={draft.kind}
               onChange={(size) => setDraft((d) => ({ ...d, size }))}
+              eigene={eigene.liste}
+              eigeneFehler={eigene.fehler}
+              eigeneId={draft.eigene_groesse_id}
+              onEigene={(id) => setDraft((d) => ({ ...d, eigene_groesse_id: id }))}
+              onEigeneNochmal={eigene.nochmal}
             />
           </Field>
 
@@ -756,7 +750,7 @@ export default function Items() {
             <Field label={t('kisten.art')}>
               <Select
                 value={draft.kind}
-                onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value as ItemKind }))}
+                onChange={(e) => setzeArt(e.target.value as ItemKind)}
               >
                 {ARTEN.map((k) => (
                   <option key={k} value={k}>

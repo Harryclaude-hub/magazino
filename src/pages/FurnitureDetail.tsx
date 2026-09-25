@@ -39,7 +39,8 @@ import {
   Textarea,
   useToast,
 } from '../components/ui'
-import { SizePicker } from './Items'
+import { SizePicker } from '../components/SizePicker'
+import { useEigeneGroessen } from '../lib/groessen'
 import { useProject } from './ProjectLayout'
 import { useAuth } from '../lib/auth'
 import {
@@ -841,12 +842,14 @@ function AngabenDialog({
     room_id: item.room_id ?? '',
     person_id: item.person_id ?? '',
     size: item.size,
+    eigene_groesse_id: item.eigene_groesse_id,
     hersteller: item.hersteller ?? '',
     modell: item.modell ?? '',
     masse: item.masse ?? '',
     zerlegt: item.zerlegt,
     note: item.note ?? '',
   }))
+  const eigene = useEigeneGroessen(offen ? item.project_id : null)
 
   // Wird der Dialog neu geoeffnet, zeigt er den aktuellen Stand, nicht den
   // von vorhin.
@@ -857,6 +860,7 @@ function AngabenDialog({
       room_id: item.room_id ?? '',
       person_id: item.person_id ?? '',
       size: item.size,
+      eigene_groesse_id: item.eigene_groesse_id,
       hersteller: item.hersteller ?? '',
       modell: item.modell ?? '',
       masse: item.masse ?? '',
@@ -893,6 +897,7 @@ function AngabenDialog({
             room_id: entwurf.room_id || null,
             person_id: entwurf.person_id || null,
             size: entwurf.size,
+            eigene_groesse_id: entwurf.eigene_groesse_id,
             hersteller: entwurf.hersteller.trim() || null,
             modell: entwurf.modell.trim() || null,
             masse: entwurf.masse.trim() || null,
@@ -942,7 +947,12 @@ function AngabenDialog({
           <SizePicker
             value={entwurf.size}
             kind="furniture"
-            onChange={(v) => setEntwurf({ ...entwurf, size: v })}
+            onChange={(v) => setEntwurf((d) => ({ ...d, size: v }))}
+            eigene={eigene.liste}
+            eigeneFehler={eigene.fehler}
+            eigeneId={entwurf.eigene_groesse_id}
+            onEigene={(id) => setEntwurf((d) => ({ ...d, eigene_groesse_id: id }))}
+            onEigeneNochmal={eigene.nochmal}
           />
         </Field>
 
