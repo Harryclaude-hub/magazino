@@ -70,4 +70,5 @@ Jeder Push auf `main` geht sofort live (GitHub Pages).
 - `docs/grundriss/entwurf-teile.json`: Material fuer den Grundriss-Umbau
   (Code-Karten, drei Entwuerfe, zwei Bewertungen).
 - `docs/grundriss/BAUPLAN.md`: der Bauplan, sobald er geschrieben ist.
+- `docs/grundriss/STAND.md`: Stand nach der letzten fertigen Etappe.
 - `PLAN.md`: Fahrplan und Begruendungen der frueheren Bloecke.

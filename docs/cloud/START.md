@@ -18,7 +18,13 @@ Etappen. Zusaetzlich liegen im Repo `CLAUDE.md` (Regeln) und
    abschicken.
 5. Laptop zuklappen ist erlaubt. Schau ein- bis zweimal am Tag in der
    Claude-App am Handy nach: Claude meldet sich nur in den Ausnahmen aus
-   Abschnitt 1.3.
+   Abschnitt 1.3 und nach jeder fertigen Etappe.
+6. **Sparen (empfohlen):** Nach jeder fertigen Etappe bietet Claude dir
+   einen Satz fuer eine neue Sitzung an. Starte dann eine neue Sitzung
+   (wieder Opus 5.5, gleiches Repo) und fuege nur diesen Satz ein:
+   "Lies docs/cloud/START.md und docs/grundriss/STAND.md und mach die
+   naechste Etappe." Das sind fuenf Mal eine Minute fuer dich und spart
+   etwa ein Drittel der Kosten.
 
 ---
 
@@ -35,9 +41,10 @@ aus Abschnitt 6, und liefere am Ende den Abschlussbericht aus Abschnitt 9.
   Entscheidungen, die du brauchst, stehen in Abschnitt 5. Wo dort nichts
   steht: nimm die einfachste robuste Loesung, die zu Abschnitt 5 passt,
   schreib sie in `docs/grundriss/ENTSCHEIDUNGEN.md` und mach weiter.
-- Modell Opus 5.5. **Kostengrenze 200 US-Dollar** fuer den ganzen Umbau.
-  Bei etwa 150 $ kurz melden, wie weit du bist. Vor 200 $ an einer
-  sauberen Stelle (fertige, gepruefte Etappe) aufhoeren.
+- Modell Opus 5.5. **Ziel: etwa 100 US-Dollar** fuer den ganzen Umbau,
+  **harte Grenze 150 $**. Halte dich an die Sparregeln in 1.5. Bei 100 $
+  kurz melden, wie weit du bist. Vor 150 $ an einer sauberen Stelle
+  (fertige, gepruefte Etappe) aufhoeren.
 - Sparsam: grosse Pruefrunden mit mehreren Agenten nur fuer
   Datenbank-Migrationen und Stapel-Logik. Sonst ein Pruefer je Etappe.
 - Nach jeder Etappe eine kurze Meldung an Karam (drei Saetze: was fertig
@@ -77,6 +84,49 @@ aus Abschnitt 6, und liefere am Ende den Abschlussbericht aus Abschnitt 9.
   `src/design`.
 - Vor jedem Commit: `npx tsc -b`, `npx oxlint`, `npm run build`,
   `node scripts/woerter-pruefen.mjs` (bekannt: 9 Meldungen bei `*.eins`).
+
+### 1.5 Sparregeln (gleiche Qualitaet, weniger Kosten)
+
+Das meiste Geld kostet nicht das Schreiben, sondern das staendige
+Wiederlesen eines langen Gespraechsverlaufs. Darum:
+
+1. **Hauptfaden schlank halten.** Grosse Dateien nie ganz im Hauptfaden
+   lesen: erst mit `grep` die Stelle finden, dann nur diese Zeilen lesen.
+   Befehlsausgaben kuerzen (`| tail -20`), Build-Protokolle nicht ganz
+   ausgeben.
+2. **Eine Etappe, eine Sitzung.** Am Ende jeder Etappe den Stand in
+   `docs/grundriss/STAND.md` schreiben (was fertig ist, was als Naechstes
+   kommt, wichtige Dateien und Entscheidungen, hoechstens eine Seite),
+   committen, und Karam diesen Satz fuer eine neue Sitzung anbieten:
+   "Lies docs/cloud/START.md und docs/grundriss/STAND.md und mach die
+   naechste Etappe." Eine frische Sitzung liest nicht den ganzen alten
+   Verlauf mit und ist deutlich billiger. Laesst Karam die alte Sitzung
+   weiterlaufen, arbeitest du dort weiter.
+3. **Das Entwurfsmaterial nur einmal lesen.** `entwurf-teile.json` ist
+   gross (etwa 540 KB). In Etappe 0 liest es ein einziger Unteragent und
+   schreibt daraus `BAUPLAN.md`. Danach wird nur noch `BAUPLAN.md`
+   benutzt, das JSON nie wieder.
+4. **Nicht neu erkunden, was beschrieben ist.** Die Code-Karten im Bauplan
+   und dieses Dokument reichen. Suchen nach Dateien und Stellen darf ein
+   guenstiger Unteragent (Modell Haiku oder Sonnet) machen; bauen und
+   entscheiden macht Opus.
+5. **Vorhandenes wiederverwenden** statt neu schreiben: Stapel- und
+   Nachrueck-Trigger aus 0022, Sperren aus 0025, `kisten_groessen`,
+   `SizePicker`, `Ausschnitt`, `PunktBild`, `Fundort`, die Designschicht.
+6. **Pruefen mit Mass:** eine Gegenpruefung mit mehreren Agenten nur fuer
+   die Migrationen und die Stapel-Logik; sonst ein Pruefer je Etappe mit
+   klarer Dateiliste. Jeder Befund wird einmal gegengeprueft, nicht
+   mehrfach.
+7. **Sichtpruefung knapp:** je Etappe eine Wegwerfseite, ein Bild am
+   Desktop und eins bei 375 px Breite; Texte lieber als Seitentext pruefen
+   statt als Bild.
+8. **In einem Rutsch aendern:** mehrere Stellen einer Datei in einem
+   Schritt aendern, nicht viele kleine Schritte (jeder Schritt liest den
+   Verlauf erneut).
+9. **Kurz antworten:** Meldungen an Karam hoechstens fuenf Saetze, der
+   ausfuehrliche Teil kommt einmal im Abschlussbericht.
+10. **3D einfach halten:** Koerper, Farben, Kamera, Hervorhebung. Keine
+    Texturen, Schatten oder Spiegelungen.
 
 ---
 
@@ -369,7 +419,7 @@ Bilderkennung schlaegt Inhalte vor, Suche ueber alle Umzuege.
 
 | Etappe | Inhalt | Fertig, wenn |
 |---|---|---|
-| 0 | `docs/grundriss/BAUPLAN.md` aus `entwurf-teile.json` und diesem Dokument schreiben (Abschnitt 5 hat Vorrang vor den Entwuerfen) | Bauplan mit SQL ab Migration 0027 und Dateiliste liegt im Repo |
+| 0 | `docs/grundriss/BAUPLAN.md` aus `entwurf-teile.json` und diesem Dokument schreiben (Abschnitt 5 hat Vorrang vor den Entwuerfen; ein einziger Unteragent liest das JSON) | Bauplan mit SQL ab Migration 0027 und Dateiliste liegt im Repo, `STAND.md` angelegt |
 | 1 | Datenmodell in cm mit Pruefungen und Umrechnung (Migrationen), eigene Groessen (Tabelle, Seite "Meine Groessen", Auswahl beim Anlegen), `src/lib/geometrie.ts`, api.ts-Funktionen, Desktop-Rahmen mit Seitenleiste | Probelauf gruen, angewandt, alte Daten umgerechnet, eigene Groesse anlegen und beim Anlegen einer Kiste waehlen geht, App laeuft wie vorher, Desktop nutzt die Breite |
 | 2 | Zeichner (Raeume, Waende, Tueren, Fenster, Moebel, Regale und Schraenke mit Faechern, Kisten setzen und stapeln), alte Raumplan-Seite ersetzt | Wohnung zeichnen und Kisten stapeln geht am Desktop, Datenbank lehnt Unmoegliches ab |
 | 3 | Handy platzieren, Kistenseite mit Lageplan, neue Suche, Moebel mit Inhalt und Platz | Kiste am Handy in 4 Tipps gesetzt; Suche zeigt Platz und Hoehe |
