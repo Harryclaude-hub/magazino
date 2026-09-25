@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 /* Keine Symbole, die auch der Zeichner-Teil benutzt (Check, Plus, RotateCw):
  * sonst zieht der Bundler einen gemeinsamen Teil aus dem Hauptbuendel,
  * und beim Start laedt eine Datei mehr (gemessen, Etappe 3). */
-import { ChevronRight, CircleCheck, DoorOpen, RotateCwSquare, SlidersHorizontal } from 'lucide-react'
+import { ChevronRight, CircleCheck, DoorOpen, RotateCwSquare, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { insel, lageOrt, lageSatz } from '../components/plan/lage'
 import { PlanBild } from '../components/plan/PlanBild'
@@ -252,8 +252,8 @@ function Ablauf({ iid }: { iid: string }) {
           }
           rest={rest}
           onAnderesZimmer={() => setSchritt('zimmer')}
-          onGespeichert={(neu) => {
-            toast(t('platz.gespeichert', { code: insel(item.code), satz: lageSatz(neu, t) }), 'ok')
+          onGespeichert={(satz) => {
+            toast(t('platz.gespeichert', { code: insel(item.code), satz }), 'ok')
             // Zurueck, woher man kam; ohne Verlauf auf den Pfad.
             if (zustand?.zurueck && window.history.length > 1) nav(-1)
             else nav(zurueck, { replace: true })
@@ -363,7 +363,8 @@ function Stelle({
   gehoertIn: string | null
   rest: string[]
   onAnderesZimmer: () => void
-  onGespeichert: (lage: KisteLage) => void
+  /** Bekommt den fertigen Satz, wo die Kiste jetzt steht. */
+  onGespeichert: (satz: string) => void
   onNaechste: () => void
   onFertig: () => void
 }) {
@@ -416,6 +417,15 @@ function Stelle({
 
   const daten = planStand.art === 'da' ? planStand.daten : null
   const planRaum = daten?.raeume.find((r) => r.id === raum.id) ?? null
+
+  /* Der Satz mit der Spaltenzahl des Regals aus dem Plan, damit er die
+   * Spalte nennt wie Kistenseite und Suche. Steht das Regal in einem
+   * anderen Grundriss, entscheidet lageSatz ohne sie. */
+  function satzVon(l: KisteLage): string {
+    const objektId = l.art === 'kiste' ? l.objekt?.id : null
+    const spalten = objektId ? (daten?.objekte.find((o) => o.id === objektId)?.spalten ?? null) : null
+    return lageSatz(l, t, spalten)
+  }
 
   /* Masse nur fuer Vorschau und Auswahl (die Datenbank rechnet selbst,
    * kiste_masse): steht die Kiste im Plan, von dort; sonst eigene Groesse,
@@ -508,10 +518,10 @@ function Stelle({
       setLetzte(letzteLesen(raum.id))
       if (rest.length > 0) {
         // In der Reihe: hier bleiben, Erfolg zeigen, weiter mit der naechsten.
-        setErfolg(t('platz.gespeichert', { code: insel(item.code), satz: lageSatz(neu, t) }))
+        setErfolg(t('platz.gespeichert', { code: insel(item.code), satz: satzVon(neu) }))
         setPlanVersuch((v) => v + 1)
       } else {
-        onGespeichert(neu)
+        onGespeichert(satzVon(neu))
       }
     } catch (err) {
       /* Die Datenbank sagt, warum nicht. Plan neu laden, Stelle bleibt. */
@@ -537,7 +547,9 @@ function Stelle({
         </div>
 
         {lage?.art === 'kiste' ? (
-          <p className="t-sub">{t('platz.jetzt', { satz: `${lageOrt(lage, t)}, ${lageSatz(lage, t)}` })}</p>
+          <p className="t-sub">
+            {t('platz.jetzt', { satz: t('suche.ort_zeile', { ort: lageOrt(lage, t), satz: satzVon(lage) }) })}
+          </p>
         ) : null}
         {gehoertIn ? (
           <p className="rounded-xl border-2 border-warn/40 bg-warn/10 px-3 py-2 text-[0.9375rem] font-bold text-warn">
@@ -567,7 +579,17 @@ function Stelle({
               maxHoehe="58vh"
               label={t('platz.plan_label')}
               zoomen
-              onTipp={canEdit ? (p) => setzen([einrasten(p[0], 5), einrasten(p[1], 5)]) : undefined}
+              onTipp={
+                canEdit
+                  ? (p) =>
+                      // Auf 5 cm ab der Raum-Ecke, wie die Zahlen, die die Seite zeigt.
+                      setzen(
+                        rahmen
+                          ? [rahmen.x0 + einrasten(p[0] - rahmen.x0, 5), rahmen.y0 + einrasten(p[1] - rahmen.y0, 5)]
+                          : [einrasten(p[0], 5), einrasten(p[1], 5)],
+                      )
+                  : undefined
+              }
               zusatz={
                 punkt && canEdit
                   ? () => (
@@ -711,20 +733,29 @@ function Stelle({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
-                <span className="hidden shrink-0 sm:block">
-                  <CodeChip code={item.code} size="sm" />
-                </span>
-                <Button
-                  size="lg"
-                  full
-                  className="sm:w-auto sm:flex-1"
-                  loading={busy}
-                  disabled={!punkt || !drinnen || !gewaehlt || !gewaehlt.passt}
-                  onClick={() => void speichern()}
-                >
-                  <CircleCheck size={22} /> {t('platz.speichern')}
-                </Button>
+              <div className="space-y-2">
+                {/* Die Ablehnung auch hier, direkt ueber dem Knopf: unten auf
+                 * der Seite sieht man sie am Handy nicht. */}
+                {fehler ? (
+                  <p role="alert" className="flex items-start gap-2 text-[0.9375rem] font-bold text-danger">
+                    <TriangleAlert size={20} className="mt-0.5 shrink-0" /> <span className="min-w-0">{fehler}</span>
+                  </p>
+                ) : null}
+                <div className="flex items-center gap-3">
+                  <span className="hidden shrink-0 sm:block">
+                    <CodeChip code={item.code} size="sm" />
+                  </span>
+                  <Button
+                    size="lg"
+                    full
+                    className="sm:w-auto sm:flex-1"
+                    loading={busy}
+                    disabled={!punkt || !drinnen || !gewaehlt || !gewaehlt.passt}
+                    onClick={() => void speichern()}
+                  >
+                    <CircleCheck size={22} /> {t('platz.speichern')}
+                  </Button>
+                </div>
               </div>
             )}
           </div>

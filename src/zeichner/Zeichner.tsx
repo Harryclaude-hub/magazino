@@ -53,6 +53,7 @@ import type { Aktion, KisteInHand, Kontext, Schritt, WerkzeugName } from './werk
 import { zReducer, zStart } from './zustand'
 import { woerterNachladen } from '../lib/i18n/woerter'
 import { zeichnerWoerter } from '../lib/i18n/bausteine/zeichner'
+import { Ueberlagerung3D } from '../components/plan3d/oeffnen'
 
 // Die Saetze des Zeichners kommen mit seinem Code-Teil (siehe zeichner.ts).
 woerterNachladen(zeichnerWoerter)
@@ -138,6 +139,8 @@ export default function Zeichner({
   const [groesse, setGroesse] = useState<[number, number]>([0, 0])
   const [raster, setRaster] = useState<1 | 5 | 10>(5)
   const [winkel, setWinkel] = useState(true)
+  /** Umschalter 2D/3D: 3D liegt ueber der Zeichenflaeche und zeigt z.dok live. */
+  const [drei, setDrei] = useState(false)
   const [zeigerCm, setZeigerCm] = useState<Punkt | null>(null)
   const [hinweis, setHinweis] = useState<string | null>(null)
   const [leiste, setLeiste] = useState<Leiste | null>(null)
@@ -846,6 +849,24 @@ export default function Zeichner({
             {vorschau.eingabe}
           </span>
         ) : null}
+        <div className="flex rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('plan3d.umschalter')}>
+          <button
+            type="button"
+            aria-pressed={!drei}
+            onClick={() => setDrei(false)}
+            className={cx('h-8 rounded-lg px-3 text-sm font-bold', !drei ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
+          >
+            {t('plan3d.zwei_d')}
+          </button>
+          <button
+            type="button"
+            aria-pressed={drei}
+            onClick={() => setDrei(true)}
+            className={cx('h-8 rounded-lg px-3 text-sm font-bold', drei ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
+          >
+            {t('plan3d.drei_d')}
+          </button>
+        </div>
         <SpeicherAnzeige status={status} onNochmal={() => { setStatus('gespeichert'); setLeiste(null) }} />
       </div>
 
@@ -994,6 +1015,14 @@ export default function Zeichner({
                 <Check size={16} />
               </button>
             </form>
+          ) : null}
+
+          {drei ? (
+            <Ueberlagerung3D
+              daten={z.dok}
+              hervor={z.auswahl?.art === 'kiste' ? z.auswahl.id : kisteId}
+              onSchliessen={() => setDrei(false)}
+            />
           ) : null}
 
           {z.dok.raeume.length === 0 && werkzeug.name === 'auswahl' ? (

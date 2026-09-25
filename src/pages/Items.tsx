@@ -227,6 +227,7 @@ export default function Items() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
+    if (busy) return
     setFormError(null)
     if (!draft.room_id && !draft.person_id) {
       setFormError(t('kisten.zimmer_waehlen_pflicht'))
@@ -256,7 +257,9 @@ export default function Items() {
     } catch (err) {
       abbruch = err instanceof Error ? err.message : String(err)
     }
-    setBusy(false)
+    /* Der Knopf bleibt gesperrt, bis der Dialog zu ist oder der Fehler
+     * steht: sonst legte ein zweiter Tipp waehrend der Folge-Abfragen
+     * (Raeume pruefen, Liste laden) dieselben Kisten noch einmal an. */
 
     /* Was schon in der Datenbank steht, wird gemeldet und geladen, auch
      * wenn die Reihe abgebrochen ist. Sonst waeren die bereits angelegten
@@ -302,10 +305,12 @@ export default function Items() {
       // Die Anzahl sinkt um das, was schon steht, damit ein zweiter
       // Versuch den Rest anlegt und nicht alles noch einmal.
       setDraft((d) => ({ ...d, count: Math.max(1, d.count - created.length) }))
+      setBusy(false)
       return
     }
 
     schliessen()
+    setBusy(false)
   }
 
   async function cycleStatus(item: Item) {

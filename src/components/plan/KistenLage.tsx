@@ -16,8 +16,8 @@ import { Lageplan } from './Lageplan'
  * Karte selbst ist der Lageplan (Raum von oben, Tuer orange, Fenster
  * blau, Kiste rot, Regal oder Stapel von vorne); hier kommen die Wege
  * dazu: Platz waehlen oder aendern (Handy-Ablauf), vom Platz nehmen, im
- * Grundriss oeffnen. Der Knopf "3D" am Computer kommt mit Etappe 4 neben
- * "Im Grundriss zeigen".
+ * Grundriss oeffnen. Der Knopf "3D" am Computer steht im Lageplan neben
+ * "Im Grundriss zeigen" (plan3d/oeffnen.tsx, three laedt erst beim Oeffnen).
  *
  * Zustaende: laedt, Fehler, kein Platz (mit "Platz waehlen"), da.
  */

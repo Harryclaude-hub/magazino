@@ -870,6 +870,7 @@ export async function inhaltSuchen(q: string, max = 60): Promise<SuchTreffer[]> 
     objekt_id: text(z.objekt_id),
     objekt_name: text(z.objekt_name),
     objekt_art: text(z.objekt_art) as SuchTreffer['objekt_art'],
+    objekt_spalten: zahl(z.objekt_spalten),
     fach_ebene: zahl(z.fach_ebene),
     fach_spalte: zahl(z.fach_spalte),
     platz_x: zahl(z.platz_x),

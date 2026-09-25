@@ -108,6 +108,7 @@ export function trefferOrt(z: SuchTreffer, t: T): string | null {
       objekt: z.objekt_art ? { name: z.objekt_name ?? '', art: z.objekt_art } : null,
       fach_ebene: z.fach_ebene,
       fach_spalte: z.fach_spalte,
+      spalten: z.objekt_spalten,
       von: Math.round(z.hoehe_von),
       bis: Math.round(z.hoehe_bis),
     },

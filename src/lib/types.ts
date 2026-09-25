@@ -219,6 +219,9 @@ export interface SuchTreffer {
   objekt_id: string | null
   objekt_name: string | null
   objekt_art: ObjektArt | null
+  /** Spalten des Regals (0030). Bei mehr als einer sagt der Satz die
+   *  Spalte, wie auf der Kistenseite. */
+  objekt_spalten: number | null
   fach_ebene: number | null
   fach_spalte: number | null
   platz_x: number | null

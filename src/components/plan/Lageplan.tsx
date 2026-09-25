@@ -5,6 +5,7 @@ import { ladeGrundriss, ladeKisteLage } from '../../lib/api'
 import { useSprache } from '../../lib/i18n'
 import type { GrundrissDaten, KisteLage } from '../../lib/types'
 import { Button, Empty, ErrorBox, Spinner } from '../ui'
+import { Knopf3D } from '../plan3d/oeffnen'
 import { FachAnsicht } from './FachAnsicht'
 import { stapelObjekt, stapelVon, stapelWurzel } from './hilfe'
 import { lageOrt, lageSatz } from './lage'
@@ -121,12 +122,20 @@ export function Lageplan({
         />
       ) : null}
       <PlanLegende />
-      {mitLink ? (
-        <Link to={link} className="block">
-          <Button variant="outline" full>
-            <KarteIcon size={18} /> {t('lage.im_grundriss')}
-          </Button>
-        </Link>
+      {mitLink || daten ? (
+        <div className="flex flex-wrap gap-2">
+          {mitLink ? (
+            <Link to={link} className="block min-w-48 flex-1">
+              <Button variant="outline" full>
+                <KarteIcon size={18} /> {t('lage.im_grundriss')}
+              </Button>
+            </Link>
+          ) : null}
+          {/* Nur am Computer; three laedt erst beim Oeffnen (plan3d/oeffnen.tsx). */}
+          {daten ? (
+            <Knopf3D daten={daten} raumId={lage.raum.id} hervor={itemId} className="min-w-48 flex-1 justify-center" />
+          ) : null}
+        </div>
       ) : null}
       {fuss ? fuss(lage) : null}
     </div>
