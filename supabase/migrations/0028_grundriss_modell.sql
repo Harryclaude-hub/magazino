@@ -186,8 +186,9 @@ declare
   n int; i int; j int; k int;
   x1 bigint; y1 bigint; x2 bigint; y2 bigint; x3 bigint; y3 bigint;
 begin
-  if p is null or array_ndims(p) <> 1 or array_length(p, 1) % 2 <> 0
-     or array_length(p, 1) < 6 or array_length(p, 1) > 400 then
+  -- cardinality statt array_length: ein leeres Array ergibt 0, nicht null.
+  if p is null or array_ndims(p) is distinct from 1 or cardinality(p) % 2 <> 0
+     or cardinality(p) < 6 or cardinality(p) > 400 then
     return 'punkte';
   end if;
   n := array_length(p, 1) / 2;
@@ -1108,6 +1109,11 @@ begin
   end if;
   -- Nur Groesse geaendert: der ganze Stapel darueber muss mitpassen.
   -- Platz geaendert: nur diese Kiste; was darauf lag, erledigt items_platz_nachher.
+  -- Eine gleichzeitige Aenderung der eigenen Groesse abwarten, sonst prueft
+  -- dieser Platz mit den alten Massen.
+  if new.eigene_groesse_id is not null then
+    perform 1 from public.eigene_groessen where id = new.eigene_groesse_id for share;
+  end if;
   perform public.grundriss_werfen(public.platz_fehler(new, v_platz_gleich));
   return new;
 end $fn$;
@@ -1345,7 +1351,22 @@ create function public.platz_setzen(p_item uuid, p_raum uuid, p_x int, p_y int,
   p_unterlage_item uuid default null, p_unterlage_objekt uuid default null,
   p_ebene int default null, p_spalte int default null)
 returns jsonb language plpgsql set search_path = public as $fn$
+declare
+  v_alt uuid;
 begin
+  if p_drehung is null or p_drehung not in (0, 90) then
+    perform public.grundriss_werfen(public.grundriss_fehler('drehung'));
+  end if;
+  -- Erst die Raeume sperren (aufsteigend, wie grundriss_speichern), dann die
+  -- Zeile. Umgekehrt koennten sich beide gegenseitig blockieren.
+  select platz_raum_id into v_alt from public.items where id = p_item;
+  if v_alt is not null and p_raum is not null and v_alt::text > p_raum::text then
+    perform public.raum_sperre(p_raum, true);
+    perform public.raum_sperre(v_alt, true);
+  else
+    if v_alt is not null then perform public.raum_sperre(v_alt, true); end if;
+    if p_raum is not null then perform public.raum_sperre(p_raum, true); end if;
+  end if;
   update public.items
      set platz_raum_id = p_raum, platz_x = p_x, platz_y = p_y, platz_drehung = p_drehung,
          unterlage_art = p_unterlage, unterlage_item_id = p_unterlage_item,
@@ -1361,7 +1382,11 @@ end $fn$;
 -- Vom Platz nehmen. Was darauf lag, rutscht nach (items_platz_nachher).
 create function public.platz_raeumen(p_item uuid)
 returns void language plpgsql set search_path = public as $fn$
+declare
+  v_alt uuid;
 begin
+  select platz_raum_id into v_alt from public.items where id = p_item;
+  if v_alt is not null then perform public.raum_sperre(v_alt, true); end if;
   update public.items set platz_raum_id = null where id = p_item;
   if not found then
     raise exception 'Kiste nicht gefunden oder keine Rechte'
@@ -1466,6 +1491,9 @@ begin
       sort = excluded.sort
     where r.grundriss_id = p_grundriss
     returning r.id into v_raum;
+    if v_raum is null then
+      perform public.grundriss_werfen(public.grundriss_fehler('fremde_id'));
+    end if;
     v_raeume := v_raeume || v_raum;
   end loop;
 
@@ -1491,6 +1519,7 @@ begin
   v_raeume := v_raeume || array(select o2.raum_id from public.objekte o2
      where o2.id in (select (el->>'id')::uuid from jsonb_array_elements(coalesce(v_a->'objekte', '[]')) el));
   for e in select * from jsonb_array_elements(coalesce(v_a->'objekte', '[]')) loop
+    begin
     insert into public.objekte as ob (id, raum_id, art, name, x, y, breite_cm, tiefe_cm, hoehe_cm, drehung, form,
                                       ausschnitt_breite_cm, ausschnitt_tiefe_cm, ausschnitt_ecke, brett_cm, spalten,
                                       farbe, item_id)
@@ -1507,6 +1536,10 @@ begin
       drehung = excluded.drehung, form = excluded.form, ausschnitt_breite_cm = excluded.ausschnitt_breite_cm,
       ausschnitt_tiefe_cm = excluded.ausschnitt_tiefe_cm, ausschnitt_ecke = excluded.ausschnitt_ecke,
       brett_cm = excluded.brett_cm, spalten = excluded.spalten, farbe = excluded.farbe, item_id = excluded.item_id;
+    exception when insufficient_privilege then
+      -- Die id gehoert zu einem Objekt, das dieser Nutzer nicht sehen darf.
+      perform public.grundriss_werfen(public.grundriss_fehler('fremde_id'));
+    end;
     v_raeume := v_raeume || (e->>'raum_id')::uuid;
   end loop;
 

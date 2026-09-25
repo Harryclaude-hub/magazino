@@ -423,6 +423,8 @@ export const fehler: Woerterbuch = {
   'fehler.grundrisse_laden': { de: 'Grundrisse laden: {grund}', ar: 'تعذّر تحميل المخططات: {grund}' },
   'fehler.grundriss_laden': { de: 'Grundriss laden: {grund}', ar: 'تعذّر تحميل المخطط: {grund}' },
   'fehler.grundriss_anlegen': { de: 'Grundriss anlegen: {grund}', ar: 'تعذّر إنشاء المخطط: {grund}' },
+  'fehler.grundriss_speichern': { de: 'Grundriss speichern: {grund}', ar: 'تعذّر حفظ المخطط: {grund}' },
+  'fehler.grundriss_loeschen': { de: 'Grundriss löschen: {grund}', ar: 'تعذّر حذف المخطط: {grund}' },
   'fehler.raeume_laden': { de: 'Räume laden: {grund}', ar: 'تعذّر تحميل الغرف: {grund}' },
   'fehler.platz_setzen': { de: 'Platz setzen: {grund}', ar: 'تعذّر تحديد الموضع: {grund}' },
   'fehler.platz_raeumen': { de: 'Vom Platz nehmen: {grund}', ar: 'تعذّرت الإزالة من الموضع: {grund}' },
@@ -607,6 +609,10 @@ export const fehler: Woerterbuch = {
   'fehler.db.grundriss.keine_rechte': {
     de: 'Das dürfen nur Bearbeiter.',
     ar: 'هذا مسموح للمحرّرين فقط.',
+  },
+  'fehler.db.grundriss.drehung': {
+    de: 'Eine Kiste steht gerade oder quer, andere Drehungen gibt es nicht.',
+    ar: 'يوضع الصندوق مستقيمًا أو بالعرض فقط، ولا يوجد دوران آخر.',
   },
   'fehler.db.grundriss.fremde_id': {
     de: 'Das gehört zu einem anderen Grundriss. Bitte neu laden.',
