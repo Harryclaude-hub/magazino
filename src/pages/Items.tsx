@@ -737,7 +737,7 @@ export default function Items() {
             <SizePicker
               value={draft.size}
               kind={draft.kind}
-              onChange={(size) => setDraft((d) => ({ ...d, size }))}
+              onChange={(size) => setDraft((d) => ({ ...d, size, eigene_groesse_id: null }))}
               eigene={eigene.liste}
               eigeneFehler={eigene.fehler}
               eigeneId={draft.eigene_groesse_id}

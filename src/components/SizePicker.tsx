@@ -65,8 +65,9 @@ export function SizePicker({
               key={n}
               type="button"
               onClick={() => {
+                // Die Seite setzt in onChange auch die eigene Groesse zurueck.
+                // Zwei Aufrufe hier wurden in ItemDetail zu zwei Speichervorgaengen.
                 onChange(n)
-                if (eigeneId) onEigene?.(null)
               }}
               aria-label={
                 g

@@ -947,7 +947,7 @@ function AngabenDialog({
           <SizePicker
             value={entwurf.size}
             kind="furniture"
-            onChange={(v) => setEntwurf((d) => ({ ...d, size: v }))}
+            onChange={(v) => setEntwurf((d) => ({ ...d, size: v, eigene_groesse_id: null }))}
             eigene={eigene.liste}
             eigeneFehler={eigene.fehler}
             eigeneId={entwurf.eigene_groesse_id}

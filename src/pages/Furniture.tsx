@@ -116,6 +116,7 @@ export default function Furniture() {
     if (!offen) return
     setEntwurf((d) => ({
       ...d,
+      eigene_groesse_id: null,
       room_id: zimmerFilter !== 'all' ? zimmerFilter : d.room_id || (rooms[0]?.id ?? ''),
     }))
     setFormFehler(null)
@@ -315,7 +316,7 @@ export default function Furniture() {
             <SizePicker
               value={entwurf.size}
               kind="furniture"
-              onChange={(v) => setEntwurf((d) => ({ ...d, size: v }))}
+              onChange={(v) => setEntwurf((d) => ({ ...d, size: v, eigene_groesse_id: null }))}
               eigene={eigene.liste}
               eigeneFehler={eigene.fehler}
               eigeneId={entwurf.eigene_groesse_id}
