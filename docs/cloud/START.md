@@ -1,179 +1,380 @@
-# Kistly: Start fuer eine neue Sitzung (Cloud oder lokal)
+# Kistly: Auftrag fuer die Cloud-Sitzung (Grundriss-Umbau)
 
-Stand: 24.09.2026.
+Stand: 25.09.2026. Diese eine Datei enthaelt alles: wie Karam startet, die
+Regeln, den Stand, den ganzen Auftrag, alle Entscheidungen vorab und die
+Etappen. Zusaetzlich liegen im Repo `CLAUDE.md` (Regeln) und
+`docs/grundriss/entwurf-teile.json` (Entwurfsmaterial).
 
-## 0a. Fuer Karam: so startest du
+---
+
+## 0. Fuer Karam: so startest du
 
 1. Oeffne https://claude.ai/code und melde dich an (mit dem Konto, auf dem
-   das Guthaben von 250 EUR liegt).
+   das Guthaben liegt).
 2. Neue Sitzung starten und das Repo **Harryclaude-hub/kistly** waehlen.
-   Fragt es nach GitHub, einmal verbinden und dem Repo den Zugriff geben.
+   Fragt es nach GitHub, einmal verbinden und dem Repo Zugriff geben.
 3. Als Modell **Opus 5.5** waehlen.
 4. Den **ganzen Inhalt dieser Datei** als erste Nachricht einfuegen und
-   abschicken. Mehr brauchst du nicht zu schreiben.
-5. Danach kannst du den Laptop zuklappen. Schau ab und zu in der
-   Claude-App am Handy nach: Claude wartet, wenn es eine Freigabe oder
-   ein Foto von dir braucht.
+   abschicken.
+5. Laptop zuklappen ist erlaubt. Schau ein- bis zweimal am Tag in der
+   Claude-App am Handy nach: Claude meldet sich nur in den Ausnahmen aus
+   Abschnitt 1.3.
 
-## 0b. Fuer Claude: dein Auftrag
+---
 
-Du uebernimmst Kistly mitten in einem grossen Umbau. Karam hat
-entschieden:
+## 1. Fuer Claude: dein Auftrag und wie du arbeitest
 
-- **Modell Opus 5.5, feste Kostengrenze 150 US-Dollar** fuer den ganzen
-  Grundriss-Umbau. Nach jeder Etappe sagst du Karam, wie viel verbraucht
-  ist, soweit du es sehen kannst. Bevor die Grenze erreicht ist, hoerst du
-  an einer sauberen Stelle auf und fragst, ob es weitergeht.
-- Sparsam arbeiten: grosse Pruefrunden mit mehreren Agenten nur fuer
-  Datenbank, Geld und Schluessel, sonst ein Pruefer.
-- Lies zuerst `CLAUDE.md` im Hauptordner (Regeln, die immer gelten), dann
-  diese Datei ganz. Den Bauplan gibt es noch nicht als fertige Datei: der
-  Entwurfs-Durchlauf wurde vor dem letzten Schritt angehalten. Alles
-  Material liegt in `docs/grundriss/entwurf-teile.json` (5 Code-Karten,
-  3 vollstaendige Entwuerfe, 2 Bewertungen). **Dein erster Bauschritt:**
-  daraus `docs/grundriss/BAUPLAN.md` schreiben (vom bevorzugten Entwurf
-  ausgehen, die besten Ideen der anderen uebernehmen, jeden Widerspruch
-  ausdruecklich entscheiden; Abschnitte: Ziel und Entscheidungen,
-  Datenmodell mit SQL ab Migration 0027, Geometrie-Modul, api.ts,
-  Desktop-Rahmen und Design-Schicht, Zeichner, 3D, Handy: Kiste
-  platzieren, Kistenseite und Suche, Etappen mit Abnahmekriterien,
-  Risiken). Nicht neu kartieren, das Material reicht.
-- Die Reihenfolge danach steht in Abschnitt 7.
+### 1.1 Auftrag in einem Satz
 
-## 1. Was Kistly ist
+Baue den Grundriss-Umbau aus Abschnitt 4 vollstaendig, in den vier Etappen
+aus Abschnitt 6, und liefere am Ende den Abschlussbericht aus Abschnitt 9.
 
-Umzugsprogramm als Web-App (PWA), Deutsch und Arabisch (von rechts nach
-links). Jedes Zimmer und jede Person hat ein Kuerzel, jede Kiste eine
-Nummer mit QR-Code. Fotos je Schicht einer Kiste, Bilderkennung schlaegt
-den Inhalt vor, Suche ueber alle Umzuege, Raumplan mit Hoehen und Regalen.
+### 1.2 Arbeitsmodus
+
+- Karam will, dass du **durcharbeitest und am Ende alles lieferst**. Alle
+  Entscheidungen, die du brauchst, stehen in Abschnitt 5. Wo dort nichts
+  steht: nimm die einfachste robuste Loesung, die zu Abschnitt 5 passt,
+  schreib sie in `docs/grundriss/ENTSCHEIDUNGEN.md` und mach weiter.
+- Modell Opus 5.5. **Kostengrenze 200 US-Dollar** fuer den ganzen Umbau.
+  Bei etwa 150 $ kurz melden, wie weit du bist. Vor 200 $ an einer
+  sauberen Stelle (fertige, gepruefte Etappe) aufhoeren.
+- Sparsam: grosse Pruefrunden mit mehreren Agenten nur fuer
+  Datenbank-Migrationen und Stapel-Logik. Sonst ein Pruefer je Etappe.
+- Nach jeder Etappe eine kurze Meldung an Karam (drei Saetze: was fertig
+  ist, was er ausprobieren kann, Kostenstand).
+
+### 1.3 Nur in diesen Faellen fragst du Karam
+
+1. **Kein Datenbank-Zugang** in der Sitzung (keine Supabase-Werkzeuge):
+   einmal je Etappe die fertigen, sorgfaeltig geprueften Migrationen als Datei
+   liefern, mit Schritt-fuer-Schritt-Anleitung fuer den SQL-Editor
+   (https://supabase.com/dashboard/project/vqpirkgvclfsduklnnzv/sql/new).
+   Bis Karam sie eingespielt hat, an der Oberflaeche weiterarbeiten.
+2. **Kostengrenze** erreicht (siehe 1.2).
+3. Eine Aenderung wuerde **echte Daten loeschen**, die nicht aus der
+   geplanten Umrechnung stammen.
+4. Etwas geht **nur mit Karams Anmeldung oder Handy** (Fotos, Durchgang
+   hinter der Anmeldung). Das sammelst du fuer den Abschlussbericht, statt
+   darauf zu warten.
+
+### 1.4 Regeln, die immer gelten (Kurzfassung von CLAUDE.md)
+
+- Jede Antwort an Karam beginnt mit "Passt, Karam." Kein langer
+  Gedankenstrich (U+2014), nirgends, auch nicht im Code. Einfache Sprache.
+- Braucht es etwas von Karam: nummerierte Schritte mit direkten Links.
+- Keine Schluessel, Tokens, Passwoerter in Dateien oder Commits; nie im
+  Chat danach fragen. Kein `service_role`.
+- Nur das Supabase-Projekt `vqpirkgvclfsduklnnzv`. Jedes andere Projekt im
+  Konto gehoert zu anderen Programmen: tabu, auch lesend.
+- Migrationen: erst Probelauf in einem `do $$`-Block, der mit
+  `raise exception` den Bericht ausgibt und alles zurueckrollt, dann
+  anwenden (Karams stehende Freigabe fuer diesen Umbau). Angewandte
+  Migrationen nie aendern, Fehler bekommen eine neue Nummer.
+- Datenbankzugriffe nur in `src/lib/api.ts`. Codes vergibt nur die
+  Datenbank. Woerterbuecher: jeder Eintrag `de` und `ar`, gleiche
+  Platzhalter. Laden, Fehler, leer getrennt. Kein stiller Fehler. Plaene
+  nie spiegeln im Arabischen. Design bleibt eine loeschbare Schicht in
+  `src/design`.
+- Vor jedem Commit: `npx tsc -b`, `npx oxlint`, `npm run build`,
+  `node scripts/woerter-pruefen.mjs` (bekannt: 9 Meldungen bei `*.eins`).
+
+---
+
+## 2. Was Kistly ist und wo es laeuft
+
+Umzugsprogramm als Web-App (PWA), Deutsch und Arabisch. Zimmer und
+Personen haben Kuerzel, Kisten Nummern mit QR-Code, Fotos je Schicht,
+Bilderkennung schlaegt Inhalte vor, Suche ueber alle Umzuege.
 
 | Was | Wo |
 |---|---|
 | Live | https://harryclaude-hub.github.io/kistly/ |
 | Repo | https://github.com/Harryclaude-hub/kistly, Zweig `main` |
-| Datenbank | Supabase-Projekt `vqpirkgvclfsduklnnzv` (nur dieses!) |
+| Datenbank | Supabase `vqpirkgvclfsduklnnzv` (nur dieses) |
 | Edge Functions | `bild-analyse` (Version 5), `push-send` (Version 1) |
-| Veroeffentlichen | `.github/workflows/pages.yml`, jeder Push auf `main` |
+| Veroeffentlichen | jeder Push auf `main` (`.github/workflows/pages.yml`) |
 
-## 2. Stand heute
+---
 
-- Alles Fertige ist auf `main` und live, zuletzt `84da1cd`
-  (Bilderkennung).
-- Migrationen 0001 bis 0026 sind angewandt. Die Dateien unter
-  `supabase/migrations` stimmen mit der Datenbank ueberein.
-- Fertig: Umzuege, Zimmer, Personen, Kisten, Moebel, Etiketten mit QR,
-  Scannen, Chat, Export, Schnellansicht, Raumplan im 50-cm-Raster mit
-  Hoehen, Stapeln und Regalen (0022, 0025), Kistengroessen 1 bis 10 in
-  Litern nach DIN 323 R40 (0021), Schichten und Rahmen im Foto mit
-  Ausschnitten (0023), Suche ueber alle Umzuege (0024, 0026), neue
-  Ladeanzeige beim Bilderlesen.
+## 3. Stand heute
 
-### Bilderkennung
+- Auf `main` und live, zuletzt `2707fd8`. Migrationen 0001 bis 0026 sind
+  angewandt.
+- Vorhanden: Umzuege, Zimmer, Personen, Kisten, Moebel (Eintraege der Art
+  `furniture` mit eigener Inhaltsliste), Etiketten, Scannen, Chat,
+  Export, Schnellansicht, Kistengroessen 1 bis 10 in Litern mit Massen
+  (Tabelle `kisten_groessen`, 0021), Fotos je Schicht mit Rahmen und
+  Ausschnitten (0023), Suche ueber alle Umzuege (`inhalt_suchen`, 0024,
+  0026, Seite `src/pages/Suche.tsx` mit Fundort-Dialog).
+- **Alter Raumplan (wird ersetzt):** Raster mit 50-cm-Zellen je Zimmer
+  (`room_plans`, 0017), Hoehen, Stapel und Regale mit Brettern (0022,
+  `regale`, `items.plan_x/plan_y/plan_z/regal_id/regal_boden`), Sperren
+  (0025), Oberflaeche `src/pages/RaumPlan.tsx` und
+  `src/components/raumplan/*`.
+- **Bilderkennung:** Qwen3.5-9B bei OVHcloud, mit Abschaltung des
+  Nachdenkens und Ersatzmodell Qwen3.8-27B. Mit echten Fotos noch nicht
+  ueberprueft. Hat Karam inzwischen Fotos gelesen, lies `photo_analyses`
+  und die Protokollzeilen `[bild-analyse] tempo` und nimm das Ergebnis in
+  den Abschlussbericht. Sonst ueberspringen, das ist nicht Teil dieses
+  Auftrags.
 
-- Modell Qwen3.5-9B bei OVHcloud AI Endpoints, Schluessel liegt als
-  Function Secret `OVH_AI_ENDPOINTS_TOKEN` (Karam hat ihn gesetzt).
-- Qwen3.5 denkt standardmaessig lange nach. Darum schickt die Funktion
-  `reasoning_effort: "none"`, streamt, bricht nach 25 s Nachdenken oder
-  45 s Stille ab und fragt dann das Ersatzmodell Qwen3.8-27B (wird in der
-  Kostenbremse eigens gebucht). Die App schickt ein Foto je Aufruf.
-- **Offen:** Mit echten Fotos und diesem Stand ist es noch nicht
-  gelaufen. Karam hat zwei Getraenkefotos in der Kiste `K-6-001`. Erster
-  Schritt der naechsten Sitzung: Karam liest sie neu, dann
-  `photo_analyses` (Status, Modell, Fehler) und das Funktionsprotokoll
-  (Zeilen `[bild-analyse] tempo`: ms_bis_liste, denken_zeichen, ende)
-  lesen. Faellt Qwen3.5-9B durch, das Secret `BILD_MODELL` auf
-  `Qwen3.8-27B` setzen lassen, ohne neu auszurollen.
+---
 
-## 3. Der grosse Auftrag: Grundriss auf den Zentimeter
+## 4. Der Auftrag im Detail (Karams Wuensche)
 
-Karams Wunsch vom 24.09.2026, ausfuehrlich in `docs/grundriss/BAUPLAN.md`:
+### 4.1 Wohnung zeichnen (nur Desktop)
 
-- **Desktop:** Wohnung zeichnen wie in ArchiCAD, auf den Zentimeter:
-  Waende mit Meter- und Zentimeter-Eingabe, Nischen, Ecken, Balkon, ganze
-  Wohnung, in Zimmer teilen, Hoehe, **Tueren immer orange, Fenster immer
-  blau**, Regale und Schraenke mit Faechern, Moebel wie L-Couch oder
-  Fernseher mit Massen zeichnen und platzieren wie in Minecraft,
-  3D-Ansicht. Kraeftiger Kontrast Wand gegen Boden, nicht zu hell, nicht
-  zu dunkel, Waende duerfen verschiedene Farben haben. Der Desktop soll die
-  ganze Breite nutzen.
-- **Handy:** nichts zeichnen. Beim Anlegen oder Zuordnen einer Kiste
-  oeffnet sich das Zimmer, Karam setzt die Kiste (links, rechts, oben,
-  unten, in cm), dann Hoehe oder Fach.
-- **Kistenseite:** Fotos, ganz unten der Lageplan (Tuer orange, Fenster
-  blau, am Desktop auch 3D).
-- **Suche:** Treffer zeigen Kiste, Schicht und Zimmer; ein Tipp fuehrt
-  zum Foto und zur Kiste.
-- Beide Fassungen sollen schoener werden.
+- Die Wohnung zeichnen wie in ArchiCAD, **auf den Zentimeter**: Waende mit
+  Meter- und Zentimeter-Eingabe, Nischen, Ecken, Balkon, die ganze
+  Wohnung. In Zimmer teilen, jedem Zimmer ein Kistly-Zimmer zuordnen,
+  Raumhoehe eingeben.
+- **Tueren immer orange, Fenster immer blau.**
+- **Mehrere Grundrisse je Umzug** (neue Wohnung, alte Wohnung, Keller,
+  Lager).
+- Der Desktop nutzt die ganze Bildschirmbreite (links Navigation, rechts
+  Details), nicht mehr wie eine Handy-App auf grossem Bildschirm.
+- **3D-Ansicht** am Desktop. Kraeftiger Kontrast zwischen Wand und Boden,
+  weder zu hell noch zu dunkel; Waende duerfen verschiedene Farben haben.
 
-Karams Entscheidungen:
-1. Den alten Raster-Plan **ersetzen** und vorhandene Daten umrechnen.
-2. **Mehrere Grundrisse** je Umzug (neue Wohnung, alte Wohnung, Keller,
-   Lager).
-3. Migrationen: Probelauf, dann wendet Claude sie an (wenn die
-   Datenbank-Verbindung da ist, sonst Anleitung fuer den SQL-Editor).
-4. **In Etappen** live: 1 Datenmodell in cm und Desktop-Rahmen,
-   2 Zeichner, 3 Handy platzieren, Kistenseite und Suche, 4 3D und Design.
-   Jede Etappe muss allein laufen und darf die Live-App nicht brechen.
+### 4.2 Regale, Schraenke, Moebel (neu dazugekommen, wichtig)
 
-## 4. Arbeitsweise in der Cloud
+- **Regale und Schraenke** anlegen und an jede Stelle im Raum setzen.
+- Bei jedem Regal und Schrank **die Abstaende zwischen den Brettern
+  selbst festlegen** (jedes Fach kann anders hoch sein).
+- Eine Kiste oder ein Ding in ein **bestimmtes Fach** legen.
+- **Moebel** mit ihren Massen zeichnen und setzen (L-Couch, Fernseher,
+  Kommode, Bett), mehrere je Raum, **wie Bloecke in Minecraft**.
+- In ein Moebel **kann etwas hinein**: eine Couch mit Bettkasten, eine
+  Kommode mit Schubladen. Was darin liegt, beschreibt Karam als Inhalt,
+  und die Suche findet es.
 
-- **Zuerst pruefen, was da ist:** Gibt es die Supabase-Werkzeuge? Wenn
-  ja, nur mit Projekt `vqpirkgvclfsduklnnzv` arbeiten. Wenn nein:
-  Migrationen als Datei schreiben und Karam eine Anleitung fuer den
-  SQL-Editor geben
-  (https://supabase.com/dashboard/project/vqpirkgvclfsduklnnzv/sql/new).
-  Edge Functions ausrollen geht dann nur ueber Karam.
-- **Git:** Arbeit auf einem eigenen Zweig; zum Veroeffentlichen einer
-  fertigen Etappe mit Karam klaeren, ob auf `main` gemischt wird (jeder
-  Push auf `main` geht sofort live).
-- **Sichtpruefung:** Seiten hinter der Anmeldung mit erfundenen Daten in
-  einer Wegwerfseite pruefen und die Wegwerfseite vor dem Commit loeschen.
-  Karam meldet sich selbst an, Claude tippt keine Passwoerter.
-- **Kosten:** Karam arbeitet mit einem Guthaben von 250 EUR. Sparsam:
-  grosse Pruefrunden mit mehreren Agenten nur fuer Datenbank, Geld und
-  Schluessel; sonst ein Pruefer. Nach jeder Etappe kurz sagen, wie viel
-  verbraucht ist, soweit sichtbar.
+### 4.3 Stapeln (neu dazugekommen, wichtig)
 
-## 5. Bekannte Fallen
+- Steht kein Regal da, **stapeln sich Kisten uebereinander wie in
+  Minecraft**. Eine Kiste liegt auf dem Boden, auf einer anderen Kiste,
+  auf einem Moebel oder in einem Regalfach.
+- Die Logik muss stimmen: keine Kiste schwebt, kein Stapel geht durch die
+  Decke oder das naechste Brett, und die Hoehe jeder Kiste ueber dem Boden
+  ist auf den Zentimeter bekannt.
 
-- Drucken: ohne `print-color-adjust: exact` kommen die Farben nicht aufs
-  Papier.
-- `jsonb @>` ist eine Mengenfrage: `gesperrt @> '[[2,3]]'` ist auch wahr,
-  wenn irgendwo eine 2 und eine 3 stehen. Dafuer gibt es
-  `zelle_gesperrt(gesperrt, x, y)`.
-- Der Speicher erlaubt Anlegen und Loeschen, kein Ueberschreiben: ein
-  neuer Ausschnitt bekommt einen neuen Pfad.
-- Nachruecken im Stapel laeuft als Trigger, der sich selbst aufruft;
-  Waechter ist `pg_trigger_depth()`.
-- Probelauf einer Migration: `next_seq` braucht gesetzte JWT-Angaben
-  (`set_config('request.jwt.claims', ...)`) und eine Mitgliedschaft im
-  Test-Umzug; fuer Zeilen-Sicherheit `set local role authenticated`.
-- `inherit_project_from_item`: `project_id` immer ueberschreiben, nie nur
-  setzen, wenn es leer ist (0014).
-- Arabisch und Latein in einer Zeile: eine Menge wie "2x" steht in einem
-  eigenen LTR-Stueck, das Leerzeichen dahinter, nicht darin.
-- Supabase beendet eine Edge Function nach 150 s hart (Free-Plan). Lange
-  Arbeit je Aufruf klein halten.
-- OVH: `chat_template_kwargs` wird abgelehnt; ohne Schluessel antwortet
-  OVH nur mit 429.
+### 4.4 Handy
 
-## 6. Weitere offene Punkte
+- **Nichts zeichnen** (zu schwierig am Handy).
+- Beim Anlegen einer Kiste (auch beim Scannen) und auf der Kistenseite:
+  Zimmer waehlen, das Zimmer oeffnet sich als Draufsicht, Karam tippt, wo
+  die Kiste steht (links, rechts, vorne, hinten, in cm), waehlt dann die
+  Unterlage (Boden, andere Kiste, Moebel) oder das Regal- bzw. Schrankfach.
 
-- `push-send` benutzt noch `service_role`. Die VAPID-Schluessel gehoeren
-  als Function Secrets hinein (Karam prueft, ob sie schon dort liegen),
-  danach kann die Funktion ohne auskommen.
-- Nach dem Neueinstufen der Kistengroessen die Etiketten neu drucken
-  (Seite Groessen sammelt die Liste).
-- Unentschieden: Soll ein Admin die Umzuege aller Nutzer sehen? Soll ein
-  umbenanntes Kuerzel alle Nummern sofort neu vergeben?
+### 4.5 Kistenseite und Suche
 
-## 7. Erste Schritte der naechsten Sitzung
+- Kistenseite: die Fotos, und **ganz unten der Lageplan**: das Zimmer mit
+  Tuer (orange) und Fenstern (blau), die Kiste hervorgehoben, die Hoehe;
+  am Desktop zusaetzlich 3D.
+- Suche: Treffer zeigen **Ding, Kiste, Schicht, Zimmer, Platz und Hoehe**;
+  ein Tipp fuehrt zum Foto und zur Kiste mit dem Lageplan. Auch Dinge in
+  Moebeln werden gefunden, mit dem Platz des Moebels.
+- Beide Fassungen (Handy und Desktop) sollen schoener werden.
 
-1. `CLAUDE.md` und diese Datei lesen.
-2. Pruefen, welche Werkzeuge da sind (Supabase, GitHub), und Karam in
-   zwei Saetzen sagen, was geht und was nicht.
-3. Bilderkennung mit Karams Fotos auswerten (Abschnitt 2).
-4. `docs/grundriss/BAUPLAN.md` aus `docs/grundriss/entwurf-teile.json`
-   schreiben und Karam in wenigen Saetzen zusammenfassen.
-5. Etappe 1 bauen, pruefen, Karam zeigen, veroeffentlichen. Dann Etappe 2,
-   3 und 4, jeweils mit Kostenstand.
+---
+
+## 5. Entscheidungen vorab (Antworten auf alle absehbaren Fragen)
+
+### 5.1 Datenmodell
+
+- **Einheit: ganze Zentimeter** (int) ueberall. Koordinaten je Grundriss:
+  Ursprung links oben, x nach rechts, y nach unten (Draufsicht), z nach
+  oben ab Fussboden.
+- **Grundriss** (`grundrisse`): gehoert zu einem Umzug, hat Name und
+  Reihenfolge. Beim ersten Oeffnen wird "Neue Wohnung" angelegt.
+- **Raum** (`raeume`): Polygon als Liste von Eckpunkten in cm (im
+  Uhrzeigersinn gespeichert, mindestens 3 Punkte, einfach, nicht
+  ueberschlagen), Raumhoehe in cm (Standard 250), Art `innen` oder
+  `draussen` (Balkon, Terrasse), Bodenfarbe, Wandfarbe je Kante optional.
+  Ein Kistly-Zimmer (Tag der Art room) gehoert je Grundriss hoechstens zu
+  einem Raum. Raeume ohne Zimmer sind erlaubt (Flur, Balkon).
+- **Waende** sind die Kanten der Raumpolygone. Wanddicke nur zur
+  Darstellung (12 cm), sie zaehlt nicht beim Rechnen. Gemeinsame Kanten
+  zweier Raeume sind eine Wand.
+- **Oeffnungen** (`oeffnungen`): Art `tuer` oder `fenster`, Raum,
+  Kantennummer, Abstand vom Kantenanfang in cm, Breite, Hoehe, Bruestung
+  (nur Fenster). Standard: Tuer 80 breit, 200 hoch; Fenster 100 breit,
+  120 hoch, Bruestung 90. Tuer immer orange, Fenster immer blau, fest.
+- **Objekte** (`objekte`): Art `moebel`, `regal`, `schrank`. Raum,
+  x und y (linke obere Ecke vor dem Drehen), Breite, Tiefe, Hoehe in cm,
+  Drehung in 90-Grad-Schritten, Form `rechteck` oder `l` (L als Rechteck
+  mit rechteckigem Ausschnitt, Ausschnitt-Breite und -Tiefe in cm), Name,
+  Farbe. Optional verknuepft mit einem Moebel-Eintrag (`items` der Art
+  `furniture`): dann gehoeren dessen Inhaltsliste und Fotos dazu, und die
+  Suche kennt den Platz.
+- **Faecher** von Regal und Schrank: Liste der Brett-Hoehen in cm ueber
+  dem Boden des Objekts, von unten nach oben (das unterste Fach beginnt
+  bei 0 oder beim ersten Brett), Brettdicke 2 cm; dazu die Anzahl Spalten
+  (senkrechte Teiler, Standard 1). Ein Fach ist (Ebene, Spalte), Ebene 1
+  ist unten. Eingabe fuer Karam: entweder Abstaende von unten nach oben
+  ("30, 35, 35, 40") oder "n Faecher gleichmaessig".
+- **Platz einer Kiste**: Grundriss, Raum, Mittelpunkt x und y in cm,
+  Drehung 0 oder 90, und genau eine **Unterlage**: `boden`, `kiste`
+  (liegt auf Kiste X), `objekt` (liegt oben auf einem Moebel) oder `fach`
+  (Objekt, Ebene, Spalte). Die Hoehe ueber dem Boden wird **abgeleitet,
+  nie gespeichert**: Boden 0; auf Kiste = Oberkante der Kiste darunter;
+  auf Objekt = Objekthoehe; im Fach = Fachboden. Kistenhoehe aus
+  `kisten_groessen` bzw. `eigene_hoehe_cm`, Grundflaeche aus Laenge und
+  Breite der Groesse.
+- **Moebel-Eintraege** koennen genauso einen Platz haben (sie sind der
+  Moebel-Eintrag zum Objekt). Dinge in Moebeln stehen in der Inhaltsliste
+  des Moebel-Eintrags, wie heute.
+
+### 5.2 Regeln, die die Datenbank prueft (Trigger, wie bisher im Raumplan)
+
+- Mittelpunkt einer Kiste liegt im Raum-Polygon (Punkt-in-Polygon in SQL,
+  dieselbe Regel in `src/lib/geometrie.ts`; beide Dateien verweisen
+  aufeinander, Aenderungen immer an beiden).
+- Unterlage existiert, liegt im selben Raum, und die Kiste liegt
+  ueberwiegend darauf (Mittelpunkt ueber der Unterlage). Kein Kreis in
+  "liegt auf".
+- Oberkante bleibt unter der Raumhoehe; im Fach unter dem naechsten Brett
+  bzw. der Objekthoehe. Fach (Ebene, Spalte) existiert.
+- Wird eine Unterlage entfernt oder versetzt, **rutschen die Kisten darauf
+  nach**: sie uebernehmen die Unterlage der entfernten Kiste (wie heute
+  das Nachruecken im Stapel). Waechter gegen Selbstaufruf:
+  `pg_trigger_depth()`.
+- Aendert sich ein Raum so, dass Kisten draussen laegen, lehnt die
+  Datenbank ab und nennt die Zahl der betroffenen Kisten.
+- Ueberlappungen am Boden prueft nur die Oberflaeche (Warnung), die
+  Datenbank sperrt nicht.
+- Sperren gegen gleichzeitiges Setzen wie in 0025 (Advisory Locks je Raum).
+- Fehlermeldungen als Hinweis `kistly:grundriss.*`, uebersetzt ueber die
+  Woerterbuecher (wie heute `kistly:raumplan.*`).
+
+### 5.3 Umrechnung der alten Daten
+
+- Jeder alte `room_plan` wird ein Raum-Rechteck (Breite x Tiefe) im
+  Grundriss "Neue Wohnung", Hoehe uebernommen. Gesperrte Zellen werden
+  nicht nachgebildet; ihre Zahl je Raum steht im Probelauf-Bericht.
+- Alte Tuer: Oeffnung auf der Kante, an der sie sass, mittig auf ihrer
+  Zelle, 80 cm breit.
+- Alte Regale: Objekte der Art `regal` mit Brett-Hoehen aus `boeden_cm`.
+- Kisten mit Platz: Mittelpunkt ihrer Zelle in cm; Stapel werden zu
+  Ketten "liegt auf"; Regalplaetze zu Faechern.
+- Die alten Tabellen und Spalten bleiben bis Etappe 4 stehen und werden
+  erst dann in einer eigenen Migration entfernt, wenn nichts mehr sie
+  liest. Die alte Seite `RaumPlan.tsx` verschwindet in Etappe 2.
+
+### 5.4 Zeichner (Desktop ab 1024 px Breite)
+
+- Unter 1024 px ist der Zeichner nicht da; stattdessen ein Hinweis
+  "Zeichnen geht am Computer" und die reine Draufsicht.
+- 2D in SVG. Einrasten auf 1, 5 oder 10 cm (Standard 5 cm), Winkel in
+  90-Grad-Schritten, mit gedrueckter Umschalttaste frei. Laengen per
+  Tastatur: "3,45" und "3.45" sind Meter, "345" ist Zentimeter.
+- Werkzeuge: Auswahl, Raum (Punkt fuer Punkt oder Rechteck), Raum teilen,
+  Tuer, Fenster, Moebel, Regal, Schrank, Kiste setzen, Messen.
+- Rueckgaengig und Wiederholen (Strg+Z, Strg+Y) fuer die Sitzung. Jede
+  abgeschlossene Aktion wird sofort gespeichert, sichtbar als
+  "Gespeichert".
+- Masse stehen an jeder Wand in cm. Objekte zeigen Name und Masse.
+- Mehrere Grundrisse als Reiter oben.
+
+### 5.5 3D (nur Desktop)
+
+- three.js, nur am Desktop und erst beim Oeffnen geladen (eigener
+  Code-Teil, damit das Handy nichts davon laedt).
+- Waende hochgezogen in Raumhoehe, Boden, Tueren orange, Fenster blau,
+  Moebel als Koerper, Regale mit Brettern, Kisten in echter Groesse. Die
+  gesuchte oder gewaehlte Kiste leuchtet rot. Kamera drehen, zoomen,
+  verschieben; Waende zur Kamera hin werden durchsichtig.
+
+### 5.6 Farben und Design
+
+- Boden: warmes, mittelhelles Grau oder Holzton. Waende: deutlich dunkler
+  oder farbig, Kontrast Wand zu Boden mindestens 3:1. Kein reines Weiss,
+  kein Schwarz. Acht Wandfarben zur Auswahl.
+- Alle Farben als CSS-Variablen in der Designschicht, 3D liest dieselben
+  Werte. Tuer orange und Fenster blau sind feste Werte, nicht waehlbar.
+- Desktop: linke Navigationsleiste statt unterer Leiste, Inhalt in bis zu
+  drei Spalten (Liste, Plan, Details). Handy bleibt bei der unteren
+  Leiste. Bewegung nur hinter den Stufen ruhig, normal, voll.
+
+### 5.7 Handy: Kiste platzieren
+
+- Einstieg: auf der Kistenseite "Platz waehlen", und im Scan-Ablauf nach
+  dem Anlegen einer Kiste "Im Zimmer platzieren".
+- Ablauf: Zimmer waehlen, Draufsicht nur zum Lesen, tippen setzt den
+  Mittelpunkt (auf 5 cm gerundet), Feineinstellung mit Knoepfen +/-1 und
+  +/-10 cm und Zahlenfeldern, dann Unterlage waehlen: Boden, eine der
+  Kisten an dieser Stelle, das Moebel an dieser Stelle, oder Regal bzw.
+  Schrank und dann das Fach. Speichern. Die Datenbank prueft, die
+  Oberflaeche zeigt ihren Grund in einfachen Worten.
+
+### 5.8 Kistenseite und Suche
+
+- Kistenseite unten: "Wo steht die Kiste": Draufsicht des Raums mit Tuer
+  und Fenstern, Kiste hervorgehoben, Satz wie "Regal A, Fach 2 (Ebene 2),
+  44 bis 78 cm ueber dem Boden" oder "auf Kiste K-6-003, 34 bis 68 cm";
+  am Desktop ein Knopf "3D".
+- `inhalt_suchen` wird neu geschrieben (neue Migration) und liefert
+  Grundriss, Raum, Unterlage, Fach und Hoehe von und bis; auch fuer Dinge
+  in Moebeln. Die Suchseite zeigt das; ein Tipp oeffnet die Kiste bzw. das
+  Moebel mit hervorgehobener Zeile, Foto und Lageplan.
+
+### 5.9 Veroeffentlichen und Pruefen
+
+- Nach jeder fertigen Etappe: Pruefschritte aus 1.4, eine Gegenpruefung
+  (siehe 1.2), dann **auf `main` pushen** (geht sofort live; Karams
+  Entscheidung: in Etappen live). Jede Etappe muss allein laufen und darf
+  die Live-App nicht brechen.
+- Sichtpruefung ohne Anmeldung: Wegwerfseite mit erfundenen Daten, am
+  Desktop und bei 375 px Breite, Deutsch und Arabisch; Wegwerfseite vor
+  dem Commit loeschen.
+
+---
+
+## 6. Etappen
+
+| Etappe | Inhalt | Fertig, wenn |
+|---|---|---|
+| 0 | `docs/grundriss/BAUPLAN.md` aus `entwurf-teile.json` und diesem Dokument schreiben (Abschnitt 5 hat Vorrang vor den Entwuerfen) | Bauplan mit SQL ab Migration 0027 und Dateiliste liegt im Repo |
+| 1 | Datenmodell in cm mit Pruefungen und Umrechnung (Migrationen), `src/lib/geometrie.ts`, api.ts-Funktionen, Desktop-Rahmen mit Seitenleiste | Probelauf gruen, angewandt, alte Daten umgerechnet, App laeuft wie vorher, Desktop nutzt die Breite |
+| 2 | Zeichner (Raeume, Waende, Tueren, Fenster, Moebel, Regale und Schraenke mit Faechern, Kisten setzen und stapeln), alte Raumplan-Seite ersetzt | Wohnung zeichnen und Kisten stapeln geht am Desktop, Datenbank lehnt Unmoegliches ab |
+| 3 | Handy platzieren, Kistenseite mit Lageplan, neue Suche, Moebel mit Inhalt und Platz | Kiste am Handy in 4 Tipps gesetzt; Suche zeigt Platz und Hoehe |
+| 4 | 3D, schoeneres Design fuer beide Fassungen, alte Raster-Tabellen entfernen | 3D laeuft am Desktop, Handy laedt es nicht; alte Objekte weg |
+
+---
+
+## 7. Bekannte Fallen
+
+- `jsonb @>` ist eine Mengenfrage, nie fuer Koordinatenpaare benutzen.
+- Speicher: Anlegen und Loeschen ja, Ueberschreiben nein (neuer Pfad).
+- Probelauf: `next_seq` braucht `set_config('request.jwt.claims', ...)`
+  und eine Mitgliedschaft; fuer Zeilen-Sicherheit `set local role
+  authenticated`.
+- `inherit_project_from_item`: `project_id` immer ueberschreiben (0014).
+- Arabisch und Latein in einer Zeile: "2x" als eigenes LTR-Stueck, das
+  Leerzeichen dahinter.
+- Supabase beendet eine Edge Function nach 150 s.
+- Drucken braucht `print-color-adjust: exact`.
+- Auf diesem Windows-Rechner brechen Bash-Heredocs; in der Cloud egal.
+
+---
+
+## 8. Nicht Teil dieses Auftrags
+
+- `push-send` ohne `service_role` (VAPID-Schluessel als Secrets).
+- Etiketten neu drucken nach dem Neueinstufen der Groessen.
+- Offene Fragen: Admin-Sicht auf alle Umzuege; Verhalten beim Umbenennen
+  eines Kuerzels.
+
+---
+
+## 9. Abschlussbericht an Karam
+
+Am Ende eine Nachricht, die mit "Passt, Karam." beginnt:
+
+1. Was fertig und live ist, je Etappe in einem Satz.
+2. **So probierst du es aus**: nummerierte Schritte mit Links (Desktop:
+   Wohnung zeichnen, Regal mit Faechern, Kisten stapeln, 3D; Handy: Kiste
+   platzieren; Suche).
+3. Welche Entscheidungen du selbst getroffen hast (aus
+   `docs/grundriss/ENTSCHEIDUNGEN.md`).
+4. Was noch offen ist oder nur mit Karam geht.
+5. Kostenstand.
