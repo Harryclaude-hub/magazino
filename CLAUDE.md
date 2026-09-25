@@ -16,6 +16,9 @@ Karam, Eigentuemer von Kistly. Er spricht Deutsch, oft per Sprachnachricht
   Dashboard, Foto, Freigabe): immer als nummerierte Schritt-fuer-Schritt-
   Anleitung in Stichpunkten, mit direkten Links zu den Anbietern.
 - Einfache Sprache, keine Fachbegriffe ohne Erklaerung.
+- **Auftraege mit mehr als einem Schritt** laufen nach dem Skill
+  `.claude/skills/lueckenlos-abarbeiten`: zerlegen, nichts ueberspringen,
+  am Ende Abgleich mit dem Originalauftrag.
 
 ## Was nie passieren darf
 
