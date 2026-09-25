@@ -23,6 +23,7 @@ returns table (
   unterlage_art text,          -- boden | kiste | objekt | fach | moebel (Ding in einem Moebel)
   unterlage_code text,         -- bei kiste: Nummer der Kiste darunter
   objekt_id uuid, objekt_name text, objekt_art text,
+  objekt_spalten smallint,     -- Spalten des Regals, damit "Fach 2/1" eindeutig ist
   fach_ebene smallint, fach_spalte smallint,
   platz_x int, platz_y int,
   stapel_nr int,               -- 1 = unten
@@ -42,6 +43,7 @@ language sql stable security invoker set search_path = public, extensions as $fn
     case when mo.id is not null then 'moebel' else i.unterlage_art end,
     ui.code,
     coalesce(uo.id, mo.id), coalesce(uo.name, mo.name), coalesce(uo.art, mo.art),
+    coalesce(uo.spalten, mo.spalten),
     i.fach_ebene, i.fach_spalte,
     i.platz_x, i.platz_y,
     case when i.platz_raum_id is not null then b.tiefe + 1 end,
@@ -71,7 +73,7 @@ language sql stable security invoker set search_path = public, extensions as $fn
   left join lateral public.kiste_basis(i.id) b on true
   left join lateral public.kiste_masse(i.size, i.eigene_hoehe_cm, i.eigene_groesse_id) m on true
   where length(q.n) >= 2
-  order by 41 desc, length(c.text), c.text
+  order by 42 desc, length(c.text), c.text
   limit least(greatest(coalesce(p_max, 60), 1), 200)
 $fn$;
 
