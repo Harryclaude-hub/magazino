@@ -28,7 +28,8 @@ erledigen. Alles andere läuft so:
    Zahl N in den Punkt schreiben.
 4. Die Liste dort führen, wo sie eine Zusammenfassung des Verlaufs
    überlebt: im Aufgaben-Werkzeug (TaskCreate / TodoWrite), sonst in einer
-   kurzen Datei (z. B. `AUFTRAG.md` im Arbeitsordner). Nicht jedes Mal
+   kurzen Datei (z. B. `AUFTRAG.md` im Arbeitsordner). Im Chat ohne
+   Werkzeuge: einmal als kurze nummerierte Liste in der ersten Antwort. Nicht jedes Mal
    die ganze Liste im Chat wiederholen.
 
 ## 2. Abarbeiten
