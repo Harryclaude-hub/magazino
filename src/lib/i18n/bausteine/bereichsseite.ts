@@ -42,4 +42,10 @@ export const bereichsseite: Woerterbuch = {
     de: 'Zählwerte konnten nicht geladen werden.',
     ar: 'تعذّر تحميل الأعداد.',
   },
+  // Kisten dieses Zimmers ohne Platz im Grundriss (Etappe 3).
+  'bereichsseite.ohne_platz': { de: 'Noch ohne Platz im Grundriss', ar: 'بلا موضع في المخطط بعد' },
+  'bereichsseite.ohne_platz_hinweis': {
+    de: 'Tippe eine Kiste an und stell sie hin. Danach kommt die nächste.',
+    ar: 'اضغط على صندوق وضعه في مكانه. بعدها يأتي التالي.',
+  },
 }

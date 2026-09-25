@@ -117,6 +117,15 @@ export const kisten: Woerterbuch = {
     ar: 'اختر غرفة أو شخصًا على الأقل.',
   },
   'kisten.angelegt': { de: '{code} angelegt', ar: 'تم إنشاء {code}' },
+  // Erfolgsblatt nach dem Anlegen: gleich im Zimmer hinstellen (Etappe 3).
+  'kisten.angelegt_blatt': { de: '{code} angelegt', ar: 'تم إنشاء {code}' },
+  'kisten.angelegt_blatt_viele': { de: '{n} Kisten angelegt', ar: 'تم إنشاء {n} صناديق' },
+  'kisten.angelegt_frage': {
+    de: 'Stell sie gleich im Zimmer hin. Dann zeigt der Plan später, wo sie steht.',
+    ar: 'ضعه في الغرفة الآن، وسيُظهر المخطط لاحقًا مكانه.',
+  },
+  'kisten.im_zimmer_platzieren': { de: 'Im Zimmer platzieren', ar: 'ضعه في الغرفة' },
+  'kisten.nacheinander': { de: 'Nacheinander hinstellen', ar: 'ضعها واحدًا تلو الآخر' },
   'kisten.reihe_abgebrochen': {
     de: '{n} Kisten sind angelegt und stehen in der Liste. Danach ging es nicht weiter: {grund}',
     ar: 'تم إنشاء {n} صناديق وهي في القائمة. بعد ذلك توقّف: {grund}',

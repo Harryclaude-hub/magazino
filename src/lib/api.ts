@@ -491,10 +491,30 @@ export interface SchnellDaten {
   coverPath: string | null
   /** Die eigene Rolle in diesem Umzug. Daraus folgt, was man aendern darf. */
   role: MemberRole | null
+  /** Wo die Kiste im Grundriss steht (Name des Raums), oder null ohne Platz. */
+  platz: { raum: string } | null
 }
 
 export async function ladeSchnellansicht(itemId: string): Promise<SchnellDaten> {
-  const item = await getItem(itemId)
+  /* Die Kiste samt Namen ihres Raums im Grundriss, in einer Abfrage. Der
+   * Verweis ist ausdruecklich benannt: items und raeume haengen auch ueber
+   * objekte zusammen. */
+  const roh = await supabase
+    .from('items')
+    .select('*, platz_raum:raeume!items_platz_raum_id_fkey(name, tags(name))')
+    .eq('id', itemId)
+    .maybeSingle()
+  if (roh.error) throw new Error(tg('fehler.kiste_laden', { grund: errText(roh.error) }))
+  if (!roh.data) throw new Error(tg('fehler.kiste_fehlt'))
+  const { platz_raum: platzRaum, ...itemFelder } = roh.data as Item & {
+    platz_raum: { name: string | null; tags: { name: string } | { name: string }[] | null } | null
+  }
+  const item = itemFelder as Item
+  const platzTag = Array.isArray(platzRaum?.tags) ? platzRaum?.tags[0] : platzRaum?.tags
+  const platz =
+    item.platz_raum_id && platzRaum
+      ? { raum: (platzRaum.name ?? '').trim() || (platzTag?.name ?? '').trim() }
+      : null
   const { data: auth } = await supabase.auth.getUser()
   const uid = auth.user?.id ?? null
 
@@ -533,6 +553,7 @@ export async function ladeSchnellansicht(itemId: string): Promise<SchnellDaten> 
     contents,
     coverPath: (deck.data as { path?: string } | null)?.path ?? null,
     role: ((rolle.data as { role?: MemberRole } | null)?.role ?? null) as MemberRole | null,
+    platz,
   }
 }
 
@@ -819,12 +840,15 @@ export async function ladeKisteLage(itemId: string): Promise<KisteLage | null> {
 
 /** Ein Ding ueber alle Umzuege suchen, in denen man Mitglied ist. Die
  *  Datenbank bereinigt die Anfrage selbst (such_normal) und laesst die
- *  Zeilen-Sicherheit greifen (0024). Numeric kommt als Text an und wird
- *  hier zur Zahl. */
+ *  Zeilen-Sicherheit greifen (0024). Seit 0030 kommt der Platz mit:
+ *  Grundriss, Raum, Unterlage, Fach und Hoehe, auch fuer Dinge in Moebeln.
+ *  Numeric kommt als Text an und wird hier zur Zahl; fehlt eine Spalte
+ *  (alte Datenbank), steht dort null statt undefined. */
 export async function inhaltSuchen(q: string, max = 60): Promise<SuchTreffer[]> {
   const res = await supabase.rpc('inhalt_suchen', { p_q: q, p_max: max })
   if (res.error) throw new Error(tg('fehler.suchen', { grund: errText(res.error) }))
   const zahl = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+  const text = (v: unknown) => (v === null || v === undefined ? null : String(v))
   return ((res.data ?? []) as Array<Record<string, unknown>>).map((z) => ({
     ...(z as unknown as SuchTreffer),
     box_x0: zahl(z.box_x0),
@@ -833,6 +857,22 @@ export async function inhaltSuchen(q: string, max = 60): Promise<SuchTreffer[]> 
     box_y1: zahl(z.box_y1),
     punkt_x: zahl(z.punkt_x),
     punkt_y: zahl(z.punkt_y),
+    grundriss_id: text(z.grundriss_id),
+    grundriss_name: text(z.grundriss_name),
+    raum_id: text(z.raum_id),
+    raum_name: text(z.raum_name),
+    unterlage_art: text(z.unterlage_art) as SuchTreffer['unterlage_art'],
+    unterlage_code: text(z.unterlage_code),
+    objekt_id: text(z.objekt_id),
+    objekt_name: text(z.objekt_name),
+    objekt_art: text(z.objekt_art) as SuchTreffer['objekt_art'],
+    fach_ebene: zahl(z.fach_ebene),
+    fach_spalte: zahl(z.fach_spalte),
+    platz_x: zahl(z.platz_x),
+    platz_y: zahl(z.platz_y),
+    stapel_nr: zahl(z.stapel_nr),
+    hoehe_von: zahl(z.hoehe_von),
+    hoehe_bis: zahl(z.hoehe_bis),
     treffer: Number(z.treffer ?? 0),
   }))
 }

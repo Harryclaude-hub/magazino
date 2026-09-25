@@ -106,17 +106,51 @@ export const grundriss: Woerterbuch = {
   'lage.plan_fehlt': { de: 'Der Raum ließ sich nicht laden.', ar: 'تعذّر تحميل الغرفة.' },
   'lage.ort': { de: '{grundriss}, {raum}', ar: '{grundriss}، {raum}' },
   'lage.satz_fach': {
-    de: '{name}, Ebene {ebene}, Spalte {spalte}, {von} bis {bis} cm über dem Boden',
-    ar: '{name}، المستوى {ebene}، العمود {spalte}، من {von} إلى {bis} سم فوق الأرض',
+    de: '{name}, Fach {ebene} (Ebene {ebene}), {von} bis {bis} cm über dem Boden',
+    ar: '{name}، الخانة {ebene} (المستوى {ebene})، من {von} إلى {bis} سم فوق الأرض',
+  },
+  'lage.satz_fach_spalte': {
+    de: '{name}, Fach {ebene}/{spalte} (Ebene {ebene}, Spalte {spalte}), {von} bis {bis} cm über dem Boden',
+    ar: '{name}، الخانة {ebene}/{spalte} (المستوى {ebene}، العمود {spalte})، من {von} إلى {bis} سم فوق الأرض',
   },
   'lage.satz_kiste': { de: 'auf Kiste {code}, {von} bis {bis} cm', ar: 'على الصندوق {code}، من {von} إلى {bis} سم' },
   'lage.satz_objekt': { de: 'auf {name}, {von} bis {bis} cm', ar: 'على {name}، من {von} إلى {bis} سم' },
   'lage.satz_boden': { de: 'auf dem Boden, {von} bis {bis} cm', ar: 'على الأرض، من {von} إلى {bis} سم' },
   'lage.satz_moebel': { de: '{name}, 0 bis {bis} cm', ar: '{name}، من 0 إلى {bis} سم' },
+  'lage.satz_in_moebel': { de: 'in {name}, {von} bis {bis} cm', ar: 'داخل {name}، من {von} إلى {bis} سم' },
   'lage.hoehe': { de: '{von} bis {bis} cm über dem Boden', ar: 'من {von} إلى {bis} سم فوق الأرض' },
   'lage.noch_nicht_da': {
     de: 'Noch nicht angekommen: hier kommt sie hin.',
     ar: 'لم يصل بعد: هنا سيوضع.',
   },
   'lage.im_grundriss': { de: 'Im Grundriss zeigen', ar: 'عرض في المخطط' },
+  'lage.titel_moebel': { de: 'Wo steht das Möbel', ar: 'أين توجد قطعة الأثاث' },
+  'lage.wo_steht_sie': { de: 'Wo steht sie?', ar: 'أين يوجد؟' },
+  'lage.kein_platz_waehlen': {
+    de: 'Wähle das Zimmer und tippe, wo die Kiste steht.',
+    ar: 'اختر الغرفة واضغط على مكان الصندوق.',
+  },
+  'lage.platz_waehlen': { de: 'Platz wählen', ar: 'اختيار الموضع' },
+  'lage.platz_aendern': { de: 'Platz ändern', ar: 'تغيير الموضع' },
+  'lage.vom_platz': { de: 'Vom Platz nehmen', ar: 'إزالة من الموضع' },
+  'lage.vom_platz_titel': { de: '{code} vom Platz nehmen?', ar: 'إزالة {code} من موضعه؟' },
+  'lage.vom_platz_frage': {
+    de: '{code} verliert ihren Platz im Grundriss. Die Kiste bleibt im Umzug.',
+    ar: 'سيفقد {code} موضعه في المخطط. يبقى الصندوق في النقلة.',
+  },
+  'lage.rutscht_nach': {
+    de: 'Was darauf steht, rutscht nach: {codes}.',
+    ar: 'ما فوقه سينزل مكانه: {codes}.',
+  },
+  'lage.vom_platz_fertig': { de: '{code} hat keinen Platz mehr', ar: '{code} لم يعد له موضع' },
+  'lage.moebel_ohne_objekt': {
+    de: 'Dieses Möbel ist noch nicht im Grundriss. Zeichne es am Computer als Möbel und verknüpfe es mit diesem Eintrag.',
+    ar: 'قطعة الأثاث هذه ليست في المخطط بعد. ارسمها على الحاسوب كقطعة أثاث واربطها بهذا الإدخال.',
+  },
+  'lage.grundriss_oeffnen': { de: 'Grundriss öffnen', ar: 'فتح المخطط' },
+  'lage.gehoert_in': {
+    de: 'Die Kiste gehört ins Zimmer {zimmer}. Die Nummer bleibt, auch wenn sie woanders steht.',
+    ar: 'الصندوق يخص غرفة {zimmer}. يبقى الرقم كما هو حتى لو وُضع في مكان آخر.',
+  },
+  'plan.zoom_zurueck': { de: 'Ganz zeigen', ar: 'عرض الكل' },
 }

@@ -55,4 +55,9 @@ export const schnell: Woerterbuch = {
     de: 'Gescannt wurde das alte Etikett {code}. Die Kiste heißt jetzt anders.',
     ar: 'تم مسح الملصق القديم {code}. الصندوق له رقم آخر الآن.',
   },
+  // Platz im Grundriss (Etappe 3): zwischen Zimmer und Angekommen.
+  'schnell.platz': { de: 'Platz: {raum}', ar: 'الموضع: {raum}' },
+  'schnell.kein_platz': { de: 'Noch kein Platz im Grundriss', ar: 'لا موضع في المخطط بعد' },
+  'schnell.platzieren': { de: 'Im Zimmer platzieren', ar: 'ضعه في الغرفة' },
+  'schnell.platz_aendern': { de: 'Platz ändern', ar: 'تغيير الموضع' },
 }

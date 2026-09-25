@@ -25,10 +25,18 @@ export const suche: Woerterbuch = {
   },
   'suche.ohne_platz': { de: 'noch ohne Platz im Grundriss', ar: 'بلا موضع في المخطط بعد' },
   'suche.ohne_zimmer': { de: 'ohne Zimmer', ar: 'بلا غرفة' },
-  'suche.boden': { de: 'auf dem Boden', ar: 'على الأرض' },
-  // Platz und Hoehe in einer Zeile, mit dem Komma der jeweiligen Sprache.
-  'suche.ort_und_hoehe': { de: '{ort}, {hoehe}', ar: '{ort}، {hoehe}' },
-  'suche.regal_brett': { de: '{regal}, Brett {brett}', ar: '{regal}، الرف {brett}' },
+  // Grundriss und Raum, dann Platz und Hoehe, mit dem Komma der jeweiligen Sprache.
+  'suche.ort_zeile': { de: '{ort}, {satz}', ar: '{ort}، {satz}' },
+  'suche.gesucht': { de: 'Gesucht: {name}', ar: 'المطلوب: {name}' },
+  'suche.gesucht_schicht': { de: 'Gesucht: {name}, Schicht {n}', ar: 'المطلوب: {name}، الطبقة {n}' },
+  'suche.eintrag_weg': {
+    de: 'Das gesuchte Ding steht nicht mehr in dieser Liste. Vielleicht wurde es verschoben oder gelöscht.',
+    ar: 'الشيء المطلوب لم يعد في هذه القائمة. ربما نُقل أو حُذف.',
+  },
+  'suche.zum_lageplan': { de: 'Zum Lageplan', ar: 'إلى خريطة الموضع' },
+  'suche.band_weg': { de: 'Hinweis schließen', ar: 'إغلاق التنبيه' },
+  'suche.foto_gross': { de: 'Foto groß', ar: 'الصورة كبيرة' },
+  'suche.waehlen': { de: 'Wähle links einen Treffer.', ar: 'اختر نتيجة من القائمة.' },
   'suche.im_foto': { de: 'Im Foto zeigen', ar: 'عرض في الصورة' },
   'suche.zur_kiste': { de: 'Zur Kiste', ar: 'إلى الصندوق' },
   'suche.zum_moebel': { de: 'Zum Möbelstück', ar: 'إلى قطعة الأثاث' },

@@ -1,4 +1,13 @@
-import { memo, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import { useSprache } from '../../lib/i18n'
 import { cmText, wandStuecke, type Punkt } from '../../lib/geometrie'
 import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, Raum } from '../../lib/types'
@@ -461,7 +470,20 @@ export interface PlanBildProps {
   maxHoehe?: string
   className?: string
   label?: string
+  /** Zwei-Finger-Zoom und Verschieben mit einem Finger (Handy). Nur dann
+   *  gilt touch-action: none, und nur auf dieser Flaeche; ein Tipp nach
+   *  einer Geste setzt nichts. */
+  zoomen?: boolean
+  /** Zusaetzliche Zeichnung in Plan-cm ueber allen Ebenen (Geist beim
+   *  Platzieren). Bekommt den Massstab in Pixel je cm. */
+  zusatz?: (massstab: number) => ReactNode
 }
+
+/** Ab so vielen Pixeln Bewegung ist es eine Geste, kein Tipp. */
+const GESTE_PX = 8
+const ZOOM_MAX = 8
+
+type Ansicht = { z: number; cx: number; cy: number }
 
 /** Fertige Draufsicht mit Rahmen um den Ausschnitt. */
 export function PlanBild({
@@ -474,16 +496,27 @@ export function PlanBild({
   maxHoehe = '70vh',
   className,
   label,
+  zoomen = false,
+  zusatz,
 }: PlanBildProps) {
+  const { t } = useSprache()
   const huelle = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
   const [groesse, setGroesse] = useState<[number, number]>([0, 0])
+  const [ansicht, setAnsicht] = useState<Ansicht | null>(null)
+  /* Laufende Geste: Zeiger, Startabstand, Startansicht, ob schon bewegt. */
+  const zeiger = useRef(new Map<number, { x: number; y: number }>())
+  const geste = useRef<{ bewegt: boolean; start: Ansicht; abstand: number; mitte: [number, number] } | null>(null)
 
   const box = useMemo(() => {
     const b = datenBox(daten, ausschnitt === 'alles' ? null : ausschnitt.raumId) ?? { x0: 0, y0: 0, x1: 400, y1: 300 }
     const rand = Math.max(40, Math.max(b.x1 - b.x0, b.y1 - b.y0) * 0.04)
     return { x: b.x0 - rand, y: b.y0 - rand, w: b.x1 - b.x0 + 2 * rand, h: b.y1 - b.y0 + 2 * rand }
   }, [daten, ausschnitt])
+
+  /* Neuer Ausschnitt: wieder ganz zeigen. */
+  const boxSchluessel = `${box.x},${box.y},${box.w},${box.h}`
+  useEffect(() => setAnsicht(null), [boxSchluessel])
 
   useLayoutEffect(() => {
     const el = huelle.current
@@ -495,19 +528,122 @@ export function PlanBild({
     return () => ro.disconnect()
   }, [])
 
-  const massstab = groesse[0] > 0 ? Math.min(groesse[0] / box.w, (groesse[1] || Infinity) / box.h) : 0.5
+  /* Sichtbarer Ausschnitt: bei Zoom kleiner, um die Mitte, nie ueber den
+   * Rand der Box hinaus. */
+  const sicht = useMemo(() => {
+    if (!ansicht || ansicht.z <= 1) return box
+    const w = box.w / ansicht.z
+    const h = box.h / ansicht.z
+    const x = Math.min(Math.max(ansicht.cx - w / 2, box.x), box.x + box.w - w)
+    const y = Math.min(Math.max(ansicht.cy - h / 2, box.y), box.y + box.h - h)
+    return { x, y, w, h }
+  }, [ansicht, box])
 
-  function tipp(e: ReactPointerEvent<SVGSVGElement>) {
-    if (!onTipp || !svg.current) return
+  const massstab =
+    groesse[0] > 0 ? Math.min(groesse[0] / sicht.w, (groesse[1] || Infinity) / sicht.h) : 0.5
+
+  /** Bildschirmpunkt in Plan-cm (ohne Runden). */
+  function inPlan(clientX: number, clientY: number): [number, number] | null {
+    if (!svg.current) return null
     const m = svg.current.getScreenCTM()
-    if (!m) return
+    if (!m) return null
     const pt = svg.current.createSVGPoint()
-    pt.x = e.clientX
-    pt.y = e.clientY
+    pt.x = clientX
+    pt.y = clientY
     const q = pt.matrixTransform(m.inverse())
-    const p: Punkt = [Math.round(q.x), Math.round(q.y)]
+    return [q.x, q.y]
+  }
+
+  function tippen(clientX: number, clientY: number) {
+    if (!onTipp) return
+    const q = inPlan(clientX, clientY)
+    if (!q) return
+    const p: Punkt = [Math.round(q[0]), Math.round(q[1])]
     onTipp(p, trefferAn(daten, p, px(massstab, 10), ebenen?.kisten !== false))
   }
+
+  /** Die Ansicht, wie sie gerade zu sehen ist (Mitte nach dem Begrenzen). */
+  function jetzigeAnsicht(): Ansicht {
+    return { z: ansicht?.z ?? 1, cx: sicht.x + sicht.w / 2, cy: sicht.y + sicht.h / 2 }
+  }
+
+  /** cm je Bildschirmpixel bei Zoom 1 und die Mitte der Flaeche am
+   *  Bildschirm. preserveAspectRatio meet: die knappere Richtung zaehlt. */
+  function flaeche(): { basis: number; sx: number; sy: number } {
+    const r = huelle.current?.getBoundingClientRect()
+    const w = Math.max(1, r?.width ?? 1)
+    const h = Math.max(1, r?.height ?? 1)
+    return { basis: Math.max(box.w / w, box.h / h), sx: (r?.left ?? 0) + w / 2, sy: (r?.top ?? 0) + h / 2 }
+  }
+
+  function runter(e: ReactPointerEvent<SVGSVGElement>) {
+    if (!zoomen) return
+    zeiger.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    const punkte = [...zeiger.current.values()]
+    if (punkte.length === 1) {
+      geste.current = { bewegt: false, start: jetzigeAnsicht(), abstand: 0, mitte: [e.clientX, e.clientY] }
+    } else if (punkte.length === 2) {
+      const [a, b] = punkte
+      geste.current = {
+        bewegt: true,
+        start: jetzigeAnsicht(),
+        abstand: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+        mitte: [(a.x + b.x) / 2, (a.y + b.y) / 2],
+      }
+    }
+  }
+
+  function bewegen(e: ReactPointerEvent<SVGSVGElement>) {
+    if (!zoomen || !zeiger.current.has(e.pointerId) || !geste.current) return
+    zeiger.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const g = geste.current
+    const punkte = [...zeiger.current.values()]
+    const { basis, sx, sy } = flaeche()
+    if (punkte.length >= 2) {
+      const [a, b] = punkte
+      const d = Math.hypot(a.x - b.x, a.y - b.y) || 1
+      const z = Math.min(ZOOM_MAX, Math.max(1, (g.start.z * d) / g.abstand))
+      const mx = (a.x + b.x) / 2
+      const my = (a.y + b.y) / 2
+      // Der Planpunkt, der zu Beginn zwischen den Fingern lag, bleibt zwischen den Fingern.
+      const p0x = g.start.cx + (g.mitte[0] - sx) * (basis / g.start.z)
+      const p0y = g.start.cy + (g.mitte[1] - sy) * (basis / g.start.z)
+      setAnsicht({ z, cx: p0x - (mx - sx) * (basis / z), cy: p0y - (my - sy) * (basis / z) })
+      return
+    }
+    const dx = e.clientX - g.mitte[0]
+    const dy = e.clientY - g.mitte[1]
+    if (!g.bewegt && Math.hypot(dx, dy) < GESTE_PX) return
+    g.bewegt = true
+    if (g.start.z <= 1) return
+    const k = basis / g.start.z
+    setAnsicht({ z: g.start.z, cx: g.start.cx - dx * k, cy: g.start.cy - dy * k })
+  }
+
+  function hoch(e: ReactPointerEvent<SVGSVGElement>) {
+    if (!zoomen) {
+      tippen(e.clientX, e.clientY)
+      return
+    }
+    const warGeste = geste.current?.bewegt ?? true
+    zeiger.current.delete(e.pointerId)
+    if (zeiger.current.size === 0) {
+      geste.current = null
+      if (!warGeste) tippen(e.clientX, e.clientY)
+    } else if (geste.current) {
+      // Ein Finger bleibt: ab hier weiter verschieben, nie mehr tippen.
+      const [rest] = [...zeiger.current.values()]
+      geste.current = { bewegt: true, start: jetzigeAnsicht(), abstand: 0, mitte: [rest.x, rest.y] }
+    }
+  }
+
+  function abbrechen(e: ReactPointerEvent<SVGSVGElement>) {
+    zeiger.current.delete(e.pointerId)
+    if (zeiger.current.size === 0) geste.current = null
+  }
+
+  const mitGesten = zoomen || Boolean(onTipp)
 
   return (
     <div
@@ -518,12 +654,16 @@ export function PlanBild({
     >
       <svg
         ref={svg}
-        viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
+        viewBox={`${sicht.x} ${sicht.y} ${sicht.w} ${sicht.h}`}
         className={cx('absolute inset-0 h-full w-full select-none', onTipp && 'cursor-pointer')}
+        style={zoomen ? { touchAction: 'none' } : undefined}
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={label}
-        onPointerUp={onTipp ? tipp : undefined}
+        onPointerDown={zoomen ? runter : undefined}
+        onPointerMove={zoomen ? bewegen : undefined}
+        onPointerUp={mitGesten ? hoch : undefined}
+        onPointerCancel={zoomen ? abbrechen : undefined}
       >
         <PlanEbenen
           daten={daten}
@@ -533,7 +673,17 @@ export function PlanBild({
           kisten={ebenen?.kisten}
           beschriftung={ebenen?.beschriftung}
         />
+        {zusatz ? zusatz(massstab) : null}
       </svg>
+      {zoomen && ansicht && ansicht.z > 1.01 ? (
+        <button
+          type="button"
+          onClick={() => setAnsicht(null)}
+          className="absolute end-2 top-2 flex h-11 items-center rounded-xl border-2 border-line bg-surface px-3 text-sm font-bold text-ink shadow-sm transition active:scale-95"
+        >
+          {t('plan.zoom_zurueck')}
+        </button>
+      ) : null}
     </div>
   )
 }

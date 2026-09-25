@@ -178,7 +178,7 @@ export interface KistenGroesse {
   hoehe_cm: number
 }
 
-/** Ein Treffer der Suche ueber alle Umzuege (inhalt_suchen, 0024): ein
+/** Ein Treffer der Suche ueber alle Umzuege (inhalt_suchen, 0030): ein
  *  Ding, und wo es steht, bis zur Hoehe ueber dem Boden. */
 export interface SuchTreffer {
   content_id: string
@@ -205,15 +205,27 @@ export interface SuchTreffer {
   room_id: string | null
   room_name: string | null
   room_color: string | null
-  /* Uebergang bis 0030 (siehe 0029): plan_x/plan_y tragen den Mittelpunkt
-   * im Grundriss in cm, plan_z die Zahl der Kisten darunter, regal_name
-   * und regal_boden Objekt und Ebene eines Fachs. null = ohne Platz. */
-  plan_x: number | null
-  plan_y: number | null
-  plan_z: number | null
-  regal_name: string | null
-  regal_boden: number | null
-  /** Unter- und Oberkante in cm ueber dem Zimmerboden, ohne Platz null. */
+  /* Wo es wirklich steht (0030). room_* oben ist das Zimmer der Kiste
+   * (Kuerzel in der Nummer), raum_* der Raum im Grundriss. Ohne Platz ist
+   * alles hier null. Dinge in einem Moebel haben unterlage_art 'moebel'
+   * und den Platz des verknuepften Objekts. */
+  grundriss_id: string | null
+  grundriss_name: string | null
+  raum_id: string | null
+  raum_name: string | null
+  unterlage_art: UnterlageArt | 'moebel' | null
+  /** Bei unterlage_art 'kiste': die Nummer der Kiste darunter. */
+  unterlage_code: string | null
+  objekt_id: string | null
+  objekt_name: string | null
+  objekt_art: ObjektArt | null
+  fach_ebene: number | null
+  fach_spalte: number | null
+  platz_x: number | null
+  platz_y: number | null
+  /** 1 = unten im Stapel. */
+  stapel_nr: number | null
+  /** Unter- und Oberkante in cm ueber dem Boden, ohne Platz null. */
   hoehe_von: number | null
   hoehe_bis: number | null
   treffer: number
