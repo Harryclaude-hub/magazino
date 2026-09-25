@@ -85,11 +85,8 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
     const schluessel = `${daten.grundriss.id}|${raumId ?? ''}`
     const neu = ausgerichtet.current !== schluessel && koerper.length > 0
     m.setzen(koerper, farben.grund, neu)
-    if (neu) {
-      ausgerichtet.current = schluessel
-      if (hervor && hervorMitte(koerper)) m.blick('kiste')
-    }
-  }, [koerper, farben.grund, geht, daten.grundriss.id, raumId, hervor])
+    if (neu) ausgerichtet.current = schluessel
+  }, [koerper, farben.grund, geht, daten.grundriss.id, raumId])
 
   useEffect(() => {
     motor.current?.waendeHalb(halb)

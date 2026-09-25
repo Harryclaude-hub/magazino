@@ -78,8 +78,9 @@ export interface Quader {
   id: string | null
   /** Gesuchte oder gewaehlte Kiste (bzw. Moebel). */
   hervor: boolean
-  /** Bei Waenden: Einheitsnormale zur Raum-Innenseite in (x, z). Zeigt
-   *  die Aussenseite zur Kamera, wird die Wand halbdurchsichtig. */
+  /** Bei Waenden (und allem, was in ihnen sitzt: Sturz, Bruestung, Tuer,
+   *  Fenster): Einheitsnormale zur Raum-Innenseite in (x, z). Zeigt die
+   *  Aussenseite zur Kamera, wird das Teil halbdurchsichtig. */
   innen: [number, number] | null
 }
 
@@ -252,9 +253,9 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
       dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wand, { innen }))
       // Zarge: zwei Pfosten und oben ein Streifen, orange.
       const z = Math.min(ZARGE_CM, l / 4)
-      dazu(streifen('zarge', bei(0), bei(z), 0, th, WAND_CM + 2, f.tuer))
-      dazu(streifen('zarge', bei(l - z), bei(l), 0, th, WAND_CM + 2, f.tuer))
-      dazu(streifen('zarge', a, b, Math.max(0, th - z), th, WAND_CM + 2, f.tuer))
+      dazu(streifen('zarge', bei(0), bei(z), 0, th, WAND_CM + 2, f.tuer, { innen }))
+      dazu(streifen('zarge', bei(l - z), bei(l), 0, th, WAND_CM + 2, f.tuer, { innen }))
+      dazu(streifen('zarge', a, b, Math.max(0, th - z), th, WAND_CM + 2, f.tuer, { innen }))
       // Blatt: an der Angel, 25 Grad offen zur Aufschlagseite.
       const rechts = o.anschlag === 'rechts'
       const angel: Punkt = rechts ? bei(l - z) : bei(z)
@@ -268,6 +269,7 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
       dazu(
         streifen('tuerblatt', angel, [angel[0] + dx * lang, angel[1] + dy * lang], 0, Math.max(1, th - z), BLATT_CM, f.tuer, {
           kante: f.wand,
+          innen,
         }),
       )
     } else {
@@ -278,13 +280,14 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
       dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wand, { innen }))
       // Rahmen blau: unten (Fensterbank), oben, links, rechts.
       const z = Math.min(RAHMEN_CM, l / 4)
-      dazu(streifen('rahmen', a, b, br, br + RAHMEN_CM, WAND_CM + 4, f.fenster))
-      dazu(streifen('rahmen', a, b, top - RAHMEN_CM, top, WAND_CM, f.fenster))
-      dazu(streifen('rahmen', bei(0), bei(z), br, top, WAND_CM, f.fenster))
-      dazu(streifen('rahmen', bei(l - z), bei(l), br, top, WAND_CM, f.fenster))
+      dazu(streifen('rahmen', a, b, br, br + RAHMEN_CM, WAND_CM + 4, f.fenster, { innen }))
+      dazu(streifen('rahmen', a, b, top - RAHMEN_CM, top, WAND_CM, f.fenster, { innen }))
+      dazu(streifen('rahmen', bei(0), bei(z), br, top, WAND_CM, f.fenster, { innen }))
+      dazu(streifen('rahmen', bei(l - z), bei(l), br, top, WAND_CM, f.fenster, { innen }))
       dazu(
         streifen('scheibe', bei(z), bei(l - z), br + RAHMEN_CM, top - RAHMEN_CM, 2, f.fenster, {
           deckkraft: SCHEIBE_DECKKRAFT,
+          innen,
         }),
       )
     }

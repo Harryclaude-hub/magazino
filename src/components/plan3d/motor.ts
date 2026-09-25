@@ -40,15 +40,16 @@ export interface Motor {
 }
 
 /** Wie durchsichtig eine Wand ist, deren Aussenseite zur Kamera zeigt. */
-const WAND_HALB = 0.22
-const WAND_ROLLEN = new Set(['wand', 'wandkopf', 'sturz', 'bruestung'])
+const WAND_HALB = 0.16
 
+/** Alles mit Innenseite (Wand, Sturz, Tuer, Fenster) wird im Weg halbdurchsichtig. */
 interface WandInfo {
   mesh: Mesh
   linien: LineSegments | null
   innen: [number, number]
   x: number
   z: number
+  basis: number
 }
 
 /** WebGL da? Ohne Kontext gibt es keine 3D-Ansicht, nur 2D. */
@@ -83,12 +84,14 @@ export function motorStarten(host: HTMLElement): Motor | null {
   camera.position.set(-6, 8, 10)
 
   // Licht von oben: der Boden hell, senkrechte Waende dunkler, damit Wand
-  // und Boden deutlich auseinandergehen.
-  scene.add(new AmbientLight(0xffffff, 0.78))
-  const sonne = new DirectionalLight(0xffffff, 0.5)
+  // und Boden deutlich auseinandergehen. three rechnet Licht physikalisch
+  // (Lambert teilt durch Pi), darum die Staerken mal Pi: Umgebung plus
+  // Sonne ergeben auf dem Boden etwa die Farbe des Tokens.
+  scene.add(new AmbientLight(0xffffff, 0.72 * Math.PI))
+  const sonne = new DirectionalLight(0xffffff, 0.36 * Math.PI)
   sonne.position.set(-3, 10, 5)
   scene.add(sonne)
-  const gegen = new DirectionalLight(0xffffff, 0.14)
+  const gegen = new DirectionalLight(0xffffff, 0.12 * Math.PI)
   gegen.position.set(4, 3, -6)
   scene.add(gegen)
 
@@ -118,9 +121,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
       // Zeigt die Aussenseite zur Kamera, steht die Wand im Weg.
       const vorne = halb && (cx - w.x) * w.innen[0] + (cz - w.z) * w.innen[1] < -0.05
       const mat = w.mesh.material as MeshLambertMaterial
-      mat.opacity = vorne ? WAND_HALB : 1
-      mat.depthWrite = !vorne
-      if (w.linien) (w.linien.material as LineBasicMaterial).opacity = vorne ? WAND_HALB : 1
+      mat.opacity = vorne ? Math.min(w.basis, WAND_HALB) : w.basis
+      mat.depthWrite = !vorne && w.basis >= 1
+      if (w.linien) (w.linien.material as LineBasicMaterial).opacity = mat.opacity
     }
   }
 
@@ -170,7 +173,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
         gruppe.add(mesh)
         continue
       }
-      const wand = WAND_ROLLEN.has(k.rolle) && k.innen !== null
+      const wand = k.innen !== null
       const durch = k.deckkraft < 1 || wand
       const mat = new MeshLambertMaterial({
         color: new Color(k.farbe),
@@ -191,7 +194,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
         mesh.add(linien)
       }
       gruppe.add(mesh)
-      if (wand && k.innen) waende.push({ mesh, linien, innen: k.innen, x: k.mitte[0], z: k.mitte[2] })
+      if (k.innen) waende.push({ mesh, linien, innen: k.innen, x: k.mitte[0], z: k.mitte[2], basis: k.deckkraft })
     }
   }
 
@@ -225,7 +228,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       // Die Richtung der Kamera bleibt, nur naeher an die Kiste.
       const dx = camera.position.x - controls.target.x
       const dz = camera.position.z - controls.target.z
-      zielen(k, 2.6, 0.9, Math.hypot(dx, dz) > 0.01 ? Math.atan2(dx, dz) : -0.55)
+      // Steil von oben, damit Tuerblaetter und Moebel davor nicht verdecken.
+      zielen(k, 4.2, 0.62, Math.hypot(dx, dz) > 0.01 ? Math.atan2(dx, dz) : -0.55)
     }
   }
 
