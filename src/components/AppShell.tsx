@@ -33,7 +33,7 @@ export function AppHeader({
         sticky && 'sticky top-0',
       )}
     >
-      <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-3 py-2 sm:px-5">
+      <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-3 py-2 sm:px-5 lg:max-w-6xl 2xl:max-w-7xl">
         {back ? (
           <button
             onClick={() => (typeof back === 'string' ? nav(back) : nav(-1))}
@@ -81,7 +81,7 @@ export function Page({
     <main
       className={cx(
         'mx-auto w-full px-3 py-4 sm:px-5 sm:py-6',
-        wide ? 'max-w-6xl' : 'max-w-5xl',
+        wide ? 'max-w-6xl lg:max-w-[1600px]' : 'max-w-5xl lg:max-w-6xl 2xl:max-w-7xl',
         className,
       )}
     >

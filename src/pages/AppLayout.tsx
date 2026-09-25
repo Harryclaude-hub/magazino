@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Outlet, useLocation } from 'react-router-dom'
 import { Boxes, MessageCircle, ScanLine, Search, User, Warehouse } from 'lucide-react'
 import { BottomNav, NavTab } from '../components/AppShell'
+import { LeistenSymbole, Seitenleiste, SuchKopf } from '../components/Seitenleiste'
 import { useT } from '../lib/i18n'
 import { countUnread, listMembers } from '../lib/api'
 import { supabase } from '../lib/supabase'
@@ -118,13 +119,52 @@ export default function AppLayout() {
   const itemsTo = lastProject ? `/app/p/${lastProject}/kisten` : '/app'
   const chatTo = lastProject ? `/app/p/${lastProject}/chat` : '/app'
 
+  /* Umzug aus der Adresse, sonst der zuletzt geoeffnete. */
+  const projektId = /^\/app\/p\/([^/]+)/.exec(path)?.[1] ?? lastProject
+  const zimmerTo = projektId ? `/app/p/${projektId}/bereiche` : '/app'
+
   return (
     <Ctx.Provider value={value}>
-      <div className="flex min-h-screen flex-col bg-paper">
+      <div className="flex min-h-screen bg-paper">
+        <Seitenleiste
+          projektId={projektId}
+          eintraege={[
+            { to: '/app', icon: LeistenSymbole.umzuege, label: t('nav.umzuege'), active: path === '/app' },
+            {
+              to: itemsTo,
+              icon: LeistenSymbole.kisten,
+              label: t('nav.kisten'),
+              active: inProject && path.includes('/kisten'),
+            },
+            {
+              to: zimmerTo,
+              icon: LeistenSymbole.zimmer,
+              label: t('leiste.zimmer'),
+              active: inProject && (path.includes('/bereiche') || path.includes('/zimmer/')),
+            },
+            { to: '/app/suche', icon: LeistenSymbole.suchen, label: t('nav.suchen'), active: path === '/app/suche' },
+            {
+              to: '/app/scan',
+              icon: LeistenSymbole.scannen,
+              label: t('nav.scannen'),
+              active: path === '/app/scan' || path.endsWith('/scan'),
+            },
+            { to: chatTo, icon: LeistenSymbole.chat, label: t('nav.chat'), active: inChat, badge: unread },
+            {
+              to: '/app/einstellungen',
+              icon: LeistenSymbole.profil,
+              label: t('nav.profil'),
+              active: path === '/app/einstellungen',
+            },
+          ]}
+        />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <SuchKopf />
         <div className="flex-1">
           <Outlet />
         </div>
 
+        <div className="lg:hidden">
         <BottomNav>
           <NavTab
             to="/app"
@@ -165,6 +205,8 @@ export default function AppLayout() {
             active={path === '/app/einstellungen'}
           />
         </BottomNav>
+        </div>
+      </div>
       </div>
     </Ctx.Provider>
   )

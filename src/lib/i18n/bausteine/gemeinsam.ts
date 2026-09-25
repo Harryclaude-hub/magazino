@@ -10,6 +10,14 @@ export const gemeinsam: Woerterbuch = {
   'nav.scannen': { de: 'Scannen', ar: 'مسح' },
   'nav.chat': { de: 'Chat', ar: 'المحادثة' },
   'nav.profil': { de: 'Profil', ar: 'حسابي' },
+  'leiste.zimmer': { de: 'Zimmer', ar: 'الغرف' },
+  'leiste.umzug': { de: 'Umzug', ar: 'النقلة' },
+  'leiste.umzug_waehlen': { de: 'Umzug wählen', ar: 'اختر النقلة' },
+  'leiste.keine_umzuege': { de: 'Noch kein Umzug', ar: 'لا توجد نقلة بعد' },
+  'leiste.umzuege_fehler': { de: 'Umzüge nicht geladen', ar: 'تعذّر تحميل النقلات' },
+  'leiste.einklappen': { de: 'Leiste einklappen', ar: 'طيّ الشريط' },
+  'leiste.aufklappen': { de: 'Leiste aufklappen', ar: 'فتح الشريط' },
+  'leiste.suche_platzhalter': { de: 'In allen Umzügen suchen', ar: 'ابحث في كل النقلات' },
 
   // --------------------------------------------------------------- Aktionen
   'aktion.speichern': { de: 'Speichern', ar: 'حفظ' },

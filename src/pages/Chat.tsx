@@ -809,7 +809,7 @@ export default function Chat() {
     /* Die Hoehe laesst der unteren Navigationsleiste ihren Platz, sonst
      * verschwindet die Eingabezeile dahinter. */
     <div
-      className="relative flex h-[calc(100dvh-var(--nav-h,6rem))] flex-col"
+      className="relative flex h-[calc(100dvh-var(--nav-h,6rem))] lg:h-[calc(100dvh-3rem-1px)] flex-col"
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
