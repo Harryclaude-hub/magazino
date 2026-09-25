@@ -14,9 +14,9 @@ import {
   Field,
   IconButton,
   Input,
-  Loading,
   Modal,
   Select,
+  Skelett,
   Spinner,
   Switch,
   Textarea,
@@ -28,6 +28,8 @@ import { useSprache } from '../lib/i18n'
 import { hatLiter, literText, useEigeneGroessen, useKistenGroessen } from '../lib/groessen'
 import { ARTEN, groessenArt } from '../lib/arten'
 import { SizePicker } from '../components/SizePicker'
+import { KistenTabelle, KistenVorschau } from '../components/KistenTabelle'
+import { useIstDesktop } from '../lib/desktop'
 import { notifyItemStatus } from '../lib/push'
 import { supabase } from '../lib/supabase'
 import {
@@ -96,6 +98,16 @@ export default function Items() {
    * aber auch keine Entwarnung. */
   const [ohneZimmer, setOhneZimmer] = useState<number | null>(null)
   const PAGE = 60
+  /* Am Computer: Tabelle links, gewaehlte Kiste rechts (START 5.9a). Die
+   * Wahl steht in der Adresse, damit Neuladen und Zurueck sie behalten. */
+  const desktop = useIstDesktop()
+  const gewaehltId = params.get('kiste')
+  function kisteWaehlen(id: string | null) {
+    const next = new URLSearchParams(params)
+    if (id) next.set('kiste', id)
+    else next.delete('kiste')
+    setParams(next, { replace: true })
+  }
 
   /* Moebel haben einen eigenen Bereich. Sie stehen in derselben Tabelle,
    * darum werden sie hier ausdruecklich ausgeschlossen, sonst taucht
@@ -387,6 +399,7 @@ export default function Items() {
   return (
     <>
       <AppHeader
+        wide
         title={t('nav.kisten')}
         subtitle={tn('begriff.eintraege', total)}
         back={`/app/p/${project.id}`}
@@ -428,7 +441,9 @@ export default function Items() {
         }
       />
 
-      <Page>
+      <Page wide>
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_380px] 2xl:gap-6">
+        <div className="min-w-0">
         {/* Suche */}
         <div className="mb-3 flex gap-2">
           <div className="relative min-w-0 flex-1">
@@ -463,7 +478,7 @@ export default function Items() {
           >
             <Filter size={19} />
             {activeFilters > 0 ? (
-              <span className="absolute -end-2 -top-2 min-w-[1.5rem] rounded-full bg-danger px-1 text-sm font-black leading-6 text-white">
+              <span className="absolute -end-2 -top-2 min-w-[1.5rem] rounded-full bg-ink px-1 text-sm font-black leading-6 text-paper">
                 {activeFilters}
               </span>
             ) : null}
@@ -524,12 +539,12 @@ export default function Items() {
         {/* Seit 0021 haben die Groessen Liter. Einmal neu einstufen, dann
             kann der Hinweis weg. Er merkt sich das je Umzug. */}
         {canEdit && !groessenHinweisWeg && rows.length > 0 ? (
-          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border-2 border-line bg-raised px-4 py-3">
-            <span className="min-w-0 flex-1 text-[0.9375rem] font-bold">
+          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-karte border-2 border-line bg-raised px-4 py-3">
+            <span className="min-w-0 flex-1 basis-full text-[0.9375rem] font-bold sm:basis-auto">
               {t('groessen.hinweis_liste')}
             </span>
             <Link to={`/app/p/${project.id}/groessen`}>
-              <Button size="sm">{t('groessen.titel')}</Button>
+              <Button size="sm" variant="outline">{t('groessen.titel')}</Button>
             </Link>
             <Button size="sm" variant="ghost" onClick={() => setGroessenHinweisWeg(true)}>
               {t('aktion.ausblenden')}
@@ -543,7 +558,7 @@ export default function Items() {
           <button
             type="button"
             onClick={() => setParam('room', 'none')}
-            className="mb-3 flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-warn/40 bg-warn/10 px-4 py-3 text-start transition active:scale-[0.99]"
+            className="knopf mb-3 flex w-full items-center justify-between gap-3 rounded-karte border-2 border-warn/40 bg-warn/10 px-4 py-3 text-start transition"
           >
             <span className="text-[0.9375rem] font-bold text-warn">
               {tn('kisten.ohne_zimmer_anzahl', ohneZimmer)}
@@ -556,10 +571,11 @@ export default function Items() {
         {error && rows.length === 0 ? (
           <ErrorBox error={error} onRetry={() => void load(0, false)} />
         ) : loading && rows.length === 0 ? (
-          <Loading label={t('kisten.laedt')} />
+          <Skelett label={t('kisten.laedt')} anzahl={desktop ? 8 : 5} />
         ) : rows.length === 0 ? (
           <Empty
             icon={<Boxes size={28} />}
+            zeichnung={activeFilters || debounced ? 'stapel' : 'karton'}
             title={
               activeFilters || debounced ? t('zustand.nichts_gefunden') : t('kisten.leer_titel')
             }
@@ -580,7 +596,7 @@ export default function Items() {
                   <X size={16} /> {t('kisten.suche_leeren')}
                 </Button>
               ) : canEdit ? (
-                <Button onClick={() => setOpen(true)}>
+                <Button variant="outline" onClick={() => setOpen(true)}>
                   <Plus size={16} /> {t('kisten.erste')}
                 </Button>
               ) : null
@@ -596,7 +612,30 @@ export default function Items() {
                 <ErrorBox error={error} onRetry={() => void load(page + 1, true)} />
               </div>
             ) : null}
-            <Card className="zebra divide-y divide-line overflow-hidden">
+            {desktop ? (
+              <KistenTabelle
+                rows={rows}
+                tagById={tagById}
+                canEdit={canEdit}
+                onStatus={(i) => void cycleStatus(i)}
+                gewaehltId={gewaehltId}
+                onWaehlen={(id) => kisteWaehlen(id)}
+                auswahl={{
+                  an: waehlen,
+                  ids: gewaehlt,
+                  umschalten: (id) =>
+                    setGewaehlt((v) => {
+                      const next = new Set(v)
+                      if (next.has(id)) next.delete(id)
+                      else next.add(id)
+                      return next
+                    }),
+                }}
+                unvollstaendig={rows.length < total}
+              />
+            ) : (
+            /* Handy: volle Breite, von Rand zu Rand. */
+            <Card className="zebra -mx-3 divide-y divide-line overflow-hidden rounded-none border-x-0 sm:mx-0 sm:rounded-karte sm:border-x">
               {rows.map((item) => (
                 <ItemRow
                   key={item.id}
@@ -619,6 +658,7 @@ export default function Items() {
                 />
               ))}
             </Card>
+            )}
 
             {rows.length < total ? (
               <div className="mt-5 flex flex-col items-center gap-2">
@@ -657,6 +697,21 @@ export default function Items() {
         ) : null}
 
         <div className="h-6" />
+        </div>
+
+        {desktop ? (
+          <aside className="sticky top-20 hidden lg:block">
+            <KistenVorschau
+              item={rows.find((r) => r.id === gewaehltId) ?? null}
+              projectId={project.id}
+              tagById={tagById}
+              canEdit={canEdit}
+              onStatus={(i) => void cycleStatus(i)}
+              onSchliessen={() => kisteWaehlen(null)}
+            />
+          </aside>
+        ) : null}
+        </div>
       </Page>
 
       {/* Neue Kiste */}

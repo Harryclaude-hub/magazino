@@ -15,6 +15,7 @@ export function AppHeader({
   actions,
   sticky = true,
   showProfile = true,
+  wide,
 }: {
   title: ReactNode
   subtitle?: ReactNode
@@ -22,6 +23,8 @@ export function AppHeader({
   actions?: ReactNode
   sticky?: boolean
   showProfile?: boolean
+  /** Gleich breit wie eine Seite mit Page wide (bis 1600 px). */
+  wide?: boolean
 }) {
   const nav = useNavigate()
   const { profile, user } = useAuth()
@@ -33,13 +36,18 @@ export function AppHeader({
         sticky && 'sticky top-0',
       )}
     >
-      <div className="mx-auto flex min-h-16 max-w-5xl items-center gap-2 px-3 py-2 sm:px-5 lg:max-w-6xl 2xl:max-w-7xl">
+      <div
+        className={cx(
+          'mx-auto flex min-h-16 items-center gap-2 px-3 py-2 sm:px-5',
+          wide ? 'max-w-6xl lg:max-w-[1600px]' : 'max-w-5xl lg:max-w-6xl 2xl:max-w-7xl',
+        )}
+      >
         {back ? (
           <button
             onClick={() => (typeof back === 'string' ? nav(back) : nav(-1))}
             aria-label={t('aktion.zurueck')}
             title={t('aktion.zurueck')}
-            className="-ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 border-transparent text-ink transition hover:border-line hover:bg-raised active:scale-95"
+            className="knopf -ms-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-knopf border-2 border-transparent text-ink transition hover:border-line hover:bg-raised"
           >
             <ArrowLeft size={22} className="spiegeln" />
           </button>
@@ -57,7 +65,7 @@ export function AppHeader({
               to="/app/einstellungen"
               aria-label={t('kopf.profil')}
               title={t('kopf.profil')}
-              className="ml-0.5 rounded-full ring-2 ring-transparent transition hover:ring-line active:scale-95"
+              className="ms-0.5 rounded-full ring-2 ring-transparent transition hover:ring-line active:scale-95"
             >
               <Avatar name={displayNameOf(profile, user?.email ?? '?')} size={40} />
             </Link>
@@ -115,8 +123,8 @@ export function NavTab({
       >
         <span
           className={cx(
-            'flex h-14 w-14 -translate-y-3 items-center justify-center rounded-2xl shadow-lg transition active:scale-95',
-            active ? 'bg-danger text-white' : 'bg-ink text-paper',
+            'flex h-14 w-14 -translate-y-3 items-center justify-center rounded-karte ring-4 ring-paper transition active:scale-95',
+            active ? 'bg-accent text-accent-ink' : 'bg-ink text-paper',
           )}
         >
           {icon}

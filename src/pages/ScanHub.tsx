@@ -408,7 +408,7 @@ export default function ScanHub() {
                       key={s}
                       size="lg"
                       full
-                      variant={hit.item.status === s ? 'primary' : 'outline'}
+                      variant={hit.item.status === s ? 'aktiv' : 'outline'}
                       loading={saving === s}
                       disabled={saving !== null}
                       onClick={() => void changeStatus(s)}

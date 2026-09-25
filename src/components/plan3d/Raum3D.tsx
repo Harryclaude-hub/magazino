@@ -110,7 +110,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
         ) : null}
         <Button
           size="sm"
-          variant={halb ? 'primary' : 'outline'}
+          variant={halb ? 'aktiv' : 'outline'}
           aria-pressed={halb}
           onClick={() => setHalb((v) => !v)}
           disabled={geht !== 'ja'}

@@ -1,0 +1,71 @@
+/* =====================================================================
+ * Kistly: Plaene (weiche Auswahl, pulsierender Ring)
+ *
+ * Reine Optik. Diese Datei darf weg: dann bleibt die Auswahl eine klare
+ * Linie und der Ring um die gesuchte Kiste steht still. Plaene werden hier
+ * nie gespiegelt und nie umgefaerbt: Tuer bleibt --plan-tuer, Fenster
+ * --plan-fenster, "hier ist es" bleibt --plan-hervor.
+ *
+ * Haken aus den Plan-Bausteinen:
+ *   .plan-auswahl-ebene  Auswahl im Plan und im Zeichner (violett)
+ *   .plan-hervor-ebene   die gesuchte Kiste (rot)
+ *   .plan-ring           der Kreis um die gesuchte Kiste
+ *
+ * Bewegung haengt an data-motion (ruhig, normal, voll) und an
+ * prefers-reduced-motion, wie in oberflaeche.css.
+ * ===================================================================== */
+
+/* Weiche Auswahl: ein zarter Schein in der Auswahlfarbe. Kein Bewegen,
+ * darum in jeder Stufe. */
+.plan-auswahl-ebene {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--plan-auswahl) 55%, transparent));
+}
+.plan-hervor-ebene {
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--plan-hervor) 50%, transparent));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Die Auswahl blendet weich ein, statt zu springen. */
+  html[data-motion='normal'] .plan-auswahl-ebene,
+  html[data-motion='voll'] .plan-auswahl-ebene {
+    animation: plan-ein 180ms ease-out both;
+  }
+
+  /* Der Ring um "hier ist es" pulsiert: er wird kraeftiger und wieder
+   * zart. Er bleibt dabei an seiner Stelle, damit das Auge nicht sucht. */
+  html[data-motion='normal'] .plan-ring,
+  html[data-motion='voll'] .plan-ring {
+    animation: plan-puls 1.8s ease-in-out infinite;
+  }
+  html[data-motion='voll'] .plan-ring {
+    animation-duration: 1.4s;
+  }
+}
+
+@keyframes plan-ein {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes plan-puls {
+  0%,
+  100% {
+    stroke-width: 2.5px;
+    stroke-opacity: 1;
+  }
+  50% {
+    stroke-width: 7px;
+    stroke-opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html .plan-auswahl-ebene,
+  html .plan-ring {
+    animation: none !important;
+  }
+}

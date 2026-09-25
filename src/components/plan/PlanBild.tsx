@@ -387,7 +387,7 @@ function Markierung({
           style={{ fill: farbe }}
           fillOpacity={0.28}
         />
-        {ring ? <circle cx={k.platz_x} cy={k.platz_y} r={r} strokeWidth={2.5} vectorEffect={NS} /> : null}
+        {ring ? <circle className="plan-ring" cx={k.platz_x} cy={k.platz_y} r={r} strokeWidth={2.5} vectorEffect={NS} /> : null}
       </g>
     )
   }
@@ -453,8 +453,18 @@ export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, be
       <WandEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       <OeffnungEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       {beschriftung ? <BeschriftungEbene raeume={daten.raeume} massstab={massstab} /> : null}
-      {auswahl ? <Markierung daten={daten} ziel={auswahl} farbe="var(--plan-auswahl)" massstab={massstab} /> : null}
-      {hervorZiel ? <Markierung daten={daten} ziel={hervorZiel} farbe="var(--plan-hervor)" massstab={massstab} ring /> : null}
+      {/* Die Klassen sind nur Haken fuer die Designschicht (design/plan.css):
+          weiche Auswahl und pulsierender Ring. Ohne sie bleibt alles wie es ist. */}
+      {auswahl ? (
+        <g className="plan-auswahl-ebene">
+          <Markierung daten={daten} ziel={auswahl} farbe="var(--plan-auswahl)" massstab={massstab} />
+        </g>
+      ) : null}
+      {hervorZiel ? (
+        <g className="plan-hervor-ebene">
+          <Markierung daten={daten} ziel={hervorZiel} farbe="var(--plan-hervor)" massstab={massstab} ring />
+        </g>
+      ) : null}
     </g>
   )
 }

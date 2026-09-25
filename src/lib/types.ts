@@ -584,7 +584,7 @@ export interface RaumEintrag {
  * Deutsch gezeigt. */
 
 export const STATUS_COLOR: Record<ItemStatus, string> = {
-  open: '#ef4444',
+  open: '#7a6f60',   // ruhiges Warmgrau: Rot bleibt Fehlern und "hier ist es" vorbehalten
   transit: '#f59e0b',
   arrived: '#16a34a',
 }

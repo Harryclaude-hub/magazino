@@ -77,7 +77,7 @@ export default function KistenLage({
 
   const fuss = (lage: KisteLage) =>
     !moebel && canEdit && lage.art === 'kiste' ? (
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
         <Button full onClick={platzWaehlen}>
           <Crosshair size={18} /> {t('lage.platz_aendern')}
         </Button>

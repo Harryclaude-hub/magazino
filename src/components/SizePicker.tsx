@@ -120,7 +120,7 @@ export function SizePicker({
             pid ? (
               <Link
                 to={`/app/p/${pid}/groessen`}
-                className="inline-flex items-center gap-1.5 text-sm font-bold text-accent underline underline-offset-2"
+                className="inline-flex items-center gap-1.5 text-sm font-bold text-ink underline underline-offset-2"
               >
                 <Plus size={15} /> {t('groessen.eigene_anlegen')}
               </Link>

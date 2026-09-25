@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, useParams } from 'react-router-dom'
-import { Button, ErrorBox, Loading } from '../components/ui'
+import { Button, ErrorBox, Skelett } from '../components/ui'
+import { AppHeader, Page } from '../components/AppShell'
 import { CallProvider } from '../components/CallLayer'
 import { useT } from '../lib/i18n'
 import { getProject, listMembers, listTags } from '../lib/api'
@@ -104,15 +105,29 @@ export default function ProjectLayout() {
     }
   }, [project, tags, members, me, reloadTags, reloadMembers, shell.unread, shell.clearUnread])
 
-  if (loading) return <Loading label={t('umzuege.umzug_laden')} />
+  /* Laden und Fehler behalten den Kopf mit Zurueck zur Uebersicht. */
+  if (loading)
+    return (
+      <>
+        <AppHeader title={t('begriff.umzug')} subtitle={t('umzuege.umzug_laden')} back="/app" />
+        <Page>
+          <Skelett label={t('umzuege.umzug_laden')} anzahl={4} />
+        </Page>
+      </>
+    )
   if (error || !value)
     return (
-      <div className="mx-auto max-w-lg p-6">
-        <ErrorBox error={error ?? t('zustand.unbekannter_fehler')} />
-        <Link to="/app" className="mt-4 inline-block">
-          <Button variant="outline">{t('umzuege.zur_uebersicht')}</Button>
-        </Link>
-      </div>
+      <>
+        <AppHeader title={t('begriff.umzug')} back="/app" />
+        <Page>
+          <div className="mx-auto max-w-lg">
+            <ErrorBox error={error ?? t('zustand.unbekannter_fehler')} />
+            <Link to="/app" className="mt-4 inline-block">
+              <Button variant="outline">{t('umzuege.zur_uebersicht')}</Button>
+            </Link>
+          </div>
+        </Page>
+      </>
     )
 
   return (

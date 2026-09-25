@@ -15,6 +15,7 @@
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
   --color-danger: var(--danger);
   --color-warn: var(--warn);
   --color-ok: var(--ok);
@@ -28,28 +29,63 @@
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
 }
 
+/* Ecken und Schatten (START 5.9a): Karten 14 px, Knoepfe 12 px, Schatten
+   nur an Karten und Dialogen. Als Theme-Werte, damit es rounded-karte,
+   rounded-knopf, shadow-karte und shadow-dialog gibt. Die Werte stehen
+   in px, damit sie nicht mit der Grundschrift mitwachsen. */
+@theme {
+  --radius-karte: 14px;
+  --radius-knopf: 12px;
+  --shadow-karte: 0 1px 0 0 var(--glanz) inset, 0 1px 2px 0 var(--schatten-fein), 0 10px 24px -18px var(--schatten);
+  --shadow-dialog: 0 28px 64px -24px var(--schatten), 0 2px 6px 0 var(--schatten-fein);
+}
+
 /* Alle Farben stehen hier und nur hier. Wer den Kontrast anders will,
-   aendert diese Werte, sonst nichts.
-   Geprueft gegen WCGA AA: Nebentext auf Grund mindestens 7:1, Linien
-   deutlich sichtbar, Karten heben sich vom Grund ab. */
-/* Warmes Papier statt kaltem Weiss. Ruhig genug, um stundenlang darin zu
-   suchen, und trotzdem mit klarem Abstand zwischen Text und Grund.
-   Nachgerechnet: Nebentext 6,7:1 im Hellen, 7,6:1 im Dunklen.
-   Alle Farben stehen hier und nur hier. */
+   aendert diese Werte, sonst nichts. Geprueft gegen WCAG AA: jeder Text
+   mindestens 4,5:1 auf seinem Grund, Linien deutlich sichtbar, Karten
+   heben sich vom Grund ab.
+   Farbrollen: Orange (--accent) nur fuer die Hauptaktion, Rot (--danger)
+   nur fuer Fehler und "hier ist es", Gruen (--ok) fuer erledigt. Tuer-
+   Orange und Fenster-Blau gibt es nur im Plan. */
 :root {
-  --paper: #f2eee6;
-  --surface: #fbf8f2;
-  --raised: #e6e0d4;
-  --ink: #1d1b16;
-  --muted: #57524a;
-  --line: #d8d1c2;
-  --accent: #1d1b16;
-  --zebra: rgba(29, 27, 22, 0.045);
+  /* Warmer, heller Sand. Nachgerechnet (WCAG, relative Leuchtdichte):
+     Text auf Grund 14,8:1, Nebentext auf Grund 6,5:1, auf Karte 7,1:1,
+     auf erhabener Flaeche 5,8:1. */
+  --paper: #f4eee3;
+  --surface: #fcf9f3;
+  --raised: #e9e1d2;
+  --ink: #1f1b15;
+  --muted: #5b5448;
+  --line: #dcd2c0;
+  /* Orange nur fuer die eine Hauptaktion einer Seite. Weiss darauf 5,1:1.
+     Absichtlich dunkler und roeter als das Tuer-Orange im Plan
+     (--plan-tuer), damit Knopf und Tuer nie verwechselt werden. */
+  --accent: #ad560c;
+  --accent-ink: #ffffff;
+  --zebra: rgba(31, 27, 21, 0.045);
+  /* Rot nur fuer Fehler und "hier ist es" (5,1:1), Gruen fuer erledigt
+     (5,5:1), Gelbbraun fuer Warnungen (5,0:1). */
   --danger: #b23a2e;
-  --warn: #9a6a16;
+  --warn: #8a5d10;
   --ok: #2f6b4f;
   --glanz: rgba(255, 255, 255, 0.55);
-  --schatten: rgba(61, 52, 38, 0.18);
+  --schatten: rgba(61, 52, 38, 0.2);
+  --schatten-fein: rgba(61, 52, 38, 0.06);
+  /* Skelett-Karten beim Laden. */
+  --skelett: #e6ddcc;
+
+  /* Abstaende im 4-px-Raster. */
+  --abstand-1: 4px;
+  --abstand-2: 8px;
+  --abstand-3: 12px;
+  --abstand-4: 16px;
+  --abstand-5: 20px;
+  --abstand-6: 24px;
+  --abstand-8: 32px;
+  --abstand-10: 40px;
+  --abstand-12: 48px;
+  /* Kleinste Tippflaeche. */
+  --tippflaeche: 44px;
 
   /* Grundriss (2D, spaeter auch 3D). Boden warm und mittelhell, Waende
      deutlich dunkler: Wand zu Boden etwa 9:1, mindestens 3:1 verlangt.
@@ -75,19 +111,26 @@
 }
 
 .dark {
-  --paper: #16140f;
-  --surface: #211e18;
-  --raised: #2c281f;
-  --ink: #f3efe6;
-  --muted: #ada593;
-  --line: #3b362c;
-  --accent: #f3efe6;
+  /* Tiefes Braungrau. Text auf Grund 14,9:1, Nebentext 7,6:1, auf Karte
+     6,9:1, auf erhabener Flaeche 6,1:1. */
+  --paper: #1c1814;
+  --surface: #262119;
+  --raised: #302a21;
+  --ink: #f1ebe0;
+  --muted: #b3a996;
+  --line: #3d362b;
+  /* Helles Aprikosen-Orange mit dunkler Schrift darauf (9,4:1). Heller als
+     das Tuer-Orange im Plan. */
+  --accent: #f6a860;
+  --accent-ink: #1c1206;
   --zebra: rgba(255, 255, 255, 0.05);
   --danger: #e8776a;
   --warn: #e0b15c;
   --ok: #79c79b;
-  --glanz: rgba(255, 255, 255, 0.1);
+  --glanz: rgba(255, 255, 255, 0.07);
   --schatten: rgba(0, 0, 0, 0.6);
+  --schatten-fein: rgba(0, 0, 0, 0.25);
+  --skelett: #332c23;
 
   /* Im Dunklen kehrt sich Boden gegen Wand um: dunkler Boden, helle
      Wand (etwa 6:1). Tuer und Fenster bleiben orange und blau, nur
@@ -173,6 +216,33 @@ body {
   font-variant-numeric: tabular-nums;
   direction: ltr;
   unicode-bidi: isolate;
+}
+
+/* Arabisch hat hohe Ober- und tiefe Unterlaengen und verbundene Buchstaben.
+   Darum mehr Zeilenhoehe und nie Buchstabenabstand: jeder Abstand zwischen
+   den Buchstaben zerreisst die Verbindungen. Nummern (t-serial) bleiben,
+   wie sie sind. */
+html[lang='ar'] body {
+  line-height: 1.7;
+}
+html[lang='ar'] .t-name,
+html[lang='ar'] .t-name-lg {
+  line-height: 1.55;
+  letter-spacing: 0;
+}
+html[lang='ar'] .t-sub {
+  line-height: 1.7;
+}
+html[lang='ar'] :where(.tracking-tight, .tracking-wide, .tracking-wider, .tracking-widest) {
+  letter-spacing: 0;
+}
+
+/* Skelett beim Laden: ruhige Flaechen in der Form dessen, was kommt. Ob
+   und wie sie atmen, entscheidet die Designschicht (oberflaeche.css). */
+.skelett {
+  display: block;
+  border-radius: 8px;
+  background: var(--skelett);
 }
 
 /* ------------------------------------------------- Rechts nach links */

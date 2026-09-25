@@ -32,7 +32,7 @@ import {
   Field,
   IconButton,
   Input,
-  Loading,
+  Skelett,
   Modal,
   QrPanel,
   Select,
@@ -287,7 +287,16 @@ export default function FurnitureDetail() {
     return () => document.removeEventListener('paste', handler)
   }, [canEdit, dateienNehmen, seite])
 
-  if (loading) return <Loading label={t('moebel.laedt')} />
+  /* Laden behaelt den Kopf mit Zurueck, wie der Fehler darunter. */
+  if (loading)
+    return (
+      <>
+        <AppHeader title={t('moebel.titel')} back={`/app/p/${project.id}/moebel`} />
+        <Page>
+          <Skelett art="seite" label={t('moebel.laedt')} />
+        </Page>
+      </>
+    )
   if (error || !item) {
     return (
       <>

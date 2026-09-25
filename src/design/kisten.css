@@ -1,0 +1,38 @@
+/* =====================================================================
+ * Kistly: Farben der gezeichneten Kisten (Kisten.tsx)
+ *
+ * Reine Optik. Die Zeichnungen stehen in leeren Zustaenden der App und auf
+ * der Startseite. Diese Datei haengt sich ueber import.meta.glob in
+ * src/main.tsx ein; buehne.css (nur Startseite) laedt erst mit der Buehne.
+ * Dieselben Werte wie in buehne.css, damit beide gleich aussehen.
+ * ===================================================================== */
+
+:root {
+  --kiste-schatten: rgba(61, 52, 38, 0.1);
+  --karton: #cfa572;
+  --karton-hell: #dcb684;
+  --karton-klappe: #dbb686;
+  --karton-klappe-2: #c69a66;
+  --karton-schatten: #b98e5b;
+  --karton-band: #eddcc1;
+  --karton-schlitz: #9d7547;
+  --plastik: #7f9fb0;
+  --plastik-rand: #94b3c2;
+  --plastik-rippe: #6d8d9e;
+  --plastik-griff: #5e7e8f;
+}
+
+.dark {
+  --kiste-schatten: rgba(0, 0, 0, 0.3);
+  --karton: #8a6a45;
+  --karton-hell: #9a7850;
+  --karton-klappe: #97744c;
+  --karton-klappe-2: #7e603e;
+  --karton-schatten: #6f5537;
+  --karton-band: #b49a74;
+  --karton-schlitz: #5b452c;
+  --plastik: #4e6775;
+  --plastik-rand: #5d7a8a;
+  --plastik-rippe: #445b67;
+  --plastik-griff: #3b505b;
+}

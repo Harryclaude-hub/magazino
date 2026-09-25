@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
@@ -16,8 +17,8 @@ import { useSprache } from '../lib/i18n'
 import { groesseSatz, useKistenGroessen } from '../lib/groessen'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { SpracheToggle } from '../components/SpracheToggle'
-import { Buehne } from '../design/Buehne'
-import { MotionToggle } from '../design/motion'
+// Reine Optik aus der Designschicht, ohne festen Import (siehe Designteile).
+import { Buehne, MotionToggle } from '../components/Designteile'
 
 /* In den Listen stehen nur die Schluessel. Uebersetzt wird erst beim
  * Zeichnen, sonst blieben die Texte beim Sprachwechsel stehen. */
@@ -64,7 +65,11 @@ export default function Landing() {
     <div className="relative min-h-screen">
       {/* Reine Optik. Diese Zeile und src/design/ duerfen weg, dann sieht die
           Seite schlicht aus und funktioniert unveraendert weiter. */}
-      <Buehne />
+      {Buehne ? (
+        <Suspense fallback={null}>
+          <Buehne />
+        </Suspense>
+      ) : null}
 
       <header className="band safe-top sticky top-0 z-30">
         <div className="mx-auto flex h-[4.5rem] max-w-6xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-5">
@@ -76,9 +81,13 @@ export default function Landing() {
               bleiben muessen. Nachgemessen: so passt die Zeile in jeder
               Sprache und in beiden Anmeldezustaenden ohne Umbruch. */}
           <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
-            <span className="hidden shrink-0 sm:block">
-              <MotionToggle />
-            </span>
+            {MotionToggle ? (
+              <span className="hidden shrink-0 sm:block">
+                <Suspense fallback={null}>
+                  <MotionToggle />
+                </Suspense>
+              </span>
+            ) : null}
             <ThemeToggle />
             <SpracheToggle />
             {session ? (

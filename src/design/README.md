@@ -1,58 +1,75 @@
 # Designschicht
 
 Alles in diesem Ordner ist reine Optik. Hier steht keine Berechnung, keine
-Datenabfrage, keine Reihenfolge. Nimmt man den Ordner weg, sieht die
-Startseite schlicht aus und die App funktioniert unveraendert weiter.
+Datenabfrage, keine Reihenfolge. Nimmt man den Ordner weg, sieht die App
+schlicht aus und funktioniert unveraendert weiter.
+
+Keine Datei ausserhalb dieses Ordners importiert fest von hier. Alles kommt
+ueber `import.meta.glob` herein, und glob liefert einfach nichts, wenn der
+Ordner fehlt:
+
+- `src/main.tsx` bindet die Stylesheets ein (`./design/*.css`, ausser
+  `buehne.css`, die nur mit der Startseite laedt).
+- `src/components/Designteile.tsx` holt die Zeichnungen (`Kisten.tsx`), die
+  Ladeanzeige beim Bilderlesen (`LeseBuehne.tsx`) und fuer die abgeschaltete
+  Startseite `Buehne.tsx` und `motion.tsx`. Fehlt ein Teil, ist es dort
+  `null`, und die Seiten zeigen ihren schlichten Ersatz (Symbol statt
+  Zeichnung, nur Text statt Ladebild).
 
 | Datei | Was |
 |---|---|
-| `buehne.css` | warmer Grund, Kistenfarben, Knopfglanz, Glaskarten |
-| `Kisten.tsx` | die gezeichneten Umzugskisten als SVG |
-| `Buehne.tsx` | haengt die Hintergrundebenen ein und schreibt die Scrollhoehe nach `--sy` |
-| `motion.tsx` | Bewegungsstufe und der Schalter dazu |
+| `oberflaeche.css` | Hover an Tabellenzeilen, Heben und Einsinken der Knoepfe (Klasse `knopf`), atmende Skelette, Foto-Zoom, Glas in Kopfzeilen bei `voll` |
+| `plan.css` | weiche Auswahl in Plan und Zeichner, pulsierender Ring um die gesuchte Kiste (`--plan-hervor`) |
+| `kisten.css` | Farben der gezeichneten Kisten |
+| `Kisten.tsx` | die gezeichneten Umzugskisten als SVG (leere Zustaende, Startseite) |
+| `buehne.css` | warmer Grund, Knopfglanz, Glaskarten der Startseite |
+| `Buehne.tsx` | haengt die Hintergrundebenen der Startseite ein und schreibt die Scrollhoehe nach `--sy` |
+| `motion.tsx` | nur der kleine Bewegungs-Schalter der Startseite |
 | `lesen.css` | Farben und Bewegung der Ladeanzeige beim Bilderlesen |
 | `LeseBuehne.tsx` | die Zeichnung dazu: Kiste im Sucher, Lichtstreifen, Funken |
 
 ## Bewegungsstufen
 
 Der Wert steht als `data-motion` am `html`-Element und wird in
-`localStorage` unter `kistly.motion` gemerkt. Standard ist `normal`.
+`localStorage` unter `kistly.motion` gemerkt. Standard ist `normal`. Die
+Stufe selbst (Werte, Speichern, Setzen) steht in `src/lib/bewegung.ts`, der
+Schalter in den Einstellungen benutzt nur diese Datei.
 
 | Stufe | Was passiert | Kosten |
 |---|---|---|
-| `ruhig` | nichts bewegt sich, kein Scroll-Zuhoerer, keine Animation | keine |
-| `normal` | Hintergrund steht fest, einzelne Ebenen gehen unterschiedlich weit mit | ein Wert pro Bild, vernachlaessigbar |
-| `voll` | zusaetzlich driftende Kisten und atmende Lichter | Dauerbewegung, merkbar auf dem Akku |
+| `ruhig` | nichts bewegt sich, auch keine Einblendungen; Hover nur als Farbe | keine |
+| `normal` | Knoepfe heben sich leicht, Skelette atmen, Ring um "hier ist es" pulsiert, Auswahl blendet weich ein | vernachlaessigbar |
+| `voll` | dazu Glas in den Kopfzeilen, schwebende Zeichnungen, auf der Startseite driftende Kisten | Dauerbewegung, merkbar auf dem Akku |
 
-Umschalten: Kopfzeile der Startseite oder Einstellungen, Abschnitt
-Darstellung. Wer im Betriebssystem weniger Bewegung eingestellt hat, bekommt
-sie nicht, unabhaengig von der Stufe.
+Wer im Betriebssystem weniger Bewegung eingestellt hat
+(`prefers-reduced-motion`), bekommt sie nicht, unabhaengig von der Stufe.
 
 ## Farben
 
 Alle Farben stehen als CSS-Variablen in `src/index.css`, nicht hier und
-nicht im JavaScript. Wer den Kontrast anders will, aendert dort die Werte.
+nicht im JavaScript. Diese Dateien benutzen nur die Variablen. Plaene werden
+nie gespiegelt und nie umgefaerbt.
 
 ## Rueckweg
 
-Soll die Buehne weg:
+**Ganze Schicht weg:** Ordner `src/design` loeschen, fertig. Build und App
+laufen weiter (geprueft: Ordner verschoben, `npm run build` laeuft). Danach
+gibt es keine Hover-Bewegung, keine Zeichnungen in leeren Zustaenden (dort
+steht das Symbol), keinen pulsierenden Ring und eine schlichte Startseite.
+Grundfarben, Abstaende, Ecken und Schatten bleiben, denn die stehen in
+`src/index.css`.
 
-1. In `src/pages/Landing.tsx` die beiden Zeilen
-   `import { Buehne } from '../design/Buehne'` und
-   `import { MotionToggle } from '../design/motion'` loeschen, dazu
-   `<Buehne />` und `<MotionToggle />` im Rumpf.
-2. In `src/pages/Settings.tsx` den Import aus `../design/motion` und den
-   Block "Bewegung" im Abschnitt Darstellung loeschen.
-3. Ordner `src/design` loeschen.
+Wer auch die Haken wegraeumen will (sie stoeren ohne Schicht nicht):
 
-Die Klassen `kn-glanz`, `kn-gross`, `kn-pfeil`, `karte-glas`,
-`karte-glas-stark` und `band` sind dann wirkungslos, stoeren aber nicht.
-Wer auch die wegraeumen will, entfernt sie aus `Landing.tsx`.
+1. `src/components/Designteile.tsx` loeschen und in `ui.tsx` (Empty),
+   `BildLesen.tsx` und `Landing.tsx` die Verwendungen entfernen.
+2. In `src/main.tsx` die Zeile mit `import.meta.glob('./design/...')`.
+3. Die Klassen `knopf`, `leer-bild`, `foto-reihe`, `tabelle-zeile`,
+   `plan-auswahl-ebene`, `plan-hervor-ebene`, `plan-ring`, `kn-glanz`,
+   `kn-gross`, `kn-pfeil`, `karte-glas`, `karte-glas-stark`, `band`,
+   `lese-karte`, `lese-balken` sind dann wirkungslos und koennen aus den
+   Seiten entfernt werden.
 
-`src/main.tsx` setzt nur ein Attribut und bricht ohne diesen Ordner nicht.
-
-Soll nur die Ladeanzeige beim Bilderlesen schlicht werden: in
-`src/components/BildLesen.tsx` die Zeile
-`import { LeseBuehne } from '../design/LeseBuehne'` und `<LeseBuehne />`
-loeschen, dann `LeseBuehne.tsx` und `lesen.css` loeschen. Stand, Uhr und
-Hinweis bleiben als Text stehen, das Lesen selbst aendert sich nicht.
+**Nur ein Teil weg:** die jeweilige Datei loeschen. Eine `.css` faellt aus
+dem glob heraus; `Kisten.tsx` oder `LeseBuehne.tsx` werden in
+`Designteile.tsx` zu `null`, die Seiten zeigen den schlichten Ersatz.

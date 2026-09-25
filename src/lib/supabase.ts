@@ -82,8 +82,8 @@ export function errText(err: unknown): string {
   const code = e.error_code || e.code || ''
 
   /* Die Datenbank gibt ihren Ablehnungen eine Kennung mit (seit 0022):
-   * hint = 'kistly:raumplan.zu_hoch'. Der Satz dazu steht im Woerterbuch
-   * unter fehler.db.raumplan.zu_hoch, auf Deutsch und Arabisch. Sonst
+   * hint = 'kistly:grundriss.zu_hoch'. Der Satz dazu steht im Woerterbuch
+   * unter fehler.db.grundriss.zu_hoch, auf Deutsch und Arabisch. Sonst
    * stuende der deutsche Satz der Datenbank auch im arabischen Satz.
    * Seit 0027 stehen die Platzhalter als JSON in details
    * ({"code":"W-3-007","n":2}). Fehlt es oder ist es kaputt, kommt der

@@ -248,4 +248,18 @@ export const kisten: Woerterbuch = {
     ar: 'يأتي الارتفاع من الحجم الخاص.',
   },
   'kisten.zimmer_waehlen_pflicht': { de: 'Bitte ein Zimmer wählen', ar: 'اختر غرفة من فضلك' },
+
+  // ------------------------------------- Tabelle und Vorschau am Computer
+  'kisten.spalte_nummer': { de: 'Nummer', ar: 'الرقم' },
+  'kisten.spalte_platz': { de: 'Platz', ar: 'الموضع' },
+  'kisten.platz_nein': { de: 'noch offen', ar: 'لم يُحدَّد بعد' },
+  'kisten.platz_auf_kiste': { de: 'auf einer Kiste', ar: 'فوق صندوق' },
+  'kisten.sortieren_nach': { de: 'Sortieren nach {spalte}', ar: 'الترتيب حسب {spalte}' },
+  'kisten.sortiert_geladene': {
+    de: 'Sortiert werden die {n} geladenen Einträge.',
+    ar: 'يتم ترتيب الإدخالات المحمّلة ({n}).',
+  },
+  'kisten.vorschau_leer': { de: 'Wähle eine Kiste aus der Liste.', ar: 'اختر صندوقًا من القائمة.' },
+  'kisten.oeffnen': { de: 'Kiste öffnen', ar: 'فتح الصندوق' },
+  'kisten.vorschau_schliessen': { de: 'Vorschau schließen', ar: 'إغلاق المعاينة' },
 }

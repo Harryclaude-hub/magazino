@@ -42,6 +42,7 @@ import {
   QrPanel,
   Select,
   SectionTitle,
+  Skelett,
   Switch,
   Textarea,
   useToast,
@@ -405,17 +406,34 @@ export default function ItemDetail() {
     }
   }
 
-  if (loading) return <Loading label={t('kisten.kiste_laedt')} />
+  /* Laden und Fehler behalten den Kopf mit Zurueck: wer hier festhaengt,
+   * kommt immer zur Liste. */
+  const kopfOhneKiste = (
+    <AppHeader wide title={t('nav.kisten')} back={`/app/p/${project.id}/kisten`} />
+  )
+
+  if (loading)
+    return (
+      <>
+        {kopfOhneKiste}
+        <Page wide>
+          <Skelett art="seite" label={t('kisten.kiste_laedt')} />
+        </Page>
+      </>
+    )
 
   if (error || !item)
     return (
-      <Page>
-        <ErrorBox error={error ?? t('kisten.nicht_gefunden')} onRetry={() => void reload()} />
-        <Link to={`/app/p/${project.id}/kisten`} className="mt-4 inline-block">
-          <Button variant="outline">{t('kisten.zur_liste')}</Button>
-        </Link>
-        <div className="h-6" />
-      </Page>
+      <>
+        {kopfOhneKiste}
+        <Page>
+          <ErrorBox error={error ?? t('kisten.nicht_gefunden')} onRetry={() => void reload()} />
+          <Link to={`/app/p/${project.id}/kisten`} className="mt-4 inline-block">
+            <Button variant="outline">{t('kisten.zur_liste')}</Button>
+          </Link>
+          <div className="h-6" />
+        </Page>
+      </>
     )
 
   const room = tagById(item.room_id)
@@ -436,6 +454,7 @@ export default function ItemDetail() {
   return (
     <>
       <AppHeader
+        wide
         title={item.code}
         subtitle={item.title || t(`art.${item.kind}`)}
         back={`/app/p/${project.id}/kisten`}
@@ -461,7 +480,7 @@ export default function ItemDetail() {
         }
       />
 
-      <Page>
+      <Page wide>
         {/* Aus der Suche: was gesucht war, mit Bild und Weg zum Lageplan. */}
         {gesuchtInhalt ? (
           <SuchBand
@@ -477,664 +496,692 @@ export default function ItemDetail() {
           />
         ) : null}
 
-        {/* Kopf: Nummer, Titel, Zimmer und Person, QR-Code */}
-        <Card
-          className="mb-5 overflow-hidden"
-          style={{ backgroundColor: markFlaeche(item.mark_color) }}
-        >
-          <div className="h-2.5" style={{ background: item.mark_color ?? color }} />
-          {item.mark_symbol ? (
-            <p className="flex items-center gap-2 border-b border-line px-4 py-2 text-[0.9375rem] font-bold">
-              <MarkIcon symbol={item.mark_symbol} size={17} />
-              {t(`marken.symbol_${item.mark_symbol}`)}
-            </p>
-          ) : null}
-
-          <div className="grid gap-5 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-7 sm:p-5">
-            <div className="min-w-0">
-              <p className="t-serial leading-none" style={{ fontSize: serialSize(serial.length) }}>
-                {item.prefix}
-                <span className="opacity-25">-</span>
-                <span className="text-danger">{item.size}</span>
-                <span className="opacity-25">-</span>
-                {seq}
-              </p>
-
-              <p className="t-name-lg mt-3 break-words">{item.title || t(`art.${item.kind}`)}</p>
-              <p className="t-sub mt-1">
-                {t('kisten.art_und_satz', {
-                  art: t(`art.${item.kind}`),
-                  groesse: groesseSatz(t, lang, item.size, item.kind, groessen),
-                })}
-              </p>
-
-              <div className="mt-4 grid gap-2">
-                {room ? <TagTile role={t('begriff.zimmer')} tag={room} /> : null}
-                {/* Der Weg von der Kiste zum Zimmer: zeig mir, wo sie steht.
-                    Auf der Seite selbst und fuer jede Rolle, nicht versteckt
-                    im Bearbeiten: suchen muss auch, wer nur schauen darf.
-                    Ein Sprung nach unten zum Lageplan. */}
-                {item.kind !== 'furniture' ? (
-                  <Button variant="soft" full onClick={zurLage}>
-                    <MapPin size={18} /> {t('lage.wo_steht_sie')}
-                  </Button>
-                ) : null}
-                {person ? <TagTile role={t('begriff.person')} tag={person} /> : null}
-                {!room && !person ? (
-                  <div className="rounded-2xl border border-dashed border-line px-3 py-3">
-                    <p className="t-name">{t('kisten.ohne_zuordnung')}</p>
-                    <p className="t-sub">{t('kisten.ohne_zuordnung_hinweis')}</p>
-                  </div>
-                ) : null}
-                {item.fragile ? (
-                  <div className="t-name rounded-2xl bg-warn/15 px-3 py-3 text-warn">
-                    {t('kisten.zerbrechlich_warnung')}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center gap-3 sm:w-56">
-              <QrPanel value={labelUrl(item.id)} code={item.code} size={168} />
-              <div className="grid w-full gap-2">
-                <Button variant="soft" full onClick={() => void copyLink(item.id)}>
-                  <Copy size={18} /> {t('kisten.link_kopieren')}
-                </Button>
-                <Link to={printHref} className="block">
-                  <Button full>
-                    <Printer size={18} /> {t('kisten.druckansicht')}
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Status */}
-          <div className="border-t border-line p-4">
-            <p className="mb-2.5 text-sm font-black uppercase tracking-wider text-muted">
-              {t('begriff.status')}
-            </p>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {STATI.map((s) => (
-                <Button
-                  key={s}
-                  full
-                  disabled={!canEdit}
-                  variant={item.status === s ? 'primary' : 'soft'}
-                  onClick={() => void patch({ status: s })}
-                >
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ background: STATUS_COLOR[s] }}
-                  />
-                  <span className="truncate">{t(`status.${s}`)}</span>
-                </Button>
-              ))}
-            </div>
-            {item.arrived_at ? (
-              <p className="t-sub mt-2.5">
-                {t('kisten.angekommen_am', { wann: fmtDateTime(item.arrived_at) })}
-              </p>
-            ) : null}
-          </div>
-
-          {item.note || item.target_room ? (
-            <div className="border-t border-line p-4">
-              {item.target_room ? (
-                <p className="break-words text-base">
-                  <span className="font-bold">{t('begriff.ziel')}: </span>
-                  {item.target_room}
-                </p>
-              ) : null}
-              {item.note ? (
-                <p className="mt-1.5 whitespace-pre-wrap break-words text-base text-muted">
-                  {item.note}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </Card>
-
-        {/* Inhalt */}
-        <SectionTitle
-          action={
-            canEdit && photos.some((p) => p.art === 'foto') ? (
-              <Button size="sm" variant="outline" onClick={() => setBildLesen(true)}>
-                <Sparkles size={16} />
-                {t('bildki.knopf_kurz')}
-              </Button>
-            ) : null
-          }
-        >
-          {t('begriff.inhalt')}
-          {contents.length > 0 ? ` (${contents.length})` : ''}
-        </SectionTitle>
-        <Card className="mb-5 overflow-hidden">
-          {contents.length === 0 ? (
-            <p className="px-4 py-6 text-center text-base text-muted">{t('kisten.inhalt_leer')}</p>
-          ) : (
-            <ul className="zebra divide-y divide-line">
-              {contents.map((c) => (
-                <li
-                  key={c.id}
-                  id={`inhalt-${c.id}`}
-                  className={cx(
-                    'flex items-center gap-3 px-3 py-2.5',
-                    c.id === gesuchtInhalt && 'ring-4 ring-inset ring-danger',
-                  )}
-                >
-                  <button
-                    type="button"
-                    disabled={!canEdit}
-                    onClick={() => {
-                      const next = !c.checked
-                      setContents((list) =>
-                        list.map((x) => (x.id === c.id ? { ...x, checked: next } : x)),
-                      )
-                      void updateContent(c.id, { checked: next }).catch((err: unknown) => {
-                        setContents((list) =>
-                          list.map((x) => (x.id === c.id ? { ...x, checked: !next } : x)),
-                        )
-                        toast(err instanceof Error ? err.message : String(err), 'error')
-                      })
-                    }}
-                    aria-label={c.checked ? t('kisten.haken_entfernen') : t('kisten.abhaken')}
-                    title={c.checked ? t('kisten.haken_entfernen') : t('kisten.abhaken')}
-                    className={cx(
-                      'grid h-9 w-9 shrink-0 place-items-center rounded-lg border-2 transition active:scale-95',
-                      'disabled:cursor-not-allowed disabled:opacity-45',
-                      c.checked ? 'border-ok bg-ok text-white' : 'border-line bg-surface',
-                    )}
-                  >
-                    {c.checked ? <Check size={20} strokeWidth={3} /> : null}
-                  </button>
-
-                  {/* Hat der Eintrag eine Stelle auf einem Bild, fuehrt
-                      ein Tippen dorthin. Sonst steht hier nur Text: ein
-                      Knopf, der nichts tut, waere gelogen. */}
-                  {/* Das kleine Bild des Dings, wenn es eines gibt. Ein
-                      Tippen darauf zeigt es im Foto. */}
-                  {c.ausschnitt_pfad || (c.photo_id && c.box_x0 !== null) ? (
-                    <button
-                      type="button"
-                      onClick={() => setPunktEintrag(c)}
-                      aria-label={c.text}
-                      className="shrink-0 transition active:scale-95"
-                    >
-                      <Ausschnitt
-                        pfad={c.ausschnitt_pfad}
-                        fotoUrl={(() => {
-                          const f = photos.find((p) => p.id === c.photo_id)
-                          return f ? (urls.get(f.path) ?? null) : null
-                        })()}
-                        rahmen={rahmenVon(c)}
-                        groesse={44}
-                        alt={c.text}
-                      />
-                    </button>
-                  ) : null}
-
-                  {/* Text oben, Schicht und Antwort klein darunter. Neben
-                      dem Text blieben auf einem schmalen Handy sonst nur
-                      drei Buchstaben je Zeile. */}
-                  <div className="min-w-0 flex-1">
-                    {c.photo_id ? (
-                      <button
-                        type="button"
-                        onClick={() => setPunktEintrag(c)}
+        {/* Am Handy eine Spalte in der Reihenfolge Nummer und Status, Fotos,
+            Inhalt, Eigenschaften, Verlauf, Lageplan. Am Computer drei
+            Spalten: Inhalt und Fotos | Lageplan | Eigenschaften. Die
+            Spalten-Huellen sind am Handy unsichtbar (display: contents),
+            damit ihre Teile frei geordnet werden koennen. */}
+        <div className="kistenseite flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(300px,0.85fr)] lg:items-start lg:gap-6">
+          {/* Spalte 1: Inhalt und Fotos */}
+          <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-5">
+            <section className="order-3 min-w-0 lg:order-none">
+              {/* Inhalt */}
+              <SectionTitle
+                action={
+                  canEdit && photos.some((p) => p.art === 'foto') ? (
+                    <Button size="sm" variant="outline" onClick={() => setBildLesen(true)}>
+                      <Sparkles size={16} />
+                      {t('bildki.knopf_kurz')}
+                    </Button>
+                  ) : null
+                }
+              >
+                {t('begriff.inhalt')}
+                {contents.length > 0 ? ` (${contents.length})` : ''}
+              </SectionTitle>
+              <Card className="overflow-hidden">
+                {contents.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-base text-muted">{t('kisten.inhalt_leer')}</p>
+                ) : (
+                  <ul className="zebra divide-y divide-line">
+                    {contents.map((c) => (
+                      <li
+                        key={c.id}
+                        id={`inhalt-${c.id}`}
                         className={cx(
-                          'block w-full break-words text-start text-lg font-semibold underline decoration-line decoration-2 underline-offset-4',
-                          c.checked && 'text-muted line-through',
+                          'flex items-center gap-3 px-3 py-2.5',
+                          c.id === gesuchtInhalt && 'ring-4 ring-inset ring-danger',
                         )}
                       >
-                        {c.qty > 1 ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
-                        {c.text}
-                      </button>
-                    ) : (
-                      <span
-                        className={cx(
-                          'block break-words text-lg font-semibold',
-                          c.checked && 'text-muted line-through',
-                        )}
-                      >
-                        {c.qty > 1 ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
-                        {c.text}
-                      </span>
-                    )}
-
-                    {c.schicht || c.bestaetigt !== null ? (
-                      <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                        {c.schicht ? (
-                          <span className="inline-flex items-center gap-1 rounded-lg bg-raised px-2 py-0.5 text-sm font-black">
-                            <Layers size={13} />
-                            {t('schichten.schicht_n', { n: c.schicht })}
-                          </span>
-                        ) : null}
-                        {c.bestaetigt === true ? (
-                          <span className="inline-flex items-center gap-1 rounded-lg bg-ok/15 px-2 py-0.5 text-sm font-black text-ok">
-                            <Check size={13} strokeWidth={3} />
-                            {t('schichten.bestaetigt')}
-                          </span>
-                        ) : null}
-                        {c.bestaetigt === false ? (
-                          <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">
-                            <X size={13} strokeWidth={3} />
-                            {t('schichten.verneint')}
-                          </span>
-                        ) : null}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  {canEdit ? (
-                    <IconButton
-                      label={t('inhalt.verschieben')}
-                      size="sm"
-                      onClick={() => setUmhaengen(c)}
-                    >
-                      <MoveRight size={16} className="spiegeln" />
-                    </IconButton>
-                  ) : null}
-
-                  {canEdit ? (
-                    <IconButton
-                      label={t('kisten.eintrag_loeschen')}
-                      tone="danger"
-                      size="sm"
-                      onClick={() => {
-                        setContents((list) => list.filter((x) => x.id !== c.id))
-                        void deleteContent(c.id, c.ausschnitt_pfad).catch((err: unknown) => {
-                          toast(err instanceof Error ? err.message : String(err), 'error')
-                          void reload()
-                        })
-                      }}
-                    >
-                      <Trash2 size={18} />
-                    </IconButton>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {canEdit ? (
-            <div className="flex gap-2 border-t border-line p-3">
-              <Input
-                className="min-w-0"
-                value={newEntry}
-                onChange={(e) => setNewEntry(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void onAddEntry()
-                  }
-                }}
-                placeholder={t('kisten.inhalt_platzhalter')}
-              />
-              <IconButton
-                label={t('kisten.eintrag_hinzufuegen')}
-                disabled={!newEntry.trim()}
-                onClick={() => void onAddEntry()}
-              >
-                <Plus size={20} />
-              </IconButton>
-            </div>
-          ) : null}
-        </Card>
-
-        {/* Fotos */}
-        <SectionTitle
-          action={
-            canEdit ? (
-              <Button
-                size="sm"
-                variant="soft"
-                loading={uploading}
-                onClick={() => fileRef.current?.click()}
-              >
-                <ImagePlus size={16} /> {t('kisten.foto')}
-              </Button>
-            ) : null
-          }
-        >
-          {t('begriff.fotos')}
-          {photos.length > 0 ? ` (${photos.length})` : ''}
-        </SectionTitle>
-
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          multiple
-          hidden
-          onChange={(e) => {
-            void onFiles(e.target.files)
-            e.target.value = ''
-          }}
-        />
-
-        {/* Schicht fuer die naechsten Fotos. Sie steht ueber dem
-            Fotobereich, weil sie sich auf das Aufnehmen bezieht und nicht
-            auf ein einzelnes Bild. */}
-        {canEdit ? (
-          <Card className="mb-3 p-4">
-            <p className="t-name flex items-center gap-2">
-              <Layers size={18} /> {t('schichten.waehlen')}
-            </p>
-            <p className="t-sub mt-1.5">{t('schichten.hinweis')}</p>
-            <div className="-mx-1 mt-3 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1">
-              <Chip active={neueSchicht === null} onClick={() => setNeueSchicht(null)}>
-                {t('schichten.ohne')}
-              </Chip>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <Chip key={n} active={neueSchicht === n} onClick={() => setNeueSchicht(n)}>
-                  <span className="t-serial">{t('schichten.schicht_n', { n })}</span>
-                </Chip>
-              ))}
-            </div>
-          </Card>
-        ) : null}
-
-        <Card
-          className="relative mb-5 p-3"
-          onDragEnter={(e) => {
-            if (!canEdit) return
-            e.preventDefault()
-            dragDepth.current += 1
-            setDragOver(true)
-          }}
-          onDragOver={(e) => {
-            if (!canEdit) return
-            e.preventDefault()
-            e.dataTransfer.dropEffect = 'copy'
-          }}
-          onDragLeave={() => {
-            if (!canEdit) return
-            dragDepth.current = Math.max(0, dragDepth.current - 1)
-            if (dragDepth.current === 0) setDragOver(false)
-          }}
-          onDrop={(e) => {
-            if (!canEdit) return
-            e.preventDefault()
-            dragDepth.current = 0
-            setDragOver(false)
-            void onFiles(e.dataTransfer.files)
-          }}
-        >
-          {dragOver ? (
-            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl border-4 border-dashed border-ink bg-paper/92">
-              <Upload size={34} />
-              <span className="t-name">{t('kisten.hier_ablegen')}</span>
-            </div>
-          ) : null}
-
-          {photos.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-line px-4 py-8 text-center">
-              <Camera size={28} className="text-muted" />
-              <p className="t-name">{t('kisten.fotos_leer')}</p>
-              <p className="t-sub max-w-xs">{t('kisten.fotos_hinweis')}</p>
-              {canEdit ? (
-                <Button variant="soft" loading={uploading} onClick={() => fileRef.current?.click()}>
-                  <ImagePlus size={18} /> {t('kisten.foto_aufnehmen')}
-                </Button>
-              ) : null}
-            </div>
-          ) : (
-            <>
-              {missingPhotos > 0 ? (
-                <div className="mb-2">
-                  <ErrorBox
-                    error={tn('kisten.fotos_fehlen', missingPhotos)}
-                    onRetry={() => void reload()}
-                  />
-                </div>
-              ) : null}
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                {photos.map((p) => {
-                  const url = urls.get(p.path)
-                  return (
-                    <div
-                      key={p.id}
-                      className="relative aspect-square overflow-hidden rounded-xl bg-raised"
-                    >
-                      {url ? (
-                        <img
-                          src={url}
-                          alt={p.caption ?? t('kisten.foto_alt')}
-                          loading="lazy"
-                          className="h-full w-full cursor-zoom-in object-cover"
-                          onClick={() => setLightbox(url)}
-                        />
-                      ) : uploading ? (
-                        <div className="flex h-full items-center justify-center text-sm text-muted">
-                          {t('zustand.laedt')}
-                        </div>
-                      ) : (
-                        <div className="flex h-full items-center justify-center px-2 text-center text-sm font-bold text-danger">
-                          {t('kisten.bild_fehlt')}
-                        </div>
-                      )}
-                      {/* Das Deckbild ist das, was beim Scannen sofort
-                          erscheint. Darum steht der Knopf direkt am Bild
-                          und zeigt an, welches gerade gilt. */}
-                      {canEdit ? (
                         <button
                           type="button"
-                          aria-pressed={item.cover_photo_id === p.id}
-                          aria-label={
-                            item.cover_photo_id === p.id
-                              ? t('schnell.deckbild')
-                              : t('kisten.zum_deckbild')
-                          }
-                          title={
-                            item.cover_photo_id === p.id
-                              ? t('schnell.deckbild')
-                              : t('kisten.zum_deckbild')
-                          }
+                          disabled={!canEdit}
                           onClick={() => {
-                            const ziel = item.cover_photo_id === p.id ? null : p.id
-                            void setCoverPhoto(item.id, ziel)
-                              .then((neu) => {
-                                setItem(neu)
-                                toast(
-                                  ziel ? t('schnell.deckbild_gesetzt') : t('kisten.deckbild_ab'),
-                                  'ok',
-                                )
-                              })
-                              .catch((err: unknown) =>
-                                toast(err instanceof Error ? err.message : String(err), 'error'),
+                            const next = !c.checked
+                            setContents((list) =>
+                              list.map((x) => (x.id === c.id ? { ...x, checked: next } : x)),
+                            )
+                            void updateContent(c.id, { checked: next }).catch((err: unknown) => {
+                              setContents((list) =>
+                                list.map((x) => (x.id === c.id ? { ...x, checked: !next } : x)),
                               )
+                              toast(err instanceof Error ? err.message : String(err), 'error')
+                            })
                           }}
+                          aria-label={c.checked ? t('kisten.haken_entfernen') : t('kisten.abhaken')}
+                          title={c.checked ? t('kisten.haken_entfernen') : t('kisten.abhaken')}
                           className={cx(
-                            'absolute start-1.5 top-1.5 flex h-9 w-9 items-center justify-center rounded-xl transition active:scale-95',
-                            item.cover_photo_id === p.id
-                              ? 'bg-ink text-paper'
-                              : 'bg-black/60 text-white',
+                            'grid h-9 w-9 shrink-0 place-items-center rounded-lg border-2 transition active:scale-95',
+                            'disabled:cursor-not-allowed disabled:opacity-45',
+                            c.checked ? 'border-ok bg-ok text-white' : 'border-line bg-surface',
                           )}
                         >
-                          <Star
-                            size={17}
-                            fill={item.cover_photo_id === p.id ? 'currentColor' : 'none'}
-                          />
+                          {c.checked ? <Check size={20} strokeWidth={3} /> : null}
                         </button>
-                      ) : null}
-                      {canEdit ? (
-                        // Immer sichtbar, denn auf dem Handy gibt es kein Ueberfahren
-                        // mit der Maus und der Knopf waere sonst nicht erreichbar. Die
-                        // dunkle Platte dahinter haelt ihn auf jedem Foto lesbar.
-                        <span className="absolute end-1.5 top-1.5 rounded-xl bg-black/60 p-0.5">
+
+                        {/* Hat der Eintrag eine Stelle auf einem Bild, fuehrt
+                            ein Tippen dorthin. Sonst steht hier nur Text: ein
+                            Knopf, der nichts tut, waere gelogen. */}
+                        {/* Das kleine Bild des Dings, wenn es eines gibt. Ein
+                            Tippen darauf zeigt es im Foto. */}
+                        {c.ausschnitt_pfad || (c.photo_id && c.box_x0 !== null) ? (
+                          <button
+                            type="button"
+                            onClick={() => setPunktEintrag(c)}
+                            aria-label={c.text}
+                            className="shrink-0 transition active:scale-95"
+                          >
+                            <Ausschnitt
+                              pfad={c.ausschnitt_pfad}
+                              fotoUrl={(() => {
+                                const f = photos.find((p) => p.id === c.photo_id)
+                                return f ? (urls.get(f.path) ?? null) : null
+                              })()}
+                              rahmen={rahmenVon(c)}
+                              groesse={44}
+                              alt={c.text}
+                            />
+                          </button>
+                        ) : null}
+
+                        {/* Text oben, Schicht und Antwort klein darunter. Neben
+                            dem Text blieben auf einem schmalen Handy sonst nur
+                            drei Buchstaben je Zeile. */}
+                        <div className="min-w-0 flex-1">
+                          {c.photo_id ? (
+                            <button
+                              type="button"
+                              onClick={() => setPunktEintrag(c)}
+                              className={cx(
+                                'block w-full break-words text-start text-lg font-semibold underline decoration-line decoration-2 underline-offset-4',
+                                c.checked && 'text-muted line-through',
+                              )}
+                            >
+                              {c.qty > 1 ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
+                              {c.text}
+                            </button>
+                          ) : (
+                            <span
+                              className={cx(
+                                'block break-words text-lg font-semibold',
+                                c.checked && 'text-muted line-through',
+                              )}
+                            >
+                              {c.qty > 1 ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
+                              {c.text}
+                            </span>
+                          )}
+
+                          {c.schicht || c.bestaetigt !== null ? (
+                            <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {c.schicht ? (
+                                <span className="inline-flex items-center gap-1 rounded-lg bg-raised px-2 py-0.5 text-sm font-black">
+                                  <Layers size={13} />
+                                  {t('schichten.schicht_n', { n: c.schicht })}
+                                </span>
+                              ) : null}
+                              {c.bestaetigt === true ? (
+                                <span className="inline-flex items-center gap-1 rounded-lg bg-ok/15 px-2 py-0.5 text-sm font-black text-ok">
+                                  <Check size={13} strokeWidth={3} />
+                                  {t('schichten.bestaetigt')}
+                                </span>
+                              ) : null}
+                              {c.bestaetigt === false ? (
+                                <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">
+                                  <X size={13} strokeWidth={3} />
+                                  {t('schichten.verneint')}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {canEdit ? (
                           <IconButton
-                            label={t('kisten.foto_loeschen')}
+                            label={t('inhalt.verschieben')}
+                            size="sm"
+                            onClick={() => setUmhaengen(c)}
+                          >
+                            <MoveRight size={16} className="spiegeln" />
+                          </IconButton>
+                        ) : null}
+
+                        {canEdit ? (
+                          <IconButton
+                            label={t('kisten.eintrag_loeschen')}
                             tone="danger"
                             size="sm"
                             onClick={() => {
-                              setPhotos((list) => list.filter((x) => x.id !== p.id))
-                              void deletePhoto(p)
-                                .then(() =>
-                                  // Die Datenbank nimmt den Zeilen den Ort (0019). Hier
-                                  // genauso, sonst fuehrt ein Tippen auf sie ins Leere.
-                                  setContents((list) =>
-                                    list.map((x) =>
-                                      x.photo_id === p.id
-                                        ? {
-                                            ...x,
-                                            photo_id: null,
-                                            punkt_x: null,
-                                            punkt_y: null,
-                                            bestaetigt: null,
-                                          }
-                                        : x,
-                                    ),
-                                  ),
-                                )
-                                .catch((err: unknown) => {
-                                  toast(err instanceof Error ? err.message : String(err), 'error')
-                                  void reload()
-                                })
+                              setContents((list) => list.filter((x) => x.id !== c.id))
+                              void deleteContent(c.id, c.ausschnitt_pfad).catch((err: unknown) => {
+                                toast(err instanceof Error ? err.message : String(err), 'error')
+                                void reload()
+                              })
                             }}
                           >
-                            <Trash2 size={17} />
+                            <Trash2 size={18} />
                           </IconButton>
-                        </span>
-                      ) : null}
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
-                      {/* In welcher Schicht dieses Bild aufgenommen wurde.
-                          Tippen zaehlt eins weiter und nach der fuenften
-                          wieder auf keine. */}
-                      <button
-                        type="button"
-                        disabled={!canEdit}
-                        title={t('schichten.foto_schicht')}
-                        aria-label={t('schichten.foto_schicht')}
-                        onClick={() => {
-                          const naechste = p.schicht === null ? 1 : p.schicht >= 5 ? null : p.schicht + 1
-                          setPhotos((list) =>
-                            list.map((x) => (x.id === p.id ? { ...x, schicht: naechste } : x)),
-                          )
-                          void setPhotoSchicht(p.id, naechste)
-                            .then(() => {
-                              // Die Zeilen auf diesem Foto ziehen mit, wie in der Datenbank.
-                              setContents((list) =>
-                                list.map((x) =>
-                                  x.photo_id === p.id ? { ...x, schicht: naechste } : x,
-                                ),
-                              )
-                              toast(
-                                naechste === null
-                                  ? t('schichten.entfernt')
-                                  : t('schichten.gesetzt', { n: naechste }),
-                                'ok',
-                              )
-                            })
-                            .catch((err: unknown) => {
-                              toast(err instanceof Error ? err.message : String(err), 'error')
-                              // Ob das Foto oder erst die Zeilen scheiterten, weiss hier
-                              // niemand. Also den Stand der Datenbank holen, nicht raten.
-                              void reload()
-                            })
-                        }}
-                        className={cx(
-                          'absolute bottom-1.5 start-1.5 flex h-9 items-center gap-1 rounded-xl px-2 text-sm font-black transition active:scale-95',
-                          'disabled:cursor-not-allowed disabled:opacity-60',
-                          p.schicht ? 'bg-ink text-paper' : 'bg-black/60 text-white',
-                        )}
-                      >
-                        <Layers size={15} />
-                        <span className="t-serial">{p.schicht ?? '-'}</span>
-                      </button>
+                {canEdit ? (
+                  <div className="flex gap-2 border-t border-line p-3">
+                    <Input
+                      className="min-w-0"
+                      value={newEntry}
+                      onChange={(e) => setNewEntry(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void onAddEntry()
+                        }
+                      }}
+                      placeholder={t('kisten.inhalt_platzhalter')}
+                    />
+                    <IconButton
+                      label={t('kisten.eintrag_hinzufuegen')}
+                      disabled={!newEntry.trim()}
+                      onClick={() => void onAddEntry()}
+                    >
+                      <Plus size={20} />
+                    </IconButton>
+                  </div>
+                ) : null}
+              </Card>
+            </section>
 
-                      {/* Ein Ding, das die Erkennung uebersehen hat, hier
-                          von Hand markieren. */}
-                      {canEdit && url ? (
-                        <button
-                          type="button"
-                          onClick={() => setMarkierFoto(p)}
-                          title={t('schichten.markieren')}
-                          aria-label={t('schichten.markieren')}
-                          className="absolute bottom-1.5 end-1.5 flex h-9 w-9 items-center justify-center rounded-xl bg-black/60 text-white transition active:scale-95"
-                        >
-                          <Crosshair size={17} />
-                        </button>
-                      ) : null}
+            <section className="order-2 min-w-0 lg:order-none">
+              {/* Fotos */}
+              <SectionTitle
+                action={
+                  canEdit ? (
+                    <Button
+                      size="sm"
+                      variant="soft"
+                      loading={uploading}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <ImagePlus size={16} /> {t('kisten.foto')}
+                    </Button>
+                  ) : null
+                }
+              >
+                {t('begriff.fotos')}
+                {photos.length > 0 ? ` (${photos.length})` : ''}
+              </SectionTitle>
+
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                hidden
+                onChange={(e) => {
+                  void onFiles(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+
+              {/* Schicht fuer die naechsten Fotos. Sie steht ueber dem
+                  Fotobereich, weil sie sich auf das Aufnehmen bezieht und nicht
+                  auf ein einzelnes Bild. */}
+              {canEdit ? (
+                <Card className="mb-3 p-4">
+                  <p className="t-name flex items-center gap-2">
+                    <Layers size={18} /> {t('schichten.waehlen')}
+                  </p>
+                  <p className="t-sub mt-1.5">{t('schichten.hinweis')}</p>
+                  <div className="-mx-1 mt-3 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1">
+                    <Chip active={neueSchicht === null} onClick={() => setNeueSchicht(null)}>
+                      {t('schichten.ohne')}
+                    </Chip>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Chip key={n} active={neueSchicht === n} onClick={() => setNeueSchicht(n)}>
+                        <span className="t-serial">{t('schichten.schicht_n', { n })}</span>
+                      </Chip>
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+
+              <Card
+                className="relative p-3"
+                onDragEnter={(e) => {
+                  if (!canEdit) return
+                  e.preventDefault()
+                  dragDepth.current += 1
+                  setDragOver(true)
+                }}
+                onDragOver={(e) => {
+                  if (!canEdit) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'copy'
+                }}
+                onDragLeave={() => {
+                  if (!canEdit) return
+                  dragDepth.current = Math.max(0, dragDepth.current - 1)
+                  if (dragDepth.current === 0) setDragOver(false)
+                }}
+                onDrop={(e) => {
+                  if (!canEdit) return
+                  e.preventDefault()
+                  dragDepth.current = 0
+                  setDragOver(false)
+                  void onFiles(e.dataTransfer.files)
+                }}
+              >
+                {dragOver ? (
+                  <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl border-4 border-dashed border-ink bg-paper/92">
+                    <Upload size={34} />
+                    <span className="t-name">{t('kisten.hier_ablegen')}</span>
+                  </div>
+                ) : null}
+
+                {photos.length === 0 ? (
+                  <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-line px-4 py-8 text-center">
+                    <Camera size={28} className="text-muted" />
+                    <p className="t-name">{t('kisten.fotos_leer')}</p>
+                    <p className="t-sub max-w-xs">{t('kisten.fotos_hinweis')}</p>
+                    {canEdit ? (
+                      <Button variant="soft" loading={uploading} onClick={() => fileRef.current?.click()}>
+                        <ImagePlus size={18} /> {t('kisten.foto_aufnehmen')}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : (
+                  <>
+                    {missingPhotos > 0 ? (
+                      <div className="mb-2">
+                        <ErrorBox
+                          error={tn('kisten.fotos_fehlen', missingPhotos)}
+                          onRetry={() => void reload()}
+                        />
+                      </div>
+                    ) : null}
+                    <div className="foto-reihe -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0 lg:pb-0">
+                      {photos.map((p) => {
+                        const url = urls.get(p.path)
+                        return (
+                          <div
+                            key={p.id}
+                            className="relative aspect-square w-40 shrink-0 snap-start overflow-hidden rounded-knopf bg-raised sm:w-48 lg:w-auto"
+                          >
+                            {url ? (
+                              <img
+                                src={url}
+                                alt={p.caption ?? t('kisten.foto_alt')}
+                                loading="lazy"
+                                className="h-full w-full cursor-zoom-in object-cover"
+                                onClick={() => setLightbox(url)}
+                              />
+                            ) : uploading ? (
+                              <div className="flex h-full items-center justify-center text-sm text-muted">
+                                {t('zustand.laedt')}
+                              </div>
+                            ) : (
+                              <div className="flex h-full items-center justify-center px-2 text-center text-sm font-bold text-danger">
+                                {t('kisten.bild_fehlt')}
+                              </div>
+                            )}
+                            {/* Das Deckbild ist das, was beim Scannen sofort
+                                erscheint. Darum steht der Knopf direkt am Bild
+                                und zeigt an, welches gerade gilt. */}
+                            {canEdit ? (
+                              <button
+                                type="button"
+                                aria-pressed={item.cover_photo_id === p.id}
+                                aria-label={
+                                  item.cover_photo_id === p.id
+                                    ? t('schnell.deckbild')
+                                    : t('kisten.zum_deckbild')
+                                }
+                                title={
+                                  item.cover_photo_id === p.id
+                                    ? t('schnell.deckbild')
+                                    : t('kisten.zum_deckbild')
+                                }
+                                onClick={() => {
+                                  const ziel = item.cover_photo_id === p.id ? null : p.id
+                                  void setCoverPhoto(item.id, ziel)
+                                    .then((neu) => {
+                                      setItem(neu)
+                                      toast(
+                                        ziel ? t('schnell.deckbild_gesetzt') : t('kisten.deckbild_ab'),
+                                        'ok',
+                                      )
+                                    })
+                                    .catch((err: unknown) =>
+                                      toast(err instanceof Error ? err.message : String(err), 'error'),
+                                    )
+                                }}
+                                className={cx(
+                                  'absolute start-1.5 top-1.5 flex h-9 w-9 items-center justify-center rounded-xl transition active:scale-95',
+                                  item.cover_photo_id === p.id
+                                    ? 'bg-ink text-paper'
+                                    : 'bg-black/60 text-white',
+                                )}
+                              >
+                                <Star
+                                  size={17}
+                                  fill={item.cover_photo_id === p.id ? 'currentColor' : 'none'}
+                                />
+                              </button>
+                            ) : null}
+                            {canEdit ? (
+                              // Immer sichtbar, denn auf dem Handy gibt es kein Ueberfahren
+                              // mit der Maus und der Knopf waere sonst nicht erreichbar. Die
+                              // dunkle Platte dahinter haelt ihn auf jedem Foto lesbar.
+                              <span className="absolute end-1.5 top-1.5 rounded-xl bg-black/60 p-0.5">
+                                <IconButton
+                                  label={t('kisten.foto_loeschen')}
+                                  tone="danger"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPhotos((list) => list.filter((x) => x.id !== p.id))
+                                    void deletePhoto(p)
+                                      .then(() =>
+                                        // Die Datenbank nimmt den Zeilen den Ort (0019). Hier
+                                        // genauso, sonst fuehrt ein Tippen auf sie ins Leere.
+                                        setContents((list) =>
+                                          list.map((x) =>
+                                            x.photo_id === p.id
+                                              ? {
+                                                  ...x,
+                                                  photo_id: null,
+                                                  punkt_x: null,
+                                                  punkt_y: null,
+                                                  bestaetigt: null,
+                                                }
+                                              : x,
+                                          ),
+                                        ),
+                                      )
+                                      .catch((err: unknown) => {
+                                        toast(err instanceof Error ? err.message : String(err), 'error')
+                                        void reload()
+                                      })
+                                  }}
+                                >
+                                  <Trash2 size={17} />
+                                </IconButton>
+                              </span>
+                            ) : null}
+
+                            {/* In welcher Schicht dieses Bild aufgenommen wurde.
+                                Tippen zaehlt eins weiter und nach der fuenften
+                                wieder auf keine. */}
+                            <button
+                              type="button"
+                              disabled={!canEdit}
+                              title={t('schichten.foto_schicht')}
+                              aria-label={t('schichten.foto_schicht')}
+                              onClick={() => {
+                                const naechste = p.schicht === null ? 1 : p.schicht >= 5 ? null : p.schicht + 1
+                                setPhotos((list) =>
+                                  list.map((x) => (x.id === p.id ? { ...x, schicht: naechste } : x)),
+                                )
+                                void setPhotoSchicht(p.id, naechste)
+                                  .then(() => {
+                                    // Die Zeilen auf diesem Foto ziehen mit, wie in der Datenbank.
+                                    setContents((list) =>
+                                      list.map((x) =>
+                                        x.photo_id === p.id ? { ...x, schicht: naechste } : x,
+                                      ),
+                                    )
+                                    toast(
+                                      naechste === null
+                                        ? t('schichten.entfernt')
+                                        : t('schichten.gesetzt', { n: naechste }),
+                                      'ok',
+                                    )
+                                  })
+                                  .catch((err: unknown) => {
+                                    toast(err instanceof Error ? err.message : String(err), 'error')
+                                    // Ob das Foto oder erst die Zeilen scheiterten, weiss hier
+                                    // niemand. Also den Stand der Datenbank holen, nicht raten.
+                                    void reload()
+                                  })
+                              }}
+                              className={cx(
+                                'absolute bottom-1.5 start-1.5 flex h-9 items-center gap-1 rounded-xl px-2 text-sm font-black transition active:scale-95',
+                                'disabled:cursor-not-allowed disabled:opacity-60',
+                                p.schicht ? 'bg-ink text-paper' : 'bg-black/60 text-white',
+                              )}
+                            >
+                              <Layers size={15} />
+                              <span className="t-serial">{p.schicht ?? '-'}</span>
+                            </button>
+
+                            {/* Ein Ding, das die Erkennung uebersehen hat, hier
+                                von Hand markieren. */}
+                            {canEdit && url ? (
+                              <button
+                                type="button"
+                                onClick={() => setMarkierFoto(p)}
+                                title={t('schichten.markieren')}
+                                aria-label={t('schichten.markieren')}
+                                className="absolute bottom-1.5 end-1.5 flex h-9 w-9 items-center justify-center rounded-xl bg-black/60 text-white transition active:scale-95"
+                              >
+                                <Crosshair size={17} />
+                              </button>
+                            ) : null}
+                          </div>
+                        )
+                      })}
                     </div>
-                  )
-                })}
+                  </>
+                )}
+              </Card>
+            </section>
+          </div>
+
+          {/* Spalte 2: Lageplan */}
+          <div className="contents lg:sticky lg:top-20 lg:block lg:min-w-0">
+            {/* Wo die Kiste steht (START 5.8): am Handy ganz unten, am Computer
+              die mittlere Spalte, die beim Rollen stehen bleibt. */}
+            <section id="lage" className="order-6 min-w-0 scroll-mt-24 lg:order-none">
+              <SectionTitle>{t(item.kind === 'furniture' ? 'lage.titel_moebel' : 'lage.titel')}</SectionTitle>
+              <NahLaden platzhalter={<NahPlatzhalter text={t('lage.laedt')} />}>
+                <KistenLage
+                  itemId={item.id}
+                  projectId={project.id}
+                  code={item.code}
+                  moebel={item.kind === 'furniture'}
+                  angekommen={item.status === 'arrived'}
+                  canEdit={canEdit}
+                />
+              </NahLaden>
+            </section>
+          </div>
+
+          {/* Spalte 3: Nummer, Status und Eigenschaften */}
+          <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-5">
+            {/* Kopf: Nummer, Titel und Status */}
+            <Card
+              className="order-1 overflow-hidden lg:order-none"
+              style={{ backgroundColor: markFlaeche(item.mark_color) }}
+            >
+              <div className="h-2.5" style={{ background: item.mark_color ?? color }} />
+              {item.mark_symbol ? (
+                <p className="flex items-center gap-2 border-b border-line px-4 py-2 text-[0.9375rem] font-bold">
+                  <MarkIcon symbol={item.mark_symbol} size={17} />
+                  {t(`marken.symbol_${item.mark_symbol}`)}
+                </p>
+              ) : null}
+
+              <div className="min-w-0 p-4 sm:p-5">
+                <p
+                  className="t-serial leading-none lg:!text-[2.75rem]"
+                  style={{ fontSize: serialSize(serial.length) }}
+                >
+                  {item.prefix}
+                  <span className="opacity-25">-</span>
+                  <span className="text-danger">{item.size}</span>
+                  <span className="opacity-25">-</span>
+                  {seq}
+                </p>
+
+                <p className="t-name-lg mt-3 break-words">{item.title || t(`art.${item.kind}`)}</p>
+                <p className="t-sub mt-1">
+                  {t('kisten.art_und_satz', {
+                    art: t(`art.${item.kind}`),
+                    groesse: groesseSatz(t, lang, item.size, item.kind, groessen),
+                  })}
+                </p>
               </div>
-            </>
-          )}
-        </Card>
 
-        {/* Verlauf */}
-        <SectionTitle>{t('begriff.verlauf')}</SectionTitle>
-        <Card className="overflow-hidden">
-          {events.loading ? (
-            <Loading label={t('kisten.verlauf_laedt')} />
-          ) : events.error ? (
-            <div className="p-3">
-              <ErrorBox error={events.error} onRetry={events.reload} />
-            </div>
-          ) : (events.data ?? []).length === 0 ? (
-            <p className="px-4 py-6 text-center text-base text-muted">{t('kisten.verlauf_leer')}</p>
-          ) : (
-            <ul className="zebra divide-y divide-line">
-              {(events.data ?? []).map((ev) => {
-                const d = ev.data as Record<string, string>
-                return (
-                  <li key={ev.id} className="flex items-center gap-3 px-3 py-2.5">
-                    <Avatar name={nameOf(ev.user_id)} size={34} />
-                    <span className="min-w-0 flex-1 break-words text-base">
-                      <span className="font-bold">{nameOf(ev.user_id)}</span>{' '}
-                      <span className="text-muted">
-                        {ev.type === 'created' ? (
-                          t('kisten.ev_created')
-                        ) : ev.type === 'status' ? (
-                          t('kisten.ev_status', {
-                            status: istStatus(d.to) ? t(`status.${d.to}`) : d.to,
-                          })
-                        ) : ev.type === 'scan' ? (
-                          t('kisten.ev_scan')
-                        ) : ev.type === 'code' ? (
-                          <>
-                            {t('kisten.ev_code')}{' '}
-                            {/* Beide Nummern in einem Stueck von links nach rechts,
-                                damit der Pfeil auch im arabischen Satz vom alten
-                                auf den neuen Code zeigt. */}
-                            <span className="t-serial" dir="ltr">
-                              {d.from} &rarr; {d.to}
+              {/* Status */}
+              <div className="border-t border-line p-4">
+                <p className="mb-2.5 text-sm font-black uppercase tracking-wider text-muted">
+                  {t('begriff.status')}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
+                  {STATI.map((s) => (
+                    <Button
+                      key={s}
+                      full
+                      disabled={!canEdit}
+                      variant={item.status === s ? 'aktiv' : 'soft'}
+                      onClick={() => void patch({ status: s })}
+                    >
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: STATUS_COLOR[s] }}
+                      />
+                      <span className="truncate">{t(`status.${s}`)}</span>
+                    </Button>
+                  ))}
+                </div>
+                {item.arrived_at ? (
+                  <p className="t-sub mt-2.5">
+                    {t('kisten.angekommen_am', { wann: fmtDateTime(item.arrived_at) })}
+                  </p>
+                ) : null}
+              </div>
+            </Card>
+
+            {/* Eigenschaften: Zimmer, Person, Etikett, Notiz */}
+            <Card className="order-4 overflow-hidden lg:order-none">
+              <div className="grid gap-4 p-4 sm:p-5">
+                <div className="grid gap-2">
+                  {room ? <TagTile role={t('begriff.zimmer')} tag={room} /> : null}
+                  {/* Der Weg von der Kiste zum Zimmer: zeig mir, wo sie steht.
+                      Auf der Seite selbst und fuer jede Rolle, nicht versteckt
+                      im Bearbeiten: suchen muss auch, wer nur schauen darf.
+                      Ein Sprung nach unten zum Lageplan. */}
+                  {item.kind !== 'furniture' ? (
+                    <Button variant="soft" full onClick={zurLage} className="lg:hidden">
+                      <MapPin size={18} /> {t('lage.wo_steht_sie')}
+                    </Button>
+                  ) : null}
+                  {person ? <TagTile role={t('begriff.person')} tag={person} /> : null}
+                  {!room && !person ? (
+                    <div className="rounded-2xl border border-dashed border-line px-3 py-3">
+                      <p className="t-name">{t('kisten.ohne_zuordnung')}</p>
+                      <p className="t-sub">{t('kisten.ohne_zuordnung_hinweis')}</p>
+                    </div>
+                  ) : null}
+                  {item.fragile ? (
+                    <div className="t-name rounded-2xl bg-warn/15 px-3 py-3 text-warn">
+                      {t('kisten.zerbrechlich_warnung')}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="flex flex-col items-center gap-3 border-t border-line pt-4">
+                  <QrPanel value={labelUrl(item.id)} code={item.code} size={168} />
+                  <div className="grid w-full gap-2">
+                    <Button variant="soft" full onClick={() => void copyLink(item.id)}>
+                      <Copy size={18} /> {t('kisten.link_kopieren')}
+                    </Button>
+                    <Link to={printHref} className="block">
+                      <Button variant="outline" full>
+                        <Printer size={18} /> {t('kisten.druckansicht')}
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+              {item.note || item.target_room ? (
+                <div className="border-t border-line p-4">
+                  {item.target_room ? (
+                    <p className="break-words text-base">
+                      <span className="font-bold">{t('begriff.ziel')}: </span>
+                      {item.target_room}
+                    </p>
+                  ) : null}
+                  {item.note ? (
+                    <p className="mt-1.5 whitespace-pre-wrap break-words text-base text-muted">
+                      {item.note}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </Card>
+
+            <section className="order-5 min-w-0 lg:order-none">
+              {/* Verlauf */}
+              <SectionTitle>{t('begriff.verlauf')}</SectionTitle>
+              <Card className="overflow-hidden">
+                {events.loading ? (
+                  <Loading label={t('kisten.verlauf_laedt')} />
+                ) : events.error ? (
+                  <div className="p-3">
+                    <ErrorBox error={events.error} onRetry={events.reload} />
+                  </div>
+                ) : (events.data ?? []).length === 0 ? (
+                  <p className="px-4 py-6 text-center text-base text-muted">{t('kisten.verlauf_leer')}</p>
+                ) : (
+                  <ul className="zebra divide-y divide-line">
+                    {(events.data ?? []).map((ev) => {
+                      const d = ev.data as Record<string, string>
+                      return (
+                        <li key={ev.id} className="flex items-center gap-3 px-3 py-2.5">
+                          <Avatar name={nameOf(ev.user_id)} size={34} />
+                          <span className="min-w-0 flex-1 break-words text-base">
+                            <span className="font-bold">{nameOf(ev.user_id)}</span>{' '}
+                            <span className="text-muted">
+                              {ev.type === 'created' ? (
+                                t('kisten.ev_created')
+                              ) : ev.type === 'status' ? (
+                                t('kisten.ev_status', {
+                                  status: istStatus(d.to) ? t(`status.${d.to}`) : d.to,
+                                })
+                              ) : ev.type === 'scan' ? (
+                                t('kisten.ev_scan')
+                              ) : ev.type === 'code' ? (
+                                <>
+                                  {t('kisten.ev_code')}{' '}
+                                  {/* Beide Nummern in einem Stueck von links nach rechts,
+                                      damit der Pfeil auch im arabischen Satz vom alten
+                                      auf den neuen Code zeigt. */}
+                                  <span className="t-serial" dir="ltr">
+                                    {d.from} &rarr; {d.to}
+                                  </span>
+                                </>
+                              ) : (
+                                ev.type
+                              )}
                             </span>
-                          </>
-                        ) : (
-                          ev.type
-                        )}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-sm text-muted">{relTime(ev.created_at)}</span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </Card>
-
-        {/* Ganz unten: wo die Kiste steht (START 5.8). */}
-        <section id="lage" className="mt-5 scroll-mt-20">
-          <SectionTitle>{t(item.kind === 'furniture' ? 'lage.titel_moebel' : 'lage.titel')}</SectionTitle>
-          <NahLaden platzhalter={<NahPlatzhalter text={t('lage.laedt')} />}>
-            <KistenLage
-              itemId={item.id}
-              projectId={project.id}
-              code={item.code}
-              moebel={item.kind === 'furniture'}
-              angekommen={item.status === 'arrived'}
-              canEdit={canEdit}
-            />
-          </NahLaden>
-        </section>
+                          </span>
+                          <span className="shrink-0 text-sm text-muted">{relTime(ev.created_at)}</span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </Card>
+            </section>
+          </div>
+        </div>
 
         {/* Luft fuer die untere Navigationsleiste */}
         <div className="h-6" />
       </Page>
+
 
       {/* Bearbeiten */}
       <Modal

@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
 
+/* Die Designschicht (src/design/*.css) haengt sich ohne festen Import ein.
+   Fehlt der Ordner, liefert glob nichts, und die App laeuft schlicht weiter.
+   buehne.css gehoert nur zur abgeschalteten Startseite und laedt mit ihr. */
+import.meta.glob(['./design/*.css', '!./design/buehne.css'], { eager: true })
+
 /* Theme so frueh wie moeglich setzen, damit nichts weiss aufblitzt. */
 try {
   const stored = localStorage.getItem('kistly.theme')
@@ -17,9 +22,9 @@ try {
 
 /* Bewegungsstufe genauso frueh setzen wie das Theme, sonst blitzt beim
    Start kurz die falsche Stufe auf.
-   Die Stufen und der Schluessel stehen in src/design/motion.tsx. Hier steht
-   absichtlich nur das Setzen des Attributs, damit der ganze Ordner
-   src/design geloescht werden kann, ohne dass diese Datei bricht. */
+   Die Stufen und der Schluessel stehen in src/lib/bewegung.ts. Hier steht
+   absichtlich nur das Setzen des Attributs, damit diese Datei an nichts
+   haengt. */
 try {
   const m = localStorage.getItem('kistly.motion')
   document.documentElement.dataset.motion = m === 'ruhig' || m === 'voll' ? m : 'normal'

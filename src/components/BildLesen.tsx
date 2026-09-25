@@ -10,8 +10,8 @@ import {
   useToast,
 } from './ui'
 import { Ausschnitt } from './Ausschnitt'
-// Reine Optik aus der Designschicht. Rueckweg: siehe src/design/README.md.
-import { LeseBuehne } from '../design/LeseBuehne'
+// Reine Optik aus der Designschicht, ohne festen Import (siehe Designteile).
+import { LeseBuehne } from './Designteile'
 import { useSprache } from '../lib/i18n'
 import { addContent, updateContent } from '../lib/api'
 import { ausschnittErstellen, type Rahmen } from '../lib/media'
@@ -470,7 +470,7 @@ export function BildLesen({
               allein sagt schon alles. */}
           {laeuft ? (
             <div className="lese-karte">
-              <LeseBuehne />
+              {LeseBuehne ? <LeseBuehne /> : null}
               {/* Nur dieser Satz wird vorgelesen, nicht die Uhr: die aendert
                   sich jede Sekunde und uebertoente sonst alles. */}
               <p className="t-name text-center" role="status" aria-live="polite">

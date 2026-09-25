@@ -1,61 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Gauge, Sparkles, Waves } from 'lucide-react'
+import { STUFEN, STUFE_SYMBOL, useMotion, type Stufe } from '../lib/bewegung'
 
-/* Bewegungsstufe.
- * Reine Designschicht: setzt ein Attribut auf dem html-Element, sonst
- * nichts. Das Stylesheet buehne.css entscheidet, was bei welcher Stufe
- * passiert. Nimmt man diese Datei weg, faellt nur der Schalter weg, die
- * Seite bleibt auf der Standardstufe stehen und laeuft weiter.
+/* Schalter fuer die Bewegungsstufe in der Kopfzeile der Startseite.
+ *
+ * Reine Optik. Die Stufe selbst (Werte, Speichern, Attribut) steht in
+ * src/lib/bewegung.ts, damit die Einstellungen nichts aus diesem Ordner
+ * brauchen. Nimmt man diese Datei weg, faellt nur dieser Schalter weg.
  */
 
-export type Stufe = 'ruhig' | 'normal' | 'voll'
-
-const KEY = 'kistly.motion'
-export const STUFEN: Stufe[] = ['ruhig', 'normal', 'voll']
-
-export const STUFE_TEXT: Record<Stufe, { name: string; hinweis: string }> = {
+const STUFE_TEXT: Record<Stufe, { name: string; hinweis: string }> = {
   ruhig: { name: 'Ruhig', hinweis: 'Nichts bewegt sich. Schont den Akku.' },
   normal: {
     name: 'Normal',
     hinweis: 'Der Hintergrund steht fest, der Vordergrund scrollt darüber.',
   },
   voll: { name: 'Voll', hinweis: 'Dazu driftende Kisten und atmende Lichter.' },
-}
-
-export const STUFE_SYMBOL = { ruhig: Gauge, normal: Waves, voll: Sparkles }
-
-function lesen(): Stufe {
-  try {
-    const v = localStorage.getItem(KEY)
-    return v === 'ruhig' || v === 'normal' || v === 'voll' ? v : 'normal'
-  } catch {
-    return 'normal'
-  }
-}
-
-/** Setzt das Attribut. Wird auch frueh in main.tsx aufgerufen, damit beim
- *  Start nichts kurz in der falschen Stufe aufblitzt. */
-export function stufeAnwenden(s: Stufe): void {
-  document.documentElement.dataset.motion = s
-}
-
-export function useMotion(): { stufe: Stufe; setStufe: (s: Stufe) => void } {
-  const [stufe, setState] = useState<Stufe>(() => lesen())
-
-  useEffect(() => {
-    stufeAnwenden(stufe)
-  }, [stufe])
-
-  const setStufe = useCallback((s: Stufe) => {
-    setState(s)
-    try {
-      localStorage.setItem(KEY, s)
-    } catch {
-      /* privater Modus, dann gilt die Stufe eben nur fuer diesen Besuch */
-    }
-  }, [])
-
-  return { stufe, setStufe }
 }
 
 /** Kleiner Schalter fuer die Kopfzeile der Startseite. */

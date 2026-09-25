@@ -19,6 +19,7 @@ import { Eye, EyeOff, Loader2, X } from 'lucide-react'
 import { contrastOn, cx, initials, parseCode } from '../lib/util'
 import { useT } from '../lib/i18n'
 import { STATUS_COLOR, type ItemStatus } from '../lib/types'
+import { Karton, Plastikkiste, Stapel } from './Designteile'
 
 /* ------------------------------------------------------------------ Logo */
 
@@ -61,7 +62,7 @@ export function Wordmark({ size = 28 }: { size?: number }) {
 
 /* --------------------------------------------------------------- Buttons */
 
-type ButtonVariant = 'primary' | 'ghost' | 'outline' | 'danger' | 'soft'
+type ButtonVariant = 'primary' | 'aktiv' | 'ghost' | 'outline' | 'danger' | 'soft'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
@@ -70,24 +71,20 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   full?: boolean
 }
 
-/* Nur Optik. Tiefe kommt aus zwei Schatten: ein heller Streifen oben innen,
- * damit der Knopf gewoelbt wirkt, und ein weicher Schatten darunter. Beim
- * Zeigen hebt er sich leicht, beim Druecken sinkt er ein. --schatten und
- * --glanz stehen in index.css. */
+/* Nur Optik, ohne Schatten (Schatten gibt es nur an Karten und Dialogen).
+ * primary ist die eine Hauptaktion einer Seite und steht in
+ * Orange (--accent, Schrift --accent-ink). aktiv ist der gewaehlte Zustand
+ * einer Auswahl (etwa der aktuelle Status) und bleibt dunkel, damit er
+ * nicht wie eine zweite Hauptaktion aussieht. Alles andere als Umriss.
+ * Heben und Einsinken beim Zeigen und Druecken macht die Designschicht
+ * (design/oberflaeche.css, Klasse knopf), hier stehen nur Farben. */
 const VARIANT: Record<ButtonVariant, string> = {
-  primary:
-    'bg-ink text-paper shadow-[0_1px_0_0_var(--glanz)_inset,0_10px_22px_-14px_var(--schatten)] ' +
-    'hover:-translate-y-px hover:shadow-[0_1px_0_0_var(--glanz)_inset,0_16px_28px_-14px_var(--schatten)] ' +
-    'active:translate-y-0 active:scale-[0.98]',
-  soft:
-    'border-2 border-line bg-raised text-ink hover:border-ink/25 hover:bg-line active:scale-[0.98]',
+  primary: 'bg-accent text-accent-ink hover:brightness-[1.06]',
+  aktiv: 'bg-ink text-paper',
+  soft: 'border-2 border-line bg-raised text-ink hover:border-ink/25 hover:bg-line',
   ghost: 'border-2 border-transparent text-ink hover:border-line hover:bg-raised',
-  outline:
-    'border-2 border-ink/25 bg-surface text-ink shadow-[0_6px_16px_-14px_var(--schatten)] ' +
-    'hover:-translate-y-px hover:border-ink/55 hover:bg-raised active:translate-y-0 active:scale-[0.98]',
-  danger:
-    'bg-danger text-white shadow-[0_1px_0_0_var(--glanz)_inset,0_10px_22px_-14px_var(--schatten)] ' +
-    'hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.98]',
+  outline: 'border-2 border-ink/25 bg-surface text-ink hover:border-ink/55 hover:bg-raised',
+  danger: 'bg-danger text-white hover:brightness-110',
 }
 
 const SIZES = {
@@ -112,9 +109,9 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       className={cx(
-        'inline-flex items-center rounded-xl font-bold leading-none transition select-none',
+        'knopf inline-flex items-center rounded-knopf font-bold leading-none transition select-none',
         'disabled:opacity-45 disabled:cursor-not-allowed',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
         VARIANT[variant],
         SIZES[size],
         full && 'w-full justify-center',
@@ -150,8 +147,8 @@ export function IconButton({
       aria-label={label}
       title={label}
       className={cx(
-        'inline-flex shrink-0 items-center justify-center rounded-xl border-2 transition active:scale-95',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+        'knopf inline-flex shrink-0 items-center justify-center rounded-knopf border-2 transition',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
         'disabled:cursor-not-allowed disabled:opacity-40',
         size === 'sm' ? 'h-10 w-10' : 'h-12 w-12',
         tone === 'danger'
@@ -199,7 +196,7 @@ export function Field({
 }
 
 const FIELD_BASE =
-  'w-full rounded-xl border-2 border-line bg-surface px-4 py-3 text-base text-ink ' +
+  'w-full rounded-knopf border-2 border-line bg-surface px-4 py-3 text-base text-ink ' +
   'placeholder:text-muted/70 outline-none transition focus:border-ink/50 ' +
   'focus:ring-4 focus:ring-ink/10 disabled:opacity-50'
 
@@ -305,7 +302,7 @@ export function Card({
   return (
     <As
       {...rest}
-      className={cx('rounded-2xl border border-line bg-surface', className)}
+      className={cx('rounded-karte border border-line bg-surface shadow-karte', className)}
     >
       {children}
     </As>
@@ -329,7 +326,7 @@ export function Loading({ label }: { label?: string }) {
 export function ErrorBox({ error, onRetry }: { error: string; onRetry?: () => void }) {
   const t = useT()
   return (
-    <div className="rounded-2xl border-2 border-danger/30 bg-danger/8 p-4">
+    <div role="alert" className="rounded-karte border-2 border-danger/30 bg-danger/8 p-4">
       <p className="t-name text-danger">{t('zustand.fehler')}</p>
       <p className="mt-1 text-base text-ink/85">{error}</p>
       {onRetry ? (
@@ -346,18 +343,88 @@ export function Empty({
   hint,
   action,
   icon,
+  zeichnung = 'karton',
 }: {
   title: string
   hint?: string
   action?: ReactNode
   icon?: ReactNode
+  /** Kleine Zeichnung aus der Designschicht. Fehlt die Schicht, steht
+   *  statt ihrer das Symbol da. 'keine' zeigt immer nur das Symbol. */
+  zeichnung?: 'karton' | 'stapel' | 'plastik' | 'keine'
 }) {
+  const Bild =
+    zeichnung === 'karton'
+      ? Karton
+      : zeichnung === 'stapel'
+        ? Stapel
+        : zeichnung === 'plastik'
+          ? Plastikkiste
+          : null
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line px-6 py-12 text-center">
-      {icon ? <div className="mb-3 text-muted">{icon}</div> : null}
+    <div className="leer flex flex-col items-center justify-center rounded-karte border border-dashed border-line px-6 py-10 text-center">
+      {Bild ? (
+        <Bild className="leer-bild mb-4 h-24 w-28" />
+      ) : icon ? (
+        <div className="mb-3 text-muted">{icon}</div>
+      ) : null}
       <p className="t-name">{title}</p>
       {hint ? <p className="mt-1.5 max-w-sm text-base text-muted">{hint}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
+    </div>
+  )
+}
+
+/** Skelett beim Laden: graue Karten in der Form dessen, was gleich kommt.
+ *  Der Satz steht fuer Vorleseprogramme trotzdem da. */
+export function Skelett({
+  label,
+  art = 'liste',
+  anzahl = 5,
+}: {
+  label?: string
+  /** liste: Zeilen wie in einer Kistenliste. seite: Kopf und zwei Karten. */
+  art?: 'liste' | 'seite'
+  anzahl?: number
+}) {
+  const t = useT()
+  return (
+    <div role="status" aria-busy="true" className="skelett-flaeche">
+      <span className="sr-only">{label ?? t('zustand.laedt')}</span>
+      {art === 'liste' ? (
+        <div className="overflow-hidden rounded-karte border border-line bg-surface">
+          {Array.from({ length: anzahl }, (_, i) => (
+            <div
+              key={i}
+              aria-hidden="true"
+              className="flex items-center gap-3 border-b border-line px-3 py-4 last:border-b-0"
+            >
+              <span className="skelett h-12 w-2 shrink-0" />
+              <span className="min-w-0 flex-1 space-y-2.5">
+                <span className="skelett h-6 w-28" />
+                <span className="skelett h-4 w-3/5" />
+              </span>
+              <span className="skelett h-8 w-24 shrink-0 rounded-full" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div aria-hidden="true" className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-karte border border-line bg-surface p-4 lg:order-3">
+            <span className="skelett h-12 w-48" />
+            <span className="skelett mt-4 h-5 w-2/3" />
+            <span className="skelett mt-5 h-11 w-full rounded-full" />
+          </div>
+          <div className="space-y-3 rounded-karte border border-line bg-surface p-4 lg:order-1">
+            {Array.from({ length: anzahl }, (_, i) => (
+              <span key={i} className="skelett h-6" style={{ width: `${88 - ((i * 17) % 40)}%` }} />
+            ))}
+          </div>
+          <div className="rounded-karte border border-line bg-surface p-4 lg:order-2">
+            <span className="skelett aspect-[4/3] w-full" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -486,13 +553,16 @@ export function StatusPill({
       onClick={onClick}
       type={onClick ? 'button' : undefined}
       className={cx(
-        'inline-flex items-center gap-1.5 rounded-full border-2 font-bold',
+        'pille inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border-2 font-bold text-ink',
         size === 'sm' ? 'px-2.5 py-1 text-[0.8125rem]' : 'px-3.5 py-1.5 text-[0.9375rem]',
-        onClick && 'transition hover:brightness-95 active:scale-95',
+        onClick && 'knopf transition hover:brightness-95',
       )}
-      style={{ background: `${color}1a`, color, borderColor: `${color}55` }}
+      /* Die Schrift steht in Tinte, nicht in der Statusfarbe: Gelb und
+       * Gruen als Schrift auf hellem Grund erreichen keine 4,5:1. Die Farbe
+       * traegt der Punkt, der Rand und die leichte Toenung. */
+      style={{ background: `${color}24`, borderColor: `${color}80` }}
     >
-      <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
       {t(`status.${status}`)}
     </Tag>
   )
@@ -646,7 +716,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className={cx(
-          'animate-in relative flex max-h-[92vh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-2xl sm:rounded-2xl',
+          'animate-in relative flex max-h-[92vh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-dialog sm:rounded-karte',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md',
         )}
       >

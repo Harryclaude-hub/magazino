@@ -17,7 +17,7 @@ import {
   Switch,
   useToast,
 } from '../components/ui'
-import { STUFEN, STUFE_SYMBOL, useMotion, type Stufe } from '../design/motion'
+import { STUFEN, STUFE_SYMBOL, useMotion, type Stufe } from '../lib/bewegung'
 import { displayNameOf, useAuth } from '../lib/auth'
 import { getPrefs, setPrefs } from '../lib/api'
 import { useT } from '../lib/i18n'

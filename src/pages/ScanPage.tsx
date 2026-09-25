@@ -157,7 +157,7 @@ export default function ScanPage() {
                 <Button
                   key={s}
                   full
-                  variant={autoStatus === s ? 'primary' : 'outline'}
+                  variant={autoStatus === s ? 'aktiv' : 'outline'}
                   aria-pressed={autoStatus === s}
                   onClick={() => setAutoStatus(s)}
                 >

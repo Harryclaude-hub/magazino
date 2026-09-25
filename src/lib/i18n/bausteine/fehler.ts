@@ -83,117 +83,12 @@ export const fehler: Woerterbuch = {
   // ------------------------------------------------------------ Kisten
   'fehler.suchen': { de: 'Suchen: {grund}', ar: 'تعذّر البحث: {grund}' },
   'fehler.regale_laden': { de: 'Regale laden: {grund}', ar: 'تعذّر تحميل الرفوف: {grund}' },
-  'fehler.regal_speichern': { de: 'Regal speichern: {grund}', ar: 'تعذّر حفظ الرف: {grund}' },
-  'fehler.regal_loeschen': { de: 'Regal wegnehmen: {grund}', ar: 'تعذّرت إزالة الرف: {grund}' },
 
   // Ablehnungen der Datenbank. Die Kennung kommt als hint mit
-  // (kistly:raumplan.xyz, seit 0022), der Satz steht hier.
-  'fehler.db.raumplan.kein_plan': {
-    de: 'Für dieses Zimmer gibt es noch keinen Raumplan.',
-    ar: 'لا يوجد مخطط لهذه الغرفة بعد.',
-  },
-  'fehler.db.raumplan.platz_draussen': {
-    de: 'Dieser Platz liegt außerhalb des Zimmers.',
-    ar: 'هذا الموضع خارج الغرفة.',
-  },
-  'fehler.db.raumplan.platz_gesperrt': {
-    de: 'Diese Zelle gehört nicht zum Zimmer.',
-    ar: 'هذه الخلية لا تنتمي إلى الغرفة.',
-  },
-  'fehler.db.raumplan.platz_belegt': {
-    de: 'Auf diesem Platz steht gerade schon eine Kiste. Lade den Plan neu.',
-    ar: 'يوجد صندوق في هذا الموضع للتو. أعد تحميل المخطط.',
-  },
-  'fehler.db.raumplan.regal_hier': {
-    de: 'Hier steht ein Regal. Wähle ein Brett.',
-    ar: 'يوجد رف هنا. اختر رفًّا.',
-  },
-  'fehler.db.raumplan.regal_anderes_zimmer': {
-    de: 'Dieses Regal steht in einem anderen Zimmer.',
-    ar: 'هذا الرف في غرفة أخرى.',
-  },
-  'fehler.db.raumplan.regal_zelle': {
-    de: 'Diese Zelle gehört nicht zum Regal.',
-    ar: 'هذه الخلية لا تنتمي إلى الرف.',
-  },
-  'fehler.db.raumplan.regal_brett': { de: 'Dieses Brett gibt es nicht.', ar: 'هذا الرف غير موجود.' },
-  'fehler.db.raumplan.schwebt': {
-    de: 'Darunter steht nichts. Eine Kiste kommt immer oben auf den Stapel.',
-    ar: 'لا شيء تحته. يوضع الصندوق دائمًا أعلى الكومة.',
-  },
-  'fehler.db.raumplan.zu_hoch': {
-    de: 'So hoch geht es hier nicht: der Stapel stieße an die Decke oder an das nächste Brett.',
-    ar: 'لا يمكن الارتفاع هكذا هنا: ستصطدم الكومة بالسقف أو بالرف التالي.',
-  },
-  'fehler.db.raumplan.regal_draussen': {
-    de: 'Das Regal stünde außerhalb des Zimmers oder auf einer gesperrten Zelle.',
-    ar: 'سيكون الرف خارج الغرفة أو على خلية محجوبة.',
-  },
-  'fehler.db.raumplan.regal_tuer': { de: 'Vor der Tür steht kein Regal.', ar: 'لا يوضع رف أمام الباب.' },
-  'fehler.db.raumplan.regal_ueberlappt': { de: 'Dort steht schon ein Regal.', ar: 'يوجد رف هناك بالفعل.' },
-  'fehler.db.raumplan.regal_zu_hoch': {
-    de: 'Das Regal ist höher als das Zimmer.',
-    ar: 'الرف أعلى من الغرفة.',
-  },
-  'fehler.db.raumplan.regal_boeden': {
-    de: 'Die Bretter müssen von unten nach oben steigen und im Regal liegen.',
-    ar: 'يجب أن ترتفع الرفوف من الأسفل إلى الأعلى وأن تكون داخل الرف.',
-  },
-  'fehler.db.raumplan.regal_auf_kisten': {
-    de: 'Auf diesen Zellen stehen Kisten. Nimm sie zuerst vom Platz.',
-    ar: 'توجد صناديق على هذه الخلايا. أزلها من مواضعها أولًا.',
-  },
-  'fehler.db.raumplan.regal_belegt': {
-    de: 'Auf dem Regal stehen Kisten. Nimm sie zuerst herunter.',
-    ar: 'توجد صناديق على الرف. أنزلها أولًا.',
-  },
-  'fehler.db.raumplan.raster_zu_fein': {
-    de: 'Das Raster ist zu fein für dieses Zimmer. Nimm größere Zellen.',
-    ar: 'الشبكة دقيقة جدًا لهذه الغرفة. اختر خلايا أكبر.',
-  },
-  'fehler.db.raumplan.gesperrt_draussen': {
-    de: 'Eine gesperrte Zelle liegt außerhalb des Zimmers.',
-    ar: 'توجد خلية محجوبة خارج الغرفة.',
-  },
-  'fehler.db.raumplan.tuer_draussen': {
-    de: 'Die Tür liegt außerhalb des Zimmers.',
-    ar: 'الباب خارج الغرفة.',
-  },
-  'fehler.db.raumplan.tuer_wand': {
-    de: 'Die Tür muss an einer Wand liegen.',
-    ar: 'يجب أن يكون الباب عند جدار.',
-  },
-  'fehler.db.raumplan.raster_fest': {
-    de: 'Die Zellgröße lässt sich nur ändern, solange keine Kiste und kein Regal im Plan steht.',
-    ar: 'لا يمكن تغيير حجم الخلية إلا طالما لا يوجد صندوق أو رف في المخطط.',
-  },
-  'fehler.db.raumplan.kisten_draussen': {
-    de: 'Kisten stünden danach außerhalb des Zimmers. Nimm sie zuerst vom Platz.',
-    ar: 'ستقع صناديق خارج الغرفة بعد ذلك. أزلها من مواضعها أولًا.',
-  },
-  'fehler.db.raumplan.zu_niedrig': {
-    de: 'So niedrig passt nicht mehr alles hinein. Nimm zuerst Kisten herunter.',
-    ar: 'بهذا الارتفاع لا يتسع كل شيء. أنزل بعض الصناديق أولًا.',
-  },
+  // (kistly:grundriss.xyz, kistly:groesse.xyz), der Satz steht hier.
   'fehler.groessen_laden': {
     de: 'Größen laden: {grund}',
     ar: 'تعذّر تحميل الأحجام: {grund}',
-  },
-  'fehler.raumplan_laden': {
-    de: 'Raumplan laden: {grund}',
-    ar: 'تعذّر تحميل مخطط الغرفة: {grund}',
-  },
-  'fehler.raumplan_speichern': {
-    de: 'Raumplan speichern: {grund}',
-    ar: 'تعذّر حفظ مخطط الغرفة: {grund}',
-  },
-  'fehler.raumplan_loeschen': {
-    de: 'Raumplan löschen: {grund}',
-    ar: 'تعذّر حذف مخطط الغرفة: {grund}',
-  },
-  'fehler.raumplan_nachruecken': {
-    de: 'Kisten über dem Platz nachrücken: {grund}',
-    ar: 'تعذّر إنزال الصناديق فوق الموضع: {grund}',
   },
   'fehler.kisten_laden': { de: 'Kisten laden: {grund}', ar: 'تعذّر تحميل الصناديق: {grund}' },
   'fehler.kiste_laden': { de: 'Kiste laden: {grund}', ar: 'تعذّر تحميل الصندوق: {grund}' },
@@ -458,10 +353,6 @@ export const fehler: Woerterbuch = {
     ar: 'يوجد حجم بهذا الاسم بالفعل.',
   },
   // Alte, noch zwischengespeicherte Apps nach 0029.
-  'fehler.db.raumplan.eingefroren': {
-    de: 'Der alte Raumplan ist abgelöst. Bitte die App neu laden.',
-    ar: 'حلّ المخطط الجديد محلّ مخطط الغرفة القديم. أعد تحميل التطبيق من فضلك.',
-  },
 
   // Ablehnungen des Grundrisses (0028): hint kistly:grundriss.xyz,
   // Platzhalter aus details. Liste im Bauplan, Abschnitt 5.5.

@@ -89,7 +89,7 @@ export function ItemRow({
   const inhalt = (
     <>
       <span className="flex flex-wrap items-center gap-2">
-        <CodeChip code={item.code} size="md" />
+        <CodeChip code={item.code} size="lg" />
         {item.mark_symbol ? (
           <span
             className="flex h-7 w-7 items-center justify-center rounded-lg border-2"

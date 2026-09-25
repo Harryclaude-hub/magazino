@@ -142,9 +142,9 @@ export function Leinwand({
         ))}
       </g>
 
-      {/* Griffe am gewaehlten Raum */}
+      {/* Griffe am gewaehlten Raum (Klasse nur fuer design/plan.css) */}
       {raum ? (
-        <g>
+        <g className="plan-auswahl-ebene">
           {auswahl?.art === 'kante' ? (
             <line
               x1={raum.punkte[auswahl.kante][0]}
