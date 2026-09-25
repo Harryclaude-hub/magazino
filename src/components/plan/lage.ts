@@ -18,7 +18,8 @@ import type { KisteLage, ObjektArt, SuchTreffer, UnterlageArt } from '../../lib/
 type T = (key: string, vars?: Record<string, string | number>) => string
 
 export function insel(code: string): string {
-  return `⁨${code}⁩`
+  // Wortverbinder (U+2060) um die Bindestriche: die Nummer bricht nie um.
+  return `⁨${code.replace(/-/g, '\u2060-\u2060')}⁩`
 }
 
 /** Name eines Objekts, oder das Wort seiner Art, wenn es keinen hat. */

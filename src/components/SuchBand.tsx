@@ -49,14 +49,14 @@ export function SuchBand({
           />
         </button>
       ) : null}
-      <p className="t-name min-w-0 flex-1 break-words">
+      <p className="t-name min-w-[11rem] flex-1 break-words">
         {eintrag
           ? eintrag.schicht
             ? t('suche.gesucht_schicht', { name: eintrag.text, n: eintrag.schicht })
             : t('suche.gesucht', { name: eintrag.text })
           : t('suche.eintrag_weg')}
       </p>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="ms-auto flex shrink-0 items-center gap-2">
         {onLage ? (
           <button
             type="button"

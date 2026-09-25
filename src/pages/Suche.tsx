@@ -473,8 +473,13 @@ function TrefferDetail({
           </>
         ) : null}
 
-        <dt className="text-muted">{t('suche.platz')}</dt>
-        <dd className="t-name min-w-0 break-words">{ort}</dd>
+        {/* Mit Platz sagt es der Lageplan darunter, ohne steht es hier. */}
+        {!imPlan ? (
+          <>
+            <dt className="text-muted">{t('suche.platz')}</dt>
+            <dd className="min-w-0 break-words text-muted">{ort}</dd>
+          </>
+        ) : null}
       </dl>
 
       {imPlan ? (
@@ -489,17 +494,17 @@ function TrefferDetail({
         </Suspense>
       ) : null}
 
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Button full onClick={onKiste}>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={onKiste}>
           <Package size={18} /> {moebel ? t('suche.zum_moebel') : t('suche.zur_kiste')}
         </Button>
         {hatFoto ? (
-          <Button variant="outline" full onClick={onFoto}>
+          <Button variant="outline" onClick={onFoto}>
             <Camera size={18} /> {t('suche.foto_gross')}
           </Button>
         ) : null}
         {imPlan ? (
-          <Button variant="outline" full onClick={onPlan}>
+          <Button variant="outline" onClick={onPlan}>
             <KarteIcon size={18} /> {t('lage.im_grundriss')}
           </Button>
         ) : null}

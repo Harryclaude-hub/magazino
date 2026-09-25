@@ -528,7 +528,7 @@ function Stelle({
     <>
       <Page className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="t-name-lg min-w-0 flex-1 break-words">{raumName}</h1>
+          <h1 className="t-name-lg min-w-[10rem] flex-1">{raumName}</h1>
           {mehrereRaeume ? (
             <Button variant="outline" size="sm" className="min-h-11" onClick={onAnderesZimmer}>
               <DoorOpen size={17} /> {t('platz.anderes_zimmer')}
@@ -623,7 +623,7 @@ function Stelle({
                 ) : null}
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="t-sub min-w-0 flex-1">
+                  <span className="t-sub basis-full">
                     {t('platz.masse', { masse: t('groessen.eigene_masse', { l: masse.laenge_cm, b: masse.breite_cm, h: masse.hoehe_cm }) })}
                   </span>
                   <Button variant="outline" className="min-h-12" onClick={() => setDrehung((d) => (d === 0 ? 90 : 0))}>
@@ -773,7 +773,7 @@ function Achse({
       disabled={wert === null}
       onClick={() => onSchieben(n)}
       aria-label={t('platz.schieben', { achse: label, n: n > 0 ? `+${n}` : String(n) })}
-      className="t-serial flex h-12 min-w-12 items-center justify-center gap-0.5 rounded-xl border-2 border-line bg-surface px-2 text-base font-bold transition hover:border-ink/35 active:scale-95 disabled:opacity-40"
+      className="t-serial flex h-12 min-w-11 items-center justify-center rounded-xl border-2 border-line bg-surface px-1.5 text-base font-bold transition hover:border-ink/35 active:scale-95 disabled:opacity-40"
       dir="ltr"
     >
       {/* Rechenzeichen minus (U+2212), kein Gedankenstrich. */}
@@ -784,24 +784,26 @@ function Achse({
   return (
     <div>
       <label className="t-sub mb-1 block">{label}</label>
-      <div className="flex flex-wrap items-center gap-2" dir="ltr">
+      <div className="flex items-center gap-1.5" dir="ltr">
         {knopf(-10)}
         {knopf(-1)}
-        <Input
-          inputMode="decimal"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={uebernehmen}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              uebernehmen()
-            }
-          }}
-          aria-label={label}
-          aria-invalid={falsch}
-          className="t-serial h-12 w-24 text-center"
-        />
+        <div className="w-20 shrink-0">
+          <Input
+            inputMode="decimal"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={uebernehmen}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                uebernehmen()
+              }
+            }}
+            aria-label={label}
+            aria-invalid={falsch}
+            className="t-serial h-12 px-1 text-center"
+          />
+        </div>
         {knopf(1)}
         {knopf(10)}
       </div>
