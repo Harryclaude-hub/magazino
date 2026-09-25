@@ -562,7 +562,7 @@ export default function FurnitureDetail() {
                 value={neueMenge}
                 onChange={(e) => setNeueMenge(Math.max(1, Number(e.target.value) || 1))}
                 aria-label={t('moebel.teil_menge')}
-                className="w-20 shrink-0 text-center"
+                className="w-20! shrink-0 px-2 text-center"
                 dir="ltr"
               />
               <Button type="submit" className="shrink-0">
