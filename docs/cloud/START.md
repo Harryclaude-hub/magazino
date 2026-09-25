@@ -13,7 +13,10 @@ Etappen. Zusaetzlich liegen im Repo `CLAUDE.md` (Regeln) und
    das Guthaben liegt).
 2. Neue Sitzung starten und das Repo **Harryclaude-hub/kistly** waehlen.
    Fragt es nach GitHub, einmal verbinden und dem Repo Zugriff geben.
-3. Als Modell **Opus 5.5** waehlen.
+3. Als Modell **Opus 5.5** waehlen, Denkstufe **Hoch** (nicht Mittel,
+   nicht Extra hoch). **Ultracode aus lassen**, falls es angeboten wird:
+   es startet fuer fast alles viele Agenten und sprengt das Guthaben.
+   Gibt es keine Auswahl fuer die Denkstufe, bleibt es beim Standard.
 4. Den **ganzen Inhalt dieser Datei** als erste Nachricht einfuegen und
    abschicken.
 5. Laptop zuklappen ist erlaubt. Schau ein- bis zweimal am Tag in der
