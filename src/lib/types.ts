@@ -547,13 +547,16 @@ export type KisteLage =
       oben_cm: number
     }
 
-/** Aenderungen fuer grundriss_speichern. Reihenfolge in der Datenbank:
- *  loeschen, raeume, verschieben, objekte, zuordnen, oeffnungen. */
+/** Aenderungen fuer grundriss_speichern. Reihenfolge in der Datenbank
+ *  (0031): loeschen ohne Raeume, raeume, umhaengen, verschieben, objekte,
+ *  zuordnen, oeffnungen, zuletzt raeume_loeschen. */
 export interface GrundrissAenderung {
   oeffnungen_loeschen?: string[]
   objekte_loeschen?: string[]
   raeume_loeschen?: string[]
   raeume?: Omit<Raum, 'project_id' | 'grundriss_id' | 'tag_name' | 'tag_short' | 'tag_color'>[]
+  /** Alles (Moebel und Kisten) aus von_raum_id in nach_raum_id (Teilen rueckgaengig). */
+  umhaengen?: { von_raum_id: string; nach_raum_id: string }[]
   verschieben?: { raum_id: string; dx: number; dy: number }[]
   objekte?: Omit<Objekt, 'item_code' | 'item_title'>[]
   zuordnen?: { von_raum_id: string; nach_raum_id: string }[]

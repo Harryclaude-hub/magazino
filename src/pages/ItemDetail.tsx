@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Camera,
@@ -7,7 +7,7 @@ import {
   Crosshair,
   ImagePlus,
   Layers,
-  LayoutDashboard,
+  MapPin,
   Pencil,
   Plus,
   Printer,
@@ -24,6 +24,8 @@ import { Ausschnitt } from '../components/Ausschnitt'
 import { BildLesen } from '../components/BildLesen'
 import { PunktBild } from '../components/PunktBild'
 import { InhaltVerschieben } from '../components/InhaltVerschieben'
+import { NahLaden, NahPlatzhalter } from '../components/NahLaden'
+import { SuchBand } from '../components/SuchBand'
 import { MarkIcon, MarkPicker } from '../components/Mark'
 import {
   Avatar,
@@ -86,8 +88,12 @@ import {
   type Tag,
   type TagKind,
 } from '../lib/types'
-import { appUrl, contrastOn, cx, fmtDateTime, relTime, uid, useAsync } from '../lib/util'
+import { appUrl, contrastOn, cx, fmtDateTime, relTime, rollenArt, uid, useAsync } from '../lib/util'
 import { displayNameOf, useAuth } from '../lib/auth'
+
+/* "Wo steht die Kiste" (Lageplan mit Knoepfen) laedt als eigener Teil,
+ * erst wenn der Abschnitt in die Naehe kommt. */
+const KistenLage = lazy(() => import('../components/plan/KistenLage'))
 
 function labelUrl(itemId: string): string {
   return appUrl(`s/${itemId}`)
@@ -136,7 +142,7 @@ function TagTile({ role, tag }: { role: string; tag: Tag }) {
 export default function ItemDetail() {
   const { iid = '' } = useParams()
   /* Kommt man aus der Suche, steht das gesuchte Ding in der Adresse. */
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const gesuchtInhalt = params.get('inhalt')
   const gesuchtGezeigt = useRef<string | null>(null)
   const { project, rooms, people, tagById, canEdit, members } = useProject()
@@ -420,6 +426,9 @@ export default function ItemDetail() {
   const nameOf = (id: string | null) =>
     displayNameOf(members.find((m) => m.user_id === id)?.profile, t('kisten.jemand'))
   const printHref = `/app/p/${project.id}/etiketten?item=${item.id}`
+  const gesucht = gesuchtInhalt ? (contents.find((c) => c.id === gesuchtInhalt) ?? null) : null
+  const gesuchtFoto = gesucht?.photo_id ? (photos.find((p) => p.id === gesucht.photo_id) ?? null) : null
+  const zurLage = () => document.getElementById('lage')?.scrollIntoView({ behavior: rollenArt(), block: 'start' })
   // Eine signierte Adresse kann fehlen, ohne dass ein Fehler geworfen wird.
   // Ohne diese Zaehlung bliebe die Kachel stumm auf "laedt" stehen.
   const missingPhotos = uploading ? 0 : photos.filter((p) => !urls.get(p.path)).length
@@ -453,6 +462,21 @@ export default function ItemDetail() {
       />
 
       <Page>
+        {/* Aus der Suche: was gesucht war, mit Bild und Weg zum Lageplan. */}
+        {gesuchtInhalt ? (
+          <SuchBand
+            eintrag={gesucht}
+            fotoUrl={gesuchtFoto ? (urls.get(gesuchtFoto.path) ?? null) : null}
+            onFoto={gesucht?.photo_id ? () => setPunktEintrag(gesucht) : undefined}
+            onLage={zurLage}
+            onWeg={() => {
+              const rest = new URLSearchParams(params)
+              rest.delete('inhalt')
+              setParams(rest, { replace: true })
+            }}
+          />
+        ) : null}
+
         {/* Kopf: Nummer, Titel, Zimmer und Person, QR-Code */}
         <Card
           className="mb-5 overflow-hidden"
@@ -488,16 +512,12 @@ export default function ItemDetail() {
                 {room ? <TagTile role={t('begriff.zimmer')} tag={room} /> : null}
                 {/* Der Weg von der Kiste zum Zimmer: zeig mir, wo sie steht.
                     Auf der Seite selbst und fuer jede Rolle, nicht versteckt
-                    im Bearbeiten: suchen muss auch, wer nur schauen darf. */}
-                {item.platz_raum_id && item.kind !== 'furniture' ? (
-                  <Link
-                    to={`/app/p/${project.id}/grundriss?raum=${item.platz_raum_id}&kiste=${item.id}`}
-                    className="block"
-                  >
-                    <Button variant="soft" full>
-                      <LayoutDashboard size={18} /> {t('lage.im_grundriss')}
-                    </Button>
-                  </Link>
+                    im Bearbeiten: suchen muss auch, wer nur schauen darf.
+                    Ein Sprung nach unten zum Lageplan. */}
+                {item.kind !== 'furniture' ? (
+                  <Button variant="soft" full onClick={zurLage}>
+                    <MapPin size={18} /> {t('lage.wo_steht_sie')}
+                  </Button>
                 ) : null}
                 {person ? <TagTile role={t('begriff.person')} tag={person} /> : null}
                 {!room && !person ? (
@@ -1096,6 +1116,21 @@ export default function ItemDetail() {
             </ul>
           )}
         </Card>
+
+        {/* Ganz unten: wo die Kiste steht (START 5.8). */}
+        <section id="lage" className="mt-5 scroll-mt-20">
+          <SectionTitle>{t(item.kind === 'furniture' ? 'lage.titel_moebel' : 'lage.titel')}</SectionTitle>
+          <NahLaden platzhalter={<NahPlatzhalter text={t('lage.laedt')} />}>
+            <KistenLage
+              itemId={item.id}
+              projectId={project.id}
+              code={item.code}
+              moebel={item.kind === 'furniture'}
+              angekommen={item.status === 'arrived'}
+              canEdit={canEdit}
+            />
+          </NahLaden>
+        </section>
 
         {/* Luft fuer die untere Navigationsleiste */}
         <div className="h-6" />

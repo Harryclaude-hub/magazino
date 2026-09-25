@@ -338,6 +338,72 @@ function rechteckDok() {
   wahr('Abgelehnt: kein leerer Rueckgaengig-Schritt', istLeer(unterschied(z.basis, z.zurueck[z.zurueck.length - 1] ?? leer())) === false || z.zurueck.length === 0)
 }
 
+/* ------------------------------ Verlauf mit Kisten (Fehler 1 und 2) */
+
+function regal(id, raumId, x, y) {
+  return { id, raum_id: raumId, art: 'regal', name: 'Billy', x, y, breite_cm: 80, tiefe_cm: 30, hoehe_cm: 180, drehung: 0, form: 'rechteck', ausschnitt_breite_cm: null, ausschnitt_tiefe_cm: null, ausschnitt_ecke: null, brett_cm: [0, 40, 80, 120], spalten: 1, farbe: null, item_id: null, item_code: null, item_title: null }
+}
+const bestaetigt = (z, version) => zReducer(z, { typ: 'gespeichert', gesendet: z.dok, antwort: z.dok, version })
+const vorab = (z) => dok.kistenDraussen(z.dok, dok.umrissGeaendert(z.basis, z.dok))
+
+{
+  // 1. Raum mit Kisten und Regal verschieben, dann rueckgaengig und wiederholen.
+  const d0 = rechteckDok()
+  d0.objekte = [regal('o1', 'r1', 300, 10)]
+  d0.kisten.push(kiste('k3', 'W-3-003', 'r1', 340, 25, { unterlage_art: 'fach', unterlage_objekt_id: 'o1', fach_ebene: 2, fach_spalte: 1 }))
+  let z = zStart(d0)
+  z = zReducer(z, { typ: 'aendern', dok: dok.raumVerschieben(d0, 'r1', 100, 0) })
+  z = bestaetigt(z, 1)
+  z = zReducer(z, { typ: 'zurueck' })
+  gleich('Verschieben rueckgaengig: Kisten fahren mit zurueck', z.dok.kisten.map((k) => k.platz_x), [60, 300, 340])
+  gleich('Verschieben rueckgaengig: Regal zurueck', z.dok.objekte[0].x, 300)
+  const a = unterschied(z.basis, z.dok)
+  gleich('Verschieben rueckgaengig: geht als verschieben', a.verschieben, [{ raum_id: 'r1', dx: -100, dy: 0 }])
+  wahr('Verschieben rueckgaengig: ohne raeume und objekte', !a.raeume && !a.objekte)
+  gleich('Verschieben rueckgaengig: Vorab-Pruefung laesst durch', vorab(z), [])
+  gleich('Verschieben rueckgaengig: auch ohne Raumfilter nichts draussen', dok.kistenDraussen(z.dok), [])
+  z = bestaetigt(z, 2)
+  z = zReducer(z, { typ: 'vor' })
+  gleich('Verschieben wiederholen: Kisten fahren mit', z.dok.kisten.map((k) => k.platz_x), [160, 400, 440])
+  gleich('Verschieben wiederholen: geht als verschieben', unterschied(z.basis, z.dok).verschieben, [{ raum_id: 'r1', dx: 100, dy: 0 }])
+  gleich('Verschieben wiederholen: Vorab-Pruefung laesst durch', vorab(z), [])
+}
+
+{
+  // 2. Teilen mit Stapel und Kiste im Fach, dann rueckgaengig und wiederholen.
+  const d0 = rechteckDok()
+  d0.objekte = [regal('o1', 'r1', 10, 10)]
+  d0.kisten.push(kiste('k3', 'W-3-003', 'r1', 50, 25, { unterlage_art: 'fach', unterlage_objekt_id: 'o1', fach_ebene: 2, fach_spalte: 1 }))
+  d0.kisten.push(kiste('k4', 'W-3-004', 'r1', 62, 150, { unterlage_art: 'kiste', unterlage_item_id: 'k1', unten_cm: 30, oben_cm: 60, nr: 2 }))
+  let z = zStart(d0)
+  const t = dok.raumTeilen(d0, [150, 0], [150, 300], 'r2')
+  z = zReducer(z, { typ: 'aendern', dok: t.dok })
+  gleich('Teilen: Linkes zieht in den neuen Raum', z.dok.kisten.map((k) => k.platz_raum_id), ['r2', 'r1', 'r2', 'r2'])
+  z = bestaetigt(z, 1)
+  z = zReducer(z, { typ: 'zurueck' })
+  gleich('Teilen rueckgaengig: Kisten wieder im alten Raum', z.dok.kisten.map((k) => k.platz_raum_id), ['r1', 'r1', 'r1', 'r1'])
+  const a = unterschied(z.basis, z.dok)
+  gleich('Teilen rueckgaengig: umhaengen', a.umhaengen, [{ von_raum_id: 'r2', nach_raum_id: 'r1' }])
+  gleich('Teilen rueckgaengig: abgeteilten Raum loeschen', a.raeume_loeschen, ['r2'])
+  gleich('Teilen rueckgaengig: alter Raum mit altem Umriss', a.raeume?.map((r) => [r.id, r.punkte]), [['r1', d0.raeume[0].punkte]])
+  wahr('Teilen rueckgaengig: Regal nicht einzeln', !a.objekte)
+  gleich('Teilen rueckgaengig: Tuer und Fenster zurueck an den alten Raum', a.oeffnungen?.map((o) => [o.id, o.raum_id]).sort(), [['fenster', 'r1'], ['tuer', 'r1']])
+  gleich('Teilen rueckgaengig: keine Frage nach Kisten', geloeschteMitKisten(z.basis, a), [])
+  gleich('Teilen rueckgaengig: Vorab-Pruefung laesst durch', vorab(z), [])
+  z = bestaetigt(z, 2)
+  z = zReducer(z, { typ: 'vor' })
+  gleich('Teilen wiederholen: wieder im neuen Raum', z.dok.kisten.map((k) => k.platz_raum_id), ['r2', 'r1', 'r2', 'r2'])
+  const b = unterschied(z.basis, z.dok)
+  gleich('Teilen wiederholen: zuordnen', b.zuordnen, [{ von_raum_id: 'r1', nach_raum_id: 'r2' }])
+  wahr('Teilen wiederholen: kein umhaengen', !b.umhaengen)
+  gleich('Teilen wiederholen: Vorab-Pruefung laesst durch', vorab(z), [])
+  // Ein Raum mit Kisten, der wirklich geloescht wird: kein umhaengen, die Frage bleibt.
+  const ohne = dok.loeschen(z.dok, { art: 'raum', id: 'r2' })
+  const c = unterschied(z.dok, ohne)
+  wahr('Raum loeschen: kein umhaengen', !c.umhaengen)
+  gleich('Raum loeschen: Frage nach drei Kisten', geloeschteMitKisten(z.dok, c).map((x) => x.codes.length), [3])
+}
+
 /* ------------------------------------------------ Anzeige-Hilfen */
 
 {

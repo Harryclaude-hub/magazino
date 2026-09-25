@@ -265,3 +265,15 @@ export function toCsv(rows: Array<Record<string, unknown>>): string {
   }
   return [cols.join(';'), ...rows.map((r) => cols.map((c) => esc(r[c])).join(';'))].join('\n')
 }
+
+/** Rollen zu einem Abschnitt: weich nur, wenn Bewegung erlaubt ist (Stufe
+ *  nicht "ruhig", System ohne reduzierte Bewegung), sonst sofort. */
+export function rollenArt(): ScrollBehavior {
+  try {
+    if (document.documentElement.dataset.motion === 'ruhig') return 'auto'
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'auto'
+  } catch {
+    return 'auto'
+  }
+  return 'smooth'
+}

@@ -447,8 +447,21 @@ function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
           platzhalter={objektName(t, { ...o, name: '' })}
           onSetzen={(name) => p.aendern(objektSetzen(p.dok, { ...o, name }), p.auswahl)}
         />
-        <MassFeld label={t('zeichner.eig.breite')} wert={o.breite_cm} min={5} max={2000} onSetzen={(v) => setze({ ...o, breite_cm: v })} />
-        <MassFeld label={t('zeichner.eig.tiefe')} wert={o.tiefe_cm} min={5} max={2000} onSetzen={(v) => setze({ ...o, tiefe_cm: v })} />
+        {/* Beim L bleibt der Ausschnitt kleiner als das Moebel (Regel der Datenbank). */}
+        <MassFeld
+          label={t('zeichner.eig.breite')}
+          wert={o.breite_cm}
+          min={o.form === 'l' ? Math.max(5, (o.ausschnitt_breite_cm ?? 0) + 1) : 5}
+          max={2000}
+          onSetzen={(v) => setze({ ...o, breite_cm: v })}
+        />
+        <MassFeld
+          label={t('zeichner.eig.tiefe')}
+          wert={o.tiefe_cm}
+          min={o.form === 'l' ? Math.max(5, (o.ausschnitt_tiefe_cm ?? 0) + 1) : 5}
+          max={2000}
+          onSetzen={(v) => setze({ ...o, tiefe_cm: v })}
+        />
         {o.art === 'moebel' ? (
           <MassFeld label={t('zeichner.eig.hoehe')} wert={o.hoehe_cm} min={1} max={600} onSetzen={(v) => setze({ ...o, hoehe_cm: v })} />
         ) : null}

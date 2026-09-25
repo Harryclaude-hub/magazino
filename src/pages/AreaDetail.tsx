@@ -4,6 +4,7 @@ import {
   Armchair,
   Boxes,
   CheckSquare,
+  Crosshair,
   DoorOpen,
   LayoutDashboard,
   Merge,
@@ -31,7 +32,7 @@ import {
   useToast,
 } from '../components/ui'
 import { useProject } from './ProjectLayout'
-import { countItems, listItems, mergeTags, setItemStatus } from '../lib/api'
+import { countItems, ladeRaeumeDesUmzugs, listItems, mergeTags, setItemStatus } from '../lib/api'
 import { useSprache } from '../lib/i18n'
 import { notifyItemStatus } from '../lib/push'
 import { useWischen } from '../lib/wischen'
@@ -110,11 +111,30 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
     [project.id, tagId, kind, grenze],
   )
 
+  /* Ist dieses Zimmer im Grundriss gezeichnet? Nur dann gibt es den
+   * Abschnitt "Ohne Platz" (Personen haben keinen Raum). */
+  const raeume = useAsync(
+    () => (kind === 'room' && canEdit ? ladeRaeumeDesUmzugs(project.id) : Promise.resolve([])),
+    [project.id, kind, canEdit],
+  )
+  const gezeichnet = Boolean(raeume.data?.some((r) => r.tag_id === tagId))
+
   const rows = alles.data?.rows ?? []
   const gesamt = alles.data?.total ?? 0
   const [offen, unterwegs, angekommen] = alles.data?.zahlen ?? [0, 0, 0]
   const kisten = rows.filter((i) => i.kind !== 'furniture')
   const moebel = rows.filter((i) => i.kind === 'furniture')
+  const ohnePlatz = kisten.filter((i) => !i.platz_raum_id)
+
+  /** Kiste hinstellen, danach der Reihe nach alle anderen ohne Platz. */
+  function hinstellen(start: Item) {
+    const ids = ohnePlatz.map((i) => i.id)
+    const ab = ids.indexOf(start.id)
+    const reihe = ab >= 0 ? [...ids.slice(ab), ...ids.slice(0, ab)] : [start.id]
+    nav(`/app/p/${project.id}/kisten/${start.id}/platz`, {
+      state: { zurueck: `/app/p/${project.id}/zimmer/${tagId}`, reihe },
+    })
+  }
 
   /* Die Gegenseite: in einem Zimmer stehen Kisten verschiedener Personen,
    * eine Person hat Kisten in verschiedenen Zimmern. Beides wird aus den
@@ -343,6 +363,37 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
                   )}
                 </div>
               </>
+            ) : null}
+
+            {/* Kisten dieses Zimmers ohne Platz im Grundriss: ein Tipp stellt
+                sie hin, danach kommt die naechste. */}
+            {kind === 'room' && canEdit && ohnePlatz.length > 0 && (gezeichnet || raeume.error) ? (
+              <section className="mb-6">
+                <SectionTitle>
+                  {t('bereichsseite.ohne_platz')} ({ohnePlatz.length})
+                </SectionTitle>
+                {raeume.error ? (
+                  <ErrorBox error={raeume.error} onRetry={raeume.reload} />
+                ) : (
+                  <>
+                    <p className="t-sub mb-2">{t('bereichsseite.ohne_platz_hinweis')}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {ohnePlatz.slice(0, 40).map((i) => (
+                        <button
+                          key={i.id}
+                          type="button"
+                          onClick={() => hinstellen(i)}
+                          className="t-serial inline-flex h-11 items-center gap-1.5 rounded-xl border-2 border-line bg-surface px-3 text-[0.9375rem] transition hover:border-ink/35 active:scale-95"
+                          dir="ltr"
+                        >
+                          <Crosshair size={15} className="text-muted" />
+                          {i.code}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </section>
             ) : null}
 
             <SectionTitle

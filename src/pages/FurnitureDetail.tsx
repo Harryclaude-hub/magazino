@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { lazy, useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Camera,
   Check,
@@ -18,6 +18,9 @@ import {
 import { AppHeader, Page } from '../components/AppShell'
 import { BildLesen } from '../components/BildLesen'
 import { InhaltVerschieben } from '../components/InhaltVerschieben'
+import { NahLaden, NahPlatzhalter } from '../components/NahLaden'
+import { PunktBild } from '../components/PunktBild'
+import { SuchBand } from '../components/SuchBand'
 import { MarkIcon, MarkPicker } from '../components/Mark'
 import {
   Button,
@@ -61,7 +64,10 @@ import { compressImage, signedUrls, uploadTo } from '../lib/media'
 import { notifyItemStatus } from '../lib/push'
 import { useWischen } from '../lib/wischen'
 import type { Item, ItemContent, ItemPhoto, ItemStatus } from '../lib/types'
-import { appUrl, contrastOn, cx, uid } from '../lib/util'
+import { appUrl, contrastOn, cx, rollenArt, uid } from '../lib/util'
+
+/* "Wo steht das Moebel" laedt als eigener Teil, erst in der Naehe. */
+const KistenLage = lazy(() => import('../components/plan/KistenLage'))
 
 /* Ein einzelnes Moebelstueck im Vollbild.
  *
@@ -96,6 +102,12 @@ function istPdf(f: File): boolean {
 export default function FurnitureDetail() {
   const { id = '' } = useParams()
   const nav = useNavigate()
+  /* Kommt man aus der Suche, steht das gesuchte Ding in der Adresse: die
+   * Zeile wird gerahmt und in den Blick geholt, oben steht das Band. */
+  const [params, setParams] = useSearchParams()
+  const gesuchtInhalt = params.get('inhalt')
+  const gesuchtGezeigt = useRef<string | null>(null)
+  const [punktEintrag, setPunktEintrag] = useState<ItemContent | null>(null)
   const { project, rooms, people, tagById, canEdit } = useProject()
   const { user } = useAuth()
   const { t, tn } = useSprache()
@@ -145,6 +157,18 @@ export default function FurnitureDetail() {
       alive = false
     }
   }, [id])
+
+  /* Das gesuchte Teil einmal in den Blick holen, sobald die Liste steht. */
+  useEffect(() => {
+    if (loading || !gesuchtInhalt || gesuchtGezeigt.current === gesuchtInhalt) return
+    if (!teile.some((c) => c.id === gesuchtInhalt)) return
+    requestAnimationFrame(() => {
+      const zeile = document.getElementById(`inhalt-${gesuchtInhalt}`)
+      if (!zeile) return
+      gesuchtGezeigt.current = gesuchtInhalt
+      zeile.scrollIntoView({ block: 'center' })
+    })
+  }, [gesuchtInhalt, teile, loading])
 
   /** Gibt zurueck, ob es wirklich geklappt hat. Wer danach Erfolg meldet,
    *  muss das hier abfragen. Sonst steht eine gruene Meldung neben einer
@@ -285,6 +309,9 @@ export default function FurnitureDetail() {
   const teileGesamt = teile.reduce((s, x) => s + (x.qty || 1), 0)
   const fehlendeBilder = laedtHoch ? 0 : fotos.filter((f) => !urls.get(f.path)).length
   const hatAngaben = Boolean(item.hersteller || item.modell || item.masse || item.zerlegt)
+  const gesucht = gesuchtInhalt ? (teile.find((c) => c.id === gesuchtInhalt) ?? null) : null
+  const gesuchtFoto = gesucht?.photo_id ? (fotos.find((f) => f.id === gesucht.photo_id) ?? null) : null
+  const zurLage = () => document.getElementById('lage')?.scrollIntoView({ behavior: rollenArt(), block: 'start' })
 
   return (
     <>
@@ -310,6 +337,20 @@ export default function FurnitureDetail() {
         }
       />
       <Page>
+        {gesuchtInhalt ? (
+          <SuchBand
+            eintrag={gesucht}
+            fotoUrl={gesuchtFoto ? (urls.get(gesuchtFoto.path) ?? null) : null}
+            onFoto={gesucht?.photo_id ? () => setPunktEintrag(gesucht) : undefined}
+            onLage={zurLage}
+            onWeg={() => {
+              const rest = new URLSearchParams(params)
+              rest.delete('inhalt')
+              setParams(rest, { replace: true })
+            }}
+          />
+        ) : null}
+
         {/* Nummer und Status ganz oben, so wie bei einer Kiste. */}
         <Card className="mb-5 p-4" style={{ backgroundColor: markFlaeche(item.mark_color) }}>
           <div className="flex flex-wrap items-center gap-3">
@@ -434,7 +475,14 @@ export default function FurnitureDetail() {
           ) : (
             <ul className="zebra divide-y divide-line">
               {teile.map((teil) => (
-                <li key={teil.id} className="flex items-center gap-2 px-3 py-2.5">
+                <li
+                  key={teil.id}
+                  id={`inhalt-${teil.id}`}
+                  className={cx(
+                    'flex items-center gap-2 px-3 py-2.5',
+                    teil.id === gesuchtInhalt && 'ring-4 ring-inset ring-danger',
+                  )}
+                >
                   <button
                     type="button"
                     disabled={!canEdit}
@@ -729,6 +777,14 @@ export default function FurnitureDetail() {
           </div>
         </Card>
 
+        {/* Wo das Moebel steht: der Platz seines Objekts im Grundriss. */}
+        <section id="lage" className="mb-6 scroll-mt-20">
+          <SectionTitle>{t('lage.titel_moebel')}</SectionTitle>
+          <NahLaden platzhalter={<NahPlatzhalter text={t('lage.laedt')} />}>
+            <KistenLage itemId={item.id} projectId={project.id} code={item.code} moebel canEdit={canEdit} />
+          </NahLaden>
+        </section>
+
         {canEdit ? (
           <Button variant="outline" className="text-danger" onClick={() => setLoeschen(true)}>
             <Trash2 size={18} />
@@ -737,6 +793,18 @@ export default function FurnitureDetail() {
         ) : null}
         <div className="h-8" />
       </Page>
+
+      {/* Das gesuchte Teil im Foto. Nur ansehen: Antworten und Rahmen
+          gehoeren auf die Kistenseite. */}
+      <PunktBild
+        offen={punktEintrag !== null}
+        onClose={() => setPunktEintrag(null)}
+        eintrag={punktEintrag}
+        geschwister={teile}
+        foto={punktEintrag ? (fotos.find((f) => f.id === punktEintrag.photo_id) ?? null) : null}
+        canEdit={false}
+        onAntwort={() => {}}
+      />
 
       <AngabenDialog
         offen={bearbeiten}

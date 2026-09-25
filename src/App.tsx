@@ -37,6 +37,8 @@ import NotFound from './pages/NotFound'
 const Grundriss = lazy(() => import('./pages/Grundriss'))
 const GrundrissWeiche = lazy(() => import('./pages/Grundriss').then((m) => ({ default: m.GrundrissWeiche })))
 const AlterPlanLink = lazy(() => import('./pages/Grundriss').then((m) => ({ default: m.AlterPlanLink })))
+/* Kiste platzieren am Handy: eigener Teil, erst beim Oeffnen geladen. */
+const PlatzWahl = lazy(() => import('./pages/PlatzWahl'))
 
 function Nachladen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<Loading />}>{children}</Suspense>
@@ -119,6 +121,7 @@ export default function App() {
                 <Route path="moebel/:id" element={<FurnitureDetail />} />
                 <Route path="kisten" element={<Items />} />
                 <Route path="kisten/:iid" element={<ItemDetail />} />
+                <Route path="kisten/:iid/platz" element={<Nachladen><PlatzWahl /></Nachladen>} />
                 <Route path="etiketten" element={<Labels />} />
                 <Route path="export" element={<Export />} />
                 <Route path="groessen" element={<Groessen />} />

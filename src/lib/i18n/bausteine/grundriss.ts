@@ -58,6 +58,10 @@ export const grundriss: Woerterbuch = {
     ar: 'غيّر شخص آخر المخطط في هذه الأثناء. أعد تحميله، ثم كرّر آخر تعديل لك لم يُحفظ بعد.',
   },
   'grundriss.neu_laden': { de: 'Neu laden', ar: 'إعادة التحميل' },
+  'grundriss.wechsel_ungespeichert': {
+    de: 'Der Zeichner hat sich geschlossen (Fenster zu schmal oder keine Maus). Deine letzte Änderung war vielleicht noch nicht gespeichert, bitte im Plan nachsehen.',
+    ar: 'أُغلقت أداة الرسم (النافذة ضيقة أو لا يوجد فأرة). ربما لم يُحفظ آخر تعديل لك، يرجى التحقق من المخطط.',
+  },
   'grundriss.zeigen': { de: 'Zeigen', ar: 'أظهر' },
   'grundriss.kisten_draussen_vorab': {
     de: 'Diese Kisten stünden danach außerhalb: {codes}. Nimm sie zuerst vom Platz oder stelle sie um.',

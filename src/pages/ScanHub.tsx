@@ -489,7 +489,7 @@ export default function ScanHub() {
                 </Button>
               </Link>
               {hit.room ? (
-                <Link to={`/app/p/${hit.project.id}/kisten?room=${hit.room.id}`} className="block">
+                <Link to={`/app/p/${hit.project.id}/zimmer/${hit.room.id}`} className="block">
                   <Button size="lg" full variant="outline">
                     <DoorOpen size={20} /> {t('scannen.zum_zimmer')}
                   </Button>

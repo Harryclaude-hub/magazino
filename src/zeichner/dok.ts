@@ -236,6 +236,51 @@ export function raumVerschieben(dok: Dok, raumId: string, dx: number, dy: number
   }
 }
 
+/** Sind alle Ecken um dasselbe (dx, dy) gewandert? Dann ist es eine reine
+ *  Verschiebung (die Datenbank nimmt Moebel und Kisten mit). */
+export function verschiebung(alt: Pick<Raum, 'punkte'>, neu: Pick<Raum, 'punkte'>): [number, number] | null {
+  if (alt.punkte.length !== neu.punkte.length || alt.punkte.length === 0) return null
+  const dx = neu.punkte[0][0] - alt.punkte[0][0]
+  const dy = neu.punkte[0][1] - alt.punkte[0][1]
+  if (dx === 0 && dy === 0) return null
+  for (let i = 0; i < alt.punkte.length; i++) {
+    if (neu.punkte[i][0] - alt.punkte[i][0] !== dx || neu.punkte[i][1] - alt.punkte[i][1] !== dy) return null
+  }
+  return [dx, dy]
+}
+
+/** Rueckgaengig und Wiederholen: der Stand aus dem Verlauf mit den
+ *  jetzigen Kisten. Kisten stehen nicht im Verlauf (ihren Platz setzt nur
+ *  platz_setzen), sie werden hier nur so mitgerechnet, wie es die
+ *  Datenbank beim Speichern tut:
+ *  - ein Raum, der nur verschoben zurueckspringt, nimmt seine Kisten mit;
+ *  - ein Moebel, das zurueckspringt, nimmt mit, was darauf und darin steht;
+ *  - eine Kiste, deren Raum es im Ziel nicht gibt (Teilen rueckgaengig)
+ *    oder die im Ziel in einem neuen Raum steht (Teilen wiederholen),
+ *    bekommt den Raum aus dem Ziel. */
+export function verlaufZiel(akt: Dok, ziel: Dok): Dok {
+  let d = akt
+  for (const r of ziel.raeume) {
+    const a = raumVon(akt, r.id)
+    const v = a ? verschiebung(a, r) : null
+    if (v) d = raumVerschieben(d, r.id, v[0], v[1])
+  }
+  for (const o of ziel.objekte) {
+    const a = d.objekte.find((x) => x.id === o.id)
+    if (a && (a.x !== o.x || a.y !== o.y || a.drehung !== o.drehung || a.raum_id !== o.raum_id)) d = objektSetzen(d, o)
+  }
+  const imZiel = new Set(ziel.raeume.map((r) => r.id))
+  const jetzt = new Set(akt.raeume.map((r) => r.id))
+  const zielKiste = new Map(ziel.kisten.map((k) => [k.id, k]))
+  const kisten = d.kisten.map((k) => {
+    const zk = zielKiste.get(k.id)
+    if (!zk || zk.platz_raum_id === k.platz_raum_id || !imZiel.has(zk.platz_raum_id)) return k
+    if (imZiel.has(k.platz_raum_id) && jetzt.has(zk.platz_raum_id)) return k
+    return { ...k, platz_raum_id: zk.platz_raum_id }
+  })
+  return { ...ziel, kisten }
+}
+
 export function eckeVerschieben(dok: Dok, raumId: string, ecke: number, p: Punkt): Dok {
   return {
     ...dok,
@@ -635,11 +680,26 @@ export function auswahlPruefen(dok: Dok, a: Auswahl): Auswahl {
   }
 }
 
+/** Raeume, deren Umriss sich anders als durch reines Verschieben geaendert
+ *  hat (oder die neu sind). Nur bei ihnen kann eine Kiste herausfallen. */
+export function umrissGeaendert(alt: Pick<Dok, 'raeume'>, neu: Pick<Dok, 'raeume'>): Set<string> {
+  const vorher = new Map(alt.raeume.map((r) => [r.id, r]))
+  const out = new Set<string>()
+  for (const r of neu.raeume) {
+    const a = vorher.get(r.id)
+    if (!a) out.add(r.id)
+    else if (JSON.stringify(a.punkte) !== JSON.stringify(r.punkte) && !verschiebung(a, r)) out.add(r.id)
+  }
+  return out
+}
+
 /** Kisten, deren Mitte nach einer Raum-Aenderung ausserhalb laege (Codes).
- *  Die Datenbank lehnt das ohnehin ab; der Zeichner sagt es vorher. */
-export function kistenDraussen(dok: Dok): string[] {
+ *  Die Datenbank lehnt das ohnehin ab; der Zeichner sagt es vorher.
+ *  nur: nur diese Raeume pruefen (sonst alle). */
+export function kistenDraussen(dok: Dok, nur?: Set<string>): string[] {
   const out: string[] = []
   for (const k of dok.kisten) {
+    if (nur && !nur.has(k.platz_raum_id)) continue
     const r = raumVon(dok, k.platz_raum_id)
     if (!r) continue
     if (!punktImPolygon(zuUmriss(r.punkte), k.platz_x, k.platz_y)) out.push(k.code)

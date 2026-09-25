@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Camera, Check, ChevronRight, DoorOpen, ImagePlus, User, X } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Camera, Check, ChevronRight, Crosshair, DoorOpen, ImagePlus, MapPin, User, X } from 'lucide-react'
 import { Button, ErrorBox, Loading, QrCode, StatusPill, Textarea, useToast } from './ui'
 import { MarkIcon } from './Mark'
 import { zielFuerItem } from './ItemRow'
@@ -59,6 +59,7 @@ export function Schnellansicht({
   const { t, tn } = useSprache()
   const toast = useToast()
   const nav = useNavigate()
+  const loc = useLocation()
 
   const [daten, setDaten] = useState<SchnellDaten | null>(null)
   const [bild, setBild] = useState<string | null>(null)
@@ -135,6 +136,14 @@ export function Schnellansicht({
     if (!item) return
     onClose()
     nav(zielFuerItem(item.project_id, item))
+  }
+
+  /** In den Platz-Ablauf; danach geht es hierher zurueck (ohne ?schnell,
+   *  sonst ginge die Schnellansicht beim Zurueckkommen wieder auf). */
+  function platzieren() {
+    if (!item) return
+    onClose()
+    nav(`/app/p/${item.project_id}/kisten/${item.id}/platz`, { state: { zurueck: loc.pathname } })
   }
 
   /** Ein Tippen irgendwo, ausser auf etwas, das selbst schon etwas tut. */
@@ -370,6 +379,25 @@ export function Schnellansicht({
 
               {item.target_room ? (
                 <p className="t-sub mb-4">{t('kisten.nach_ziel', { ziel: item.target_room })}</p>
+              ) : null}
+
+              {/* Wo sie im Grundriss steht, und der Weg dorthin. Moebel
+                  bekommen ihren Platz im Zeichner, nicht hier. */}
+              {item.kind !== 'furniture' ? (
+                <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-3">
+                  <MapPin size={20} className="shrink-0 text-muted" />
+                  <span className="t-name min-w-0 flex-1 break-words">
+                    {daten?.platz
+                      ? t('schnell.platz', { raum: daten.platz.raum || t('plan.raum_ohne_name') })
+                      : t('schnell.kein_platz')}
+                  </span>
+                  {darfAendern ? (
+                    <Button variant={daten?.platz ? 'outline' : 'primary'} onClick={platzieren}>
+                      <Crosshair size={18} />
+                      {daten?.platz ? t('schnell.platz_aendern') : t('schnell.platzieren')}
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
 
               {/* Der wichtigste Knopf. Gross genug, um ihn im Gehen zu treffen. */}

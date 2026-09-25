@@ -4,26 +4,36 @@ import { Camera, Map as KarteIcon, Package, Search, X } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { Ausschnitt } from '../components/Ausschnitt'
 import { PunktBild } from '../components/PunktBild'
-import { Badge, Button, CodeChip, Empty, ErrorBox, Input, Loading, Modal, Spinner, StatusPill } from '../components/ui'
+import { trefferOrt } from '../components/plan/lage'
+import { Badge, Button, CodeChip, Empty, ErrorBox, Input, Loading, Spinner, StatusPill } from '../components/ui'
 import { inhaltSuchen } from '../lib/api'
+import { useIstDesktop } from '../lib/desktop'
 import { useSprache } from '../lib/i18n'
-import { signedUrls, type Rahmen } from '../lib/media'
+import { signedUrls } from '../lib/media'
+import { rahmenVon } from '../lib/rahmen'
 import type { ItemContent, ItemPhoto, SuchTreffer } from '../lib/types'
+import { cx } from '../lib/util'
 
 /* Suchen ueber alle Umzuege.
  *
  * "Kleber" eintippen, und es kommt das Bild des Klebers, und darunter,
  * wo er ist: welcher Umzug, welches Zimmer, welche Kiste, welche Schicht,
- * und in welcher Hoehe. Ein Tipp zeigt den Fundort mit dem Lageplan
- * (Raum von oben, Regal oder Stapel von vorne), von dort geht es in die
- * Kiste, ins Foto oder in den ganzen Grundriss.
+ * und Platz und Hoehe im Grundriss ("Neue Wohnung, Wohnzimmer, Regal
+ * Billy, Fach 2 (Ebene 2), 44 bis 78 cm ueber dem Boden"). Dinge in einem
+ * Moebel haben den Platz des Moebels.
  *
- * Gesucht wird in der Datenbank (inhalt_suchen, 0024), auch mit
+ * Am Handy fuehrt ein Tipp direkt in die Kiste bzw. das Moebel, mit
+ * ?inhalt=<id>: oben das Band mit dem Bild, die Zeile gerahmt, unten der
+ * Lageplan. Am Computer steht links die Liste und rechts der gewaehlte
+ * Treffer (Foto mit Rahmen, Fakten, Lageplan); die Wahl steht in der
+ * Adresse (?t=<id>).
+ *
+ * Gesucht wird in der Datenbank (inhalt_suchen, 0030), auch mit
  * Tippfehlern und auf Arabisch. Die Anfrage steht in der Adresse: wer aus
  * einer Kiste zurueckkommt, findet seine Treffer wieder.
  */
 
-/* Der Lageplan (Plan, Regal, Stapel) laedt erst, wenn ein Fundort offen
+/* Der Lageplan (Plan, Regal, Stapel) laedt erst, wenn ein Treffer offen
  * ist: das Hauptbuendel bleibt klein, und wer nur sucht, laedt ihn nie. */
 const Lageplan = lazy(() => import('../components/plan/Lageplan').then((m) => ({ default: m.Lageplan })))
 
@@ -31,11 +41,6 @@ const WARTEN_MS = 300
 /** So viele Treffer zeigt die Seite. Einer mehr wird geholt, um zu
  *  wissen, ob es noch weitere gibt. */
 const MAX_TREFFER = 60
-
-function rahmenAus(z: SuchTreffer): Rahmen | null {
-  if (z.box_x0 === null || z.box_y0 === null || z.box_x1 === null || z.box_y1 === null) return null
-  return { x0: z.box_x0, y0: z.box_y0, x1: z.box_x1, y1: z.box_y1 }
-}
 
 /** Der Treffer als Eintrag, damit das Fotobild ihn zeigen kann. Nur
  *  lesend: was hier fehlt, braucht das Bild nicht. */
@@ -85,9 +90,11 @@ function alsFoto(z: SuchTreffer): ItemPhoto | null {
 export default function Suche() {
   const { t } = useSprache()
   const nav = useNavigate()
+  const desktop = useIstDesktop()
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const suchwort = q.trim()
+  const gewaehltId = params.get('t')
 
   /* Das Feld hat seinen eigenen Text, die Adresse folgt ihm verzoegert.
    * Aendert sich die Adresse von aussen (der Reiter unten, Zurueck), folgt
@@ -100,6 +107,7 @@ export default function Suche() {
 
   function adresse(neu: string) {
     geschrieben.current = neu
+    // Ein neues Suchwort nimmt die Wahl mit weg.
     setParams(neu ? { q: neu } : {}, { replace: true })
   }
 
@@ -116,7 +124,6 @@ export default function Suche() {
   const [fehler, setFehler] = useState<string | null>(null)
   const [versuch, setVersuch] = useState(0)
   const [fotoUrls, setFotoUrls] = useState<Map<string, string>>(new Map())
-  const [offen, setOffen] = useState<SuchTreffer | null>(null)
   const [fotoOffen, setFotoOffen] = useState(false)
 
   useEffect(() => {
@@ -174,43 +181,69 @@ export default function Suche() {
     }
   }, [suchwort, versuch])
 
-  function ortText(z: SuchTreffer): string | null {
-    if (!z.room_id || z.item_kind === 'furniture') return null
-    if (z.plan_x === null) return t('suche.ohne_platz')
-    if (z.regal_boden !== null) {
-      return t('suche.regal_brett', {
-        regal: z.regal_name || t('raumplan.regal_ohne_name'),
-        brett: z.regal_boden,
-      })
-    }
-    return t('suche.boden')
-  }
-
-  function hoeheText(z: SuchTreffer): string | null {
-    if (z.hoehe_von === null || z.hoehe_bis === null) return null
-    return t('raumplan.hoehe_bereich', {
-      von: Math.round(Number(z.hoehe_von)),
-      bis: Math.round(Number(z.hoehe_bis)),
-    })
+  /** Platz und Hoehe in einer Zeile, oder "noch ohne Platz". */
+  function ortText(z: SuchTreffer): string {
+    return trefferOrt(z, t) ?? t('suche.ohne_platz')
   }
 
   function zurKiste(z: SuchTreffer) {
-    if (z.item_kind === 'furniture') nav(`/app/p/${z.project_id}/moebel/${z.item_id}`)
+    if (z.item_kind === 'furniture') nav(`/app/p/${z.project_id}/moebel/${z.item_id}?inhalt=${z.content_id}`)
     else nav(`/app/p/${z.project_id}/kisten/${z.item_id}?inhalt=${z.content_id}`)
   }
 
-  /* Die Weiche des Grundrisses findet Grundriss und Raum selbst ueber
-   * den Platz der Kiste (kiste_lage). */
   function zumPlan(z: SuchTreffer) {
-    nav(`/app/p/${z.project_id}/grundriss?kiste=${z.item_id}`)
+    if (z.grundriss_id && z.raum_id) {
+      nav(`/app/p/${z.project_id}/grundriss/${z.grundriss_id}?raum=${z.raum_id}&kiste=${z.item_id}`)
+    } else {
+      // Die Weiche findet Grundriss und Raum selbst ueber den Platz (kiste_lage).
+      nav(`/app/p/${z.project_id}/grundriss?kiste=${z.item_id}`)
+    }
+  }
+
+  /** Handy: gleich in die Kiste. Computer: rechts zeigen. */
+  function tippen(z: SuchTreffer) {
+    if (!desktop) {
+      zurKiste(z)
+      return
+    }
+    setFotoOffen(false)
+    setParams({ q: suchwort, t: z.content_id }, { replace: true })
   }
 
   const zuKurz = text.trim().length === 1
+  const offen = desktop && treffer && gewaehltId ? (treffer.find((z) => z.content_id === gewaehltId) ?? null) : null
+
+  const liste =
+    treffer && treffer.length > 0 ? (
+      <>
+        <p className="t-sub mb-2 flex items-center gap-2" aria-live="polite">
+          {mehr
+            ? t('suche.treffer.mehr', { n: MAX_TREFFER })
+            : treffer.length === 1
+              ? t('suche.treffer.eins')
+              : t('suche.treffer.viele', { n: treffer.length })}
+          {laedt ? <Spinner /> : null}
+        </p>
+        <ul className={cx('space-y-2 transition', laedt && 'opacity-60')}>
+          {treffer.map((z) => (
+            <li key={z.content_id}>
+              <TrefferZeile
+                z={z}
+                ort={ortText(z)}
+                fotoUrl={z.foto_pfad ? (fotoUrls.get(z.foto_pfad) ?? null) : null}
+                gewaehlt={offen?.content_id === z.content_id}
+                onTipp={() => tippen(z)}
+              />
+            </li>
+          ))}
+        </ul>
+      </>
+    ) : null
 
   return (
     <>
       <AppHeader title={t('suche.titel')} subtitle={t('suche.untertitel')} />
-      <Page>
+      <Page wide={desktop}>
         <form
           role="search"
           onSubmit={(e) => {
@@ -219,7 +252,7 @@ export default function Suche() {
             if (neu !== suchwort) adresse(neu)
             feld.current?.blur()
           }}
-          className="relative mb-4"
+          className="relative mb-4 lg:max-w-3xl"
         >
           <Search
             size={20}
@@ -246,7 +279,7 @@ export default function Suche() {
               }}
               aria-label={t('suche.leeren')}
               title={t('suche.leeren')}
-              className="absolute end-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-xl text-muted transition hover:bg-raised hover:text-ink"
+              className="absolute end-2 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-xl text-muted transition hover:bg-raised hover:text-ink"
             >
               <X size={20} />
             </button>
@@ -267,95 +300,29 @@ export default function Suche() {
           <Loading />
         ) : treffer.length === 0 ? (
           <Empty icon={<Package size={36} />} title={t('suche.nichts')} />
+        ) : desktop ? (
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] items-start gap-6">
+            <div className="min-w-0">{liste}</div>
+            <div className="sticky top-16 min-w-0">
+              {offen ? (
+                <TrefferDetail
+                  key={offen.content_id}
+                  z={offen}
+                  ort={ortText(offen)}
+                  fotoUrl={offen.foto_pfad ? (fotoUrls.get(offen.foto_pfad) ?? null) : null}
+                  onFoto={() => setFotoOffen(true)}
+                  onKiste={() => zurKiste(offen)}
+                  onPlan={() => zumPlan(offen)}
+                />
+              ) : (
+                <Empty icon={<Package size={32} />} title={t('suche.waehlen')} />
+              )}
+            </div>
+          </div>
         ) : (
-          <>
-            <p className="t-sub mb-2 flex items-center gap-2" aria-live="polite">
-              {mehr
-                ? t('suche.treffer.mehr', { n: MAX_TREFFER })
-                : treffer.length === 1
-                  ? t('suche.treffer.eins')
-                  : t('suche.treffer.viele', { n: treffer.length })}
-              {laedt ? <Spinner /> : null}
-            </p>
-            <ul className={laedt ? 'space-y-2 opacity-60 transition' : 'space-y-2 transition'}>
-              {treffer.map((z) => {
-                const ort = ortText(z)
-                const hoehe = hoeheText(z)
-                return (
-                  <li key={z.content_id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFotoOffen(false)
-                        setOffen(z)
-                      }}
-                      className="flex w-full items-start gap-3 rounded-2xl border border-line bg-surface p-3 text-start transition hover:bg-raised active:scale-[0.99]"
-                    >
-                      <Ausschnitt
-                        pfad={z.ausschnitt_pfad}
-                        fotoUrl={z.foto_pfad ? (fotoUrls.get(z.foto_pfad) ?? null) : null}
-                        rahmen={rahmenAus(z)}
-                        groesse={76}
-                        alt={z.inhalt}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="t-name block break-words">
-                          {z.menge > 1 ? <><span className="t-serial">{z.menge}x</span>{' '}</> : null}
-                          {z.inhalt}
-                        </span>
-                        <span className="t-sub block truncate">{z.project_name}</span>
-                        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          <CodeChip code={z.item_code} size="sm" />
-                          <Badge color={z.room_color ?? undefined}>
-                            {z.room_name ?? t('suche.ohne_zimmer')}
-                          </Badge>
-                          {z.schicht ? <Badge>{t('schichten.schicht_n', { n: z.schicht })}</Badge> : null}
-                          {/* Der Platz im Grundriss ist das Ziel. Solange die
-                              Kiste nicht da ist, steht sie noch woanders. */}
-                          {z.item_status !== 'arrived' ? <StatusPill status={z.item_status} size="sm" /> : null}
-                          {z.bestaetigt === false ? (
-                            <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">{t('schichten.verneint')}</span>
-                          ) : null}
-                        </span>
-                        {ort || hoehe ? (
-                          <span className="t-sub mt-1 block">
-                            {ort && hoehe ? t('suche.ort_und_hoehe', { ort, hoehe }) : (ort ?? hoehe)}
-                          </span>
-                        ) : null}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </>
+          liste
         )}
       </Page>
-
-      {/* Der Fundort. Er bleibt offen, waehrend das Foto darueber liegt:
-          sonst luede der kleine Plan beim Zurueckkommen neu, und der Dialog
-          stuende wieder oben. Schliessen (auch Escape) wirkt dann nur aufs
-          Foto, der Dialog wartet. */}
-      <Modal
-        open={offen !== null}
-        onClose={() => {
-          if (!fotoOffen) setOffen(null)
-        }}
-        title={offen?.inhalt ?? ''}
-        wide
-      >
-        {offen ? (
-          <Fundblatt
-            z={offen}
-            fotoUrl={offen.foto_pfad ? (fotoUrls.get(offen.foto_pfad) ?? null) : null}
-            ort={ortText(offen)}
-            hoehe={hoeheText(offen)}
-            onFoto={() => setFotoOffen(true)}
-            onKiste={() => zurKiste(offen)}
-            onPlan={() => zumPlan(offen)}
-          />
-        ) : null}
-      </Modal>
 
       <PunktBild
         offen={offen !== null && fotoOffen}
@@ -370,60 +337,113 @@ export default function Suche() {
   )
 }
 
-/** Der Inhalt des Fundort-Dialogs: Bild, wo es ist, der kleine Plan, und
- *  die Wege weiter. */
-function Fundblatt({
+/** Eine Zeile der Trefferliste: Ding, Kiste, Schicht, Zimmer, Platz und
+ *  Hoehe. */
+function TrefferZeile({
   z,
-  fotoUrl,
   ort,
-  hoehe,
+  fotoUrl,
+  gewaehlt,
+  onTipp,
+}: {
+  z: SuchTreffer
+  ort: string
+  fotoUrl: string | null
+  gewaehlt: boolean
+  onTipp: () => void
+}) {
+  const { t } = useSprache()
+  return (
+    <button
+      type="button"
+      onClick={onTipp}
+      aria-current={gewaehlt ? 'true' : undefined}
+      className={cx(
+        'flex w-full items-start gap-3 rounded-2xl border-2 bg-surface p-3 text-start transition hover:bg-raised active:scale-[0.99]',
+        gewaehlt ? 'border-ink' : 'border-line',
+      )}
+    >
+      <Ausschnitt pfad={z.ausschnitt_pfad} fotoUrl={fotoUrl} rahmen={rahmenVon(z)} groesse={76} alt={z.inhalt} />
+      <span className="min-w-0 flex-1">
+        <span className="t-name block break-words">
+          {z.menge > 1 ? (
+            <>
+              <span className="t-serial">{z.menge}x</span>{' '}
+            </>
+          ) : null}
+          {z.inhalt}
+        </span>
+        <span className="t-sub block truncate">{z.project_name}</span>
+        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <CodeChip code={z.item_code} size="sm" />
+          <Badge color={z.room_color ?? undefined}>{z.room_name ?? t('suche.ohne_zimmer')}</Badge>
+          {z.schicht ? <Badge>{t('schichten.schicht_n', { n: z.schicht })}</Badge> : null}
+          {/* Der Platz im Grundriss ist das Ziel. Solange die Kiste nicht
+              da ist, steht sie noch woanders. */}
+          {z.item_status !== 'arrived' ? <StatusPill status={z.item_status} size="sm" /> : null}
+          {z.bestaetigt === false ? (
+            <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">
+              {t('schichten.verneint')}
+            </span>
+          ) : null}
+        </span>
+        <span className={cx('mt-1 block text-[0.9375rem]', z.raum_id ? 'font-semibold text-ink' : 'text-muted')}>
+          {ort}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+/** Rechts am Computer: das Ding gross, wo es ist, der Lageplan, und die
+ *  Wege weiter. */
+function TrefferDetail({
+  z,
+  ort,
+  fotoUrl,
   onFoto,
   onKiste,
   onPlan,
 }: {
   z: SuchTreffer
+  ort: string
   fotoUrl: string | null
-  ort: string | null
-  hoehe: string | null
   onFoto: () => void
   onKiste: () => void
   onPlan: () => void
 }) {
   const { t } = useSprache()
   const moebel = z.item_kind === 'furniture'
-  /* Kisten mit Platz im Grundriss, Moebel ueber ihr gezeichnetes Objekt
-   * (das findet erst der Lageplan heraus). */
-  const imPlan = moebel || z.plan_x !== null
+  const imPlan = z.raum_id !== null
   const hatFoto = z.photo_id !== null && z.foto_pfad !== null
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-2xl border border-line bg-surface p-4">
       <div className="flex items-start gap-4">
-        <Ausschnitt
-          pfad={z.ausschnitt_pfad}
-          fotoUrl={fotoUrl}
-          rahmen={rahmenAus(z)}
-          groesse={112}
-          alt={z.inhalt}
-        />
+        {hatFoto ? (
+          <button type="button" onClick={onFoto} aria-label={t('suche.foto_gross')} className="shrink-0 transition active:scale-95">
+            <Ausschnitt pfad={z.ausschnitt_pfad} fotoUrl={fotoUrl} rahmen={rahmenVon(z)} groesse={144} alt={z.inhalt} />
+          </button>
+        ) : (
+          <Ausschnitt pfad={z.ausschnitt_pfad} fotoUrl={fotoUrl} rahmen={rahmenVon(z)} groesse={144} alt={z.inhalt} />
+        )}
         <div className="min-w-0 flex-1 space-y-2">
-          {z.menge > 1 ? (
-            <p className="t-name">
-              <span className="t-serial">{z.menge}x</span>{' '}
-              {z.inhalt}
-            </p>
-          ) : null}
+          <p className="t-name-lg break-words">
+            {z.menge > 1 ? (
+              <>
+                <span className="t-serial">{z.menge}x</span>{' '}
+              </>
+            ) : null}
+            {z.inhalt}
+          </p>
           <div className="flex flex-wrap gap-2">
             <StatusPill status={z.item_status} size="sm" />
             {z.bestaetigt === false ? (
-              <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">{t('schichten.verneint')}</span>
+              <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">
+                {t('schichten.verneint')}
+              </span>
             ) : null}
           </div>
-          {/* Der Grundriss zeigt das Ziel. Solange die Kiste nicht
-              angekommen ist, steht sie noch woanders. */}
-          {z.item_status !== 'arrived' && z.plan_x !== null ? (
-            <p className="t-sub">{t('suche.noch_nicht_da')}</p>
-          ) : null}
         </div>
       </div>
 
@@ -453,19 +473,8 @@ function Fundblatt({
           </>
         ) : null}
 
-        {ort ? (
-          <>
-            <dt className="text-muted">{t('suche.platz')}</dt>
-            <dd className="min-w-0 break-words">{ort}</dd>
-          </>
-        ) : null}
-
-        {hoehe ? (
-          <>
-            <dt className="text-muted">{t('suche.hoehe')}</dt>
-            <dd className="t-name min-w-0">{hoehe}</dd>
-          </>
-        ) : null}
+        <dt className="text-muted">{t('suche.platz')}</dt>
+        <dd className="t-name min-w-0 break-words">{ort}</dd>
       </dl>
 
       {imPlan ? (
@@ -476,19 +485,19 @@ function Fundblatt({
             </div>
           }
         >
-          <Lageplan itemId={z.item_id} projectId={z.project_id} angekommen={z.item_status === 'arrived'} />
+          <Lageplan itemId={z.item_id} projectId={z.project_id} angekommen={moebel || z.item_status === 'arrived'} />
         </Suspense>
       ) : null}
 
       <div className="grid gap-2 sm:grid-cols-3">
-        {hatFoto ? (
-          <Button variant="outline" full onClick={onFoto}>
-            <Camera size={18} /> {t('suche.im_foto')}
-          </Button>
-        ) : null}
         <Button full onClick={onKiste}>
           <Package size={18} /> {moebel ? t('suche.zum_moebel') : t('suche.zur_kiste')}
         </Button>
+        {hatFoto ? (
+          <Button variant="outline" full onClick={onFoto}>
+            <Camera size={18} /> {t('suche.foto_gross')}
+          </Button>
+        ) : null}
         {imPlan ? (
           <Button variant="outline" full onClick={onPlan}>
             <KarteIcon size={18} /> {t('lage.im_grundriss')}

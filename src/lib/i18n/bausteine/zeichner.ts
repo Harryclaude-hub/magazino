@@ -131,6 +131,10 @@ export const zeichnerWoerter: Woerterbuch = {
     de: 'Achtung, diese Räume überdecken sich: {paare}. Gespeichert wird trotzdem.',
     ar: 'تنبيه: هذه الغرف متداخلة: {paare}. سيتم الحفظ رغم ذلك.',
   },
+  'zeichner.nicht_angenommen': {
+    de: 'Die Datenbank hat diese Änderung nicht angenommen. Der Plan steht wieder auf dem letzten gespeicherten Stand. ({grund})',
+    ar: 'لم تقبل قاعدة البيانات هذا التعديل. عاد المخطط إلى آخر حالة محفوظة. ({grund})',
+  },
   'zeichner.frage_titel': { de: 'Raum mit Kisten löschen?', ar: 'حذف غرفة فيها صناديق؟' },
   'zeichner.frage_kisten': {
     de: '{n} Kisten verlieren dann ihren Platz ({codes}). Sie bleiben im Umzug.',

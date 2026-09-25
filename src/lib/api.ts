@@ -734,16 +734,19 @@ export async function ladeGrundriss(id: string, raumId?: string): Promise<Grundr
 export class GrundrissFehler extends Error {
   kennung: string | null
   werte: Record<string, unknown>
-  constructor(text: string, kennung: string | null, werte: Record<string, unknown>) {
+  /** SQLSTATE der Datenbank (z. B. 23514), sonst null. */
+  sqlstate: string | null
+  constructor(text: string, kennung: string | null, werte: Record<string, unknown>, sqlstate: string | null = null) {
     super(text)
     this.name = 'GrundrissFehler'
     this.kennung = kennung
     this.werte = werte
+    this.sqlstate = sqlstate
   }
 }
 
 function grundrissFehlerAus(err: unknown): GrundrissFehler {
-  const e = (err ?? {}) as { hint?: unknown; details?: unknown }
+  const e = (err ?? {}) as { hint?: unknown; details?: unknown; code?: unknown }
   let kennung: string | null = null
   if (typeof e.hint === 'string' && e.hint.startsWith('kistly:grundriss.')) {
     kennung = e.hint.slice('kistly:grundriss.'.length)
@@ -757,7 +760,8 @@ function grundrissFehlerAus(err: unknown): GrundrissFehler {
       /* ohne Werte: der Satz kommt trotzdem, nur ohne Platzhalter */
     }
   }
-  return new GrundrissFehler(tg('fehler.grundriss_speichern', { grund: errText(err) }), kennung, werte)
+  const sqlstate = typeof e.code === 'string' && /^[0-9A-Z]{5}$/.test(e.code) ? e.code : null
+  return new GrundrissFehler(tg('fehler.grundriss_speichern', { grund: errText(err) }), kennung, werte, sqlstate)
 }
 
 /** Aenderungen aus dem Zeichner in einem Vorgang speichern. Die Datenbank

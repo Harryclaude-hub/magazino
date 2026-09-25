@@ -1,4 +1,5 @@
-import { Check } from 'lucide-react'
+/* CircleCheck statt Check: Check steckt auch im Zeichner-Teil (siehe PlatzWahl). */
+import { CircleCheck } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
 import type { Unterlage } from '../../lib/geometrie'
 import type { GrundrissDaten, Objekt } from '../../lib/types'
@@ -96,7 +97,7 @@ export function UnterlageWahl({
           )}
           aria-hidden
         >
-          {an ? <Check size={16} strokeWidth={3} /> : null}
+          {an ? <CircleCheck size={18} strokeWidth={2.5} /> : null}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-base font-bold break-words">{text(u)}</span>

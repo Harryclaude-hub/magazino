@@ -42,7 +42,7 @@ import type { GrundrissAenderung, GrundrissDaten, Item, PlanKiste } from '../lib
 import { cx } from '../lib/util'
 import { useProject } from '../pages/ProjectLayout'
 import { geloeschteMitKisten, istLeer, unterschied } from './diff'
-import { kanteLaengeSetzen, kistenDraussen, loeschen, objektBox, raumAendern, raumAn, type Vorlage } from './dok'
+import { kanteLaengeSetzen, kistenDraussen, loeschen, objektBox, raumAendern, raumAn, umrissGeaendert, type Vorlage } from './dok'
 import { Eigenschaften } from './Eigenschaften'
 import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
@@ -116,10 +116,14 @@ export default function Zeichner({
   start,
   raumId,
   kisteId,
+  onUngespeichert,
 }: {
   start: GrundrissDaten
   raumId: string | null
   kisteId: string | null
+  /** Meldet, ob gerade etwas nicht gespeichert ist (fuer die Seite, falls
+   *  der Zeichner beim Verkleinern des Fensters verschwindet). */
+  onUngespeichert?: (ja: boolean) => void
 }) {
   const { project, rooms, tags, reloadTags } = useProject()
   const { t, lang } = useSprache()
@@ -160,6 +164,9 @@ export default function Zeichner({
 
   const flaeche = useRef<HTMLDivElement>(null)
   const laeuft = useRef(false)
+  /** Raeume, deren Loeschen samt Kisten schon bestaetigt ist: vor dem
+   *  Senden nicht noch einmal fragen. */
+  const loeschenBestaetigt = useRef(new Set<string>())
   const leertaste = useRef(false)
   const schieben = useRef<{ x: number; y: number; a: Ansicht } | null>(null)
 
@@ -501,6 +508,14 @@ export default function Zeichner({
             setStatus('gespeichert')
             return
           }
+          if (err instanceof GrundrissFehler && err.sqlstate && /^2[23]/.test(err.sqlstate)) {
+            // Abgelehnt ohne kistly-Kennung (Pruefung einer Spalte, Wert
+            // ungueltig): Nochmal braechte dasselbe, also wie eine Regel.
+            dispatch({ typ: 'abgelehnt' })
+            setLeiste({ text: t('zeichner.nicht_angenommen', { grund: err.message }), kennung: null, werte: {} })
+            setStatus('gespeichert')
+            return
+          }
           // Netz oder Unbekanntes: Stand behalten, Nochmal anbieten.
           setLeiste({ text: err instanceof Error ? err.message : String(err), kennung: null, werte: {} })
           setStatus('fehler')
@@ -510,27 +525,40 @@ export default function Zeichner({
           setTick((n) => n + 1)
         })
     },
-    [z.dok, z.basis, z.version],
+    [z.dok, z.basis, z.version, t],
   )
 
   useEffect(() => {
     if (laeuft.current || status === 'veraltet' || status === 'fehler' || frage) return
     const a = unterschied(z.basis, z.dok)
     if (istLeer(a)) return
-    // Vorab: Kisten, die nach einer Raum-Aenderung draussen stuenden.
-    const draussen = kistenDraussen(z.dok)
+    // Vorab: Kisten, die nach einer Raum-Aenderung draussen stuenden. Nur
+    // Raeume mit neuem Umriss; reines Verschieben nimmt die Kisten mit.
+    const draussen = kistenDraussen(z.dok, umrissGeaendert(z.basis, z.dok))
     if (draussen.length) {
       dispatch({ typ: 'abgelehnt' })
       setLeiste({ text: t('grundriss.kisten_draussen_vorab', { codes: draussen.join(', ') }), kennung: 'kisten_draussen', werte: { code: draussen[0] } })
       return
     }
-    const mitKisten = geloeschteMitKisten(z.basis, a)
+    // Wer den Raum schon im Loeschen-Dialog bestaetigt hat, wird nicht
+    // ein zweites Mal gefragt.
+    const mitKisten = geloeschteMitKisten(z.basis, a).filter((x) => !loeschenBestaetigt.current.has(x.raumId))
     if (mitKisten.length) {
       setFrage({ art: 'senden', codes: mitKisten.flatMap((x) => x.codes) })
       return
     }
+    for (const id of a.raeume_loeschen ?? []) loeschenBestaetigt.current.delete(id)
     senden(a)
   }, [z.dok, z.basis, status, frage, tick, senden, t])
+
+  // Der Seite sagen, ob etwas nicht gespeichert ist.
+  const ungespeichert = useMemo(
+    () => status !== 'gespeichert' || !istLeer(unterschied(z.basis, z.dok)),
+    [status, z.basis, z.dok],
+  )
+  useEffect(() => {
+    onUngespeichert?.(ungespeichert)
+  }, [ungespeichert, onUngespeichert])
 
   // Nicht Gespeichertes nicht still verlieren.
   useEffect(() => {
@@ -1073,6 +1101,7 @@ export default function Zeichner({
                 setFrage(null)
                 if (!f) return
                 if (f.art === 'loeschen') {
+                  loeschenBestaetigt.current.add(f.raumId)
                   dispatch({ typ: 'aendern', dok: loeschen(z.dok, { art: 'raum', id: f.raumId }), auswahl: null })
                 } else {
                   senden(unterschied(z.basis, z.dok))

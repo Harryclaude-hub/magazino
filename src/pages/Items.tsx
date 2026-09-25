@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { Boxes, CheckSquare, Download, Filter, Plus, Ruler, Search, X } from 'lucide-react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Boxes, CheckSquare, Crosshair, Download, Filter, Plus, Ruler, Search, X } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { ItemRow } from '../components/ItemRow'
 import { Auswahlleiste } from '../components/Auswahlleiste'
@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   Chip,
+  CodeChip,
   Empty,
   ErrorBox,
   Field,
@@ -22,7 +23,7 @@ import {
   useToast,
 } from '../components/ui'
 import { useProject } from './ProjectLayout'
-import { countItems, createItem, listItems, setItemStatus, listAllItems } from '../lib/api'
+import { countItems, createItem, ladeRaeumeDesUmzugs, listItems, setItemStatus, listAllItems } from '../lib/api'
 import { useSprache } from '../lib/i18n'
 import { hatLiter, literText, useEigeneGroessen, useKistenGroessen } from '../lib/groessen'
 import { ARTEN, groessenArt } from '../lib/arten'
@@ -67,6 +68,8 @@ export default function Items() {
     false,
   )
   const toast = useToast()
+  const nav = useNavigate()
+  const loc = useLocation()
   const [params, setParams] = useSearchParams()
 
   const [search, setSearch] = useState('')
@@ -158,6 +161,9 @@ export default function Items() {
 
   /* -------------------------------------------------------- neue Kiste */
   const [open, setOpen] = useState(params.get('neu') === '1')
+  /* Nach dem Anlegen: gleich im Zimmer hinstellen (BAUPLAN 5.3). Das Blatt
+   * zeigt nur, was es anzeigt; es haelt keinen eigenen Zustand. */
+  const [angelegt, setAngelegt] = useState<Item[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   /* Der Entwurf kommt beim Oeffnen frisch aus der Adresse. 'all' und
@@ -257,16 +263,33 @@ export default function Items() {
      * Kisten unsichtbar, und der naechste Versuch legte sie ein zweites
      * Mal an. */
     if (created.length > 0) {
-      toast(
-        created.length === 1
-          ? t('kisten.angelegt', { code: created[0].code })
-          : t('kisten.mehrere_angelegt', {
-              n: created.length,
-              von: created[0].code,
-              bis: created[created.length - 1].code,
-            }),
-        'ok',
-      )
+      /* Ist das Zimmer im Grundriss gezeichnet, kommt statt der kurzen
+       * Meldung das Blatt mit "Im Zimmer platzieren". Laesst sich das
+       * nicht pruefen, kommt das Blatt trotzdem: der Platz-Ablauf zeigt
+       * dann selbst, was fehlt. */
+      let blatt = false
+      if (!abbruch && draft.kind !== 'furniture' && draft.room_id) {
+        try {
+          blatt = (await ladeRaeumeDesUmzugs(project.id)).some((r) => r.tag_id === draft.room_id)
+        } catch (err) {
+          console.warn('[kisten] Raeume nicht geprueft:', err instanceof Error ? err.message : err)
+          blatt = true
+        }
+      }
+      if (blatt) {
+        setAngelegt(created)
+      } else {
+        toast(
+          created.length === 1
+            ? t('kisten.angelegt', { code: created[0].code })
+            : t('kisten.mehrere_angelegt', {
+                n: created.length,
+                von: created[0].code,
+                bis: created[created.length - 1].code,
+              }),
+          'ok',
+        )
+      }
       await load(0, false)
     }
 
@@ -812,6 +835,47 @@ export default function Items() {
             </p>
           ) : null}
         </form>
+      </Modal>
+
+      {/* Angelegt: gleich hinstellen oder fertig. */}
+      <Modal
+        open={angelegt !== null}
+        onClose={() => setAngelegt(null)}
+        title={
+          angelegt && angelegt.length === 1
+            ? t('kisten.angelegt_blatt', { code: angelegt[0].code })
+            : t('kisten.angelegt_blatt_viele', { n: angelegt?.length ?? 0 })
+        }
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setAngelegt(null)}>
+              {t('aktion.fertig')}
+            </Button>
+            <Button
+              onClick={() => {
+                if (!angelegt || angelegt.length === 0) return
+                const ids = angelegt.map((i) => i.id)
+                setAngelegt(null)
+                nav(`/app/p/${project.id}/kisten/${ids[0]}/platz`, {
+                  state: { zurueck: loc.pathname + loc.search, reihe: ids.length > 1 ? ids : undefined },
+                })
+              }}
+            >
+              <Crosshair size={18} />
+              {angelegt && angelegt.length > 1 ? t('kisten.nacheinander') : t('kisten.im_zimmer_platzieren')}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-base">{t('kisten.angelegt_frage')}</p>
+        {angelegt && angelegt.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {angelegt.slice(0, 12).map((i) => (
+              <CodeChip key={i.id} code={i.code} size="sm" />
+            ))}
+            {angelegt.length > 12 ? <span className="t-sub self-center">…</span> : null}
+          </div>
+        ) : null}
       </Modal>
     </>
   )

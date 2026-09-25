@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Monitor, Pencil, Plus, Trash2 } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
@@ -393,13 +393,30 @@ export default function Grundriss() {
   const raumId = params.get('raum')
   const kisteId = params.get('kiste')
 
+  const mitZeichner = zeichnen && canEdit
   const liste = useAsync(() => ladeGrundrisse(project.id), [project.id])
-  const daten = useAsync(() => ladeGrundriss(gid), [gid])
+  /* Wechselt die Ansicht (Fenster schmaler oder breiter), zeigt die andere
+   * Ansicht nicht die Daten vom Anfang: der Zeichner hat seitdem
+   * gespeichert. Also neu laden und bis dahin das Skelett. */
+  const daten = useAsync(async () => ({ fuer: mitZeichner, d: await ladeGrundriss(gid) }), [gid, mitZeichner])
   const [dialog, setDialog] = useState<'neu' | 'umbenennen' | null>(null)
   const [loeschen, setLoeschen] = useState<{ zahl: number | null; fehler: string | null } | null>(null)
 
   const aktiv = liste.data?.find((g) => g.id === gid) ?? null
-  const mitZeichner = zeichnen && canEdit
+
+  /* Verschwindet der Zeichner mit nicht Gespeichertem, nicht still
+   * verlieren: Hinweis. */
+  const ungespeichert = useRef(false)
+  const zeichnerVorher = useRef(mitZeichner)
+  const ungespeichertMelden = useCallback((ja: boolean) => {
+    ungespeichert.current = ja
+  }, [])
+  useEffect(() => {
+    if (zeichnerVorher.current === mitZeichner) return
+    zeichnerVorher.current = mitZeichner
+    if (!mitZeichner && ungespeichert.current) toast(t('grundriss.wechsel_ungespeichert'), 'error')
+    ungespeichert.current = false
+  }, [mitZeichner, toast, t])
 
   function loeschenFragen() {
     setLoeschen({ zahl: null, fehler: null })
@@ -430,9 +447,13 @@ export default function Grundriss() {
     </>
   )
 
-  /* Beim Wechsel des Reiters haelt useAsync noch die alten Daten: erst
-   * zeigen, wenn sie zu diesem Grundriss gehoeren. */
-  const passend = daten.data && daten.data.grundriss.id === gid ? daten.data : null
+  /* Beim Wechsel des Reiters oder der Ansicht haelt useAsync noch die
+   * alten Daten: erst zeigen, wenn sie zu diesem Grundriss und dieser
+   * Ansicht gehoeren. */
+  const alt =
+    daten.data !== null &&
+    (daten.data.fuer !== mitZeichner || (daten.data.d !== null && daten.data.d.grundriss.id !== gid))
+  const passend = daten.data && !alt ? daten.data.d : null
   let inhalt
   if (daten.error) {
     inhalt = (
@@ -440,7 +461,7 @@ export default function Grundriss() {
         <ErrorBox error={daten.error} onRetry={daten.reload} />
       </Page>
     )
-  } else if (daten.loading || (daten.data && !passend)) {
+  } else if (daten.loading || alt) {
     inhalt = <Skelett />
   } else if (!passend) {
     inhalt = (
@@ -458,7 +479,7 @@ export default function Grundriss() {
   } else if (mitZeichner) {
     inhalt = (
       <Suspense fallback={<Skelett />}>
-        <Zeichner key={gid} start={passend} raumId={raumId} kisteId={kisteId} />
+        <Zeichner key={gid} start={passend} raumId={raumId} kisteId={kisteId} onUngespeichert={ungespeichertMelden} />
       </Suspense>
     )
   } else {

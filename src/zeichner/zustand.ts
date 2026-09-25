@@ -8,9 +8,10 @@
  * Jede abgeschlossene Aktion legt den Vorher-Stand auf "zurueck"; der
  * Zeichner schickt dann sofort den Unterschied basis -> dok. Rueckgaengig
  * macht den Vorher-Stand zum Ziel und schickt wieder den Unterschied, als
- * neue Version (BAUPLAN 7.1 E23).
+ * neue Version (BAUPLAN 7.1 E23). Die Kisten des Ziels rechnet
+ * verlaufZiel aus den jetzigen Kisten (sie stehen nicht im Verlauf).
  */
-import { auswahlPruefen, dokRichten, type Auswahl, type Dok } from './dok.ts'
+import { auswahlPruefen, dokRichten, verlaufZiel, type Auswahl, type Dok } from './dok.ts'
 import { istLeer, unterschied } from './diff.ts'
 import type { PlanKiste } from '../lib/types'
 
@@ -57,7 +58,7 @@ export function zReducer(z: ZState, a: ZAktion): ZState {
     case 'zurueck': {
       const ziel = z.zurueck[z.zurueck.length - 1]
       if (!ziel) return z
-      const dok = { ...ziel, kisten: z.dok.kisten }
+      const dok = verlaufZiel(z.dok, ziel)
       return {
         ...z,
         dok,
@@ -69,7 +70,7 @@ export function zReducer(z: ZState, a: ZAktion): ZState {
     case 'vor': {
       const ziel = z.vor[0]
       if (!ziel) return z
-      const dok = { ...ziel, kisten: z.dok.kisten }
+      const dok = verlaufZiel(z.dok, ziel)
       return {
         ...z,
         dok,

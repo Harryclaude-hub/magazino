@@ -1,19 +1,24 @@
 /* Der Unterschied zweier Staende des Zeichners als Auftrag fuer
  * grundriss_speichern (0028).
  *
- * Die Datenbank arbeitet in dieser Reihenfolge: loeschen, raeume,
- * verschieben, objekte, zuordnen, oeffnungen. Daraus folgt:
+ * Die Datenbank arbeitet in dieser Reihenfolge (0031): loeschen (ohne
+ * Raeume), raeume, umhaengen, verschieben, objekte, zuordnen, oeffnungen,
+ * zuletzt Raeume loeschen. Daraus folgt:
  *  - Ein Raum, dessen Ecken alle um dasselbe (dx, dy) gewandert sind, geht
  *    als "verschieben" (Moebel und Kisten fahren in der Datenbank mit).
  *    Hat er sich zusaetzlich anders geaendert, steht er mit dem ALTEN
  *    Umriss unter "raeume", sonst wuerde er doppelt verschoben.
  *  - Moebel, die nur mit ihrem Raum mitgefahren sind, gehen nicht mit.
  *  - Nach dem Teilen haengt, was im neuen Raum liegt, per "zuordnen" um.
- * Kisten gehen nie mit: ihren Platz setzt nur platz_setzen.
+ *  - Teilen rueckgaengig: der abgeteilte Raum wird geloescht, sein Inhalt
+ *    steht im Ziel wieder im alten Raum. Dann geht "umhaengen" (alles vom
+ *    abgeteilten in den alten Raum) mit, damit keine Kiste ihren Platz
+ *    verliert.
+ * Kisten gehen sonst nie mit: ihren Platz setzt nur platz_setzen.
  */
 import { umlaufRichten, zuUmriss, flaeche2 } from '../lib/geometrie.ts'
 import type { GrundrissAenderung, Objekt, Oeffnung, Raum } from '../lib/types'
-import type { Dok } from './dok'
+import { verschiebung, type Dok } from './dok.ts'
 
 type RaumWerte = NonNullable<GrundrissAenderung['raeume']>[number]
 type ObjektWerte = NonNullable<GrundrissAenderung['objekte']>[number]
@@ -74,18 +79,6 @@ function gleich(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
-/** Sind alle Ecken um dasselbe (dx, dy) gewandert? */
-function verschiebung(alt: Raum, neu: Raum): [number, number] | null {
-  if (alt.punkte.length !== neu.punkte.length || alt.punkte.length === 0) return null
-  const dx = neu.punkte[0][0] - alt.punkte[0][0]
-  const dy = neu.punkte[0][1] - alt.punkte[0][1]
-  if (dx === 0 && dy === 0) return null
-  for (let i = 0; i < alt.punkte.length; i++) {
-    if (neu.punkte[i][0] - alt.punkte[i][0] !== dx || neu.punkte[i][1] - alt.punkte[i][1] !== dy) return null
-  }
-  return [dx, dy]
-}
-
 /** Sicherheitsnetz: ein Raum gegen den Uhrzeigersinn wird vor dem Senden
  *  umgedreht, seine Oeffnungen bekommen Kante und Abstand dazu. Der
  *  Zeichner richtet schon beim Aendern (dokRichten); hier bleibt es fast
@@ -108,6 +101,31 @@ function gerichtet(r: RaumWerte, oeffnungen: Oeffnung[]): { r: RaumWerte; oeffnu
   }
 }
 
+/** Geloeschte Raeume, deren ganzer Inhalt (Moebel und Kisten) im neuen
+ *  Stand in genau einem anderen, schon bestehenden Raum steht: von -> nach.
+ *  Eine Kiste, die noch auf den geloeschten Raum zeigt, zaehlt als
+ *  mitgenommen; fehlt etwas im neuen Stand, gibt es kein Umhaengen. */
+function umhaengenAus(alt: Dok, neu: Dok): Map<string, string> {
+  const neuRaum = new Set(neu.raeume.map((r) => r.id))
+  const altRaum = new Set(alt.raeume.map((r) => r.id))
+  const neuObjekt = new Map(neu.objekte.map((o) => [o.id, o.raum_id]))
+  const neuKiste = new Map(neu.kisten.map((k) => [k.id, k.platz_raum_id]))
+  const out = new Map<string, string>()
+  for (const r of alt.raeume) {
+    if (neuRaum.has(r.id)) continue
+    const ziele = [
+      ...alt.objekte.filter((o) => o.raum_id === r.id).map((o) => neuObjekt.get(o.id)),
+      ...alt.kisten.filter((k) => k.platz_raum_id === r.id).map((k) => neuKiste.get(k.id)),
+    ]
+    if (ziele.some((z) => z === undefined)) continue
+    const nach = new Set(ziele.filter((z): z is string => z !== r.id))
+    if (nach.size !== 1) continue
+    const ziel = [...nach][0]
+    if (neuRaum.has(ziel) && altRaum.has(ziel)) out.set(r.id, ziel)
+  }
+  return out
+}
+
 export function unterschied(alt: Dok, neu: Dok): GrundrissAenderung {
   const a: GrundrissAenderung = {}
   const altRaum = new Map(alt.raeume.map((r) => [r.id, r]))
@@ -116,6 +134,7 @@ export function unterschied(alt: Dok, neu: Dok): GrundrissAenderung {
 
   const raeumeLoeschen = alt.raeume.filter((r) => !neuRaum.has(r.id)).map((r) => r.id)
   if (raeumeLoeschen.length) a.raeume_loeschen = raeumeLoeschen
+  const umhaengen = umhaengenAus(alt, neu)
 
   const raeume: RaumWerte[] = []
   const verschieben: { raum_id: string; dx: number; dy: number }[] = []
@@ -152,7 +171,13 @@ export function unterschied(alt: Dok, neu: Dok): GrundrissAenderung {
       continue
     }
     const v = verschoben.get(vorher.raum_id)
-    const erwartet = v && vorher.raum_id === o.raum_id ? { ...vorher, x: vorher.x + v[0], y: vorher.y + v[1] } : vorher
+    const umgehaengt = umhaengen.get(vorher.raum_id)
+    const erwartet =
+      v && vorher.raum_id === o.raum_id
+        ? { ...vorher, x: vorher.x + v[0], y: vorher.y + v[1] }
+        : umgehaengt === o.raum_id
+          ? { ...vorher, raum_id: o.raum_id }
+          : vorher
     if (!gleich(objektWerte(o), objektWerte(erwartet))) objekte.push(objektWerte(o))
     if (o.raum_id !== vorher.raum_id && !altRaum.has(o.raum_id) && altRaum.has(vorher.raum_id)) {
       zuordnen.set(`${vorher.raum_id}>${o.raum_id}`, { von_raum_id: vorher.raum_id, nach_raum_id: o.raum_id })
@@ -193,6 +218,7 @@ export function unterschied(alt: Dok, neu: Dok): GrundrissAenderung {
   }
 
   if (gesendet.length) a.raeume = gesendet
+  if (umhaengen.size) a.umhaengen = [...umhaengen].map(([von, nach]) => ({ von_raum_id: von, nach_raum_id: nach }))
   if (verschieben.length) a.verschieben = verschieben
   if (objekte.length) a.objekte = objekte
   if (zuordnen.size) a.zuordnen = [...zuordnen.values()]
@@ -205,9 +231,12 @@ export function istLeer(a: GrundrissAenderung): boolean {
 }
 
 /** Raeume, die dieser Auftrag loescht und in denen Kisten stehen (nach
- *  dem alten Stand). Vor dem Senden fragt der Zeichner nach. */
+ *  dem alten Stand). Vor dem Senden fragt der Zeichner nach. Was
+ *  umgehaengt wird, behaelt seinen Platz und zaehlt nicht. */
 export function geloeschteMitKisten(alt: Dok, a: GrundrissAenderung): { raumId: string; codes: string[] }[] {
+  const umgehaengt = new Set((a.umhaengen ?? []).map((u) => u.von_raum_id))
   return (a.raeume_loeschen ?? [])
+    .filter((raumId) => !umgehaengt.has(raumId))
     .map((raumId) => ({ raumId, codes: alt.kisten.filter((k) => k.platz_raum_id === raumId).map((k) => k.code) }))
     .filter((x) => x.codes.length > 0)
 }
