@@ -226,7 +226,8 @@ Pfade relativ zu `/home/user/kistly`. Zeilen Stand `5f129b1`.
 | 0028 | `0028_grundriss_modell.sql` | Geometrie in SQL, Tabellen `grundrisse`, `raeume`, `oeffnungen`, `objekte`, Platz-Spalten an `items`, alle Regeln aus START 5.2, Nachruecken, Sperren, RLS, RPCs | 1 |
 | 0029 | `0029_grundriss_umrechnung.sql` | Alte Raumplaene, Regale und Plaetze umrechnen, Bericht `grundriss_umrechnung`, altes Raster einfrieren, `inhalt_suchen` uebergangsweise auf das neue Modell | 1 |
 | 0030 | `0030_suche_mit_platz.sql` | `inhalt_suchen` neu (Grundriss, Raum, Unterlage, Fach, Hoehe, auch Dinge in Moebeln) | 3 |
-| 0031 | `0031_raster_entfernen.sql` | Alte Tabellen, Spalten, Funktionen und Trigger des Rasters entfernen | 4 |
+| 0031 | `0031_grundriss_zusammenlegen.sql` | `grundriss_speichern` mit `umhaengen` (Rueckgaengig nach dem Teilen), Raeume erst am Ende loeschen | 2 |
+| 0032 | `0032_raster_entfernen.sql` | Alte Tabellen, Spalten, Funktionen und Trigger des Rasters entfernen | 4 |
 
 Etappe 2 braucht keine Migration: `grundriss_speichern` (0028) traegt den
 Zeichner. Zeigt sich beim Bauen ein Fehler in 0027 bis 0029, bekommt er eine
@@ -3089,7 +3090,7 @@ dabei sind. Erwartet: jede Kiste mit Platz hat Grundriss, Raum und Hoehe; ohne
 Platz sind diese Spalten leer; Dinge in einem verknuepften Moebel haben
 `moebel` und die Objekthoehe.
 
-### 2.7 Migration 0031_raster_entfernen.sql (Etappe 4)
+### 2.7 Migration 0032_raster_entfernen.sql (Etappe 4)
 
 Erst, wenn kein Code mehr das Raster liest (Etappe 2 hat `RaumPlan.tsx`,
 `components/raumplan/*`, `lib/raumplan.ts` und die alten api-Funktionen
@@ -3097,7 +3098,7 @@ entfernt; `inhalt_suchen` liest seit 0029 nur das neue Modell).
 
 ```sql
 -- =====================================================================
--- Kistly 0031_raster_entfernen
+-- Kistly 0032_raster_entfernen
 --
 -- Das alte 50-cm-Raster verschwindet (START 5.3, Etappe 4). Die alten
 -- Werte jeder Kiste stehen seit 0029 in grundriss_umrechnung.alt; diese
@@ -3138,7 +3139,7 @@ drop function if exists public.zelle_sperre(uuid, int, int);
 drop function if exists public.zelle_gesperrt(jsonb, int, int);
 ```
 
-**Probelauf 0031:**
+**Probelauf 0032:**
 
 ```sql
 do $probe$
@@ -3147,7 +3148,7 @@ declare
   z record;
   v_n int;
 begin
-  -- ===== A. Text von 0031_raster_entfernen.sql =====
+  -- ===== A. Text von 0032_raster_entfernen.sql =====
   for z in
     select p.proname from pg_proc p join pg_namespace s on s.oid = p.pronamespace
      where s.nspname = 'public'
