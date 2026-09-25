@@ -30,6 +30,7 @@ import {
   cmText,
   kistenUeberlappen,
   laengeLesen,
+  raeumeUeberlappen,
   unterlagenAn,
   type Punkt,
   type Rechteck,
@@ -693,6 +694,16 @@ export default function Zeichner({
   const w = WERKZEUGE[werkzeug.name]
   const vorschau = ansicht ? w.vorschau(kontext, werkzeug.s) : {}
   const anzeige = vorschau.dok ?? z.dok
+  /* Nur Warnung (START 5.2, BAUPLAN 7.1 E12): sich ueberdeckende Raeume
+   * speichert der Zeichner trotzdem. */
+  const ueberlappend = useMemo(() => {
+    const paare = raeumeUeberlappen(z.dok)
+    const name = (id: string) => {
+      const r = z.dok.raeume.find((x) => x.id === id)
+      return r ? raumTitel(r) || t('plan.raum_ohne_name') : ''
+    }
+    return paare.map(([a, b]) => `${name(a)} / ${name(b)}`)
+  }, [z.dok, t])
   const offeneZimmer = useMemo(() => {
     const belegt = new Set(z.dok.raeume.map((r) => r.tag_id).filter(Boolean))
     return rooms.filter((r) => !belegt.has(r.id))
@@ -822,6 +833,13 @@ export default function Zeichner({
           <button className="rounded-lg p-1.5 text-muted hover:bg-raised" onClick={() => setLeiste(null)} aria-label={t('aktion.schliessen')}>
             <X size={16} />
           </button>
+        </div>
+      ) : null}
+
+      {ueberlappend.length > 0 ? (
+        <div className="flex items-center gap-2 border-b border-warn/40 bg-warn/10 px-3 py-1.5 text-sm font-bold text-warn">
+          <TriangleAlert size={16} className="shrink-0" />
+          {t('zeichner.raeume_ueberlappen', { paare: ueberlappend.join(', ') })}
         </div>
       ) : null}
 

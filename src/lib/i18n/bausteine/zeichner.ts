@@ -127,6 +127,10 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.kiste_in_raum': { de: 'Eine Kiste steht in einem Raum. Bitte in einen Raum klicken.', ar: 'يوضع الصندوق داخل غرفة. انقر داخل غرفة من فضلك.' },
   'zeichner.ecke_bleibt': { de: 'Ein Raum braucht mindestens drei Ecken.', ar: 'تحتاج الغرفة إلى ثلاث زوايا على الأقل.' },
   'zeichner.mass_falsch': { de: 'Bitte eine Länge von {min} bis {max} cm.', ar: 'اكتب طولًا من {min} إلى {max} سم.' },
+  'zeichner.raeume_ueberlappen': {
+    de: 'Achtung, diese Räume überdecken sich: {paare}. Gespeichert wird trotzdem.',
+    ar: 'تنبيه: هذه الغرف متداخلة: {paare}. سيتم الحفظ رغم ذلك.',
+  },
   'zeichner.frage_titel': { de: 'Raum mit Kisten löschen?', ar: 'حذف غرفة فيها صناديق؟' },
   'zeichner.frage_kisten': {
     de: '{n} Kisten verlieren dann ihren Platz ({codes}). Sie bleiben im Umzug.',
