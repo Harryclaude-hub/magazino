@@ -39,7 +39,7 @@ Karam, Eigentuemer von Kistly. Er spricht Deutsch, oft per Sprachnachricht
   die Bilderkennung). Keine zweite Abfrage in einer Seite.
 - `prefix`, `seq` und `code` einer Kiste vergibt nur die Datenbank.
 - Angewandte Migrationen werden nie geaendert, ein Fehler bekommt eine
-  neue Nummer. Angewandt sind 0001 bis 0026.
+  neue Nummer. Angewandt sind 0001 bis 0032.
 - Woerterbuecher in `src/lib/i18n/bausteine`: jeder Eintrag hat `de` UND
   `ar` mit denselben Platzhaltern. Arabisch laeuft von rechts nach links,
   Plaene und Karten werden nie gespiegelt, Seriennummern stehen immer
@@ -57,7 +57,7 @@ Karam, Eigentuemer von Kistly. Er spricht Deutsch, oft per Sprachnachricht
 npx tsc -b                        Typpruefung, muss still durchlaufen
 npx oxlint                        nur Warnungen erlaubt
 npm run build                     wie auf GitHub
-node scripts/woerter-pruefen.mjs  bekannt: 9 Meldungen bei *.eins
+node scripts/woerter-pruefen.mjs  bekannt: 8 Meldungen bei *.eins
 ```
 
 Dazu: keine Schluessel im Diff, kein U+2014, keine Wegwerf-Testseiten.

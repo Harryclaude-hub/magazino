@@ -106,3 +106,33 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   speichert erst beim zweiten Tipp auf "Ja, so speichern".
 - **E24 Der alte Raumplan** blieb bis Etappe 2 als Nur-Lese-Seite stehen
   (`const schreiben = false`), statt Code zu loeschen.
+
+## Beim Bauen entschieden (Etappe 2 bis 4)
+
+- **E25 Zeichner-Woerter laden mit dem Zeichner** (eigener Code-Teil), damit
+  das Handy sie nicht mitlaedt; ebenso `platz.*` mit dem Platz-Ablauf.
+- **E26 Links auf den Grundriss** brauchen keine Grundriss-Nummer:
+  `grundriss?kiste=`, `?raum=` oder `?zimmer=` findet den richtigen selbst.
+- **E27 Gerade Wand laenger oder kuerzer:** alles hinter ihrem Ende rueckt mit,
+  ein Rechteck bleibt ein Rechteck. Moebel ruecken dabei nicht mit; ragen sie
+  danach heraus, lehnt die Datenbank ab.
+- **E28 Rueckgaengig nach dem Teilen** legt die Raeume wieder zusammen
+  (Migration 0031, neuer Teil `umhaengen` in `grundriss_speichern`); keine
+  Kiste verliert dabei ihren Platz. Das Entfernen des alten Rasters wurde
+  deshalb 0032 statt 0031.
+- **E29 Datenbankfehler ohne Kennung** (SQLSTATE 22xxx, 23xxx) gelten im
+  Zeichner als Ablehnung: zurueck auf den letzten gespeicherten Stand.
+- **E30 Satz zum Platz:** "Fach 2 (Ebene 2)"; die Spalte steht nur dabei, wenn
+  das Regal mehr als eine hat. Suche und Kistenseite sagen denselben Satz
+  (0030 liefert dafuer `objekt_spalten`).
+- **E31 3D:** durchsichtig werden die Waende, deren Aussenseite zur Kamera
+  zeigt (die im Weg stehen); START sagte "Innenseite", das haette die
+  falschen Waende durchsichtig gemacht. Der 3D-Knopf sitzt im Lageplan und
+  gilt damit fuer Kistenseite und Suche; im Zeichner gibt es 2D/3D.
+- **E32 Farben:** Hauptaktion orange mit eigenem Token `--accent-ink`,
+  `--accent` bleibt dunkle Tinte (war an drei Stellen so benutzt). Status
+  "Alte Wohnung" ist ruhiges Warmgrau statt Rot, weil Rot nur Fehlern und
+  "hier ist es" gehoert. Status-Pillen: Schrift in Tinte, Farbe an Punkt und
+  Rand (Gelb und Gruen als Schrift erreichten 4,5:1 nicht).
+- **E33 Kistenliste am Computer:** sortiert wird im Browser ueber die schon
+  geladenen Kisten; ein Hinweis sagt es, wenn noch nicht alle geladen sind.

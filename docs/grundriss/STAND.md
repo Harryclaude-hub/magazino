@@ -1,34 +1,36 @@
 # Grundriss-Umbau: Stand
 
-Stand: 25.09.2026, nach Etappe 1.
+Stand: 26.09.2026, alle Etappen gebaut.
 
-## Fertig und live (auf `main`, Commit `f7a2cf7`)
+## Fertig und live (Zweig `main`)
 
-- **Etappe 0:** `BAUPLAN.md` (ersetzt `entwurf-teile.json`).
-- **Etappe 1:**
-  - Migrationen 0027 (eigene Groessen), 0028 (Grundriss-Modell mit allen
-    Regeln), 0029 (Umrechnung) sind angewandt, jeweils nach Probelauf auf
-    der echten Datenbank ohne Fehler. 0028 wurde vorher von zwei Pruefern
-    gegengelesen (Funde eingearbeitet, siehe `ENTSCHEIDUNGEN.md` E20).
-  - Umrechnung: 2 alte Raumplaene wurden je ein Raum im Grundriss "Neue
-    Wohnung" ihres Umzugs; es standen keine Kisten darin, keine Regale.
-  - Oberflaeche: eigene Groessen (Seite Groessen, Auswahl beim Anlegen von
-    Kisten und Moebeln, Etiketten mit Namen), `src/lib/geometrie.ts` mit
-    Pruefskript, Seitenleiste am Computer, alter Raumplan nur lesend.
+- **Etappe 0:** `BAUPLAN.md`.
+- **Etappe 1:** eigene Groessen, Datenmodell in cm (0027, 0028, 0029
+  angewandt), Seitenleiste am Computer.
+- **Etappe 2:** Zeichner am Computer mit mehreren Grundrissen, Raeumen,
+  Tueren, Fenstern, Moebeln, Regalen und Schraenken mit Faechern, Kisten
+  setzen und stapeln; 0031 (Zusammenlegen fuer Rueckgaengig) angewandt.
+- **Etappe 3:** Kiste am Handy platzieren, Kistenseite und Moebelseite mit
+  Lageplan, Suche mit Platz und Hoehe (0030 angewandt).
+- **Etappe 4:** 3D am Computer, Redesign, altes Raster entfernt (0032
+  angewandt).
 
-## In Arbeit: Etappe 2 (Zeichner)
+Jede Migration lief vorher als Probelauf auf der echten Datenbank ohne
+Fehler. Gegenpruefungen: zwei Pruefer fuer 0028, je einer je Etappe; alle
+bestaetigten Funde sind eingearbeitet (siehe `ENTSCHEIDUNGEN.md`).
 
-Laeuft auf dem Arbeitszweig `claude/vibrant-planck-jlsatf`, noch nicht
-committet. Plan: `BAUPLAN.md` Abschnitt 5.2.
+## Offen
 
-## Danach
-
-- Etappe 3: Handy platzieren, Kistenseite mit Lageplan, 0030 neue Suche.
-- Etappe 4: 3D, Redesign, 0031 altes Raster entfernen.
+- Pruefen mit echtem Handy und echter Anmeldung (Zwei-Finger-Zoom,
+  Platzieren in 4 Tipps, 3D mit echten Daten).
+- Moebel mit einem Objekt verknuepfen geht nur im Zeichner am Computer.
+- Regale und Schraenke haben in 3D keine Rueckwand.
+- Weitere orange Knoepfe in Einstellungen, Chat und Zeichner koennten noch
+  zu Umriss-Knoepfen werden (eine Hauptaktion je Seite).
 
 ## Arbeitsweise fuer eine neue Sitzung
 
-1. `CLAUDE.md`, `docs/cloud/START.md`, dieses Dokument und
-   `BAUPLAN.md` (nur die Abschnitte der naechsten Etappe) lesen.
+1. `CLAUDE.md`, dieses Dokument, `ENTSCHEIDUNGEN.md` lesen; `BAUPLAN.md` nur
+   bei Bedarf.
 2. Migrationen: erst Probelauf (`do $probe$ ... raise exception`), dann
    anwenden. Angewandte Dateien nie aendern.
