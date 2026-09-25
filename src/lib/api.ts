@@ -5,12 +5,13 @@
  */
 import { supabase, errText } from './supabase'
 import { tg } from './i18n'
-import { zuPunkten } from './geometrie'
+import { zuPunkten, zuUmriss } from './geometrie'
 import type {
   Call,
   CallParticipant,
   EigeneGroesse,
   Grundriss,
+  GrundrissAenderung,
   GrundrissDaten,
   GroessenFolgen,
   Item,
@@ -33,8 +34,6 @@ import type {
   Platz,
   Raum,
   RaumEintrag,
-  Raumplan,
-  Regal,
   SuchTreffer,
   Tag,
 } from './types'
@@ -651,13 +650,44 @@ export async function grundrissSicherstellen(projectId: string, name: string): P
   return (res.data as string | null) ?? null
 }
 
-/** Alles eines Grundrisses (oder nur eines Raums) mit fertigen Hoehen.
- *  null heisst: diesen Grundriss gibt es nicht (mehr). */
-export async function ladeGrundriss(id: string, raumId?: string): Promise<GrundrissDaten | null> {
-  const res = await supabase.rpc('grundriss_laden', { p_grundriss: id, p_raum: raumId ?? null })
+export async function legeGrundrissAn(projectId: string, name: string, sort: number): Promise<Grundriss> {
+  const res = await supabase
+    .from('grundrisse')
+    .insert({ project_id: projectId, name: name.trim(), sort })
+    .select('*')
+    .single()
+  return unwrap(res, 'fehler.grundriss_anlegen') as Grundriss
+}
+
+/** Name oder Reihenfolge. Die Version zaehlt nur grundriss_speichern hoch. */
+export async function aendereGrundriss(id: string, w: { name?: string; sort?: number }): Promise<Grundriss> {
+  const patch = w.name === undefined ? w : { ...w, name: w.name.trim() }
+  const res = await supabase.from('grundrisse').update(patch).eq('id', id).select('*').single()
+  return unwrap(res, 'fehler.grundriss_speichern') as Grundriss
+}
+
+/** Loescht Raeume, Tueren, Fenster und Moebel mit. Kisten bleiben, sie
+ *  verlieren nur ihren Platz (Kaskade in der Datenbank). */
+export async function loescheGrundriss(id: string): Promise<void> {
+  const { error } = await supabase.from('grundrisse').delete().eq('id', id)
+  if (error) throw new Error(tg('fehler.grundriss_loeschen', { grund: errText(error) }))
+}
+
+/** Wie viele Kisten in diesem Grundriss einen Platz haben (fuer die
+ *  Frage vor dem Loeschen). */
+export async function grundrissKistenZahl(id: string): Promise<number> {
+  const res = await supabase.rpc('grundriss_kisten_zahl', { p_grundriss: id })
   if (res.error) throw new Error(tg('fehler.grundriss_laden', { grund: errText(res.error) }))
-  const d = res.data as (Omit<GrundrissDaten, 'raeume'> & { raeume: Array<Omit<Raum, 'punkte'> & { punkte: number[] }> }) | null
-  if (!d) return null
+  return Number(res.data ?? 0)
+}
+
+type RohDaten = Omit<GrundrissDaten, 'raeume'> & {
+  raeume: Array<Omit<Raum, 'punkte'> & { punkte: number[] }>
+}
+
+/** Antwort von grundriss_laden in die Form der Oberflaeche: Umrisse als
+ *  Punkte, fehlende Listen leer. */
+function datenLesen(d: RohDaten): GrundrissDaten {
   return {
     grundriss: d.grundriss,
     raeume: (d.raeume ?? []).map((r) => ({ ...r, punkte: zuPunkten(r.punkte ?? []) })),
@@ -665,6 +695,72 @@ export async function ladeGrundriss(id: string, raumId?: string): Promise<Grundr
     objekte: d.objekte ?? [],
     kisten: d.kisten ?? [],
   }
+}
+
+/** Alles eines Grundrisses (oder nur eines Raums) mit fertigen Hoehen.
+ *  null heisst: diesen Grundriss gibt es nicht (mehr). */
+export async function ladeGrundriss(id: string, raumId?: string): Promise<GrundrissDaten | null> {
+  const res = await supabase.rpc('grundriss_laden', { p_grundriss: id, p_raum: raumId ?? null })
+  if (res.error) throw new Error(tg('fehler.grundriss_laden', { grund: errText(res.error) }))
+  const d = res.data as RohDaten | null
+  if (!d) return null
+  return datenLesen(d)
+}
+
+/** Eine Ablehnung beim Speichern des Grundrisses. Die Nachricht ist der
+ *  uebersetzte Satz; kennung und werte braucht der Zeichner, um auf den
+ *  Raum oder die Kiste zu zeigen und "veraltet" zu erkennen. */
+export class GrundrissFehler extends Error {
+  kennung: string | null
+  werte: Record<string, unknown>
+  constructor(text: string, kennung: string | null, werte: Record<string, unknown>) {
+    super(text)
+    this.name = 'GrundrissFehler'
+    this.kennung = kennung
+    this.werte = werte
+  }
+}
+
+function grundrissFehlerAus(err: unknown): GrundrissFehler {
+  const e = (err ?? {}) as { hint?: unknown; details?: unknown }
+  let kennung: string | null = null
+  if (typeof e.hint === 'string' && e.hint.startsWith('kistly:grundriss.')) {
+    kennung = e.hint.slice('kistly:grundriss.'.length)
+  }
+  let werte: Record<string, unknown> = {}
+  if (typeof e.details === 'string' && e.details.trim().startsWith('{')) {
+    try {
+      const roh: unknown = JSON.parse(e.details)
+      if (roh && typeof roh === 'object' && !Array.isArray(roh)) werte = roh as Record<string, unknown>
+    } catch {
+      /* ohne Werte: der Satz kommt trotzdem, nur ohne Platzhalter */
+    }
+  }
+  return new GrundrissFehler(tg('fehler.grundriss_speichern', { grund: errText(err) }), kennung, werte)
+}
+
+/** Aenderungen aus dem Zeichner in einem Vorgang speichern. Die Datenbank
+ *  prueft am Ende jeden beruehrten Raum vollstaendig; lehnt sie ab, bleibt
+ *  nichts stehen. p_version schuetzt vor dem Ueberschreiben fremder
+ *  Aenderungen (Ablehnung "veraltet"). */
+export async function speichereGrundriss(
+  id: string,
+  version: number,
+  a: GrundrissAenderung,
+): Promise<{ version: number; daten: GrundrissDaten }> {
+  const aenderung = {
+    ...a,
+    raeume: a.raeume?.map((r) => ({ ...r, punkte: zuUmriss(r.punkte) })),
+  }
+  const res = await supabase.rpc('grundriss_speichern', {
+    p_grundriss: id,
+    p_version: version,
+    p_aenderung: aenderung,
+  })
+  if (res.error) throw grundrissFehlerAus(res.error)
+  const d = res.data as { version: number; daten: RohDaten } | null
+  if (!d || !d.daten) throw new GrundrissFehler(tg('fehler.grundriss_speichern', { grund: tg('fehler.keine_daten') }), null, {})
+  return { version: Number(d.version), daten: datenLesen(d.daten) }
 }
 
 /** Alle Raeume des Umzugs ueber alle Grundrisse, fuer Auswahllisten. */
@@ -739,163 +835,6 @@ export async function inhaltSuchen(q: string, max = 60): Promise<SuchTreffer[]> 
     punkt_y: zahl(z.punkt_y),
     treffer: Number(z.treffer ?? 0),
   }))
-}
-
-/* ------------------------------------------------------------ Raumplan */
-
-/** Der Plan eines Zimmers, oder null, wenn es noch keinen gibt. null
- *  heisst "noch nicht angelegt" und ist etwas anderes als ein Fehler:
- *  ein Fehler wirft. */
-export async function ladeRaumplan(tagId: string): Promise<Raumplan | null> {
-  const res = await supabase.from('room_plans').select('*').eq('tag_id', tagId).maybeSingle()
-  if (res.error) throw new Error(tg('fehler.raumplan_laden', { grund: errText(res.error) }))
-  return (res.data as Raumplan | null) ?? null
-}
-
-export interface RaumplanWerte {
-  tag_id: string
-  project_id: string
-  breite_cm: number
-  tiefe_cm: number
-  hoehe_cm: number
-  raster_cm: number
-  gesperrt: [number, number][]
-  tuer_x: number | null
-  tuer_y: number | null
-  tuer_seite: Raumplan['tuer_seite']
-}
-
-/** Plan anlegen oder aendern. Die Datenbank prueft Groesse, Raster, Tuer
- *  und Umriss selbst, darum steht hier keine zweite Pruefung.
- *
- *  Anlegen und Aendern sind zwei Wege, kein upsert: wer "Plan anlegen"
- *  tippt, weil die Seite den vorhandenen Plan gerade nicht laden konnte,
- *  darf ihn damit nicht ueberschreiben. Ein zweites Anlegen scheitert an
- *  der Datenbank, statt Umriss und Tuer still zu leeren. */
-export async function speichereRaumplan(
-  input: RaumplanWerte,
-  neu: boolean,
-): Promise<Raumplan> {
-  const res = neu
-    ? await supabase.from('room_plans').insert(input).select('*').single()
-    : await supabase
-        .from('room_plans')
-        .update(input)
-        .eq('tag_id', input.tag_id)
-        .select('*')
-        .single()
-  return unwrap(res, 'fehler.raumplan_speichern') as Raumplan
-}
-
-/** Den ganzen Plan wegwerfen. Die Kisten bleiben im Zimmer, sie stehen
- *  danach nur an keinem festen Platz mehr.
- *
- *  Zuerst die Plaetze leeren, dann den Plan loeschen. Umgekehrt stuende
- *  jede Kiste mit einem Platz in einem Zimmer ohne Plan, und der Trigger
- *  aus 0017 wiese danach jede Aenderung an ihr ab, auch "Angekommen". */
-export async function loescheRaumplan(tagId: string): Promise<void> {
-  // Die Plaetze leert der Trigger aus 0020 im selben Vorgang wie das
-  // Loeschen. Zwei Anfragen von hier aus liessen bei einem Abbruch einen
-  // Plan ohne Plaetze zurueck.
-  const { error } = await supabase.from('room_plans').delete().eq('tag_id', tagId)
-  if (error) throw new Error(tg('fehler.raumplan_loeschen', { grund: errText(error) }))
-}
-
-/** Alle Kisten eines Zimmers, auch die ohne Platz im Plan. Moebel nicht:
- *  sie stehen nicht im Raumplan (0022). Seitenweise, damit auch ein
- *  volles Zimmer durchlaeuft. */
-export async function ladeZimmerKisten(projectId: string, roomId: string): Promise<Item[]> {
-  const out: Item[] = []
-  const step = 500
-  for (let offset = 0; ; offset += step) {
-    const { rows, total } = await listItems(projectId, {
-      roomId,
-      kindNot: 'furniture',
-      limit: step,
-      offset,
-    })
-    out.push(...rows)
-    if (out.length >= total || rows.length === 0) break
-  }
-  return out
-}
-
-/** Eine Kiste auf einen Platz stellen: auf den Boden oder auf ein Brett
- *  eines Regals. Ob der Platz frei ist und ob der Stapel noch unter die
- *  Decke oder das naechste Brett passt, entscheidet die Datenbank: zwei
- *  Leute koennen gleichzeitig legen. */
-export async function setzePlatz(
-  itemId: string,
-  x: number,
-  y: number,
-  z: number,
-  regal: { id: string; boden: number } | null = null,
-): Promise<Item> {
-  return updateItem(itemId, {
-    plan_x: x,
-    plan_y: y,
-    plan_z: z,
-    regal_id: regal?.id ?? null,
-    regal_boden: regal?.boden ?? null,
-  })
-}
-
-/** Eine Kiste vom Platz nehmen. Was darueber stand, rutscht nach; das
- *  macht die Datenbank in einem Vorgang (0022), nicht mehr der Browser. */
-export async function raeumePlatz(item: Item): Promise<void> {
-  if (item.plan_x === null) return
-  await updateItem(item.id, {
-    plan_x: null,
-    plan_y: null,
-    plan_z: null,
-    regal_id: null,
-    regal_boden: null,
-  })
-}
-
-/* --------------------------------------------------------------- Regale */
-
-export async function ladeRegale(tagId: string): Promise<Regal[]> {
-  const res = await supabase.from('regale').select('*').eq('tag_id', tagId).order('created_at')
-  return unwrap(res, 'fehler.regale_laden') as Regal[]
-}
-
-export interface RegalWerte {
-  name: string
-  x: number
-  y: number
-  breite: number
-  tiefe: number
-  hoehe_cm: number
-  boeden_cm: number[]
-}
-
-/** Ein Regal aufstellen. Ob es ins Zimmer passt, nicht vor der Tuer und
- *  nicht auf Kisten steht, prueft die Datenbank (0022). */
-export async function legeRegalAn(
-  tagId: string,
-  projectId: string,
-  werte: RegalWerte,
-): Promise<Regal> {
-  const res = await supabase
-    .from('regale')
-    .insert({ tag_id: tagId, project_id: projectId, ...werte })
-    .select('*')
-    .single()
-  return unwrap(res, 'fehler.regal_speichern') as Regal
-}
-
-/** Stehen Kisten darauf, laesst die Datenbank nur den Namen aendern. */
-export async function aendereRegal(id: string, werte: Partial<RegalWerte>): Promise<Regal> {
-  const res = await supabase.from('regale').update(werte).eq('id', id).select('*').single()
-  return unwrap(res, 'fehler.regal_speichern') as Regal
-}
-
-/** Das Regal wegnehmen. Die Kisten darauf verlieren ihren Platz, nicht
- *  ihr Zimmer; das erledigt der Trigger aus 0022. */
-export async function loescheRegal(id: string): Promise<void> {
-  const { error } = await supabase.from('regale').delete().eq('id', id)
-  if (error) throw new Error(tg('fehler.regal_loeschen', { grund: errText(error) }))
 }
 
 /* ------------------------------------------------------------- Inhalte */

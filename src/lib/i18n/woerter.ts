@@ -17,6 +17,7 @@ import { bereiche } from './bausteine/bereiche'
 import { bereichsseite } from './bausteine/bereichsseite'
 import { kisten } from './bausteine/kisten'
 import { raumplan } from './bausteine/raumplan'
+import { grundriss } from './bausteine/grundriss'
 import { groessen } from './bausteine/groessen'
 import { suche } from './bausteine/suche'
 import { moebel } from './bausteine/moebel'
@@ -59,6 +60,7 @@ export const WOERTER: Woerterbuch = zusammenlegen(
   bereichsseite,
   kisten,
   raumplan,
+  grundriss,
   groessen,
   suche,
   moebel,
@@ -74,3 +76,16 @@ export const WOERTER: Woerterbuch = zusammenlegen(
   einstellungen,
   fehler,
 )
+
+/** Bausteine, die mit einem eigenen Code-Teil nachgeladen werden (der
+ *  Zeichner), tragen sich beim Laden dieses Teils hier ein. Vorhandene
+ *  Schluessel gewinnen und werden gemeldet, wie beim Zusammenlegen. */
+export function woerterNachladen(teil: Woerterbuch): void {
+  for (const [key, wert] of Object.entries(teil)) {
+    if (key in WOERTER) {
+      if (WOERTER[key] !== wert) console.warn(`[sprache] Schluessel doppelt vergeben: ${key}`)
+      continue
+    }
+    WOERTER[key] = wert
+  }
+}

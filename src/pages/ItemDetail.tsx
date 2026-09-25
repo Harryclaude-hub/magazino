@@ -7,7 +7,7 @@ import {
   Crosshair,
   ImagePlus,
   Layers,
-  LayoutGrid,
+  LayoutDashboard,
   Pencil,
   Plus,
   Printer,
@@ -489,13 +489,13 @@ export default function ItemDetail() {
                 {/* Der Weg von der Kiste zum Zimmer: zeig mir, wo sie steht.
                     Auf der Seite selbst und fuer jede Rolle, nicht versteckt
                     im Bearbeiten: suchen muss auch, wer nur schauen darf. */}
-                {room && item.kind !== 'furniture' ? (
+                {item.platz_raum_id && item.kind !== 'furniture' ? (
                   <Link
-                    to={`/app/p/${project.id}/zimmer/${room.id}/plan?kiste=${item.id}`}
+                    to={`/app/p/${project.id}/grundriss?raum=${item.platz_raum_id}&kiste=${item.id}`}
                     className="block"
                   >
                     <Button variant="soft" full>
-                      <LayoutGrid size={18} /> {t('raumplan.zeigen')}
+                      <LayoutDashboard size={18} /> {t('lage.im_grundriss')}
                     </Button>
                   </Link>
                 ) : null}
@@ -1188,7 +1188,7 @@ export default function ItemDetail() {
           </Field>
 
           {/* Eine eigene Hoehe nur fuer Kisten, die anders hoch sind als
-              ihre Groesse, etwa eine Kleiderbox. Der Raumplan stapelt mit
+              ihre Groesse, etwa eine Kleiderbox. Der Grundriss stapelt mit
               dieser Hoehe (0022). Leer heisst: die Hoehe der Groesse. */}
           {item.kind !== 'furniture' ? (
             <Field

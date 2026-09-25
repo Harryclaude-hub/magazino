@@ -96,17 +96,6 @@ export interface Item {
    * Zimmer. Die Zimmerfarbe bleibt davon unberuehrt. */
   mark_color: string | null
   mark_symbol: string | null
-  /* Wo die Kiste im Zimmer steht. Zellen aus dem Raster des Raumplans:
-   * x nach rechts, y nach hinten, z nach oben. Entweder alle drei oder
-   * keines. Wechselt die Kiste das Zimmer, faellt der Platz weg.
-   * Siehe Migration 0017. */
-  plan_x: number | null
-  plan_y: number | null
-  plan_z: number | null
-  /* Steht die Kiste in einem Regal, dann auf welchem Brett (1 ist das
-   * unterste). Beides oder keines. Siehe Migration 0022. */
-  regal_id: string | null
-  regal_boden: number | null
   /* Eigene Hoehe in cm, wenn die Kiste nicht so hoch ist wie ihre
    * Groesse, etwa eine Kleiderbox. null heisst: die Hoehe der Groesse. */
   eigene_hoehe_cm: number | null
@@ -174,31 +163,6 @@ export interface ItemContent {
   created_at: string
 }
 
-/* ------------------------------------------------------------ Raumplan */
-
-/** An welcher Wand der Zelle die Tuer sitzt. */
-export type TuerSeite = 'nord' | 'ost' | 'sued' | 'west'
-
-/** Der Plan eines Zimmers: wie gross es ist, welche Ecken fehlen und wo
- *  die Tuer ist. Ein Plan je Zimmer, der Schluessel ist das Zimmer
- *  selbst. Siehe Migration 0017. */
-export interface Raumplan {
-  tag_id: string
-  project_id: string
-  breite_cm: number
-  tiefe_cm: number
-  hoehe_cm: number
-  /** Kantenlaenge einer Zelle. Eine Kiste belegt genau eine Zelle. */
-  raster_cm: number
-  /** Zellen, die nicht zum Zimmer gehoeren, als [x, y]. */
-  gesperrt: [number, number][]
-  tuer_x: number | null
-  tuer_y: number | null
-  tuer_seite: TuerSeite | null
-  created_at: string
-  updated_at: string
-}
-
 /** Eine Stufe der Kistengroesse, 1 bis 10. Liter ist der Inhalt, wie ihn
  *  der Hersteller angibt; die Masse sind Aussenmasse eines typischen
  *  Kartons dieser Stufe. Die Zahlen stehen nur in der Datenbank
@@ -212,24 +176,6 @@ export interface KistenGroesse {
   laenge_cm: number
   breite_cm: number
   hoehe_cm: number
-}
-
-/** Ein Regal im Raumplan. Es steht auf breite x tiefe Zellen ab (x, y)
- *  und hat Bretter in der Hoehe boeden_cm, aufsteigend; Brett 1 ist das
- *  unterste. Siehe Migration 0022. */
-export interface Regal {
-  id: string
-  tag_id: string
-  project_id: string
-  name: string
-  x: number
-  y: number
-  breite: number
-  tiefe: number
-  hoehe_cm: number
-  boeden_cm: number[]
-  created_at: string
-  updated_at: string
 }
 
 /** Ein Treffer der Suche ueber alle Umzuege (inhalt_suchen, 0024): ein
@@ -259,6 +205,9 @@ export interface SuchTreffer {
   room_id: string | null
   room_name: string | null
   room_color: string | null
+  /* Uebergang bis 0030 (siehe 0029): plan_x/plan_y tragen den Mittelpunkt
+   * im Grundriss in cm, plan_z die Zahl der Kisten darunter, regal_name
+   * und regal_boden Objekt und Ebene eines Fachs. null = ohne Platz. */
   plan_x: number | null
   plan_y: number | null
   plan_z: number | null
@@ -586,7 +535,8 @@ export type KisteLage =
       oben_cm: number
     }
 
-/** Aenderungen fuer grundriss_speichern (Etappe 2). */
+/** Aenderungen fuer grundriss_speichern. Reihenfolge in der Datenbank:
+ *  loeschen, raeume, verschieben, objekte, zuordnen, oeffnungen. */
 export interface GrundrissAenderung {
   oeffnungen_loeschen?: string[]
   objekte_loeschen?: string[]

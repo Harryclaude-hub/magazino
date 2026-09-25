@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Cog,
   FileDown,
+  LayoutDashboard,
   LayoutGrid,
   Plus,
   Printer,
@@ -254,6 +255,11 @@ export default function ProjectHome() {
             icon={<LayoutGrid size={26} />}
             label={t('begriff.bereiche')}
             onClick={() => nav(`${base}/bereiche`)}
+          />
+          <Quick
+            icon={<LayoutDashboard size={26} />}
+            label={t('grundriss.titel')}
+            onClick={() => nav(`${base}/grundriss`)}
           />
           <Quick
             icon={<Armchair size={26} />}

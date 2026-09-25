@@ -11,6 +11,7 @@ export const gemeinsam: Woerterbuch = {
   'nav.chat': { de: 'Chat', ar: 'المحادثة' },
   'nav.profil': { de: 'Profil', ar: 'حسابي' },
   'leiste.zimmer': { de: 'Zimmer', ar: 'الغرف' },
+  'leiste.grundriss': { de: 'Grundriss', ar: 'المخطط' },
   'leiste.umzug': { de: 'Umzug', ar: 'النقلة' },
   'leiste.umzug_waehlen': { de: 'Umzug wählen', ar: 'اختر النقلة' },
   'leiste.keine_umzuege': { de: 'Noch kein Umzug', ar: 'لا توجد نقلة بعد' },

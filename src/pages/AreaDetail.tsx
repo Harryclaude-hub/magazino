@@ -5,7 +5,7 @@ import {
   Boxes,
   CheckSquare,
   DoorOpen,
-  LayoutGrid,
+  LayoutDashboard,
   Merge,
   Pencil,
   Printer,
@@ -183,21 +183,21 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
         back={`/app/p/${project.id}/bereiche`}
         actions={
           <>
-            {/* Der Raumplan steht auch Betrachtern offen: hinschauen darf
+            {/* Der Grundriss steht auch Betrachtern offen: hinschauen darf
                 jeder, aendern nicht. Darum steht er vor dem canEdit-Zweig
-                und nicht darin. Personen haben keinen Raumplan. */}
+                und nicht darin. Personen haben keinen Raum im Grundriss. */}
             {kind === 'room' ? (
-              <Link to={`/app/p/${project.id}/zimmer/${tag.id}/plan`}>
+              <Link to={`/app/p/${project.id}/grundriss?zimmer=${tag.id}`}>
                 {/* Auf dem Handy nur das Zeichen: mit beiden Beschriftungen
                     lief die Kopfzeile seitlich ueber den Rand. */}
                 <Button
                   variant="outline"
                   size="sm"
-                  aria-label={t('raumplan.titel')}
-                  title={t('raumplan.titel')}
+                  aria-label={t('grundriss.titel')}
+                  title={t('grundriss.titel')}
                 >
-                  <LayoutGrid size={16} />
-                  <span className="hidden sm:inline">{t('raumplan.titel')}</span>
+                  <LayoutDashboard size={16} />
+                  <span className="hidden sm:inline">{t('grundriss.titel')}</span>
                 </Button>
               </Link>
             ) : null}

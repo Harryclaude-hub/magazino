@@ -50,6 +50,27 @@
   --ok: #2f6b4f;
   --glanz: rgba(255, 255, 255, 0.55);
   --schatten: rgba(61, 52, 38, 0.18);
+
+  /* Grundriss (2D, spaeter auch 3D). Boden warm und mittelhell, Waende
+     deutlich dunkler: Wand zu Boden etwa 9:1, mindestens 3:1 verlangt.
+     Tuer und Fenster sind feste Werte: Tuer immer orange, Fenster immer
+     blau. Sie sind nicht waehlbar und kommen sonst nirgends als Schmuck
+     vor. */
+  --plan-boden: #e6dccb;
+  --plan-boden-draussen: #d9e2cf;
+  --plan-wand: #3f3931;
+  --plan-wand-3d: #b9ad98;
+  --plan-tuer: #e0700f;
+  --plan-fenster: #2b78c9;
+  --plan-objekt: #cbbfa9;
+  --plan-objekt-rand: #6b6253;
+  --plan-fach: #b8ab93;
+  --plan-kiste-rand: var(--ink);
+  --plan-hervor: var(--danger);
+  --plan-auswahl: #7a3fb0;
+  --plan-warnung: var(--warn);
+  --plan-linie: #8a8171;
+  --plan-grund: #d3c9b6;
   color-scheme: light;
 }
 
@@ -67,6 +88,25 @@
   --ok: #79c79b;
   --glanz: rgba(255, 255, 255, 0.1);
   --schatten: rgba(0, 0, 0, 0.6);
+
+  /* Im Dunklen kehrt sich Boden gegen Wand um: dunkler Boden, helle
+     Wand (etwa 6:1). Tuer und Fenster bleiben orange und blau, nur
+     etwas heller, damit sie auf dem dunklen Boden leuchten. */
+  --plan-boden: #3a342b;
+  --plan-boden-draussen: #2f372b;
+  --plan-wand: #cbbfa9;
+  --plan-wand-3d: #8f8472;
+  --plan-tuer: #f28c2e;
+  --plan-fenster: #5ea4ee;
+  --plan-objekt: #5a5243;
+  --plan-objekt-rand: #a89f8c;
+  --plan-fach: #6d6452;
+  --plan-kiste-rand: var(--ink);
+  --plan-hervor: var(--danger);
+  --plan-auswahl: #b98be0;
+  --plan-warnung: var(--warn);
+  --plan-linie: #6f6858;
+  --plan-grund: #1d1a15;
   color-scheme: dark;
 }
 

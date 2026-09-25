@@ -23,7 +23,7 @@ export const suche: Woerterbuch = {
     de: 'Mehr als {n} Treffer. Die besten stehen oben, such genauer für den Rest.',
     ar: 'أكثر من {n} نتيجة. الأفضل في الأعلى، ابحث بدقة أكبر لرؤية الباقي.',
   },
-  'suche.ohne_platz': { de: 'noch ohne Platz im Raumplan', ar: 'بلا موضع في مخطط الغرفة بعد' },
+  'suche.ohne_platz': { de: 'noch ohne Platz im Grundriss', ar: 'بلا موضع في المخطط بعد' },
   'suche.ohne_zimmer': { de: 'ohne Zimmer', ar: 'بلا غرفة' },
   'suche.boden': { de: 'auf dem Boden', ar: 'على الأرض' },
   // Platz und Hoehe in einer Zeile, mit dem Komma der jeweiligen Sprache.
@@ -42,7 +42,7 @@ export const suche: Woerterbuch = {
   'suche.legende_ziel': { de: 'Hier kommt es hin', ar: 'هنا سيوضع' },
   'suche.seite_titel': { de: 'Von der Seite, Reihe {n}', ar: 'من الجانب، الصف {n}' },
   'suche.noch_nicht_da': {
-    de: 'Noch nicht angekommen. Der Raumplan zeigt, wo die Kiste hinkommt.',
-    ar: 'لم يصل بعد. يُظهر مخطط الغرفة أين سيوضع الصندوق.',
+    de: 'Noch nicht angekommen. Der Grundriss zeigt, wo die Kiste hinkommt.',
+    ar: 'لم يصل بعد. يُظهر المخطط أين سيوضع الصندوق.',
   },
 }

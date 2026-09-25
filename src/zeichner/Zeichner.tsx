@@ -1,0 +1,1132 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
+import {
+  Archive,
+  Check,
+  CloudOff,
+  DoorOpen,
+  Library,
+  Loader2,
+  Maximize,
+  MousePointer2,
+  Package,
+  PenLine,
+  Redo2,
+  Ruler,
+  Scissors,
+  Sofa,
+  TriangleAlert,
+  Undo2,
+  AppWindow,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react'
+import { BereichDialog } from '../components/BereichDialog'
+import { neuerBereich, type BereichEntwurf } from '../lib/bereich'
+import { Button, CodeChip, Modal, useToast } from '../components/ui'
+import { datenBox, kisteRechteck, raumTitel } from '../components/plan/hilfe'
+import { GrundrissFehler, ladeGrundriss, listItems, platzRaeumen, platzSetzen, speichereGrundriss } from '../lib/api'
+import {
+  cmText,
+  kistenUeberlappen,
+  laengeLesen,
+  unterlagenAn,
+  type Punkt,
+  type Rechteck,
+  type Unterlage,
+} from '../lib/geometrie'
+import { useEigeneGroessen, useKistenGroessen } from '../lib/groessen'
+import { useSprache } from '../lib/i18n'
+import type { GrundrissAenderung, GrundrissDaten, Item, PlanKiste } from '../lib/types'
+import { cx } from '../lib/util'
+import { useProject } from '../pages/ProjectLayout'
+import { geloeschteMitKisten, istLeer, unterschied } from './diff'
+import { kanteLaengeSetzen, kistenDraussen, loeschen, objektBox, raumAendern, raumAn, type Vorlage } from './dok'
+import { Eigenschaften } from './Eigenschaften'
+import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
+import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
+import { Assistent, KistenListe, MoebelKatalog, RegalVorlage, UnterlagenWahl } from './Seitenteile'
+import { REIHENFOLGE, TASTEN, tastenZeichen, WERKZEUGE } from './werkzeuge'
+import { raumStart } from './werkzeuge/raum'
+import type { Aktion, KisteInHand, Kontext, Schritt, WerkzeugName } from './werkzeuge/typen'
+import { zReducer, zStart } from './zustand'
+import { woerterNachladen } from '../lib/i18n/woerter'
+import { zeichnerWoerter } from '../lib/i18n/bausteine/zeichner'
+
+// Die Saetze des Zeichners kommen mit seinem Code-Teil (siehe zeichner.ts).
+woerterNachladen(zeichnerWoerter)
+
+/* Der Zeichner am Computer (START 4.1, 5.4; BAUPLAN 5.2).
+ *
+ * Eigener Code-Teil: Grundriss.tsx laedt ihn mit lazy() nur, wenn
+ * useZeichnen() (ab 1024 px und mit Maus) und canEdit gelten. Das Handy
+ * laedt nichts davon.
+ *
+ * Aufbau: links Werkzeuge, Mitte Zeichenflaeche (dir="ltr"), rechts
+ * Eigenschaften bzw. Assistent, unten Statusleiste. Jede abgeschlossene
+ * Aktion wird sofort gespeichert (Unterschied zum letzten bestaetigten
+ * Stand, grundriss_speichern); Rueckgaengig und Wiederholen gelten fuer die
+ * Sitzung. Die Datenbank entscheidet: lehnt sie ab, steht ihr Satz in der
+ * Leiste oben, und der Plan springt auf den letzten gespeicherten Stand.
+ */
+
+type Speicherstand = 'gespeichert' | 'speichert' | 'fehler' | 'veraltet'
+
+type Frage =
+  | { art: 'loeschen'; raumId: string; codes: string[] }
+  | { art: 'senden'; codes: string[] }
+
+interface UnterlageOffen {
+  raumId: string
+  x: number
+  y: number
+  drehung: 0 | 90
+  liste: Unterlage[]
+  wahl: number
+}
+
+interface Leiste {
+  text: string
+  kennung: string | null
+  werte: Record<string, unknown>
+}
+
+const SYMBOL: Record<WerkzeugName, ReactNode> = {
+  auswahl: <MousePointer2 size={19} />,
+  raum: <PenLine size={19} />,
+  teilen: <Scissors size={19} />,
+  tuer: <DoorOpen size={19} />,
+  fenster: <AppWindow size={19} />,
+  moebel: <Sofa size={19} />,
+  regal: <Library size={19} />,
+  schrank: <Archive size={19} />,
+  kiste: <Package size={19} />,
+  messen: <Ruler size={19} />,
+}
+
+function passend(box: Rechteck, w: number, h: number, rand = 80): Ansicht {
+  const bw = Math.max(100, box.x1 - box.x0) + 2 * rand
+  const bh = Math.max(100, box.y1 - box.y0) + 2 * rand
+  const s = Math.min(8, Math.max(0.02, Math.min(w / bw, h / bh)))
+  return { s, x: (box.x0 + box.x1) / 2 - w / (2 * s), y: (box.y0 + box.y1) / 2 - h / (2 * s) }
+}
+
+export default function Zeichner({
+  start,
+  raumId,
+  kisteId,
+}: {
+  start: GrundrissDaten
+  raumId: string | null
+  kisteId: string | null
+}) {
+  const { project, rooms, tags, reloadTags } = useProject()
+  const { t, lang } = useSprache()
+  const toast = useToast()
+
+  const [z, dispatch] = useReducer(zReducer, start, zStart)
+  const [werkzeug, setWerkzeug] = useState<{ name: WerkzeugName; s: unknown }>({
+    name: 'auswahl',
+    s: WERKZEUGE.auswahl.start(),
+  })
+  const [ansicht, setAnsicht] = useState<Ansicht | null>(null)
+  const [groesse, setGroesse] = useState<[number, number]>([0, 0])
+  const [raster, setRaster] = useState<1 | 5 | 10>(5)
+  const [winkel, setWinkel] = useState(true)
+  const [zeigerCm, setZeigerCm] = useState<Punkt | null>(null)
+  const [hinweis, setHinweis] = useState<string | null>(null)
+  const [leiste, setLeiste] = useState<Leiste | null>(null)
+  const [status, setStatus] = useState<Speicherstand>('gespeichert')
+  const [frage, setFrage] = useState<Frage | null>(null)
+  const [massEingabe, setMassEingabe] = useState<(WandMass & { text: string }) | null>(null)
+  const [unterlage, setUnterlage] = useState<UnterlageOffen | null>(null)
+  const [unterlageBusy, setUnterlageBusy] = useState(false)
+  const [unterlageFehler, setUnterlageFehler] = useState<string | null>(null)
+  const [inHand, setInHand] = useState<KisteInHand | null>(null)
+  const [letztePlatzierung, setLetztePlatzierung] = useState<{ id: string; code: string; vorher: PlanKiste | null } | null>(null)
+  const [vorlagen, setVorlagen] = useState<{ moebel: Vorlage | null; regal: Vorlage; schrank: Vorlage }>(() => ({
+    moebel: null,
+    regal: { ...REGAL_STANDARD, name: '' },
+    schrank: { ...SCHRANK_STANDARD, name: '' },
+  }))
+  const [bereich, setBereich] = useState<{ entwurf: BereichEntwurf; raumId: string } | null>(null)
+  const [ohnePlatz, setOhnePlatz] = useState<Item[] | null>(null)
+  const [ohnePlatzFehler, setOhnePlatzFehler] = useState<string | null>(null)
+  const [ohnePlatzVersuch, setOhnePlatzVersuch] = useState(0)
+  const [tick, setTick] = useState(0)
+  /** Leertaste gedrueckt: Ziehen verschiebt die Ansicht (Hand als Zeiger). */
+  const [hand, setHand] = useState(false)
+
+  const flaeche = useRef<HTMLDivElement>(null)
+  const laeuft = useRef(false)
+  const leertaste = useRef(false)
+  const schieben = useRef<{ x: number; y: number; a: Ansicht } | null>(null)
+
+  const stufen = useKistenGroessen()
+  const eigene = useEigeneGroessen(project.id)
+
+  /* Namen der Katalog-Vorlagen in der jetzigen Sprache. */
+  const vorlageFuer = useCallback(
+    (name: WerkzeugName): Vorlage | null => {
+      if (name === 'moebel') return vorlagen.moebel
+      if (name === 'regal') return { ...vorlagen.regal, name: vorlagen.regal.name || t('zeichner.katalog.regal') }
+      if (name === 'schrank') return { ...vorlagen.schrank, name: vorlagen.schrank.name || t('zeichner.katalog.kleiderschrank') }
+      return null
+    },
+    [vorlagen, t],
+  )
+
+  const kontext: Kontext = {
+    dok: z.dok,
+    raster,
+    winkel,
+    massstab: ansicht?.s ?? 1,
+    auswahl: z.auswahl,
+    neueId: () => crypto.randomUUID(),
+    vorlage: vorlageFuer(werkzeug.name),
+    kiste: inHand,
+  }
+
+  /* ---------------------------------------------------------- Ansicht */
+
+  useLayoutEffect(() => {
+    const el = flaeche.current
+    if (!el) return
+    const messen = () => setGroesse([el.clientWidth, el.clientHeight])
+    messen()
+    const ro = new ResizeObserver(messen)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const zielBox = useCallback(
+    (was: 'alles' | { raumId: string } | Rechteck): Rechteck => {
+      if (was !== 'alles' && 'x0' in was) return was
+      const b = datenBox(z.dok, was === 'alles' ? null : was.raumId)
+      return b ?? { x0: 0, y0: 0, x1: 1100, y1: 700 }
+    },
+    [z.dok],
+  )
+
+  const zeigen = useCallback(
+    (was: 'alles' | { raumId: string } | Rechteck) => {
+      if (groesse[0] === 0) return
+      setAnsicht(passend(zielBox(was), groesse[0], groesse[1]))
+    },
+    [groesse, zielBox],
+  )
+
+  // Erste Ansicht, sobald die Flaeche gemessen ist.
+  useEffect(() => {
+    if (ansicht || groesse[0] === 0) return
+    const kiste = kisteId ? z.dok.kisten.find((k) => k.id === kisteId) : null
+    if (raumId && z.dok.raeume.some((r) => r.id === raumId)) {
+      zeigen({ raumId })
+      dispatch({ typ: 'waehlen', auswahl: kiste ? { art: 'kiste', id: kiste.id } : { art: 'raum', id: raumId } })
+    } else if (kiste) {
+      zeigen({ raumId: kiste.platz_raum_id })
+    } else {
+      zeigen('alles')
+    }
+  }, [ansicht, groesse, raumId, kisteId, z.dok, zeigen])
+
+  // Zoomen am Zeiger (Mausrad). Nicht passiv, sonst rollt die Seite mit.
+  useEffect(() => {
+    const el = flaeche.current
+    if (!el) return
+    const rad = (e: WheelEvent) => {
+      e.preventDefault()
+      const r = el.getBoundingClientRect()
+      const mx = e.clientX - r.left
+      const my = e.clientY - r.top
+      setAnsicht((a) => {
+        if (!a) return a
+        const f = Math.exp(-e.deltaY * 0.0015)
+        const s = Math.min(8, Math.max(0.02, a.s * f))
+        const cx = a.x + mx / a.s
+        const cy = a.y + my / a.s
+        return { s, x: cx - mx / s, y: cy - my / s }
+      })
+    }
+    el.addEventListener('wheel', rad, { passive: false })
+    return () => el.removeEventListener('wheel', rad)
+  }, [])
+
+  function zoomen(f: number) {
+    setAnsicht((a) => {
+      if (!a) return a
+      const s = Math.min(8, Math.max(0.02, a.s * f))
+      const cx = a.x + groesse[0] / (2 * a.s)
+      const cy = a.y + groesse[1] / (2 * a.s)
+      return { s, x: cx - groesse[0] / (2 * s), y: cy - groesse[1] / (2 * s) }
+    })
+  }
+
+  /* -------------------------------------------------------- Werkzeuge */
+
+  const wechseln = useCallback((name: WerkzeugName, rechteck?: boolean) => {
+    setWerkzeug({ name, s: name === 'raum' ? raumStart(rechteck ? 'rechteck' : 'punkte') : WERKZEUGE[name].start() })
+    setMassEingabe(null)
+    if (name !== 'kiste') setUnterlage(null)
+  }, [])
+
+  const hinweisZeigen = useCallback((text: string) => {
+    setHinweis(text)
+  }, [])
+
+  useEffect(() => {
+    if (!hinweis) return
+    const id = window.setTimeout(() => setHinweis(null), 4200)
+    return () => window.clearTimeout(id)
+  }, [hinweis])
+
+  function unterlageOeffnen(a: Extract<Aktion, { typ: 'unterlage_waehlen' }>) {
+    if (!inHand) return
+    const liste = unterlagenAn(z.dok, a.raumId, a.x, a.y, { ...inHand, drehung: a.drehung })
+    const erste = liste.findIndex((u) => u.passt)
+    setUnterlageFehler(null)
+    setUnterlage({ ...a, liste, wahl: erste >= 0 ? erste : 0 })
+  }
+
+  function ausfuehren(r: Schritt<unknown>, name: WerkzeugName) {
+    setWerkzeug((w) => (w.name === name ? { ...w, s: r.s } : w))
+    for (const a of r.aktionen ?? []) {
+      switch (a.typ) {
+        case 'aendern':
+          setLeiste(null)
+          dispatch({ typ: 'aendern', dok: a.dok, auswahl: a.auswahl })
+          break
+        case 'waehlen':
+          dispatch({ typ: 'waehlen', auswahl: a.auswahl })
+          break
+        case 'hinweis':
+          hinweisZeigen(t(a.schluessel, a.werte))
+          break
+        case 'loeschen_fragen':
+          setFrage({ art: 'loeschen', raumId: a.raumId, codes: a.codes })
+          break
+        case 'unterlage_waehlen':
+          unterlageOeffnen(a)
+          break
+        case 'werkzeug':
+          wechseln(a.name)
+          break
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------ Zeiger */
+
+  function cm(e: { clientX: number; clientY: number }): Punkt | null {
+    const el = flaeche.current
+    if (!el || !ansicht) return null
+    const r = el.getBoundingClientRect()
+    return [ansicht.x + (e.clientX - r.left) / ansicht.s, ansicht.y + (e.clientY - r.top) / ansicht.s]
+  }
+
+  function runter(e: React.PointerEvent<HTMLDivElement>) {
+    if (!ansicht) return
+    if (e.button === 1 || (e.button === 0 && leertaste.current)) {
+      e.preventDefault()
+      schieben.current = { x: e.clientX, y: e.clientY, a: ansicht }
+      e.currentTarget.setPointerCapture(e.pointerId)
+      return
+    }
+    if (e.button === 2) {
+      const w = WERKZEUGE[werkzeug.name]
+      setWerkzeug((x) => ({ ...x, s: w.abbrechen(x.s).s }))
+      return
+    }
+    if (e.button !== 0) return
+    setMassEingabe(null)
+    const p = cm(e)
+    if (!p) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const w = WERKZEUGE[werkzeug.name]
+    ausfuehren(w.runter(kontext, { p, frei: e.shiftKey }, werkzeug.s), werkzeug.name)
+  }
+
+  function bewegen(e: React.PointerEvent<HTMLDivElement>) {
+    if (schieben.current) {
+      const sc = schieben.current
+      setAnsicht({ ...sc.a, x: sc.a.x - (e.clientX - sc.x) / sc.a.s, y: sc.a.y - (e.clientY - sc.y) / sc.a.s })
+      return
+    }
+    const p = cm(e)
+    if (!p) return
+    setZeigerCm(p)
+    const w = WERKZEUGE[werkzeug.name]
+    ausfuehren(w.bewegen(kontext, { p, frei: e.shiftKey }, werkzeug.s), werkzeug.name)
+  }
+
+  function hoch(e: React.PointerEvent<HTMLDivElement>) {
+    if (schieben.current) {
+      schieben.current = null
+      return
+    }
+    const p = cm(e)
+    if (!p || e.button !== 0) return
+    const w = WERKZEUGE[werkzeug.name]
+    ausfuehren(w.hoch(kontext, { p, frei: e.shiftKey }, werkzeug.s), werkzeug.name)
+  }
+
+  function doppel(e: React.MouseEvent<HTMLDivElement>) {
+    const p = cm(e)
+    const w = WERKZEUGE[werkzeug.name]
+    if (!p || !w.doppel) return
+    ausfuehren(w.doppel(kontext, { p, frei: e.shiftKey }, werkzeug.s), werkzeug.name)
+  }
+
+  /* Zimmer-Chip auf einen Raum ziehen = zuordnen. */
+  function fallenLassen(e: React.DragEvent<HTMLDivElement>) {
+    const tagId = e.dataTransfer.getData('text/kistly-zimmer')
+    const p = cm(e)
+    if (!tagId || !p) return
+    e.preventDefault()
+    zimmerZuordnen(tagId, raumAn(z.dok, p)?.id ?? null)
+  }
+
+  function zimmerZuordnen(tagId: string, raumZiel: string | null) {
+    const tag = rooms.find((r) => r.id === tagId)
+    if (!tag) return
+    if (!raumZiel) {
+      hinweisZeigen(t('zeichner.zimmer_auf_raum'))
+      return
+    }
+    dispatch({
+      typ: 'aendern',
+      dok: raumAendern(z.dok, raumZiel, { tag_id: tag.id, tag_name: tag.name, tag_short: tag.short, tag_color: tag.color }),
+      auswahl: { art: 'raum', id: raumZiel },
+    })
+  }
+
+  /* ------------------------------------------------------------ Tasten */
+
+  const aktuell = useRef({ kontext, werkzeug, z, ausfuehren, wechseln, zeigen, frage, unterlage, massEingabe, bereich })
+  useLayoutEffect(() => {
+    aktuell.current = { kontext, werkzeug, z, ausfuehren, wechseln, zeigen, frage, unterlage, massEingabe, bereich }
+  })
+
+  useEffect(() => {
+    const unten = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        const ziel0 = e.target as HTMLElement | null
+        if (!ziel0 || !/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(ziel0.tagName)) {
+          leertaste.current = true
+          setHand(true)
+        }
+      }
+      const ziel = e.target as HTMLElement | null
+      if (ziel && (ziel.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ziel.tagName))) return
+      const a = aktuell.current
+      if (a.frage || a.bereich || document.querySelector('[role="dialog"]')) return
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (e.code === 'KeyZ') {
+          e.preventDefault()
+          dispatch({ typ: e.shiftKey ? 'vor' : 'zurueck' })
+        } else if (e.code === 'KeyY') {
+          e.preventDefault()
+          dispatch({ typ: 'vor' })
+        }
+        return
+      }
+      if (e.altKey) return
+      const w = WERKZEUGE[a.werkzeug.name]
+      const r = w.taste(a.kontext, e.code, e.key, e.shiftKey, a.werkzeug.s)
+      if (r) {
+        e.preventDefault()
+        a.ausfuehren(r, a.werkzeug.name)
+        return
+      }
+      if (e.code === 'Escape') {
+        const ab = w.abbrechen(a.werkzeug.s)
+        if (ab.etwas) setWerkzeug({ name: a.werkzeug.name, s: ab.s })
+        else if (a.werkzeug.name !== 'auswahl') a.wechseln('auswahl')
+        else dispatch({ typ: 'waehlen', auswahl: null })
+        setUnterlage(null)
+        return
+      }
+      if (e.code === 'Digit0' || e.code === 'Numpad0') {
+        a.zeigen('alles')
+        return
+      }
+      if (e.code === 'Space') {
+        e.preventDefault()
+        return
+      }
+      for (const name of REIHENFOLGE) {
+        if (e.code === TASTEN[name]) {
+          e.preventDefault()
+          a.wechseln(name, name === 'raum' && e.shiftKey)
+          return
+        }
+      }
+    }
+    const oben = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        leertaste.current = false
+        setHand(false)
+      }
+    }
+    window.addEventListener('keydown', unten)
+    window.addEventListener('keyup', oben)
+    return () => {
+      window.removeEventListener('keydown', unten)
+      window.removeEventListener('keyup', oben)
+    }
+  }, [])
+
+  /* ------------------------------------------------------------ Speichern */
+
+  const senden = useCallback(
+    (a: GrundrissAenderung) => {
+      laeuft.current = true
+      setStatus('speichert')
+      const gesendet = z.dok
+      speichereGrundriss(z.basis.grundriss.id, z.version, a)
+        .then(({ version, daten }) => {
+          dispatch({ typ: 'gespeichert', gesendet, antwort: daten, version })
+          setStatus('gespeichert')
+        })
+        .catch((err: unknown) => {
+          if (err instanceof GrundrissFehler && err.kennung === 'veraltet') {
+            setStatus('veraltet')
+            return
+          }
+          if (err instanceof GrundrissFehler && err.kennung) {
+            // Regel verletzt: nichts wurde uebernommen.
+            dispatch({ typ: 'abgelehnt' })
+            setLeiste({ text: err.message, kennung: err.kennung, werte: err.werte })
+            setStatus('gespeichert')
+            return
+          }
+          // Netz oder Unbekanntes: Stand behalten, Nochmal anbieten.
+          setLeiste({ text: err instanceof Error ? err.message : String(err), kennung: null, werte: {} })
+          setStatus('fehler')
+        })
+        .finally(() => {
+          laeuft.current = false
+          setTick((n) => n + 1)
+        })
+    },
+    [z.dok, z.basis, z.version],
+  )
+
+  useEffect(() => {
+    if (laeuft.current || status === 'veraltet' || status === 'fehler' || frage) return
+    const a = unterschied(z.basis, z.dok)
+    if (istLeer(a)) return
+    // Vorab: Kisten, die nach einer Raum-Aenderung draussen stuenden.
+    const draussen = kistenDraussen(z.dok)
+    if (draussen.length) {
+      dispatch({ typ: 'abgelehnt' })
+      setLeiste({ text: t('grundriss.kisten_draussen_vorab', { codes: draussen.join(', ') }), kennung: 'kisten_draussen', werte: { code: draussen[0] } })
+      return
+    }
+    const mitKisten = geloeschteMitKisten(z.basis, a)
+    if (mitKisten.length) {
+      setFrage({ art: 'senden', codes: mitKisten.flatMap((x) => x.codes) })
+      return
+    }
+    senden(a)
+  }, [z.dok, z.basis, status, frage, tick, senden, t])
+
+  // Nicht Gespeichertes nicht still verlieren.
+  useEffect(() => {
+    if (status === 'gespeichert') return
+    const warnen = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', warnen)
+    return () => window.removeEventListener('beforeunload', warnen)
+  }, [status])
+
+  async function neuLaden() {
+    try {
+      const d = await ladeGrundriss(z.basis.grundriss.id)
+      if (!d) {
+        setLeiste({ text: t('fehler.db.grundriss.grundriss_fehlt'), kennung: 'grundriss_fehlt', werte: {} })
+        return
+      }
+      dispatch({ typ: 'neu_geladen', daten: d })
+      setStatus('gespeichert')
+      setLeiste(null)
+    } catch (err) {
+      setLeiste({ text: err instanceof Error ? err.message : String(err), kennung: null, werte: {} })
+    }
+  }
+
+  async function kistenNeu() {
+    try {
+      const d = await ladeGrundriss(z.basis.grundriss.id)
+      if (d) dispatch({ typ: 'kisten', kisten: d.kisten })
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    }
+    setOhnePlatzVersuch((v) => v + 1)
+  }
+
+  /* "Zeigen" in der Fehlerleiste: auf die genannte Kiste oder das Moebel. */
+  function fehlerZeigen() {
+    if (!leiste) return
+    const code = typeof leiste.werte.code === 'string' ? leiste.werte.code : null
+    const k = code ? z.dok.kisten.find((x) => x.code === code) : null
+    if (k) {
+      zeigen(kisteRechteck(k))
+      dispatch({ typ: 'waehlen', auswahl: { art: 'kiste', id: k.id } })
+      return
+    }
+    const name = typeof leiste.werte.name === 'string' ? leiste.werte.name : null
+    const o = name ? z.dok.objekte.find((x) => x.name === name) : null
+    if (o) {
+      zeigen(objektBox(o))
+      dispatch({ typ: 'waehlen', auswahl: { art: 'objekt', id: o.id } })
+      return
+    }
+    const a = z.auswahl
+    if (a && (a.art === 'raum' || 'raumId' in a)) zeigen({ raumId: a.art === 'raum' ? a.id : a.raumId })
+    else zeigen('alles')
+  }
+
+  /* ------------------------------------------------------------ Kisten */
+
+  useEffect(() => {
+    if (werkzeug.name !== 'kiste') return
+    let alive = true
+    setOhnePlatzFehler(null)
+    listItems(project.id, { ohnePlatz: true, kindNot: 'furniture', limit: 500 })
+      .then((r) => alive && setOhnePlatz(r.rows))
+      .catch((e: unknown) => alive && setOhnePlatzFehler(e instanceof Error ? e.message : String(e)))
+    return () => {
+      alive = false
+    }
+  }, [werkzeug.name, project.id, ohnePlatzVersuch])
+
+  /* Masse einer Kiste ohne Platz, nur fuer den Geist (die Datenbank
+   * rechnet selbst, kiste_masse): eigene Groesse, sonst Stufe mit eigener
+   * Hoehe, sonst 60 x 40 x 40. */
+  const masse = useCallback(
+    (i: Item) => {
+      const e = i.eigene_groesse_id ? eigene.liste?.find((g) => g.id === i.eigene_groesse_id) : null
+      if (e) return { laenge_cm: e.laenge_cm, breite_cm: e.breite_cm, hoehe_cm: e.hoehe_cm }
+      const g = stufen?.get(i.size)
+      return {
+        laenge_cm: g?.laenge_cm ?? 60,
+        breite_cm: g?.breite_cm ?? 40,
+        hoehe_cm: i.eigene_hoehe_cm ?? g?.hoehe_cm ?? 40,
+      }
+    },
+    [eigene.liste, stufen],
+  )
+
+  async function hinstellen() {
+    if (!unterlage || !inHand) return
+    const u = unterlage.liste[unterlage.wahl]
+    if (!u || !u.passt) return
+    setUnterlageBusy(true)
+    setUnterlageFehler(null)
+    const vorher = z.dok.kisten.find((k) => k.id === inHand.id) ?? null
+    try {
+      await platzSetzen(inHand.id, {
+        raum_id: unterlage.raumId,
+        x: unterlage.x,
+        y: unterlage.y,
+        drehung: unterlage.drehung,
+        unterlage: u.art,
+        unterlage_item_id: u.itemId ?? null,
+        unterlage_objekt_id: u.objektId ?? null,
+        ebene: u.ebene ?? null,
+        spalte: u.spalte ?? null,
+      })
+      toast(t('zeichner.kisten.steht', { code: inHand.code }), 'ok')
+      setLetztePlatzierung({ id: inHand.id, code: inHand.code, vorher })
+      setUnterlage(null)
+      setInHand(null)
+      await kistenNeu()
+    } catch (err) {
+      setUnterlageFehler(err instanceof Error ? err.message : String(err))
+      void kistenNeu()
+    } finally {
+      setUnterlageBusy(false)
+    }
+  }
+
+  async function platzZurueck() {
+    const l = letztePlatzierung
+    if (!l) return
+    try {
+      if (l.vorher) {
+        const v = l.vorher
+        await platzSetzen(l.id, {
+          raum_id: v.platz_raum_id,
+          x: v.platz_x,
+          y: v.platz_y,
+          drehung: v.platz_drehung,
+          unterlage: v.unterlage_art,
+          unterlage_item_id: v.unterlage_item_id,
+          unterlage_objekt_id: v.unterlage_objekt_id,
+          ebene: v.fach_ebene,
+          spalte: v.fach_spalte,
+        })
+      } else {
+        await platzRaeumen(l.id)
+      }
+      setLetztePlatzierung(null)
+      await kistenNeu()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }
+
+  async function vomPlatz(k: PlanKiste) {
+    try {
+      await platzRaeumen(k.id)
+      toast(t('zeichner.kisten.vom_platz', { code: k.code }), 'ok')
+      await kistenNeu()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }
+
+  /* ------------------------------------------------------------ Anzeige */
+
+  const w = WERKZEUGE[werkzeug.name]
+  const vorschau = ansicht ? w.vorschau(kontext, werkzeug.s) : {}
+  const anzeige = vorschau.dok ?? z.dok
+  const offeneZimmer = useMemo(() => {
+    const belegt = new Set(z.dok.raeume.map((r) => r.tag_id).filter(Boolean))
+    return rooms.filter((r) => !belegt.has(r.id))
+  }, [rooms, z.dok.raeume])
+  const unterlageUeberlappt = useMemo(() => {
+    if (!unterlage || !inHand) return []
+    const u = unterlage.liste[unterlage.wahl]
+    if (!u) return []
+    return kistenUeberlappen(z.dok, unterlage.raumId, unterlage.x, unterlage.y, { ...inHand, unten_cm: u.unten_cm }, unterlage.drehung)
+  }, [unterlage, inHand, z.dok])
+
+  const rechts = (() => {
+    if (werkzeug.name === 'kiste') {
+      if (unterlage && inHand) {
+        return (
+          <UnterlagenWahl
+            dok={z.dok}
+            code={inHand.code}
+            liste={unterlage.liste}
+            wahl={unterlage.wahl}
+            onWahl={(i) => setUnterlage((u) => (u ? { ...u, wahl: i } : u))}
+            ueberlappt={unterlageUeberlappt}
+            busy={unterlageBusy}
+            fehler={unterlageFehler}
+            onSetzen={() => void hinstellen()}
+            onAbbrechen={() => setUnterlage(null)}
+          />
+        )
+      }
+      return (
+        <KistenListe
+          liste={ohnePlatz}
+          fehler={ohnePlatzFehler}
+          nochmal={() => setOhnePlatzVersuch((v) => v + 1)}
+          inHand={inHand}
+          masse={masse}
+          onNehmen={setInHand}
+        />
+      )
+    }
+    if (werkzeug.name === 'moebel') {
+      return (
+        <MoebelKatalog
+          wahl={vorlagen.moebel}
+          onWahl={(v) => setVorlagen((x) => ({ ...x, moebel: v }))}
+          eigene={eigene.liste}
+          eigeneFehler={eigene.fehler}
+          eigeneNochmal={eigene.nochmal}
+        />
+      )
+    }
+    if (werkzeug.name === 'regal' || werkzeug.name === 'schrank') {
+      const art = werkzeug.name
+      return <RegalVorlage wert={vorlagen[art]} onAendern={(v) => setVorlagen((x) => ({ ...x, [art]: v }))} />
+    }
+    if (z.auswahl) {
+      return (
+        <Eigenschaften
+          dok={z.dok}
+          auswahl={z.auswahl}
+          projectId={project.id}
+          zimmer={rooms}
+          aendern={(dok, auswahl) => {
+            setLeiste(null)
+            dispatch({ typ: 'aendern', dok, auswahl })
+          }}
+          hinweis={hinweisZeigen}
+          loeschenFragen={(raumId, codes) => setFrage({ art: 'loeschen', raumId, codes })}
+          neuesZimmer={(rid) => {
+            const r = z.dok.raeume.find((x) => x.id === rid)
+            setBereich({ entwurf: neuerBereich('room', tags.length, r ? raumTitel(r) : ''), raumId: rid })
+          }}
+          kisteInHand={(k) => {
+            setInHand({ id: k.id, code: k.code, laenge_cm: k.laenge_cm, breite_cm: k.breite_cm, hoehe_cm: k.hoehe_cm })
+            wechseln('kiste')
+          }}
+          vomPlatz={(k) => void vomPlatz(k)}
+        />
+      )
+    }
+    return <Assistent dok={z.dok} onWerkzeug={wechseln} />
+  })()
+
+  const hilfe = t(`zeichner.hilfe.${werkzeug.name === 'raum' && (werkzeug.s as { modus?: string }).modus === 'rechteck' ? 'rechteck' : werkzeug.name}`)
+  const cursor = hand ? 'cursor-grab' : werkzeug.name === 'auswahl' ? 'cursor-default' : 'cursor-crosshair'
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-paper">
+      {/* Kopfzeile des Zeichners */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => dispatch({ typ: 'zurueck' })}
+          disabled={z.zurueck.length === 0}
+          title={t('zeichner.zurueck_taste')}
+        >
+          <Undo2 size={16} className="spiegeln" /> {t('zeichner.zurueck')}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => dispatch({ typ: 'vor' })}
+          disabled={z.vor.length === 0}
+          title={t('zeichner.vor_taste')}
+        >
+          <Redo2 size={16} className="spiegeln" /> {t('zeichner.vor')}
+        </Button>
+        <p className="t-sub min-w-0 flex-1 truncate px-2">{hilfe}</p>
+        {vorschau.eingabe ? (
+          <span className="t-serial rounded-lg border-2 border-ink bg-paper px-2 py-1 text-base" aria-live="polite">
+            {vorschau.eingabe}
+          </span>
+        ) : null}
+        <SpeicherAnzeige status={status} onNochmal={() => { setStatus('gespeichert'); setLeiste(null) }} />
+      </div>
+
+      {leiste ? (
+        <div className="flex flex-wrap items-center gap-2 border-b-2 border-danger/30 bg-danger/10 px-3 py-2" role="alert">
+          <TriangleAlert size={18} className="shrink-0 text-danger" />
+          <p className="min-w-0 flex-1 font-bold text-ink">{leiste.text}</p>
+          {leiste.kennung ? (
+            <Button size="sm" variant="outline" onClick={fehlerZeigen}>
+              {t('grundriss.zeigen')}
+            </Button>
+          ) : null}
+          <button className="rounded-lg p-1.5 text-muted hover:bg-raised" onClick={() => setLeiste(null)} aria-label={t('aktion.schliessen')}>
+            <X size={16} />
+          </button>
+        </div>
+      ) : null}
+
+      {offeneZimmer.length > 0 ? (
+        <div className="flex items-center gap-2 overflow-x-auto border-b border-line bg-surface px-3 py-1.5 scrollbar-thin">
+          <span className="shrink-0 text-sm font-bold text-muted">{t('zeichner.noch_nicht_gezeichnet')}</span>
+          {offeneZimmer.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/kistly-zimmer', r.id)
+                e.dataTransfer.effectAllowed = 'link'
+              }}
+              onClick={() => {
+                const a = z.auswahl
+                const ziel = a?.art === 'raum' ? a.id : a && 'raumId' in a ? a.raumId : null
+                zimmerZuordnen(r.id, ziel)
+              }}
+              title={t('zeichner.zimmer_ziehen')}
+              className="inline-flex h-8 shrink-0 cursor-grab items-center gap-1.5 rounded-full border-2 border-line bg-paper px-3 text-sm font-bold hover:border-ink/40"
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
+              {r.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex min-h-0 flex-1">
+        {/* Werkzeuge */}
+        <nav className="flex w-52 shrink-0 flex-col gap-1 overflow-y-auto border-e border-line bg-surface p-2" aria-label={t('zeichner.werkzeuge')}>
+          {REIHENFOLGE.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => wechseln(name)}
+              aria-pressed={werkzeug.name === name}
+              title={t(`zeichner.hilfe.${name}`)}
+              className={cx(
+                'flex min-h-10 items-center gap-2 rounded-xl px-2.5 text-start text-[0.9375rem] font-bold transition',
+                werkzeug.name === name ? 'bg-ink text-paper' : 'text-ink hover:bg-raised',
+              )}
+            >
+              <span className="shrink-0" style={name === 'tuer' ? { color: 'var(--plan-tuer)' } : name === 'fenster' ? { color: 'var(--plan-fenster)' } : undefined}>
+                {SYMBOL[name]}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{t(`zeichner.werkzeug.${name}`)}</span>
+              <kbd className="t-serial rounded border border-current/30 px-1 text-xs opacity-70">{tastenZeichen(name)}</kbd>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => wechseln('raum', true)}
+            className="flex min-h-9 items-center gap-2 rounded-xl px-2.5 text-start text-sm font-bold text-muted hover:bg-raised hover:text-ink"
+          >
+            <span className="min-w-0 flex-1 truncate">{t('zeichner.werkzeug.rechteck')}</span>
+            <kbd className="t-serial rounded border border-current/30 px-1 text-xs opacity-70">⇧R</kbd>
+          </button>
+        </nav>
+
+        {/* Zeichenflaeche */}
+        <div
+          dir="ltr"
+          ref={flaeche}
+          className={cx('relative min-w-0 flex-1 overflow-hidden', cursor)}
+          style={{ background: 'var(--plan-grund)', touchAction: 'none' }}
+          onPointerDown={runter}
+          onPointerMove={bewegen}
+          onPointerUp={hoch}
+          onPointerLeave={() => setZeigerCm(null)}
+          onDoubleClick={doppel}
+          onContextMenu={(e) => e.preventDefault()}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('text/kistly-zimmer')) e.preventDefault()
+          }}
+          onDrop={fallenLassen}
+        >
+          {ansicht && groesse[0] > 0 ? (
+            <Leinwand
+              dok={anzeige}
+              auswahl={z.auswahl}
+              hervor={kisteId}
+              ansicht={ansicht}
+              breite={groesse[0]}
+              hoehe={groesse[1]}
+              vorschau={vorschau}
+              onMass={(m) => {
+                if (werkzeug.name !== 'auswahl') return
+                setMassEingabe({ ...m, text: String(m.laenge) })
+                dispatch({ typ: 'waehlen', auswahl: { art: 'kante', raumId: m.raumId, kante: m.kante } })
+              }}
+            />
+          ) : null}
+
+          {massEingabe && ansicht ? (
+            <form
+              className="absolute z-10 flex items-center gap-1 rounded-xl border-2 border-ink bg-surface p-1 shadow-lg"
+              style={{
+                left: (massEingabe.p[0] - ansicht.x) * ansicht.s - 60,
+                top: (massEingabe.p[1] - ansicht.y) * ansicht.s - 20,
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onSubmit={(e) => {
+                e.preventDefault()
+                const v = laengeLesen(massEingabe.text)
+                const neu = v ? kanteLaengeSetzen(z.dok, massEingabe.raumId, massEingabe.kante, v) : null
+                if (neu) dispatch({ typ: 'aendern', dok: neu })
+                else hinweisZeigen(t('zeichner.laenge_geht_nicht'))
+                setMassEingabe(null)
+              }}
+            >
+              <input
+                autoFocus
+                dir="ltr"
+                value={massEingabe.text}
+                onChange={(e) => setMassEingabe((m) => (m ? { ...m, text: e.target.value } : m))}
+                onKeyDown={(e) => e.key === 'Escape' && setMassEingabe(null)}
+                className="t-serial w-24 rounded-lg bg-paper px-2 py-1 text-base outline-none"
+                aria-label={t('zeichner.eig.laenge')}
+              />
+              <button type="submit" className="rounded-lg bg-ink p-1.5 text-paper" aria-label={t('aktion.speichern')}>
+                <Check size={16} />
+              </button>
+            </form>
+          ) : null}
+
+          {z.dok.raeume.length === 0 && werkzeug.name === 'auswahl' ? (
+            <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
+              <p className="rounded-xl bg-surface/90 px-4 py-2 text-base font-bold shadow">{t('zeichner.leer_hinweis')}</p>
+            </div>
+          ) : null}
+
+          {hinweis ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center" aria-live="polite">
+              <p className="rounded-xl bg-ink px-4 py-2 text-base font-bold text-paper shadow-lg">{hinweis}</p>
+            </div>
+          ) : null}
+
+          <div className="absolute end-3 top-3 flex flex-col gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+            <Rund label={t('zeichner.zoom_rein')} onClick={() => zoomen(1.25)}>
+              <ZoomIn size={18} />
+            </Rund>
+            <Rund label={t('zeichner.zoom_raus')} onClick={() => zoomen(0.8)}>
+              <ZoomOut size={18} />
+            </Rund>
+            <Rund label={t('zeichner.alles_zeigen')} onClick={() => zeigen('alles')}>
+              <Maximize size={18} />
+            </Rund>
+          </div>
+        </div>
+
+        {/* Rechte Spalte */}
+        <aside className="w-80 shrink-0 space-y-4 overflow-y-auto border-s border-line bg-surface p-4 scrollbar-thin">
+          {letztePlatzierung ? (
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-paper p-2">
+              <CodeChip code={letztePlatzierung.code} size="sm" />
+              <span className="min-w-0 flex-1 text-sm">{t('zeichner.kisten.gesetzt')}</span>
+              <Button size="sm" variant="ghost" onClick={() => void platzZurueck()}>
+                <Undo2 size={15} className="spiegeln" /> {t('zeichner.zurueck')}
+              </Button>
+            </div>
+          ) : null}
+          {rechts}
+        </aside>
+      </div>
+
+      {/* Statusleiste */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-surface px-3 py-1.5 text-sm">
+        <span className="t-serial min-w-44 text-muted" dir="ltr">
+          {zeigerCm ? `x ${cmText(Math.max(0, zeigerCm[0]), lang)}  y ${cmText(Math.max(0, zeigerCm[1]), lang)}` : ' '}
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="font-bold text-muted">{t('zeichner.raster')}</span>
+          {([1, 5, 10] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRaster(r)}
+              aria-pressed={raster === r}
+              className={cx('t-serial rounded-md px-2 py-0.5', raster === r ? 'bg-ink text-paper' : 'hover:bg-raised')}
+            >
+              {r}
+            </button>
+          ))}
+          <span className="text-muted">cm</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setWinkel((v) => !v)}
+          aria-pressed={winkel}
+          className={cx('rounded-md px-2 py-0.5 font-bold', winkel ? 'bg-ink text-paper' : 'hover:bg-raised')}
+        >
+          {t('zeichner.winkel')}
+        </button>
+        <span className="t-serial text-muted">{ansicht ? `${Math.round(ansicht.s * 100)} %` : ''}</span>
+        <span className="t-sub ms-auto">{t('zeichner.tasten_hilfe')}</span>
+      </div>
+
+      {/* Dialoge */}
+      <Modal open={status === 'veraltet'} onClose={() => void neuLaden()} title={t('grundriss.veraltet_titel')}>
+        <p className="text-base">{t('grundriss.veraltet')}</p>
+        <div className="mt-4 flex justify-end">
+          <Button onClick={() => void neuLaden()}>{t('grundriss.neu_laden')}</Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={frage !== null}
+        onClose={() => {
+          if (frage?.art === 'senden') dispatch({ typ: 'abgelehnt' })
+          setFrage(null)
+        }}
+        title={t('zeichner.frage_titel')}
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                if (frage?.art === 'senden') dispatch({ typ: 'abgelehnt' })
+                setFrage(null)
+              }}
+            >
+              {t('aktion.abbrechen')}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                const f = frage
+                setFrage(null)
+                if (!f) return
+                if (f.art === 'loeschen') {
+                  dispatch({ typ: 'aendern', dok: loeschen(z.dok, { art: 'raum', id: f.raumId }), auswahl: null })
+                } else {
+                  senden(unterschied(z.basis, z.dok))
+                }
+              }}
+            >
+              {t('aktion.loeschen')}
+            </Button>
+          </>
+        }
+      >
+        {frage ? (
+          <p className="text-base">
+            {t('zeichner.frage_kisten', { n: frage.codes.length, codes: frage.codes.slice(0, 8).join(', ') })}
+          </p>
+        ) : null}
+      </Modal>
+
+      <BereichDialog
+        entwurf={bereich?.entwurf ?? null}
+        projectId={project.id}
+        tags={tags}
+        onClose={() => setBereich(null)}
+        onGespeichert={async (tag) => {
+          const rid = bereich?.raumId
+          await reloadTags()
+          if (rid && z.dok.raeume.some((r) => r.id === rid)) {
+            dispatch({
+              typ: 'aendern',
+              dok: raumAendern(z.dok, rid, { tag_id: tag.id, tag_name: tag.name, tag_short: tag.short, tag_color: tag.color }),
+              auswahl: { art: 'raum', id: rid },
+            })
+          }
+        }}
+      />
+    </div>
+  )
+}
+
+function Rund({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-line bg-surface text-ink shadow-sm hover:border-ink/40"
+    >
+      {children}
+    </button>
+  )
+}
+
+function SpeicherAnzeige({ status, onNochmal }: { status: Speicherstand; onNochmal: () => void }) {
+  const { t } = useSprache()
+  if (status === 'speichert') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-sm font-bold text-muted" aria-live="polite">
+        <Loader2 size={16} className="animate-spin" /> {t('grundriss.speichert')}
+      </span>
+    )
+  }
+  if (status === 'fehler' || status === 'veraltet') {
+    return (
+      <button type="button" onClick={onNochmal} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold text-danger hover:bg-danger/10">
+        <CloudOff size={16} /> {t('grundriss.nicht_gespeichert')}
+      </button>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm font-bold text-ok" aria-live="polite">
+      <Check size={16} /> {t('grundriss.gespeichert')}
+    </span>
+  )
+}

@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Camera, Map as KarteIcon, Package, Search, X } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { Ausschnitt } from '../components/Ausschnitt'
 import { PunktBild } from '../components/PunktBild'
-import { Fundort } from '../components/raumplan/Fundort'
 import { Badge, Button, CodeChip, Empty, ErrorBox, Input, Loading, Modal, Spinner, StatusPill } from '../components/ui'
 import { inhaltSuchen } from '../lib/api'
 import { useSprache } from '../lib/i18n'
@@ -15,14 +14,18 @@ import type { ItemContent, ItemPhoto, SuchTreffer } from '../lib/types'
  *
  * "Kleber" eintippen, und es kommt das Bild des Klebers, und darunter,
  * wo er ist: welcher Umzug, welches Zimmer, welche Kiste, welche Schicht,
- * und in welcher Hoehe. Ein Tipp zeigt den Fundort mit dem kleinen
- * Raumplan, von dort geht es in die Kiste, ins Foto oder in den ganzen
- * Plan.
+ * und in welcher Hoehe. Ein Tipp zeigt den Fundort mit dem Lageplan
+ * (Raum von oben, Regal oder Stapel von vorne), von dort geht es in die
+ * Kiste, ins Foto oder in den ganzen Grundriss.
  *
  * Gesucht wird in der Datenbank (inhalt_suchen, 0024), auch mit
  * Tippfehlern und auf Arabisch. Die Anfrage steht in der Adresse: wer aus
  * einer Kiste zurueckkommt, findet seine Treffer wieder.
  */
+
+/* Der Lageplan (Plan, Regal, Stapel) laedt erst, wenn ein Fundort offen
+ * ist: das Hauptbuendel bleibt klein, und wer nur sucht, laedt ihn nie. */
+const Lageplan = lazy(() => import('../components/plan/Lageplan').then((m) => ({ default: m.Lageplan })))
 
 const WARTEN_MS = 300
 /** So viele Treffer zeigt die Seite. Einer mehr wird geholt, um zu
@@ -196,9 +199,10 @@ export default function Suche() {
     else nav(`/app/p/${z.project_id}/kisten/${z.item_id}?inhalt=${z.content_id}`)
   }
 
+  /* Die Weiche des Grundrisses findet Grundriss und Raum selbst ueber
+   * den Platz der Kiste (kiste_lage). */
   function zumPlan(z: SuchTreffer) {
-    if (!z.room_id) return
-    nav(`/app/p/${z.project_id}/zimmer/${z.room_id}/plan?kiste=${z.item_id}`)
+    nav(`/app/p/${z.project_id}/grundriss?kiste=${z.item_id}`)
   }
 
   const zuKurz = text.trim().length === 1
@@ -306,7 +310,7 @@ export default function Suche() {
                             {z.room_name ?? t('suche.ohne_zimmer')}
                           </Badge>
                           {z.schicht ? <Badge>{t('schichten.schicht_n', { n: z.schicht })}</Badge> : null}
-                          {/* Der Platz im Raumplan ist das Ziel. Solange die
+                          {/* Der Platz im Grundriss ist das Ziel. Solange die
                               Kiste nicht da ist, steht sie noch woanders. */}
                           {z.item_status !== 'arrived' ? <StatusPill status={z.item_status} size="sm" /> : null}
                           {z.bestaetigt === false ? (
@@ -387,7 +391,9 @@ function Fundblatt({
 }) {
   const { t } = useSprache()
   const moebel = z.item_kind === 'furniture'
-  const imPlan = z.room_id !== null && !moebel
+  /* Kisten mit Platz im Grundriss, Moebel ueber ihr gezeichnetes Objekt
+   * (das findet erst der Lageplan heraus). */
+  const imPlan = moebel || z.plan_x !== null
   const hatFoto = z.photo_id !== null && z.foto_pfad !== null
 
   return (
@@ -413,9 +419,9 @@ function Fundblatt({
               <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">{t('schichten.verneint')}</span>
             ) : null}
           </div>
-          {/* Der Raumplan zeigt das Ziel. Solange die Kiste nicht
+          {/* Der Grundriss zeigt das Ziel. Solange die Kiste nicht
               angekommen ist, steht sie noch woanders. */}
-          {z.item_status !== 'arrived' && imPlan && z.plan_x !== null ? (
+          {z.item_status !== 'arrived' && z.plan_x !== null ? (
             <p className="t-sub">{t('suche.noch_nicht_da')}</p>
           ) : null}
         </div>
@@ -462,15 +468,16 @@ function Fundblatt({
         ) : null}
       </dl>
 
-      {imPlan && z.room_id ? (
-        <Fundort
-          projectId={z.project_id}
-          roomId={z.room_id}
-          itemId={z.item_id}
-          farbe={z.room_color ?? '#888888'}
-          angekommen={z.item_status === 'arrived'}
-          onOeffnen={onPlan}
-        />
+      {imPlan ? (
+        <Suspense
+          fallback={
+            <div className="flex items-center gap-2 rounded-2xl border border-line p-4 text-muted">
+              <Spinner /> {t('lage.laedt')}
+            </div>
+          }
+        >
+          <Lageplan itemId={z.item_id} projectId={z.project_id} angekommen={z.item_status === 'arrived'} />
+        </Suspense>
       ) : null}
 
       <div className="grid gap-2 sm:grid-cols-3">
@@ -484,7 +491,7 @@ function Fundblatt({
         </Button>
         {imPlan ? (
           <Button variant="outline" full onClick={onPlan}>
-            <KarteIcon size={18} /> {t('raumplan.zeigen')}
+            <KarteIcon size={18} /> {t('lage.im_grundriss')}
           </Button>
         ) : null}
       </div>

@@ -122,6 +122,7 @@ export default function AppLayout() {
   /* Umzug aus der Adresse, sonst der zuletzt geoeffnete. */
   const projektId = /^\/app\/p\/([^/]+)/.exec(path)?.[1] ?? lastProject
   const zimmerTo = projektId ? `/app/p/${projektId}/bereiche` : '/app'
+  const grundrissTo = projektId ? `/app/p/${projektId}/grundriss` : '/app'
 
   return (
     <Ctx.Provider value={value}>
@@ -141,6 +142,12 @@ export default function AppLayout() {
               icon: LeistenSymbole.zimmer,
               label: t('leiste.zimmer'),
               active: inProject && (path.includes('/bereiche') || path.includes('/zimmer/')),
+            },
+            {
+              to: grundrissTo,
+              icon: LeistenSymbole.grundriss,
+              label: t('leiste.grundriss'),
+              active: inProject && path.includes('/grundriss'),
             },
             { to: '/app/suche', icon: LeistenSymbole.suchen, label: t('nav.suchen'), active: path === '/app/suche' },
             {

@@ -93,7 +93,6 @@ export function errText(err: unknown): string {
     const text = tg(key, dbWerte(e.details))
     if (text !== key) return text
   }
-  if (raw.includes('items_plan_platz2')) return tg('fehler.db.raumplan.platz_belegt')
 
   /* Eindeutige Indizes aus 0027 und 0028. Sie melden sich ohne Kennung,
    * nur mit ihrem Namen in der Meldung. */

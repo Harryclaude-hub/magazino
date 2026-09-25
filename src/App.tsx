@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import type { ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ToastProvider, Loading, Wordmark } from './components/ui'
 import { configError } from './lib/supabase'
@@ -18,7 +18,6 @@ import ProjectLayout from './pages/ProjectLayout'
 import ProjectHome from './pages/ProjectHome'
 import Areas from './pages/Areas'
 import AreaDetail from './pages/AreaDetail'
-import RaumPlan from './pages/RaumPlan'
 import Items from './pages/Items'
 import ItemDetail from './pages/ItemDetail'
 import Furniture from './pages/Furniture'
@@ -32,6 +31,16 @@ import Team from './pages/Team'
 import ProjectSettings from './pages/ProjectSettings'
 import ScanResolve from './pages/ScanResolve'
 import NotFound from './pages/NotFound'
+
+/* Der Grundriss laedt als eigener Teil, erst wenn ihn jemand oeffnet. Der
+ * Zeichner darin ist noch einmal ein eigener Teil (nur am Computer). */
+const Grundriss = lazy(() => import('./pages/Grundriss'))
+const GrundrissWeiche = lazy(() => import('./pages/Grundriss').then((m) => ({ default: m.GrundrissWeiche })))
+const AlterPlanLink = lazy(() => import('./pages/Grundriss').then((m) => ({ default: m.AlterPlanLink })))
+
+function Nachladen({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<Loading />}>{children}</Suspense>
+}
 
 /* Solange die Sitzung noch geprueft wird, wird nicht auf die Anmeldung
  * umgeleitet. Sonst fliegt man beim Start kurz raus, obwohl man angemeldet
@@ -101,7 +110,10 @@ export default function App() {
                 {/* Eigene Seiten. Zimmer und Person teilen sich eine Datei,
                     sie sind in der Datenbank dieselbe Tabelle. */}
                 <Route path="zimmer/:tagId" element={<AreaDetail kind="room" />} />
-                <Route path="zimmer/:tagId/plan" element={<RaumPlan />} />
+                {/* Alte Links auf den Raumplan fuehren in den Grundriss. */}
+                <Route path="zimmer/:tagId/plan" element={<Nachladen><AlterPlanLink /></Nachladen>} />
+                <Route path="grundriss" element={<Nachladen><GrundrissWeiche /></Nachladen>} />
+                <Route path="grundriss/:gid" element={<Nachladen><Grundriss /></Nachladen>} />
                 <Route path="person/:tagId" element={<AreaDetail kind="person" />} />
                 <Route path="moebel" element={<Furniture />} />
                 <Route path="moebel/:id" element={<FurnitureDetail />} />
