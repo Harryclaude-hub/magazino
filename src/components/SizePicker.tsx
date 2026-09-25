@@ -79,7 +79,7 @@ export function SizePicker({
                 g ? 'h-14' : 'h-12'
               } ${
                 an
-                  ? 'border-danger bg-danger text-white'
+                  ? 'border-danger bg-danger text-paper'
                   : 'border-line bg-surface text-ink hover:border-ink/35 hover:bg-raised'
               }`}
             >
@@ -139,7 +139,7 @@ export function SizePicker({
                     onClick={() => onEigene?.(an ? null : g.id)}
                     className={`flex min-w-0 max-w-full flex-col items-start rounded-xl border-2 px-3 py-2 text-start transition active:scale-95 ${
                       an
-                        ? 'border-danger bg-danger text-white'
+                        ? 'border-danger bg-danger text-paper'
                         : 'border-line bg-surface text-ink hover:border-ink/35 hover:bg-raised'
                     }`}
                   >

@@ -509,7 +509,7 @@ export default function FurnitureDetail() {
                     aria-pressed={teil.checked}
                     className={cx(
                       'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 transition',
-                      teil.checked ? 'border-ok bg-ok text-white' : 'border-line bg-surface',
+                      teil.checked ? 'border-ok bg-ok text-paper' : 'border-line bg-surface',
                       !canEdit && 'opacity-60',
                     )}
                   >

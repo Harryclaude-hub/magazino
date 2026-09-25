@@ -1,4 +1,5 @@
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Box } from 'lucide-react'
 import { useZeichnen } from '../../lib/desktop'
 import { useSprache } from '../../lib/i18n'
@@ -112,7 +113,8 @@ function Fenster3D({ titel, onClose, children }: { titel: string; onClose: () =>
       document.body.style.overflow = vorher
     }
   }, [onClose])
-  return (
+  // Portal an body: sonst liegt das Fenster in einer sticky-Spalte unter der Kopfzeile.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} />
       <div
@@ -123,7 +125,8 @@ function Fenster3D({ titel, onClose, children }: { titel: string; onClose: () =>
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

@@ -142,7 +142,7 @@ export function Seitenleiste({
             {e.badge && e.badge > 0 ? (
               <span
                 className={cx(
-                  'min-w-5 rounded-full bg-danger px-1.5 text-center text-[0.6875rem] font-black leading-5 text-white',
+                  'min-w-5 rounded-full bg-danger px-1.5 text-center text-[0.6875rem] font-black leading-5 text-paper',
                   zu ? 'absolute end-1 top-0.5' : 'ms-auto',
                 )}
               >

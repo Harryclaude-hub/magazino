@@ -408,7 +408,7 @@ export function CallProvider({
           <div className="mt-10 flex gap-6">
             <button
               onClick={() => void decline()}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-white"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-paper"
               aria-label={t('chat.anruf_ablehnen')}
               title={t('chat.anruf_ablehnen')}
             >
@@ -416,7 +416,7 @@ export function CallProvider({
             </button>
             <button
               onClick={() => void accept()}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-ok text-white"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-ok text-paper"
               aria-label={t('chat.anruf_annehmen')}
               title={t('chat.anruf_annehmen')}
             >

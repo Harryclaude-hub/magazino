@@ -56,7 +56,11 @@ interface WandInfo {
 export function webglDa(): boolean {
   try {
     const c = document.createElement('canvas')
-    return !!(c.getContext('webgl2') ?? c.getContext('webgl'))
+    const ctx = c.getContext('webgl2') ?? c.getContext('webgl')
+    // Den Pruef-Kontext sofort freigeben, sonst sammeln sich beim
+    // Umschalten 2D/3D Kontexte an, bis der Browser warnt.
+    ctx?.getExtension('WEBGL_lose_context')?.loseContext()
+    return !!ctx
   } catch {
     return false
   }

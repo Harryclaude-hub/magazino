@@ -553,7 +553,7 @@ export default function ItemDetail() {
                           className={cx(
                             'grid h-9 w-9 shrink-0 place-items-center rounded-lg border-2 transition active:scale-95',
                             'disabled:cursor-not-allowed disabled:opacity-45',
-                            c.checked ? 'border-ok bg-ok text-white' : 'border-line bg-surface',
+                            c.checked ? 'border-ok bg-ok text-paper' : 'border-line bg-surface',
                           )}
                         >
                           {c.checked ? <Check size={20} strokeWidth={3} /> : null}

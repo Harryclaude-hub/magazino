@@ -152,7 +152,7 @@ export function NavTab({
       </span>
       {label}
       {badge && badge > 0 ? (
-        <span className="absolute right-[20%] top-0 min-w-5 rounded-full bg-danger px-1.5 text-[0.6875rem] font-black leading-5 text-white">
+        <span className="absolute right-[20%] top-0 min-w-5 rounded-full bg-danger px-1.5 text-[0.6875rem] font-black leading-5 text-paper">
           {badge > 99 ? '99+' : badge}
         </span>
       ) : null}

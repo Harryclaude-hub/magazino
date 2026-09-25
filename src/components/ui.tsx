@@ -15,6 +15,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { Eye, EyeOff, Loader2, X } from 'lucide-react'
 import { contrastOn, cx, initials, parseCode } from '../lib/util'
 import { useT } from '../lib/i18n'
@@ -84,7 +85,7 @@ const VARIANT: Record<ButtonVariant, string> = {
   soft: 'border-2 border-line bg-raised text-ink hover:border-ink/25 hover:bg-line',
   ghost: 'border-2 border-transparent text-ink hover:border-line hover:bg-raised',
   outline: 'border-2 border-ink/25 bg-surface text-ink hover:border-ink/55 hover:bg-raised',
-  danger: 'bg-danger text-white hover:brightness-110',
+  danger: 'bg-danger text-paper hover:brightness-110',
 }
 
 const SIZES = {
@@ -708,7 +709,9 @@ export function Modal({
   }, [open, onClose])
 
   if (!open) return null
-  return (
+  /* Ueber ein Portal direkt an body: eine Spalte mit sticky bildet eine
+   * eigene Ebene, darin half z-50 nicht gegen die Kopfzeile. */
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} />
       <div
@@ -737,7 +740,8 @@ export function Modal({
           </div>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -834,8 +838,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             className={cx(
               'animate-in pointer-events-auto max-w-sm rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg',
-              t.kind === 'ok' && 'bg-ok text-white',
-              t.kind === 'error' && 'bg-danger text-white',
+              t.kind === 'ok' && 'bg-ok text-paper',
+              t.kind === 'error' && 'bg-danger text-paper',
               t.kind === 'info' && 'bg-ink text-paper',
             )}
           >
