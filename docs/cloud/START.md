@@ -165,7 +165,17 @@ Bilderkennung schlaegt Inhalte vor, Suche ueber alle Umzuege.
   die Kiste steht (links, rechts, vorne, hinten, in cm), waehlt dann die
   Unterlage (Boden, andere Kiste, Moebel) oder das Regal- bzw. Schrankfach.
 
-### 4.5 Kistenseite und Suche
+### 4.5 Eigene Groessen (neu dazugekommen)
+
+- Die Groessen 1 bis 10 sind fuer normale Kisten gedacht. Karam hat aber
+  auch Kisten und Moebel, die da nicht hineinpassen.
+- Er kann **eigene Groessen speichern**: mit Namen (zum Beispiel "Grosse
+  Plastikbox IKEA" oder "Kallax 2x4") und Laenge, Breite, Hoehe in cm.
+- Beim Anlegen einer Kiste oder eines Moebels waehlt er so eine
+  gespeicherte Groesse **mit einem Tipp** aus, statt die Masse jedes Mal
+  neu einzugeben.
+
+### 4.6 Kistenseite und Suche
 
 - Kistenseite: die Fotos, und **ganz unten der Lageplan**: das Zimmer mit
   Tuer (orange) und Fenstern (blau), die Kiste hervorgehoben, die Hoehe;
@@ -223,6 +233,32 @@ Bilderkennung schlaegt Inhalte vor, Suche ueber alle Umzuege.
 - **Moebel-Eintraege** koennen genauso einen Platz haben (sie sind der
   Moebel-Eintrag zum Objekt). Dinge in Moebeln stehen in der Inhaltsliste
   des Moebel-Eintrags, wie heute.
+
+### 5.1a Eigene Groessen
+
+- Neue Tabelle `eigene_groessen`: gehoert zu einem Umzug (alle Mitglieder
+  sehen sie, Bearbeiter legen an, aendern, loeschen), Name (Pflicht,
+  eindeutig je Umzug), Art `kiste` oder `moebel`, Laenge, Breite, Hoehe in
+  ganzen cm (je 1 bis 1000), bei Moebeln optional L-Form mit
+  Ausschnitt-Breite und -Tiefe. Zeilen-Sicherheit ueber die Mitgliedschaft.
+- `items` bekommt `eigene_groesse_id` (optional). Ist sie gesetzt, gelten
+  deren Masse fuer Hoehe, Grundflaeche, Stapeln und 3D, vor
+  `kisten_groessen` und `eigene_hoehe_cm`.
+- **Die Nummer der Kiste bleibt gueltig:** die Stufe 1 bis 10 in der
+  Nummer (Prefix-Stufe-Laufnummer) setzt bei einer eigenen Groesse die
+  Datenbank selbst, aus dem Volumen (Laenge mal Breite mal Hoehe durch
+  1000 ergibt Liter, eingeordnet nach `kisten_groessen.bis_liter`). Die
+  Oberflaeche rechnet das nie selbst nach.
+- Loeschen einer eigenen Groesse, die noch benutzt wird, lehnt die
+  Datenbank ab und nennt die Zahl der Kisten und Moebel. Aendern der Masse
+  wirkt auf alle, die sie benutzen; liegt dadurch eine Kiste nicht mehr
+  gueltig (Stapel zu hoch), lehnt die Datenbank ab und sagt, welche.
+- Oberflaeche: auf der Seite Groessen ein Bereich "Meine Groessen"
+  (anlegen, umbenennen, aendern, loeschen). Beim Anlegen und Bearbeiten
+  von Kisten und Moebeln stehen unter den Stufen 1 bis 10 die eigenen
+  Groessen als Knoepfe mit Name und Massen, ein Tipp waehlt sie. Im
+  Zeichner kann ein Moebel direkt aus einer eigenen Groesse gesetzt
+  werden. Etiketten zeigen bei eigener Groesse den Namen statt der Liter.
 
 ### 5.2 Regeln, die die Datenbank prueft (Trigger, wie bisher im Raumplan)
 
@@ -334,7 +370,7 @@ Bilderkennung schlaegt Inhalte vor, Suche ueber alle Umzuege.
 | Etappe | Inhalt | Fertig, wenn |
 |---|---|---|
 | 0 | `docs/grundriss/BAUPLAN.md` aus `entwurf-teile.json` und diesem Dokument schreiben (Abschnitt 5 hat Vorrang vor den Entwuerfen) | Bauplan mit SQL ab Migration 0027 und Dateiliste liegt im Repo |
-| 1 | Datenmodell in cm mit Pruefungen und Umrechnung (Migrationen), `src/lib/geometrie.ts`, api.ts-Funktionen, Desktop-Rahmen mit Seitenleiste | Probelauf gruen, angewandt, alte Daten umgerechnet, App laeuft wie vorher, Desktop nutzt die Breite |
+| 1 | Datenmodell in cm mit Pruefungen und Umrechnung (Migrationen), eigene Groessen (Tabelle, Seite "Meine Groessen", Auswahl beim Anlegen), `src/lib/geometrie.ts`, api.ts-Funktionen, Desktop-Rahmen mit Seitenleiste | Probelauf gruen, angewandt, alte Daten umgerechnet, eigene Groesse anlegen und beim Anlegen einer Kiste waehlen geht, App laeuft wie vorher, Desktop nutzt die Breite |
 | 2 | Zeichner (Raeume, Waende, Tueren, Fenster, Moebel, Regale und Schraenke mit Faechern, Kisten setzen und stapeln), alte Raumplan-Seite ersetzt | Wohnung zeichnen und Kisten stapeln geht am Desktop, Datenbank lehnt Unmoegliches ab |
 | 3 | Handy platzieren, Kistenseite mit Lageplan, neue Suche, Moebel mit Inhalt und Platz | Kiste am Handy in 4 Tipps gesetzt; Suche zeigt Platz und Hoehe |
 | 4 | 3D, schoeneres Design fuer beide Fassungen, alte Raster-Tabellen entfernen | 3D laeuft am Desktop, Handy laedt es nicht; alte Objekte weg |
@@ -371,7 +407,7 @@ Bilderkennung schlaegt Inhalte vor, Suche ueber alle Umzuege.
 Am Ende eine Nachricht, die mit "Passt, Karam." beginnt:
 
 1. Was fertig und live ist, je Etappe in einem Satz.
-2. **So probierst du es aus**: nummerierte Schritte mit Links (Desktop:
+2. **So probierst du es aus**: nummerierte Schritte mit Links (eigene Groesse anlegen; Desktop:
    Wohnung zeichnen, Regal mit Faechern, Kisten stapeln, 3D; Handy: Kiste
    platzieren; Suche).
 3. Welche Entscheidungen du selbst getroffen hast (aus
