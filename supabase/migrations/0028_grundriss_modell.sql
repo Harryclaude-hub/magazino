@@ -122,7 +122,9 @@ alter table public.items
 
 -- "on delete set null" trifft nur eine Spalte; items_platz_pruefen leert
 -- dann den ganzen Platz, bevor dieser Check greift (Falle aus 0018/0019).
-alter table public.items add constraint items_platz_check check (
+-- Ein CHECK laesst NULL durch. Ohne coalesce gingen Fach ohne Ebene oder
+-- Platz ohne x durch, und die Hoehe waere unbekannt.
+alter table public.items add constraint items_platz_check check (coalesce(
   (platz_raum_id is null
      and num_nonnulls(platz_x, platz_y, platz_drehung, unterlage_art, unterlage_item_id,
                       unterlage_objekt_id, fach_ebene, fach_spalte) = 0)
@@ -135,7 +137,8 @@ alter table public.items add constraint items_platz_check check (
           or (unterlage_art = 'objekt' and unterlage_objekt_id is not null
                                        and num_nonnulls(unterlage_item_id, fach_ebene, fach_spalte) = 0)
           or (unterlage_art = 'fach'   and unterlage_objekt_id is not null and unterlage_item_id is null
-                                       and fach_ebene >= 1 and fach_spalte >= 1))));
+                                       and fach_ebene >= 1 and fach_spalte >= 1))),
+  false));
 
 create index items_platz_raum_idx on public.items (platz_raum_id) where platz_raum_id is not null;
 create index items_unterlage_item_idx on public.items (unterlage_item_id) where unterlage_item_id is not null;
@@ -958,6 +961,18 @@ begin
        where id = k.id;
     end loop;
   end if;
+  -- Ein Brett, auf dem noch etwas steht, darf nicht verschwinden. Sonst
+  -- saesse die Kiste danach still auf einem anderen Brett.
+  if old.brett_cm is distinct from new.brett_cm and v_alt is not null then
+    select i.* into k from public.items i
+     where i.unterlage_objekt_id = new.id and i.unterlage_art = 'fach'
+       and (new.brett_cm is null or array_position(new.brett_cm, v_alt[i.fach_ebene]) is null)
+     order by i.code limit 1;
+    if k.id is not null then
+      perform public.grundriss_werfen(public.grundriss_fehler('brett_belegt',
+        jsonb_build_object('code', k.code, 'name', new.name, 'ebene', k.fach_ebene)));
+    end if;
+  end if;
   if old.brett_cm is distinct from new.brett_cm and new.brett_cm is not null and v_alt is not null then
     update public.items i
        set fach_ebene = array_position(new.brett_cm, v_alt[i.fach_ebene])
@@ -1052,6 +1067,13 @@ begin
   if new.kind = 'furniture' and new.platz_raum_id is not null
      and not (tg_op = 'UPDATE' and old.kind <> 'furniture') then
     perform public.grundriss_werfen(public.grundriss_fehler('moebel_kein_platz', jsonb_build_object('code', new.code)));
+  end if;
+  -- Leere Unterlage kommt sonst nur von "on delete set null" (Fremdschluessel,
+  -- also tiefer als 1). Direkt geschickt ist sie ein Fehler, kein Raeumen.
+  if pg_trigger_depth() = 1 and new.platz_raum_id is not null and new.kind <> 'furniture'
+     and ((new.unterlage_art = 'kiste' and new.unterlage_item_id is null)
+       or (new.unterlage_art in ('objekt', 'fach') and new.unterlage_objekt_id is null)) then
+    perform public.grundriss_werfen(public.grundriss_fehler('unterlage_fehlt', jsonb_build_object('code', new.code)));
   end if;
   if new.kind = 'furniture' or new.platz_raum_id is null
      or (new.unterlage_art = 'kiste' and new.unterlage_item_id is null)

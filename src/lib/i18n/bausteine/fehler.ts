@@ -584,6 +584,10 @@ export const fehler: Woerterbuch = {
     de: '{name} hat keine Fächer.',
     ar: 'لا توجد خانات في {name}.',
   },
+  'fehler.db.grundriss.brett_belegt': {
+    de: 'Auf diesem Brett in {name} steht noch {code}. Nimm die Kiste zuerst herunter.',
+    ar: 'ما زال {code} على هذا الرف في {name}. أنزل الصندوق أولًا.',
+  },
   'fehler.db.grundriss.fach_fehlt': {
     de: 'Dieses Fach gibt es in {name} nicht.',
     ar: 'هذه الخانة غير موجودة في {name}.',
