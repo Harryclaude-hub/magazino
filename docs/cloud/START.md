@@ -22,12 +22,21 @@ Etappen. Zusaetzlich liegen im Repo `CLAUDE.md` (Regeln) und
 5. Laptop zuklappen ist erlaubt. Schau ein- bis zweimal am Tag in der
    Claude-App am Handy nach: Claude meldet sich nur in den Ausnahmen aus
    Abschnitt 1.3 und nach jeder fertigen Etappe.
-6. **Sparen (empfohlen):** Nach jeder fertigen Etappe bietet Claude dir
-   einen Satz fuer eine neue Sitzung an. Starte dann eine neue Sitzung
-   (wieder Opus 5.5, gleiches Repo) und fuege nur diesen Satz ein:
-   "Lies docs/cloud/START.md und docs/grundriss/STAND.md und mach die
-   naechste Etappe." Das sind fuenf Mal eine Minute fuer dich und spart
-   etwa ein Drittel der Kosten.
+6. **Guthaben statt Wochenlimit:** Siehe Abschnitt 0a.
+
+### 0a. Guthaben nutzen
+
+Wie das Geschenk-Guthaben verrechnet wird, legt Anthropic fest, nicht
+Claude. So pruefst du es vor dem Start:
+
+1. Oeffne https://claude.ai/settings/usage (Einstellungen, Nutzung).
+2. Dort steht, ob das Guthaben aktiv ist und wofuer es gilt (Claude Code
+   in der Cloud).
+3. Gibt es einen Schalter fuer zusaetzliche Nutzung ("Extra usage"),
+   einschalten und als Grenze 150 $ eintragen. Dann laeuft die Sitzung
+   weiter, wenn das Wochenlimit voll ist, und zahlt aus dem Guthaben.
+4. Steht dort nichts dazu: im Hilfe-Chat unter https://support.claude.com
+   fragen, ob das Guthaben fuer Claude Code im Web gilt.
 
 ---
 
@@ -97,14 +106,14 @@ Wiederlesen eines langen Gespraechsverlaufs. Darum:
    lesen: erst mit `grep` die Stelle finden, dann nur diese Zeilen lesen.
    Befehlsausgaben kuerzen (`| tail -20`), Build-Protokolle nicht ganz
    ausgeben.
-2. **Eine Etappe, eine Sitzung.** Am Ende jeder Etappe den Stand in
-   `docs/grundriss/STAND.md` schreiben (was fertig ist, was als Naechstes
-   kommt, wichtige Dateien und Entscheidungen, hoechstens eine Seite),
-   committen, und Karam diesen Satz fuer eine neue Sitzung anbieten:
-   "Lies docs/cloud/START.md und docs/grundriss/STAND.md und mach die
-   naechste Etappe." Eine frische Sitzung liest nicht den ganzen alten
-   Verlauf mit und ist deutlich billiger. Laesst Karam die alte Sitzung
-   weiterlaufen, arbeitest du dort weiter.
+2. **Ohne Unterbrechung durch alle Etappen.** Karam will, dass die
+   Sitzung zwei Tage durchlaeuft. Arbeite Etappe fuer Etappe weiter, ohne
+   auf ihn zu warten. Nach jeder Etappe `docs/grundriss/STAND.md`
+   aktualisieren (hoechstens eine Seite) und committen: wird der Verlauf
+   zusammengefasst oder bricht die Sitzung ab, geht es von dort weiter.
+   Den Verlauf klein halten: Zwischenergebnisse in Dateien, nicht im Chat.
+   Grosse Bau-Aufgaben an Unteragenten mit klarer Dateiliste geben, der
+   Hauptfaden steuert nur.
 3. **Das Entwurfsmaterial nur einmal lesen.** `entwurf-teile.json` ist
    gross (etwa 540 KB). In Etappe 0 liest es ein einziger Unteragent und
    schreibt daraus `BAUPLAN.md`. Danach wird nur noch `BAUPLAN.md`
@@ -406,6 +415,56 @@ Bilderkennung schlaegt Inhalte vor, Suche ueber alle Umzuege.
   in Moebeln. Die Suchseite zeigt das; ein Tipp oeffnet die Kiste bzw. das
   Moebel mit hervorgehobener Zeile, Foto und Lageplan.
 
+### 5.9a Redesign (Desktop und Handy)
+
+Karams Wunsch: beide Fassungen schoener, der Desktop nutzt die ganze
+Breite. Alles davon ist Designschicht (`src/design`, CSS-Variablen),
+Logik bleibt unberuehrt. Bewegung nur hinter den Stufen ruhig, normal,
+voll; Standard normal.
+
+**Grundlagen (beide Fassungen)**
+- Farben als Variablen in `src/index.css` und `src/design`: warmer,
+  ruhiger Grund (heller Sand im Hellmodus, tiefes Braungrau im
+  Dunkelmodus), eine Akzentfarbe Orange fuer Hauptaktionen, Rot nur fuer
+  Fehler und Hervorhebung "hier ist es", Gruen fuer erledigt. Kontrast
+  Text zu Grund mindestens 4,5:1. Tuer orange und Fenster blau bleiben
+  fest und kommen sonst nirgends als Schmuck vor.
+- Schrift: eine gut lesbare Systemschrift, Ueberschriften kraeftig,
+  Nummern in der vorhandenen Monoschrift (`t-serial`), Arabisch mit
+  ausreichend Zeilenhoehe.
+- Abstaende im 4-px-Raster, Ecken 12 bis 16 px, leichte Schatten nur an
+  Karten und Dialogen. Einheitliche Karten fuer Kisten, Zimmer, Treffer.
+- Leere Zustaende mit kleiner Zeichnung aus `src/design/Kisten.tsx` und
+  einem Satz, was zu tun ist. Laden mit Skelett-Karten statt nur Kreisel.
+- Knoepfe: eine Hauptaktion je Seite in Orange, sonst Umriss-Knoepfe.
+  Tippflaechen mindestens 44 px.
+
+**Desktop (ab 1024 px)**
+- Linke Seitenleiste (240 px, einklappbar auf Symbole): Umzuege, Kisten,
+  Grundriss, Suchen, Scannen, Chat, Profil; oben der aktuelle Umzug mit
+  Wechsler. Die untere Leiste gibt es am Desktop nicht.
+- Oben eine schmale Kopfzeile mit globaler Suche (Tastenkuerzel `/`).
+- Inhalt bis 1600 px breit. Listenseiten zweispaltig: links Liste mit
+  Filtern, rechts die gewaehlte Kiste als Detail (kein Seitenwechsel).
+  Kistenseite dreispaltig: Inhalt und Fotos, Mitte Lageplan, rechts
+  Eigenschaften. Grundriss: Werkzeugleiste links, Zeichenflaeche Mitte,
+  Eigenschaften des gewaehlten Objekts rechts.
+- Tabellen fuer Kistenlisten mit sortierbaren Spalten (Nummer, Zimmer,
+  Groesse, Status, Platz).
+- Hover-Zustaende, Tastenkuerzel im Zeichner.
+
+**Handy (unter 1024 px)**
+- Untere Leiste bleibt (Umzuege, Kisten, Scannen gross in der Mitte,
+  Suchen, Chat). Profil ueber das Bild oben rechts.
+- Karten volle Breite, grosse Nummern, Status als farbige Pille.
+- Kistenseite: oben Nummer und Status, dann Fotos als waagrechte Reihe,
+  Inhalt, ganz unten Lageplan.
+- Platzieren (5.7) als eigener Vollbild-Ablauf mit grossen Knoepfen.
+
+**Pruefen:** je Etappe ein Bild Desktop (1440 px) und Handy (375 px),
+hell und dunkel, Deutsch und Arabisch. Rueckweg: Designdateien loeschbar,
+im README der Designschicht beschrieben.
+
 ### 5.9 Veroeffentlichen und Pruefen
 
 - Nach jeder fertigen Etappe: Pruefschritte aus 1.4, eine Gegenpruefung
@@ -426,7 +485,7 @@ Bilderkennung schlaegt Inhalte vor, Suche ueber alle Umzuege.
 | 1 | Datenmodell in cm mit Pruefungen und Umrechnung (Migrationen), eigene Groessen (Tabelle, Seite "Meine Groessen", Auswahl beim Anlegen), `src/lib/geometrie.ts`, api.ts-Funktionen, Desktop-Rahmen mit Seitenleiste | Probelauf gruen, angewandt, alte Daten umgerechnet, eigene Groesse anlegen und beim Anlegen einer Kiste waehlen geht, App laeuft wie vorher, Desktop nutzt die Breite |
 | 2 | Zeichner (Raeume, Waende, Tueren, Fenster, Moebel, Regale und Schraenke mit Faechern, Kisten setzen und stapeln), alte Raumplan-Seite ersetzt | Wohnung zeichnen und Kisten stapeln geht am Desktop, Datenbank lehnt Unmoegliches ab |
 | 3 | Handy platzieren, Kistenseite mit Lageplan, neue Suche, Moebel mit Inhalt und Platz | Kiste am Handy in 4 Tipps gesetzt; Suche zeigt Platz und Hoehe |
-| 4 | 3D, schoeneres Design fuer beide Fassungen, alte Raster-Tabellen entfernen | 3D laeuft am Desktop, Handy laedt es nicht; alte Objekte weg |
+| 4 | 3D, Redesign nach 5.9a (Grundlagen und Desktop-Rahmen schon ab Etappe 1), alte Raster-Tabellen entfernen | 3D laeuft am Desktop, Handy laedt es nicht; alte Objekte weg |
 
 ---
 
