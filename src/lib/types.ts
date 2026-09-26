@@ -510,6 +510,10 @@ export interface Oeffnung {
 
 export type ObjektArt = 'moebel' | 'regal' | 'schrank'
 
+/** Wie ein Moebel in 3D aussieht (0040): matt, glaenzend usw. */
+export type Material = 'stoff' | 'leder' | 'samt' | 'holz' | 'metall' | 'glas' | 'keramik'
+export const MATERIALIEN: Material[] = ['stoff', 'leder', 'samt', 'holz', 'metall', 'glas', 'keramik']
+
 export interface Objekt extends ObjektForm {
   id: string
   raum_id: string
@@ -519,6 +523,11 @@ export interface Objekt extends ObjektForm {
   item_id: string | null
   item_code: string | null
   item_title: string | null
+  /** Wo man es kauft (0040). */
+  link?: string | null
+  /** Preis in Cent (0040), leer = unbekannt. */
+  preis_cent?: number | null
+  material?: Material | null
 }
 
 export type UnterlageArt = 'boden' | 'kiste' | 'objekt' | 'fach'

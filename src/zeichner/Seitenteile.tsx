@@ -1,11 +1,13 @@
 import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react'
-import { Check, Circle, CircleHelp, Package, Plus, X } from 'lucide-react'
+import { Check, ChevronDown, Circle, CircleHelp, ExternalLink, Package, Plus, Search, Sofa, X } from 'lucide-react'
 import { FachAnsicht } from '../components/plan/FachAnsicht'
 import { objektName } from '../components/plan/lage'
 import { Button, CodeChip, ErrorBox, Input, Spinner } from '../components/ui'
 import { UEBERSTAND_MAX_CM, type Unterlage } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
-import type { EigeneGroesse, Item, PlanKiste, SymbolArt } from '../lib/types'
+import type { EigeneGroesse, Item, Objekt, PlanKiste, SymbolArt } from '../lib/types'
+import { euroText } from '../lib/preis'
+import { moebelArt } from '../components/plan/moebelArt'
 import { createItem } from '../lib/api'
 import { groesseSatz, useKistenGroessen } from '../lib/groessen'
 import { useProject } from '../pages/ProjectLayout'
@@ -154,7 +156,82 @@ export function Assistent({
   )
 }
 
+/* ---------------------------------------------------------------- Suche */
+
+/** Suche oben rechts (E67): Moebel nach Name, Kisten nach Nummer oder
+ *  Name. Ein Treffer waehlt aus und zeigt ihn. */
+export function PlanSuche({
+  objekte,
+  kisten,
+  onObjekt,
+  onKiste,
+}: {
+  objekte: Objekt[]
+  kisten: PlanKiste[]
+  onObjekt: (id: string) => void
+  onKiste: (id: string) => void
+}) {
+  const { t } = useSprache()
+  const [q, setQ] = useState('')
+  const s = q.trim().toLowerCase()
+  const moebel = s ? objekte.filter((o) => (o.name ?? '').toLowerCase().includes(s)).slice(0, 12) : []
+  const boxen = s ? kisten.filter((k) => k.code.toLowerCase().includes(s) || (k.title ?? '').toLowerCase().includes(s)).slice(0, 12) : []
+  return (
+    <div className="space-y-1.5">
+      <div className="relative">
+        <Search size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('zeichner.suche.platzhalter')} className="py-2 ps-9" aria-label={t('zeichner.suche.platzhalter')} />
+      </div>
+      {s ? (
+        moebel.length + boxen.length === 0 ? (
+          <p className="t-sub text-sm">{t('zustand.nichts_gefunden')}</p>
+        ) : (
+          <ul className="max-h-64 space-y-1 overflow-y-auto">
+            {moebel.map((o) => (
+              <li key={o.id}>
+                <button type="button" onClick={() => onObjekt(o.id)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start text-sm hover:bg-raised">
+                  <Sofa size={15} className="shrink-0 text-muted" />
+                  <span className="min-w-0 flex-1 truncate font-bold">{o.name}</span>
+                  {o.preis_cent != null ? <span className="t-serial shrink-0 text-xs">{euroText(o.preis_cent)} €</span> : null}
+                </button>
+              </li>
+            ))}
+            {boxen.map((k) => (
+              <li key={k.id}>
+                <button type="button" onClick={() => onKiste(k.id)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start text-sm hover:bg-raised">
+                  <Package size={15} className="shrink-0 text-muted" />
+                  <CodeChip code={k.code} size="sm" />
+                  <span className="min-w-0 flex-1 truncate">{k.title ?? ''}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
+    </div>
+  )
+}
+
 /* -------------------------------------------------------------- Vorlagen */
+
+/** Gehoert ein Moebel im Plan zu diesem Katalog-Eintrag? Gleiche Art
+ *  (am Namen erkannt), bei Betten dieselbe Breite, bei Sofas dieselbe Form,
+ *  beim Fernseher: an der Wand oder nicht. Ohne erkannte Art: gleicher Name. */
+function gehoertZu(o: Objekt, v: Vorlage, name: string): boolean {
+  if (o.art !== v.art) return false
+  const a = v.art === 'moebel' ? moebelArt(name) : null
+  if (!a) return o.name === name
+  if (moebelArt(o.name ?? '') !== a) return false
+  if (a === 'bett') return o.breite_cm === v.breite_cm
+  if (a === 'sofa') return (o.form === 'l') === (v.form === 'l')
+  if (a === 'fernseher') return (o.tiefe_cm <= 12) === (v.tiefe_cm <= 12)
+  return true
+}
+
+/** Summe der bekannten Preise in Cent. */
+function preisSumme(liste: Objekt[]): number {
+  return liste.reduce((s, o) => s + (o.preis_cent ?? 0), 0)
+}
 
 export function MoebelKatalog({
   wahl,
@@ -162,37 +239,92 @@ export function MoebelKatalog({
   eigene,
   eigeneFehler,
   eigeneNochmal,
+  objekte = [],
+  onZeigen,
 }: {
   wahl: Vorlage | null
   onWahl: (v: Vorlage) => void
   eigene: EigeneGroesse[] | null
   eigeneFehler: string | null
   eigeneNochmal: () => void
+  /** Moebel im Plan: Stueckzahl je Eintrag, Liste mit Link und Preis. */
+  objekte?: Objekt[]
+  onZeigen?: (id: string) => void
 }) {
   const { t } = useSprache()
-  const knopf = (v: Vorlage, name: string) => (
-    <button
-      key={v.schluessel}
-      type="button"
-      onClick={() => onWahl({ ...v, name })}
-      aria-pressed={wahl?.schluessel === v.schluessel}
-      className={cx(
-        'flex w-full items-center justify-between gap-2 rounded-xl border-2 px-3 py-2 text-start transition',
-        wahl?.schluessel === v.schluessel ? 'border-ink bg-ink text-paper' : 'border-line bg-surface hover:border-ink/35',
-      )}
-    >
-      <MoebelVorschau v={v} name={name} />
-      <span className="min-w-0 flex-1 truncate font-bold">{name}</span>
-      <span className="t-serial shrink-0 text-sm opacity-80">
-        {v.breite_cm} x {v.tiefe_cm}
-      </span>
-    </button>
-  )
+  const [offen, setOffen] = useState<string | null>(null)
+  const knopf = (v: Vorlage, name: string) => {
+    const da = objekte.filter((o) => gehoertZu(o, v, name))
+    const summe = preisSumme(da)
+    return (
+      <div key={v.schluessel}>
+        <div className="flex items-stretch gap-1">
+          <button
+            type="button"
+            onClick={() => onWahl({ ...v, name })}
+            aria-pressed={wahl?.schluessel === v.schluessel}
+            className={cx(
+              'flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border-2 px-3 py-2 text-start transition',
+              wahl?.schluessel === v.schluessel ? 'border-ink bg-ink text-paper' : 'border-line bg-surface hover:border-ink/35',
+            )}
+          >
+            <MoebelVorschau v={v} name={name} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-bold">{name}</span>
+              <span className="block text-xs opacity-75">
+                {t('zeichner.katalog.anzahl', { n: da.length })}
+                {summe ? ` · ${euroText(summe)} €` : ''}
+              </span>
+            </span>
+            <span className="t-serial shrink-0 text-sm opacity-80">
+              {v.breite_cm} x {v.tiefe_cm}
+            </span>
+          </button>
+          {da.length ? (
+            <button
+              type="button"
+              onClick={() => setOffen((x) => (x === v.schluessel ? null : v.schluessel))}
+              aria-expanded={offen === v.schluessel}
+              aria-label={t('zeichner.katalog.liste')}
+              className="flex w-9 items-center justify-center rounded-xl border-2 border-line bg-surface hover:border-ink/35"
+            >
+              <ChevronDown size={16} className={cx('transition', offen === v.schluessel && 'rotate-180')} />
+            </button>
+          ) : null}
+        </div>
+        {offen === v.schluessel && da.length ? (
+          <ul className="mt-1 space-y-1 ps-2">
+            {da.map((o) => (
+              <li key={o.id} className="flex items-center gap-1.5 rounded-lg bg-raised px-2 py-1.5 text-sm">
+                <button type="button" onClick={() => onZeigen?.(o.id)} className="min-w-0 flex-1 truncate text-start font-bold hover:underline">
+                  {o.name}
+                </button>
+                {o.preis_cent != null ? <span className="t-serial shrink-0">{euroText(o.preis_cent)} €</span> : null}
+                {o.link ? (
+                  <a href={o.link} target="_blank" rel="noopener noreferrer" aria-label={t('zeichner.eig.zum_produkt')} className="shrink-0 rounded p-1 hover:bg-surface">
+                    <ExternalLink size={14} />
+                  </a>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    )
+  }
+  const alleMoebel = objekte.length
+  const gesamt = preisSumme(objekte)
   const moebel = (eigene ?? []).filter((g) => g.art === 'moebel')
   const vorschau = useMemo(() => (wahl ? neuesObjekt(wahl, 'vorschau', 'vorschau', { x: 0, y: 0 }, 0) : null), [wahl])
   const lForm = wahl?.form === 'l'
   return (
     <div className="space-y-4">
+      {alleMoebel ? (
+        <p className="rounded-xl bg-raised px-3 py-2 text-sm font-bold">
+          {t('zeichner.katalog.im_plan', { n: alleMoebel })}
+          {gesamt ? ` · ${t('zeichner.katalog.summe', { betrag: euroText(gesamt) })}` : ''}
+        </p>
+      ) : null}
       {wahl && vorschau ? (
         // Gewaehlt: so sieht es aus, Groesse vor dem Hinstellen einstellen (E66).
         <div className="space-y-2 rounded-xl border-2 border-ink p-2.5">

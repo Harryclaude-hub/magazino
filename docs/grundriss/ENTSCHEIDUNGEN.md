@@ -387,3 +387,15 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   eine an und nimmt sie gleich in die Hand. Moebelkatalog: das gewaehlte
   Moebel als kleines 3D-Modell (eigener Code-Teil) mit Breite, Tiefe,
   Hoehe und Hoehe ueber dem Boden vor dem Hinstellen.
+- **E67 Link, Preis, Material, Stueckzahl, Suche (0040):** Moebel haben
+  `link` (nur http/https), `preis_cent` und `material` (stoff, leder,
+  samt, holz, metall, glas, keramik; leer = Standard je Art: Tische und
+  Kommoden Holz, Bad Keramik). Eigenschaften: Material-Chips, Link mit
+  Knopf "Zum Produkt", Preis in Euro (899 / 899,90 / 1.299,00). In 3D
+  glaenzen Leder, Holz, Metall, Keramik und Glas verschieden stark
+  (MeshPhongMaterial nur fuer Glaenzendes, sonst Lambert); Kanten nur
+  noch an groesseren Teilen. Katalog: unter jedem Eintrag "n im Plan"
+  und die Preissumme, aufklappbar mit Name, Preis und Link; oben die
+  Zahl aller Moebel und die Gesamtsumme. Rechts oben im Zeichner eine
+  Suche nach Moebeln (Name) und Kisten (Nummer, Name); ein Treffer wird
+  gewaehlt und gezeigt.

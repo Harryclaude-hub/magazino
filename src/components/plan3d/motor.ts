@@ -26,6 +26,7 @@ import {
   LineSegments,
   Mesh,
   MeshLambertMaterial,
+  MeshPhongMaterial,
   MOUSE,
   PerspectiveCamera,
   Plane,
@@ -383,13 +384,25 @@ export function motorStarten(host: HTMLElement): Motor | null {
 
   /* Gleiche Farbe und Deckkraft: ein Material fuer alle. Waende bekommen je
    * ein eigenes, weil ihre Deckkraft einzeln wechselt. */
-  const flaechenMat = new Map<string, MeshLambertMaterial>()
+  const flaechenMat = new Map<string, MeshLambertMaterial | MeshPhongMaterial>()
   const linienMat = new Map<string, LineBasicMaterial>()
-  function flaecheMaterial(farbe: string, deckkraft: number, durch: boolean): MeshLambertMaterial {
-    const key = `${farbe}|${deckkraft}|${durch}`
+  function flaecheMaterial(farbe: string, deckkraft: number, durch: boolean, glanz = 0): MeshLambertMaterial | MeshPhongMaterial {
+    const key = `${farbe}|${deckkraft}|${durch}|${glanz}`
     let m = flaechenMat.get(key)
     if (!m) {
-      m = new MeshLambertMaterial({ color: new Color(farbe), transparent: durch, opacity: deckkraft, depthWrite: deckkraft >= 1 })
+      // Glaenzendes (Leder, Metall, Keramik, Glas) mit Lichtpunkt, sonst matt.
+      // Phong rechnet das Licht wie Lambert, nur mit Glanz dazu.
+      m =
+        glanz > 0
+          ? new MeshPhongMaterial({
+              color: new Color(farbe),
+              transparent: durch,
+              opacity: deckkraft,
+              depthWrite: deckkraft >= 1,
+              shininess: 6 + glanz * 90,
+              specular: new Color(glanz * 0.32, glanz * 0.32, glanz * 0.32),
+            })
+          : new MeshLambertMaterial({ color: new Color(farbe), transparent: durch, opacity: deckkraft, depthWrite: deckkraft >= 1 })
       flaechenMat.set(key, m)
     }
     return m
@@ -437,7 +450,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
             opacity: k.deckkraft,
             depthWrite: k.deckkraft >= 1,
           })
-        : flaecheMaterial(k.farbe, k.deckkraft, durch)
+        : flaecheMaterial(k.farbe, k.deckkraft, durch, k.art === 'quader' ? (k.glanz ?? 0) : 0)
       const mesh = new Mesh(einheit, mat)
       if (k.id && (k.rolle === 'moebel' || k.rolle === 'regal' || k.rolle === 'brett')) mesh.userData = { objektId: k.id }
       else if (k.id && k.rolle === 'kiste') mesh.userData = { kisteId: k.id }

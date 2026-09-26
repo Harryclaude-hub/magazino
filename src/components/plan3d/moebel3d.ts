@@ -42,6 +42,8 @@ export interface Teil {
   z1: number
   farbe: string
   deckkraft?: number
+  /** Eigener Glanz (Metall, Keramik, Kochfeld); sonst der des Materials. */
+  glanz?: number
 }
 
 /** Farbe heller (faktor > 1) oder dunkler (< 1). */
@@ -229,7 +231,7 @@ function zeile(x0: number, x1: number, y0: number, y1: number, wandBeiY0: boolea
 }
 
 function kochfeld(x0: number, y0: number, x1: number, y1: number, H: number, f: MoebelFarben): Teil {
-  return t(x0, y0, x1, y1, H, H + 0.6, f.schwarz)
+  return { ...t(x0, y0, x1, y1, H, H + 0.6, f.schwarz), glanz: 0.7 }
 }
 
 /** Spuelbecken mit Hahn; der Hahn steht an der Wandseite (y0 oder x0). */
@@ -237,7 +239,7 @@ function becken(x0: number, y0: number, x1: number, y1: number, H: number, f: Mo
   const mx = (x0 + x1) / 2
   const my = (y0 + y1) / 2
   const hahn = hahnBeiX0 ? t(x0 - 6, my - 2, x0 - 2, my + 2, H, H + 28, f.metall) : t(mx - 2, y0 - 6, mx + 2, y0 - 2, H, H + 28, f.metall)
-  return [t(x0, y0, x1, y1, H, H + 0.6, ton(f.schwarz, 1.3)), hahn]
+  return [{ ...t(x0, y0, x1, y1, H, H + 0.6, ton(f.schwarz, 1.3)), glanz: 0.5 }, { ...hahn, glanz: 0.8 }]
 }
 
 function kueche(o: O, decke: number, f: MoebelFarben): Teil[] {

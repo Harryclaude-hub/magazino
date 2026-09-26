@@ -58,6 +58,9 @@ function objektWerte(o: Objekt): ObjektWerte {
     boden_cm: o.boden_cm ?? 0,
     farbe: o.farbe,
     item_id: o.item_id,
+    link: o.link ?? null,
+    preis_cent: o.preis_cent ?? null,
+    material: o.material ?? null,
   }
 }
 

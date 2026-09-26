@@ -1,7 +1,7 @@
 import { SYMBOL_ARTEN } from './werkzeuge/strom'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Hand, Plus, RotateCcw, RotateCw, Trash2 } from 'lucide-react'
+import { ExternalLink, Hand, Plus, RotateCcw, RotateCw, Trash2 } from 'lucide-react'
 import { Button, Chip, CodeChip, Input, Select } from '../components/ui'
 import { flaecheQm, raumTitel } from '../components/plan/hilfe'
 import { objektName } from '../components/plan/lage'
@@ -9,7 +9,8 @@ import { listItems } from '../lib/api'
 import { BODEN_STANDARD, BODENFARBEN, kontrast, OBJEKTFARBEN, WANDFARBEN, type DatenFarbe } from '../lib/farben'
 import { cmText, laengeLesen } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
-import type { Item, Objekt, Oeffnung, PlanKiste, PlanLinie, PlanSymbol, Raum, Tag } from '../lib/types'
+import { MATERIALIEN, type Item, type Objekt, type Oeffnung, type PlanKiste, type PlanLinie, type PlanSymbol, type Raum, type Tag } from '../lib/types'
+import { centLesen, euroText } from '../lib/preis'
 import { cx } from '../lib/util'
 import {
   eckeEinfuegen,
@@ -127,17 +128,20 @@ function MassFeldKern({ label, wert, onSetzen, min = 1, max = 50000 }: MassFeldP
 
 /** Ein Textfeld, das beim Verlassen uebernimmt (Name eines Raums oder
  *  Moebels). */
-function TextFeld(p: { label: string; wert: string; platzhalter?: string; onSetzen: (text: string) => void }) {
+type TextFeldProps = { label: string; wert: string; platzhalter?: string; onSetzen: (text: string) => void; laenge?: number; dir?: 'ltr' }
+
+function TextFeld(p: TextFeldProps) {
   return <TextFeldKern key={p.wert} {...p} />
 }
 
-function TextFeldKern({ label, wert, platzhalter, onSetzen }: { label: string; wert: string; platzhalter?: string; onSetzen: (text: string) => void }) {
+function TextFeldKern({ label, wert, platzhalter, onSetzen, laenge = 60, dir }: TextFeldProps) {
   const [text, setText] = useState(wert)
   return (
     <Zeile label={label}>
       <Input
         value={text}
-        maxLength={60}
+        dir={dir}
+        maxLength={laenge}
         onChange={(e) => setText(e.target.value)}
         onBlur={() => text.trim() !== wert && onSetzen(text.trim())}
         onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
@@ -616,6 +620,58 @@ function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
             </Zeile>
           </>
         ) : null}
+        {/* Material (0040): wie es in 3D aussieht. */}
+        <Zeile label={t('zeichner.eig.material')}>
+          <div className="flex flex-wrap gap-1.5">
+            <Chip active={!o.material} onClick={() => p.aendern(objektSetzen(p.dok, { ...o, material: null }), p.auswahl)}>
+              {t('zeichner.eig.standard')}
+            </Chip>
+            {MATERIALIEN.map((m) => (
+              <Chip key={m} active={o.material === m} onClick={() => p.aendern(objektSetzen(p.dok, { ...o, material: m }), p.auswahl)}>
+                {t(`zeichner.material.${m}`)}
+              </Chip>
+            ))}
+          </div>
+        </Zeile>
+        {/* Wo man es kauft und was es kostet (0040). */}
+        <TextFeld
+          label={t('zeichner.eig.link')}
+          wert={o.link ?? ''}
+          laenge={2000}
+          dir="ltr"
+          platzhalter="https://www.ikea.com/at/de/..."
+          onSetzen={(text) => {
+            if (text && !/^https?:\/\//.test(text)) {
+              p.hinweis(t('zeichner.eig.link_falsch'))
+              return
+            }
+            p.aendern(objektSetzen(p.dok, { ...o, link: text || null }), p.auswahl)
+          }}
+        />
+        {o.link ? (
+          <a href={o.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border-2 border-ink px-2.5 py-1 text-sm font-bold text-ink hover:bg-raised">
+            <ExternalLink size={14} /> {t('zeichner.eig.zum_produkt')}
+          </a>
+        ) : null}
+        <TextFeld
+          label={t('zeichner.eig.preis')}
+          wert={o.preis_cent == null ? '' : euroText(o.preis_cent)}
+          laenge={14}
+          dir="ltr"
+          platzhalter="0,00"
+          onSetzen={(text) => {
+            if (!text) {
+              p.aendern(objektSetzen(p.dok, { ...o, preis_cent: null }), p.auswahl)
+              return
+            }
+            const cent = centLesen(text)
+            if (cent === null) {
+              p.hinweis(t('zeichner.eig.preis_falsch'))
+              return
+            }
+            p.aendern(objektSetzen(p.dok, { ...o, preis_cent: cent }), p.auswahl)
+          }}
+        />
         <Zeile label={t('zeichner.eig.farbe')}>
           <Farbwahl farben={OBJEKTFARBEN} wert={o.farbe} standard={t('zeichner.eig.standard')} onWahl={(hex) => p.aendern(objektSetzen(p.dok, { ...o, farbe: hex }), p.auswahl)} />
         </Zeile>

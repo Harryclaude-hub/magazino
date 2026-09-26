@@ -121,6 +121,8 @@ export interface Quader {
   farbe: string
   /** 1 = deckend. */
   deckkraft: number
+  /** 0 = matt (Stoff), bis 1 = stark glaenzend (Metall, Glas). E67. */
+  glanz?: number
   /** Farbe der Kanten, null ohne Kanten. */
   kante: string | null
   /** Id der Kiste oder des Objekts, sonst null. */
@@ -372,6 +374,49 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
   return out
 }
 
+/** Wie stark ein Material glaenzt (E67). */
+export function materialGlanz(m: Objekt['material'] | null | undefined): number {
+  switch (m) {
+    case 'leder':
+      return 0.45
+    case 'holz':
+      return 0.12
+    case 'metall':
+      return 0.75
+    case 'glas':
+      return 0.85
+    case 'keramik':
+      return 0.6
+    case 'samt':
+      return 0.04
+    default:
+      return 0
+  }
+}
+
+/** Material, wenn beim Moebel keins gewaehlt ist. */
+function standardMaterial(art: ReturnType<typeof moebelArt>): Objekt['material'] {
+  switch (art) {
+    case 'tisch':
+    case 'couchtisch':
+    case 'esstisch_rund':
+    case 'essgruppe':
+    case 'stuhl':
+    case 'kommode':
+    case 'sideboard':
+    case 'nachttisch':
+    case 'schreibtisch':
+      return 'holz'
+    case 'wc':
+    case 'waschbecken':
+    case 'badewanne':
+    case 'dusche':
+      return 'keramik'
+    default:
+      return null
+  }
+}
+
 /** Lokales Rechteck eines Objekts (cm) als Quader in Grundriss-Lage. */
 function lokalQuader(
   o: Objekt,
@@ -407,16 +452,22 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
     // Moebel mit Form (E64): Teile aus moebel3d, jedes mit einer Kante im
     // dunkleren Ton der eigenen Farbe. Gesucht: alles in der Hervorfarbe.
     const decke = (raeume.find((r) => r.id === o.raum_id)?.hoehe_cm ?? 250) - unten
-    const form = o.art === 'moebel' ? moebelTeile(o, moebelArt(o.name ?? ''), f, decke) : null
+    const art = o.art === 'moebel' ? moebelArt(o.name ?? '') : null
+    const form = o.art === 'moebel' ? moebelTeile(o, art, f, decke) : null
     if (form) {
+      // Glanz des Hauptmaterials (Stoff, Leder ...); Teile mit eigenem Glanz
+      // (Keramik, Metall, Kochfeld) behalten ihn.
+      const glanz = materialGlanz(o.material ?? standardMaterial(art))
       for (const q of form) {
         const qf = ist ? f.hervor : q.farbe
+        // Kanten nur an groesseren Teilen: sauberer und schneller.
+        const gross = Math.max(q.x1 - q.x0, q.y1 - q.y0) >= 25 && q.z1 - q.z0 >= 4
         const k = lokalQuader(o, 'moebel', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, qf, {
-          kante: ist ? f.kisteRand : ton(qf, 0.72),
+          kante: ist ? f.kisteRand : gross ? ton(qf, 0.72) : undefined,
           id: o.id,
           hervor: ist,
         })
-        if (k) out.push(q.deckkraft !== undefined ? { ...k, deckkraft: q.deckkraft } : k)
+        if (k) out.push({ ...k, glanz: q.glanz ?? glanz, ...(q.deckkraft !== undefined ? { deckkraft: q.deckkraft } : {}) })
       }
       continue
     }

@@ -56,7 +56,7 @@ import { Eigenschaften } from './Eigenschaften'
 import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
 import { einpassen, radArt, radFaktor, verschieben, zoomAm } from '../components/plan/ansicht'
-import { Assistent, KistenListe, MoebelKatalog, RegalVorlage, StromWahl, UnterlagenWahl } from './Seitenteile'
+import { Assistent, KistenListe, MoebelKatalog, PlanSuche, RegalVorlage, StromWahl, UnterlagenWahl } from './Seitenteile'
 import { REIHENFOLGE, TASTEN, tastenZeichen, WERKZEUGE } from './werkzeuge'
 import { sperrSchluessel, zielAn } from './werkzeuge/auswahl'
 import { KontextMenue, UmbenennenDialog, type MenueAktion } from './Menue'
@@ -456,6 +456,22 @@ export default function Zeichner({
     }
     if (ziel.art === 'objekt') return z.dok.objekte.find((x) => x.id === ziel.id)?.name ?? ''
     return ''
+  }
+
+  /** Ein Moebel oder eine Kiste aus Suche oder Liste: waehlen und zeigen. */
+  function objektZeigen(id: string) {
+    const o = z.dok.objekte.find((x) => x.id === id)
+    if (!o) return
+    wechseln('auswahl')
+    dispatch({ typ: 'waehlen', auswahl: { art: 'objekt', id } })
+    zeigen(objektBox(o))
+  }
+  function kisteZeigen(id: string) {
+    const k = z.dok.kisten.find((x) => x.id === id)
+    if (!k) return
+    wechseln('auswahl')
+    dispatch({ typ: 'waehlen', auswahl: { art: 'kiste', id } })
+    zeigen(kisteRechteck(k))
   }
 
   /* Klick in 3D (auch beim Begehen): wie ein Klick an derselben Stelle
@@ -996,6 +1012,8 @@ export default function Zeichner({
           eigene={eigene.liste}
           eigeneFehler={eigene.fehler}
           eigeneNochmal={eigene.nochmal}
+          objekte={z.dok.objekte}
+          onZeigen={objektZeigen}
         />
       )
     }
@@ -1332,6 +1350,7 @@ export default function Zeichner({
           hidden={rechtsZu}
           className="w-80 shrink-0 space-y-4 overflow-y-auto border-s border-line bg-surface p-4 scrollbar-thin"
         >
+          <PlanSuche objekte={z.dok.objekte} kisten={z.dok.kisten} onObjekt={objektZeigen} onKiste={kisteZeigen} />
           {drei ? (
             <div className="space-y-1.5">
               <div className="grid grid-cols-3 gap-1 rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('zeichner.drei.titel')}>

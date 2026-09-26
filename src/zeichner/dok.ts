@@ -669,6 +669,9 @@ export interface Vorlage {
   spalten: number
   /** Haengend (Haengeschrank, Wandregal): Unterkante ueber dem Boden. */
   boden_cm?: number
+  link?: string | null
+  preis_cent?: number | null
+  material?: Objekt['material']
 }
 
 /** Rahmen eines Objekts (bei L der umfassende). */
@@ -770,6 +773,9 @@ export function neuesObjekt(v: Vorlage, id: string, raumId: string, pos: { x: nu
     brett_cm: v.art === 'moebel' ? null : v.brett_cm,
     spalten: v.art === 'moebel' ? 1 : v.spalten,
     boden_cm: v.boden_cm ?? 0,
+    link: v.link ?? null,
+    preis_cent: v.preis_cent ?? null,
+    material: v.material ?? null,
     farbe: null,
     item_id: null,
     item_code: null,
