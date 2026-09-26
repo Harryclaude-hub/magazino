@@ -168,6 +168,7 @@ const SEITEN: Record<TourName, TourSchritt[]> = {
     k('zeichner.w_kiste', 'z-w-kiste'),
     k('zeichner.w_messen', 'z-w-messen'),
     k('zeichner.w_linie', 'z-w-linie'),
+    k('zeichner.w_strom', 'z-w-strom'),
     k('zeichner.zimmer', 'z-zimmer'),
     k('zeichner.rueck', 'z-rueck'),
     k('zeichner.vor', 'z-vor'),

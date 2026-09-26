@@ -274,3 +274,18 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Umschalt in einer Achse, und rastet an parallelen Waenden anderer Raeume
   in der Naehe buendig ein (12 Bildschirmpixel). Waende in 3D sind
   hell (#f1eee8), in 2D anthrazit (#3a3a3a).
+- **E52 Steckdosen, Lichter, Schalter:** Werkzeug "Steckdose / Licht"
+  (Taste S), rechts die Wahl Steckdose, Licht oder Lichtschalter; ein
+  Klick setzt das Symbol (Raster). Reine Anzeige, gespeichert als
+  `grundrisse.symbole` (jsonb, Migration 0037, `symbole_gueltig`) und
+  zusammen mit den Hilfslinien geschrieben. Waehlen, ziehen, Art wechseln
+  und loeschen mit der Auswahl. 2D: kleine Zeichen in eigener Farbe
+  (`--plan-strom`), 3D: Platten an der Decke (Licht), auf 30 cm
+  (Steckdose) und 105 cm (Schalter).
+- **E53 Katalog Bad und Kueche, Hand in 3D:** Der Moebelkatalog hat eigene
+  Abschnitte "Bad und WC" (WC, Waschbecken, Handwaschbecken, Badewanne,
+  Dusche, Waschmaschine, Trockner) und "Kueche" (Kuechenzeile,
+  Unterschrank und Hochschrank mit Faechern, Spuele, Herd,
+  Geschirrspueler, Kuehlschrank). In 3D waehlt ein Umschalter, was die
+  linke Maustaste (und ein Finger) tut: Hand (verschieben, Standard) oder
+  Drehen; die rechte Taste tut das andere. Das Geraet merkt es sich.

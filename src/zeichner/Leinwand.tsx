@@ -91,7 +91,7 @@ function alsTreffer(a: Auswahl): PlanTreffer | null {
   if (!a) return null
   if (a.art === 'kante' || a.art === 'ecke') return { art: 'raum', id: a.raumId }
   // Eine Hilfslinie markiert die Leinwand selbst (siehe unten).
-  if (a.art === 'linie') return null
+  if (a.art === 'linie' || a.art === 'symbol') return null
   return a
 }
 
@@ -122,6 +122,7 @@ export function Leinwand({
     auswahl?.art === 'raum' ? auswahl.id : auswahl && 'raumId' in auswahl ? auswahl.raumId : null
   const raum = griffRaum ? dok.raeume.find((r) => r.id === griffRaum) : null
   const linie = auswahl?.art === 'linie' ? (dok.grundriss.linien ?? []).find((l) => l.id === auswahl.id) : null
+  const symbol = auswahl?.art === 'symbol' ? (dok.grundriss.symbole ?? []).find((x) => x.id === auswahl.id) : null
 
   return (
     <svg
@@ -207,6 +208,19 @@ export function Leinwand({
             <circle key={i} cx={p[0]} cy={p[1]} r={5 / s} style={{ fill: 'var(--surface)', stroke: 'var(--plan-auswahl)' }} strokeWidth={1.5} vectorEffect={NS} />
           ))}
         </g>
+      ) : null}
+
+      {symbol ? (
+        <circle
+          className="plan-auswahl-ebene"
+          cx={symbol.x}
+          cy={symbol.y}
+          r={15 / s}
+          fill="none"
+          style={{ stroke: 'var(--plan-auswahl)' }}
+          strokeWidth={2.5}
+          vectorEffect={NS}
+        />
       ) : null}
 
       <VorschauEbene v={vorschau} s={s} />

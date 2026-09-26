@@ -478,6 +478,11 @@ export const fuehrung: Woerterbuch = {
     de: 'Zeichnet eine gestrichelte Linie, nur zum Anzeigen, zum Beispiel für eine Treppe, eine Stufe oder einen Teppich. Mit der Auswahl kannst du sie anklicken, verschieben, ihre Länge ändern oder löschen.',
     ar: 'يرسم خطاً متقطعاً للعرض فقط، مثلاً لدرج أو عتبة أو سجادة. بأداة التحديد يمكنك النقر عليه ونقله وتغيير طوله أو حذفه.',
   },
+  'fuehrung.zeichner.w_strom.titel': { de: 'Steckdose / Licht (S)', ar: 'مقبس / ضوء (S)' },
+  'fuehrung.zeichner.w_strom.text': {
+    de: 'Rechts Steckdose, Licht oder Lichtschalter wählen und an die Stelle klicken. So weißt du beim Einräumen, wo Strom ist. Mit der Auswahl verschieben oder löschen.',
+    ar: 'اختر على الجانب مقبساً أو ضوءاً أو مفتاح إنارة وانقر على المكان. هكذا تعرف عند الترتيب أين توجد الكهرباء. بأداة التحديد تنقله أو تحذفه.',
+  },
   'fuehrung.zeichner.w_tuer.titel': { de: 'Tür (D)', ar: 'باب (D)' },
   'fuehrung.zeichner.w_tuer.text': {
     de: 'Klicke auf eine Wand: dort sitzt die Tür (orange). Rechts stellst du Breite und Aufschlag ein.',
@@ -540,8 +545,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.zeichner.drei_d.titel': { de: 'So bewegst du 3D', ar: 'كيف تحرّك العرض الثلاثي' },
   'fuehrung.zeichner.drei_d.text': {
-    de: 'Linke Maustaste halten und ziehen: drehen. Loslassen: die Maus bewegt sich frei, nichts dreht mit.\nRechte Maustaste: verschieben. Mausrad: zoomen.\nMöbel, Regal oder Schrank mit der linken Taste greifen und ziehen: es wird verschoben, mit allen Kisten darauf.',
-    ar: 'اضغط زر الفأرة الأيسر واسحب: تدوير. عند الإفلات: تتحرك الفأرة بحرية ولا يدور شيء.\nالزر الأيمن: تحريك. العجلة: تكبير وتصغير.\nأمسك قطعة أثاث أو رفاً أو خزانة بالزر الأيسر واسحب: تنتقل مع كل الصناديق عليها.',
+    de: 'Oben wählst du, was die linke Maustaste tut: Hand (greifen und nach oben, unten, links, rechts verschieben) oder Drehen. Die rechte Maustaste tut das andere, das Mausrad zoomt. Loslassen: die Maus bewegt sich frei.\nMöbel, Regal oder Schrank greifen und ziehen: es wird verschoben, mit allen Kisten darauf.',
+    ar: 'في الأعلى تختار ما يفعله زر الفأرة الأيسر: يد (الإمساك والتحريك للأعلى والأسفل واليسار واليمين) أو تدوير. الزر الأيمن يفعل الآخر، والعجلة تكبّر وتصغّر. عند الإفلات تتحرك الفأرة بحرية.\nأمسك قطعة أثاث أو رفاً أو خزانة واسحب: تنتقل مع كل الصناديق عليها.',
   },
   'fuehrung.zeichner.speichern.titel': { de: 'Speichern', ar: 'الحفظ' },
   'fuehrung.zeichner.speichern.text': {

@@ -5,11 +5,12 @@ import { objektName } from '../components/plan/lage'
 import { Button, CodeChip, ErrorBox, Input, Spinner } from '../components/ui'
 import { UEBERSTAND_MAX_CM, type Unterlage } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
-import type { EigeneGroesse, Item } from '../lib/types'
+import type { EigeneGroesse, Item, SymbolArt } from '../lib/types'
 import { cx } from '../lib/util'
 import { MassFeld } from './Eigenschaften'
 import { FaecherEditor } from './FaecherEditor'
-import { ausEigenerGroesse, KATALOG } from './katalog'
+import { ausEigenerGroesse, KATALOG, KATALOG_BAD, KATALOG_KUECHE } from './katalog'
+import { SYMBOL_ARTEN } from './werkzeuge/strom'
 import type { Dok, Vorlage } from './dok'
 import type { KisteInHand, WerkzeugName } from './werkzeuge/typen'
 
@@ -185,6 +186,14 @@ export function MoebelKatalog({
       <div>
         <Kopf titel={t('zeichner.katalog.titel')} hilfe={t('zeichner.katalog.hilfe')} />
         <div className="space-y-1.5">{KATALOG.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
+      </div>
+      <div>
+        <Kopf titel={t('zeichner.katalog.bad_titel')} />
+        <div className="space-y-1.5">{KATALOG_BAD.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
+      </div>
+      <div>
+        <Kopf titel={t('zeichner.katalog.kueche_titel')} hilfe={t('zeichner.katalog.kueche_hilfe')} />
+        <div className="space-y-1.5">{KATALOG_KUECHE.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
       </div>
       <div>
         <Kopf titel={t('zeichner.katalog.eigene')} />
@@ -394,6 +403,33 @@ export function UnterlagenWahl({
         <Button size="sm" loading={busy} disabled={!gewaehlt?.passt} onClick={onSetzen}>
           {t('zeichner.unterlage.hinstellen')}
         </Button>
+      </div>
+    </div>
+  )
+}
+
+/* ---------------------------------------------------------------- Strom */
+
+export function StromWahl({ wahl, onWahl }: { wahl: SymbolArt; onWahl: (a: SymbolArt) => void }) {
+  const { t } = useSprache()
+  return (
+    <div>
+      <Kopf titel={t('zeichner.strom.titel')} hilfe={t('zeichner.strom.hilfe')} />
+      <div className="space-y-1.5">
+        {SYMBOL_ARTEN.map((a) => (
+          <button
+            key={a}
+            type="button"
+            onClick={() => onWahl(a)}
+            aria-pressed={wahl === a}
+            className={cx(
+              'flex w-full items-center rounded-xl border-2 px-3 py-2 text-start font-bold transition',
+              wahl === a ? 'border-ink bg-ink text-paper' : 'border-line bg-surface hover:border-ink/35',
+            )}
+          >
+            {t(`zeichner.strom.${a}`)}
+          </button>
+        ))}
       </div>
     </div>
   )

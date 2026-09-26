@@ -13,7 +13,7 @@
  */
 import { auswahlPruefen, dokRichten, gleicheLinien, verlaufZiel, type Auswahl, type Dok } from './dok.ts'
 import { istLeer, unterschied } from './diff.ts'
-import type { PlanKiste, PlanLinie } from '../lib/types'
+import type { PlanKiste, PlanLinie, PlanSymbol } from '../lib/types'
 
 export const VERLAUF_MAX = 200
 
@@ -35,7 +35,7 @@ export type ZAktion =
   | { typ: 'abgelehnt' }
   | { typ: 'neu_geladen'; daten: Dok }
   | { typ: 'kisten'; kisten: PlanKiste[] }
-  | { typ: 'linien_gespeichert'; linien: PlanLinie[] }
+  | { typ: 'linien_gespeichert'; linien: PlanLinie[]; symbole: PlanSymbol[] }
 
 export function zStart(daten: Dok): ZState {
   return { dok: daten, basis: daten, version: daten.grundriss.version, zurueck: [], vor: [], auswahl: null }
@@ -91,7 +91,7 @@ export function zReducer(z: ZState, a: ZAktion): ZState {
           ? z.dok
           : gleicheLinien(a.antwort, z.dok)
             ? a.antwort
-            : { ...a.antwort, grundriss: { ...a.antwort.grundriss, linien: z.dok.grundriss.linien ?? [] } }
+            : { ...a.antwort, grundriss: { ...a.antwort.grundriss, linien: z.dok.grundriss.linien ?? [], symbole: z.dok.grundriss.symbole ?? [] } }
       return { ...z, basis: a.antwort, version: a.version, dok, auswahl: auswahlPruefen(dok, z.auswahl) }
     }
     case 'abgelehnt': {
@@ -114,7 +114,7 @@ export function zReducer(z: ZState, a: ZAktion): ZState {
         auswahl: auswahlPruefen(a.daten, z.auswahl),
       }
     case 'linien_gespeichert':
-      return { ...z, basis: { ...z.basis, grundriss: { ...z.basis.grundriss, linien: a.linien } } }
+      return { ...z, basis: { ...z.basis, grundriss: { ...z.basis.grundriss, linien: a.linien, symbole: a.symbole } } }
     case 'kisten':
       return {
         ...z,

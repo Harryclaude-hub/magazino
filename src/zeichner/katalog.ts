@@ -42,8 +42,29 @@ export const KATALOG: Vorlage[] = [
   v({ schluessel: 'tisch', art: 'moebel', breite_cm: 160, tiefe_cm: 90, hoehe_cm: 75 }),
   v({ schluessel: 'kommode', art: 'moebel', breite_cm: 100, tiefe_cm: 45, hoehe_cm: 80 }),
   v({ schluessel: 'fernseher', art: 'moebel', breite_cm: 160, tiefe_cm: 40, hoehe_cm: 50 }),
-  v({ schluessel: 'kuehlschrank', art: 'moebel', breite_cm: 60, tiefe_cm: 65, hoehe_cm: 180 }),
+]
+
+/** Bad und WC: Sanitaer in ueblichen Groessen. */
+export const KATALOG_BAD: Vorlage[] = [
+  v({ schluessel: 'wc', art: 'moebel', breite_cm: 40, tiefe_cm: 65, hoehe_cm: 80 }),
+  v({ schluessel: 'waschbecken', art: 'moebel', breite_cm: 60, tiefe_cm: 45, hoehe_cm: 85 }),
+  v({ schluessel: 'handwaschbecken', art: 'moebel', breite_cm: 40, tiefe_cm: 25, hoehe_cm: 85 }),
+  v({ schluessel: 'badewanne', art: 'moebel', breite_cm: 170, tiefe_cm: 75, hoehe_cm: 58 }),
+  v({ schluessel: 'dusche', art: 'moebel', breite_cm: 90, tiefe_cm: 90, hoehe_cm: 5 }),
   v({ schluessel: 'waschmaschine', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 85 }),
+  v({ schluessel: 'trockner', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 85 }),
+]
+
+/** Kueche: die Zeile als Ganzes und einzelne Teile. Unter- und Hochschrank
+ *  sind Schraenke mit Faechern: dort lassen sich Kisten hineinstellen. */
+export const KATALOG_KUECHE: Vorlage[] = [
+  v({ schluessel: 'kuechenzeile', art: 'moebel', breite_cm: 240, tiefe_cm: 60, hoehe_cm: 90 }),
+  v({ schluessel: 'unterschrank', art: 'schrank', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 87, brett_cm: [0, 40], spalten: 1 }),
+  v({ schluessel: 'hochschrank', art: 'schrank', breite_cm: 60, tiefe_cm: 60, ...faecherGleichmaessig(5, 210), spalten: 1 }),
+  v({ schluessel: 'spuele', art: 'moebel', breite_cm: 80, tiefe_cm: 60, hoehe_cm: 90 }),
+  v({ schluessel: 'herd', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 90 }),
+  v({ schluessel: 'geschirrspueler', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 87 }),
+  v({ schluessel: 'kuehlschrank', art: 'moebel', breite_cm: 60, tiefe_cm: 65, hoehe_cm: 180 }),
 ]
 
 export const REGAL_STANDARD: Vorlage = v({

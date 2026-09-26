@@ -10,7 +10,7 @@
  *
  * Entschieden wird hier nichts, gezeigt wird, was grundriss_laden liefert.
  */
-import { flaeche2, objektGlobal, objektRechtecke, wandStuecke, zuUmriss, type Punkt } from '../../lib/geometrie.ts'
+import { flaeche2, objektGlobal, objektRechtecke, punktImPolygon, wandStuecke, zuUmriss, type Punkt } from '../../lib/geometrie.ts'
 import { innenNormale, kisteAusdehnung, oeffnungPunkte, spaltenBereich, streckenAbstand } from '../plan/hilfe.ts'
 import type { GrundrissDaten, Objekt, Raum } from '../../lib/types'
 
@@ -28,6 +28,7 @@ export interface Farben3D {
   fach: string
   kisteRand: string
   hervor: string
+  strom: string
 }
 
 /** Welches Token hinter welcher Farbe steht (src/index.css). */
@@ -44,6 +45,7 @@ export const FARB_TOKENS: Record<keyof Farben3D, string> = {
   fach: '--plan-fach',
   kisteRand: '--plan-kiste-rand',
   hervor: '--plan-hervor',
+  strom: '--plan-strom',
 }
 
 export type Rolle =
@@ -400,6 +402,24 @@ export function baueSzene(daten: GrundrissDaten, farben: Farben3D, optionen: Sze
   out.push(...oeffnungen(daten, raeume, farben, raumId))
   out.push(...objekte(raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte, farben, hervor))
   out.push(...kisten(daten, farben, raumId, hervor))
+  out.push(...symbole(daten, sichtbar, farben))
+  return out
+}
+
+/** Steckdosen (30 cm hoch), Schalter (105 cm) und Lichter (an der Decke)
+ *  als kleine Platten im Raum, in dem sie stehen. */
+function symbole(daten: GrundrissDaten, raeume: Raum[], f: Farben3D): Koerper[] {
+  const out: Koerper[] = []
+  for (const s of daten.grundriss.symbole ?? []) {
+    const r = raeume.find((x) => punktImPolygon(zuUmriss(x.punkte), s.x, s.y))
+    if (!r) continue
+    if (s.art === 'licht') {
+      out.push(quader('moebel', [m(s.x), m(r.hoehe_cm - 2), m(s.y)], [m(30), m(4), m(30)], f.strom))
+    } else {
+      const h = s.art === 'schalter' ? 105 : 30
+      out.push(quader('moebel', [m(s.x), m(h), m(s.y)], [m(9), m(9), m(9)], f.strom, { kante: f.objektRand }))
+    }
+  }
   return out
 }
 

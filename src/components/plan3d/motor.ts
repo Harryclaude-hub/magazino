@@ -26,12 +26,14 @@ import {
   LineSegments,
   Mesh,
   MeshLambertMaterial,
+  MOUSE,
   PerspectiveCamera,
   Plane,
   Raycaster,
   Scene,
   Shape,
   ShapeGeometry,
+  TOUCH,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -49,6 +51,9 @@ export interface Motor {
   setzen(koerper: Koerper[], hintergrund: string, ausrichten: boolean): void
   blick(b: Blick): void
   waendeHalb(an: boolean): void
+  /** Hand: linke Maustaste (ein Finger) verschiebt, rechte dreht. Sonst
+   *  umgekehrt. */
+  hand(an: boolean): void
   /** Moebel ziehen erlauben (Zeichner), null schaltet es aus. traeger:
    *  Kiste -> Objekt, auf oder in dem ihr Stapel steht; sie gehen mit. */
   ziehen(fn: ((id: string, dxCm: number, dyCm: number) => void) | null, traeger: Map<string, string>): void
@@ -449,6 +454,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
     waendeHalb(an) {
       halb = an
       rendern()
+    },
+    hand(an) {
+      controls.mouseButtons = an
+        ? { LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }
+        : { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }
+      controls.touches = an ? { ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_ROTATE } : { ONE: TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN }
     },
     ziehen(fn, t) {
       ziehFn = fn

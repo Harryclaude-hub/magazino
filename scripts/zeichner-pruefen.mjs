@@ -584,6 +584,20 @@ const vorab = (z) => dok.kistenDraussen(z.dok, dok.umrissGeaendert(z.basis, z.do
   wahr('Weit weg: keine Luecke geschlossen', !wandStuecke([links, weit], []).some((s) => Math.min(s.a[0], s.b[0]) === 300 && Math.max(s.a[0], s.b[0]) === 350))
 }
 
+/* ------------------------------------------------------ Strom */
+
+{
+  const d = dok.raumAnlegen(leer(), 'r1', [[0, 0], [400, 0], [400, 300], [0, 300]]).dok
+  const st = spielen('strom', [{ runter: [52, 48] }], d, { symbolArt: 'licht' })
+  gleich('Strom: Licht gesetzt (Raster 5)', dok.symboleVon(st.d).map((x) => [x.art, x.x, x.y]), [['licht', 50, 50]])
+  gleich('Strom: gewaehlt', st.auswahl?.art, 'symbol')
+  const zug = spielen('auswahl', [{ runter: [50, 50] }, { bewegen: [90, 70] }, { hoch: [90, 70] }], st.d)
+  gleich('Strom: Symbol gezogen', dok.symboleVon(zug.d).map((x) => [x.x, x.y]), [[90, 70]])
+  const weg = spielen('auswahl', [{ runter: [90, 70] }, { taste: 'Delete' }], zug.d)
+  gleich('Strom: Symbol geloescht', dok.symboleVon(weg.d).length, 0)
+  wahr('Strom: vergleicht mit', !dok.gleicheLinien(d, st.d))
+}
+
 /* ------------------------------------------------------ Farben */
 
 for (const f of WANDFARBEN) {

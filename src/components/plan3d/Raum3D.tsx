@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Crosshair, Eye, Layers, Map as KarteIcon, X } from 'lucide-react'
+import { Crosshair, Eye, Hand, Layers, Map as KarteIcon, Rotate3d, X } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
 import type { GrundrissDaten } from '../../lib/types'
 import { cx } from '../../lib/util'
@@ -72,6 +72,23 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
   const [geht, setGeht] = useState<'pruefen' | 'ja' | 'nein'>('pruefen')
   const [farben, setFarben] = useState<Farben3D>(farbenLesen)
   const [halb, setHalb] = useState(true)
+  // Hand (verschieben) oder Drehen fuer die linke Maustaste; das Geraet merkt es sich.
+  const [hand, setHand] = useState(() => {
+    try {
+      return localStorage.getItem('kistly.3d.drehen') !== '1'
+    } catch {
+      return true
+    }
+  })
+  const handSetzen = (an: boolean) => {
+    setHand(an)
+    try {
+      if (an) localStorage.removeItem('kistly.3d.drehen')
+      else localStorage.setItem('kistly.3d.drehen', '1')
+    } catch {
+      /* ohne Speicher gilt es bis zum Neuladen */
+    }
+  }
   const ausgerichtet = useRef<string | null>(null)
 
   // Hell/Dunkel: die Klasse an <html> wechselt, die Tokens auch.
@@ -113,6 +130,10 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
     motor.current?.waendeHalb(halb)
   }, [halb, geht])
 
+  useEffect(() => {
+    motor.current?.hand(hand)
+  }, [hand, geht])
+
   // Der Rueckruf liegt in einer Ref, damit ein neuer Wert den Motor nicht neu anmeldet.
   const ziehRueck = useRef(onObjektZiehen)
   useLayoutEffect(() => {
@@ -142,6 +163,26 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
             <Crosshair size={16} style={{ color: 'var(--plan-hervor)' }} /> {t('plan3d.zur_kiste')}
           </Button>
         ) : null}
+        <div className="flex rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('plan3d.modus')}>
+          <button
+            type="button"
+            aria-pressed={hand}
+            onClick={() => handSetzen(true)}
+            title={t('plan3d.hand_hilfe')}
+            className={cx('flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-bold', hand ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
+          >
+            <Hand size={15} /> {t('plan3d.hand')}
+          </button>
+          <button
+            type="button"
+            aria-pressed={!hand}
+            onClick={() => handSetzen(false)}
+            title={t('plan3d.drehen_hilfe')}
+            className={cx('flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-bold', !hand ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
+          >
+            <Rotate3d size={15} /> {t('plan3d.drehen')}
+          </button>
+        </div>
         <Button
           size="sm"
           variant={halb ? 'aktiv' : 'outline'}
@@ -152,7 +193,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
           <Layers size={16} /> {t('plan3d.waende_halb')}
         </Button>
         <p className="t-sub min-w-0 flex-1 truncate px-1">
-          {geht === 'ja' ? t(beruehren ? 'plan3d.bedienung_handy' : kannZiehen ? 'plan3d.bedienung_ziehen' : 'plan3d.bedienung') : null}
+          {geht === 'ja' ? t(`${beruehren ? 'plan3d.bedienung_handy' : kannZiehen ? 'plan3d.bedienung_ziehen' : 'plan3d.bedienung'}${hand ? '_hand' : ''}`) : null}
         </p>
         {onSchliessen ? (
           <Button size="sm" variant="outline" onClick={onSchliessen}>

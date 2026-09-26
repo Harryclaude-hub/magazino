@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { useSprache } from '../../lib/i18n'
 import { cmText, wandStuecke, type Punkt } from '../../lib/geometrie'
-import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, PlanLinie, Raum } from '../../lib/types'
+import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, PlanLinie, PlanSymbol, Raum } from '../../lib/types'
 import { fuellFarbe } from '../../lib/fuellstand'
 import { cx } from '../../lib/util'
 import {
@@ -495,6 +495,46 @@ const LinienEbene = memo(function LinienEbene({ linien }: { linien: PlanLinie[] 
   )
 })
 
+/** Steckdosen, Lichter, Schalter (0037): kleine Zeichen, am Bildschirm
+ *  immer gleich gross. Steckdose: Kreis mit zwei Loechern, Licht: Kreis
+ *  mit Kreuz, Schalter: kleiner Punkt mit Hebel. */
+const SymbolEbene = memo(function SymbolEbene({ symbole, massstab }: { symbole: PlanSymbol[] | undefined; massstab: number }) {
+  if (!symbole?.length) return null
+  const r = px(massstab, 8)
+  return (
+    <g style={{ stroke: 'var(--plan-strom)' }} strokeWidth={px(massstab, 1.8)} fill="none" strokeLinecap="round">
+      {symbole.map((s) => {
+        if (s.art === 'licht') {
+          const d = r * 0.7
+          return (
+            <g key={s.id}>
+              <circle cx={s.x} cy={s.y} r={r} style={{ fill: 'var(--plan-boden)' }} />
+              <line x1={s.x - d} y1={s.y - d} x2={s.x + d} y2={s.y + d} />
+              <line x1={s.x - d} y1={s.y + d} x2={s.x + d} y2={s.y - d} />
+            </g>
+          )
+        }
+        if (s.art === 'schalter') {
+          return (
+            <g key={s.id}>
+              <circle cx={s.x} cy={s.y} r={r * 0.45} style={{ fill: 'var(--plan-strom)' }} />
+              <line x1={s.x} y1={s.y} x2={s.x + r * 1.1} y2={s.y - r * 1.1} />
+            </g>
+          )
+        }
+        const l = r * 0.35
+        return (
+          <g key={s.id}>
+            <circle cx={s.x} cy={s.y} r={r} style={{ fill: 'var(--plan-boden)' }} />
+            <line x1={s.x - l} y1={s.y - l} x2={s.x - l} y2={s.y + l} />
+            <line x1={s.x + l} y1={s.y - l} x2={s.x + l} y2={s.y + l} />
+          </g>
+        )
+      })}
+    </g>
+  )
+})
+
 export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, beschriftung = true }: PlanEbenenProps) {
   const hervorZiel = useMemo<PlanTreffer | null>(() => {
     if (!hervor) return null
@@ -511,6 +551,7 @@ export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, be
       <WandEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       <OeffnungEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       <LinienEbene linien={daten.grundriss.linien} />
+      <SymbolEbene symbole={daten.grundriss.symbole} massstab={massstab} />
       {beschriftung ? <BeschriftungEbene raeume={daten.raeume} massstab={massstab} /> : null}
       {/* Die Klassen sind nur Haken fuer die Designschicht (design/plan.css):
           weiche Auswahl und pulsierender Ring. Ohne sie bleibt alles wie es ist. */}

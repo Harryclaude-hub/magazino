@@ -27,6 +27,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   RectangleHorizontal,
+  Plug,
 } from 'lucide-react'
 import { BereichDialog } from '../components/BereichDialog'
 import { neuerBereich, type BereichEntwurf } from '../lib/bereich'
@@ -46,7 +47,7 @@ import {
 } from '../lib/geometrie'
 import { useEigeneGroessen, useKistenGroessen } from '../lib/groessen'
 import { useSprache } from '../lib/i18n'
-import type { GrundrissAenderung, GrundrissDaten, Item, PlanKiste } from '../lib/types'
+import type { GrundrissAenderung, GrundrissDaten, Item, PlanKiste, SymbolArt } from '../lib/types'
 import { cx } from '../lib/util'
 import { useProject } from '../pages/ProjectLayout'
 import { geloeschteMitKisten, istLeer, unterschied } from './diff'
@@ -55,7 +56,7 @@ import { Eigenschaften } from './Eigenschaften'
 import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
 import { einpassen, radArt, radFaktor, verschieben, zoomAm } from '../components/plan/ansicht'
-import { Assistent, KistenListe, MoebelKatalog, RegalVorlage, UnterlagenWahl } from './Seitenteile'
+import { Assistent, KistenListe, MoebelKatalog, RegalVorlage, StromWahl, UnterlagenWahl } from './Seitenteile'
 import { REIHENFOLGE, TASTEN, tastenZeichen, WERKZEUGE } from './werkzeuge'
 import { raumStart } from './werkzeuge/raum'
 import type { Aktion, KisteInHand, Kontext, Schritt, WerkzeugName } from './werkzeuge/typen'
@@ -115,6 +116,7 @@ const SYMBOL: Record<WerkzeugName, ReactNode> = {
   kiste: <Package size={19} />,
   messen: <Ruler size={19} />,
   linie: <Slash size={19} strokeDasharray="4 3" />,
+  strom: <Plug size={19} />,
 }
 
 /** Pfeiltasten ohne Auswahl: so viele Pixel verschiebt die Ansicht. */
@@ -178,6 +180,7 @@ export default function Zeichner({
   const [unterlageFehler, setUnterlageFehler] = useState<string | null>(null)
   const [inHand, setInHand] = useState<KisteInHand | null>(null)
   const [letztePlatzierung, setLetztePlatzierung] = useState<{ id: string; code: string; vorher: PlanKiste | null } | null>(null)
+  const [symbolArt, setSymbolArt] = useState<SymbolArt>('steckdose')
   const [vorlagen, setVorlagen] = useState<{ moebel: Vorlage | null; regal: Vorlage; schrank: Vorlage }>(() => ({
     moebel: null,
     regal: { ...REGAL_STANDARD, name: '' },
@@ -229,6 +232,7 @@ export default function Zeichner({
     auswahl: z.auswahl,
     neueId: () => crypto.randomUUID(),
     vorlage: vorlageFuer(werkzeug.name),
+    symbolArt,
     kiste: inHand,
   }
 
@@ -604,9 +608,9 @@ export default function Zeichner({
   const sendenLinien = useCallback(() => {
     laeuft.current = true
     setStatus('speichert')
-    speichereLinien(z.basis.grundriss.id, z.dok.grundriss.linien ?? [])
-      .then((linien) => {
-        dispatch({ typ: 'linien_gespeichert', linien })
+    speichereLinien(z.basis.grundriss.id, z.dok.grundriss.linien ?? [], z.dok.grundriss.symbole ?? [])
+      .then(({ linien, symbole }) => {
+        dispatch({ typ: 'linien_gespeichert', linien, symbole })
         setStatus('gespeichert')
       })
       .catch((err: unknown) => {
@@ -617,7 +621,7 @@ export default function Zeichner({
         laeuft.current = false
         setTick((n) => n + 1)
       })
-  }, [z.basis.grundriss.id, z.dok.grundriss.linien])
+  }, [z.basis.grundriss.id, z.dok.grundriss.linien, z.dok.grundriss.symbole])
 
   useEffect(() => {
     if (laeuft.current || status === 'veraltet' || status === 'fehler' || frage) return
@@ -876,6 +880,9 @@ export default function Zeichner({
           eigeneNochmal={eigene.nochmal}
         />
       )
+    }
+    if (werkzeug.name === 'strom') {
+      return <StromWahl wahl={symbolArt} onWahl={setSymbolArt} />
     }
     if (werkzeug.name === 'regal' || werkzeug.name === 'schrank') {
       const art = werkzeug.name

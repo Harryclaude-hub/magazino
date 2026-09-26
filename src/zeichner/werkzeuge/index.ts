@@ -7,6 +7,7 @@ import { nischeWerkzeug } from './nische.ts'
 import { objektWerkzeug } from './objekt.ts'
 import { oeffnungWerkzeug } from './oeffnung.ts'
 import { raumWerkzeug } from './raum.ts'
+import { stromWerkzeug } from './strom.ts'
 import { teilenWerkzeug } from './teilen.ts'
 import type { Werkzeug, WerkzeugName } from './typen.ts'
 
@@ -23,6 +24,7 @@ export const WERKZEUGE: Record<WerkzeugName, Werkzeug<unknown>> = {
   kiste: kisteWerkzeug as Werkzeug<unknown>,
   messen: messenWerkzeug as Werkzeug<unknown>,
   linie: linieWerkzeug as Werkzeug<unknown>,
+  strom: stromWerkzeug as Werkzeug<unknown>,
 }
 
 export const REIHENFOLGE: WerkzeugName[] = [
@@ -38,6 +40,7 @@ export const REIHENFOLGE: WerkzeugName[] = [
   'kiste',
   'messen',
   'linie',
+  'strom',
 ]
 
 export const TASTEN: Record<WerkzeugName, string> = {
@@ -53,6 +56,7 @@ export const TASTEN: Record<WerkzeugName, string> = {
   kiste: 'KeyB',
   messen: 'KeyA',
   linie: 'KeyL',
+  strom: 'KeyS',
 }
 
 /** Buchstabe fuer die Anzeige ("V"), immer lateinisch. */

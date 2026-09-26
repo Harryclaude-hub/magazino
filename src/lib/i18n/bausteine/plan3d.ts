@@ -35,6 +35,29 @@ export const plan3dWoerter: Woerterbuch = {
     de: 'Ein Finger dreht, zwei Finger verschieben und zoomen.',
     ar: 'إصبع واحد يدوّر، وإصبعان يحرّكان ويكبّران ويصغّران.',
   },
+  'plan3d.modus': { de: 'Linke Maustaste', ar: 'زر الفأرة الأيسر' },
+  'plan3d.hand': { de: 'Hand', ar: 'يد' },
+  'plan3d.drehen': { de: 'Drehen', ar: 'تدوير' },
+  'plan3d.hand_hilfe': {
+    de: 'Greifen und verschieben: nach oben, unten, links, rechts. Rechte Maustaste dreht.',
+    ar: 'الإمساك والتحريك: للأعلى والأسفل واليسار واليمين. الزر الأيمن يدوّر.',
+  },
+  'plan3d.drehen_hilfe': {
+    de: 'Ziehen dreht die Wohnung. Rechte Maustaste verschiebt.',
+    ar: 'السحب يدوّر الشقة. الزر الأيمن يحرّك.',
+  },
+  'plan3d.bedienung_hand': {
+    de: 'Ziehen verschiebt, rechte Maustaste dreht, Mausrad zoomt.',
+    ar: 'السحب يحرّك، الزر الأيمن يدوّر، العجلة تكبّر وتصغّر.',
+  },
+  'plan3d.bedienung_ziehen_hand': {
+    de: 'Möbel ziehen verschiebt es. Sonst: Ziehen verschiebt die Ansicht, rechte Maustaste dreht, Mausrad zoomt.',
+    ar: 'سحب قطعة الأثاث ينقلها. غير ذلك: السحب يحرّك العرض، الزر الأيمن يدوّر، العجلة تكبّر وتصغّر.',
+  },
+  'plan3d.bedienung_handy_hand': {
+    de: 'Ein Finger verschiebt, zwei Finger drehen und zoomen.',
+    ar: 'إصبع واحد يحرّك، وإصبعان يدوّران ويكبّران.',
+  },
   'plan3d.leer': { de: 'Hier ist noch nichts gezeichnet.', ar: 'لم يُرسم شيء هنا بعد.' },
   'plan3d.umschalter': { de: 'Ansicht', ar: 'العرض' },
   'plan3d.zwei_d': { de: '2D', ar: 'ثنائي الأبعاد' },

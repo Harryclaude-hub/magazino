@@ -27,6 +27,7 @@ import type {
   Objekt,
   PlanKiste,
   PlanLinie,
+  PlanSymbol,
   MessageLink,
   MessageReaction,
   NotificationPrefs,
@@ -794,7 +795,7 @@ type RohDaten = Omit<GrundrissDaten, 'raeume'> & {
  *  Punkte, fehlende Listen leer. */
 function datenLesen(d: RohDaten): GrundrissDaten {
   return {
-    grundriss: { ...d.grundriss, linien: d.grundriss.linien ?? [] },
+    grundriss: { ...d.grundriss, linien: d.grundriss.linien ?? [], symbole: d.grundriss.symbole ?? [] },
     raeume: (d.raeume ?? []).map((r) => ({ ...r, punkte: zuPunkten(r.punkte ?? []) })),
     oeffnungen: d.oeffnungen ?? [],
     objekte: d.objekte ?? [],
@@ -812,12 +813,21 @@ export async function ladeGrundriss(id: string, raumId?: string): Promise<Grundr
   return datenLesen(d)
 }
 
-/** Die gestrichelten Hilfslinien eines Grundrisses speichern (0034). Ein
- *  normales update, die Version des Grundrisses bleibt dabei stehen. */
-export async function speichereLinien(grundrissId: string, linien: PlanLinie[]): Promise<PlanLinie[]> {
-  const res = await supabase.from('grundrisse').update({ linien }).eq('id', grundrissId).select('linien').single()
-  const z = unwrap(res, 'fehler.linien_speichern') as { linien: PlanLinie[] | null }
-  return z.linien ?? []
+/** Hilfslinien (0034) und Strom-Symbole (0037) eines Grundrisses
+ *  speichern. Ein normales update, die Version bleibt dabei stehen. */
+export async function speichereLinien(
+  grundrissId: string,
+  linien: PlanLinie[],
+  symbole: PlanSymbol[],
+): Promise<{ linien: PlanLinie[]; symbole: PlanSymbol[] }> {
+  const res = await supabase
+    .from('grundrisse')
+    .update({ linien, symbole })
+    .eq('id', grundrissId)
+    .select('linien, symbole')
+    .single()
+  const z = unwrap(res, 'fehler.linien_speichern') as { linien: PlanLinie[] | null; symbole: PlanSymbol[] | null }
+  return { linien: z.linien ?? [], symbole: z.symbole ?? [] }
 }
 
 /** Eine Ablehnung beim Speichern des Grundrisses. Die Nachricht ist der

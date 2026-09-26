@@ -26,7 +26,7 @@ import {
   type Punkt,
 } from '../lib/geometrie.ts'
 import { oeffnungPunkte, stapelWurzel } from '../components/plan/hilfe.ts'
-import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, PlanLinie, Raum } from '../lib/types'
+import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, PlanLinie, PlanSymbol, Raum, SymbolArt } from '../lib/types'
 
 export type Dok = GrundrissDaten
 
@@ -38,6 +38,7 @@ export type Auswahl =
   | { art: 'objekt'; id: string }
   | { art: 'kiste'; id: string }
   | { art: 'linie'; id: string }
+  | { art: 'symbol'; id: string }
   | null
 
 /* ------------------------------------------------------------ Kleinkram */
@@ -394,12 +395,48 @@ export function linienVon(dok: Dok): PlanLinie[] {
   return dok.grundriss.linien ?? []
 }
 
-/** Haben zwei Staende dieselben Hilfslinien? (Sie werden getrennt von den
- *  Raeumen gespeichert.) */
+/** Haben zwei Staende dieselben Hilfslinien und Strom-Symbole? (Sie
+ *  werden getrennt von den Raeumen gespeichert.) */
 export function gleicheLinien(a: Dok, b: Dok): boolean {
-  const x = linienVon(a)
-  const y = linienVon(b)
-  return x === y || JSON.stringify(x) === JSON.stringify(y)
+  const gleich = <T,>(x: T[], y: T[]) => x === y || JSON.stringify(x) === JSON.stringify(y)
+  return gleich(linienVon(a), linienVon(b)) && gleich(symboleVon(a), symboleVon(b))
+}
+
+/* ------------------------------------------------------------ Symbole */
+
+export function symboleVon(dok: Dok): PlanSymbol[] {
+  return dok.grundriss.symbole ?? []
+}
+
+function mitSymbolen(dok: Dok, symbole: PlanSymbol[]): Dok {
+  return { ...dok, grundriss: { ...dok.grundriss, symbole } }
+}
+
+export function symbolHinzufuegen(dok: Dok, s: PlanSymbol): Dok {
+  return mitSymbolen(dok, [...symboleVon(dok), { ...s, x: Math.round(s.x), y: Math.round(s.y) }])
+}
+
+export function symbolVerschieben(dok: Dok, id: string, dx: number, dy: number): Dok {
+  if (dx === 0 && dy === 0) return dok
+  return mitSymbolen(dok, symboleVon(dok).map((s) => (s.id === id ? { ...s, x: Math.round(s.x + dx), y: Math.round(s.y + dy) } : s)))
+}
+
+export function symbolAendern(dok: Dok, id: string, art: SymbolArt): Dok {
+  return mitSymbolen(dok, symboleVon(dok).map((s) => (s.id === id ? { ...s, art } : s)))
+}
+
+/** Das Symbol unter p (Abstand hoechstens tol cm), sonst null. */
+export function symbolAn(dok: Dok, p: Punkt, tol: number): PlanSymbol | null {
+  let beste: PlanSymbol | null = null
+  let bestAbstand = tol
+  for (const s of symboleVon(dok)) {
+    const d = Math.hypot(s.x - p[0], s.y - p[1])
+    if (d <= bestAbstand) {
+      beste = s
+      bestAbstand = d
+    }
+  }
+  return beste
 }
 
 function mitLinien(dok: Dok, linien: PlanLinie[]): Dok {
@@ -770,6 +807,8 @@ export function loeschen(dok: Dok, a: NonNullable<Auswahl>): Dok {
     }
     case 'linie':
       return mitLinien(dok, linienVon(dok).filter((l) => l.id !== a.id))
+    case 'symbol':
+      return mitSymbolen(dok, symboleVon(dok).filter((s) => s.id !== a.id))
     default:
       return dok
   }
@@ -795,6 +834,8 @@ export function auswahlPruefen(dok: Dok, a: Auswahl): Auswahl {
       return dok.kisten.some((k) => k.id === a.id) ? a : null
     case 'linie':
       return linienVon(dok).some((l) => l.id === a.id) ? a : null
+    case 'symbol':
+      return symboleVon(dok).some((s) => s.id === a.id) ? a : null
   }
 }
 

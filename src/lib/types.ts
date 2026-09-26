@@ -453,8 +453,20 @@ export interface Grundriss {
   version: number
   /** Gestrichelte Hilfslinien (0034), reine Anzeige. Fehlt bei alten Staenden. */
   linien?: PlanLinie[]
+  /** Steckdosen, Lichter, Schalter (0037), reine Anzeige. */
+  symbole?: PlanSymbol[]
   created_at: string
   updated_at: string
+}
+
+export type SymbolArt = 'steckdose' | 'licht' | 'schalter'
+
+/** Ein Strom-Symbol an einer Stelle des Grundrisses (cm). */
+export interface PlanSymbol {
+  id: string
+  art: SymbolArt
+  x: number
+  y: number
 }
 
 /** Eine gestrichelte Hilfslinie in cm (Treppe, Stufe, Bereich). */

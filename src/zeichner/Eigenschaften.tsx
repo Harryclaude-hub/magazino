@@ -1,3 +1,4 @@
+import { SYMBOL_ARTEN } from './werkzeuge/strom'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Hand, Plus, RotateCcw, RotateCw, Trash2 } from 'lucide-react'
@@ -8,7 +9,7 @@ import { listItems } from '../lib/api'
 import { BODEN_STANDARD, BODENFARBEN, kontrast, OBJEKTFARBEN, WANDFARBEN, type DatenFarbe } from '../lib/farben'
 import { cmText, laengeLesen } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
-import type { Item, Objekt, Oeffnung, PlanKiste, PlanLinie, Raum, Tag } from '../lib/types'
+import type { Item, Objekt, Oeffnung, PlanKiste, PlanLinie, PlanSymbol, Raum, Tag } from '../lib/types'
 import { cx } from '../lib/util'
 import {
   eckeEinfuegen,
@@ -22,6 +23,8 @@ import {
   objektSetzen,
   raumAendern,
   raumVon,
+  symbolAendern,
+  symbolVerschieben,
   type Auswahl,
   type Dok,
 } from './dok'
@@ -357,6 +360,25 @@ function EckeTeil({ p, raum, ecke }: { p: EigenschaftenProps; raum: Raum; ecke: 
       >
         {t('zeichner.eig.ecke_entfernen')}
       </LoeschKnopf>
+    </Abschnitt>
+  )
+}
+
+/** Steckdose, Licht oder Schalter: Art wechseln, Lage, Loeschen. */
+function SymbolTeil({ p, s }: { p: EigenschaftenProps; s: PlanSymbol }) {
+  const { t } = useSprache()
+  return (
+    <Abschnitt titel={t(`zeichner.strom.${s.art}`)}>
+      <div className="flex flex-wrap gap-1.5">
+        {SYMBOL_ARTEN.map((a) => (
+          <Button key={a} size="sm" variant={a === s.art ? 'aktiv' : 'outline'} onClick={() => p.aendern(symbolAendern(p.dok, s.id, a), p.auswahl)}>
+            {t(`zeichner.strom.${a}`)}
+          </Button>
+        ))}
+      </div>
+      <MassFeld label={t('zeichner.eig.von_links')} wert={s.x} onSetzen={(v) => p.aendern(symbolVerschieben(p.dok, s.id, v - s.x, 0), p.auswahl)} />
+      <MassFeld label={t('zeichner.eig.von_oben')} wert={s.y} onSetzen={(v) => p.aendern(symbolVerschieben(p.dok, s.id, 0, v - s.y), p.auswahl)} />
+      <LoeschKnopf onClick={() => p.aendern(loeschen(p.dok, { art: 'symbol', id: s.id }), null)}>{t('zeichner.strom.loeschen')}</LoeschKnopf>
     </Abschnitt>
   )
 }
@@ -712,6 +734,10 @@ export function Eigenschaften(p: EigenschaftenProps) {
     case 'linie': {
       const l = (p.dok.grundriss.linien ?? []).find((x) => x.id === a.id)
       return l ? <LinieTeil key={l.id} p={p} l={l} /> : null
+    }
+    case 'symbol': {
+      const s = (p.dok.grundriss.symbole ?? []).find((x) => x.id === a.id)
+      return s ? <SymbolTeil key={s.id} p={p} s={s} /> : null
     }
   }
 }

@@ -15,6 +15,8 @@ import {
   kistenImRaum,
   linieAn,
   linieVerschieben,
+  symbolAn,
+  symbolVerschieben,
   loeschen,
   objektSetzen,
   raumVerschieben,
@@ -26,7 +28,7 @@ import { fangen } from '../fangen.ts'
 import type { Aktion, Kontext, Schritt, Werkzeug, Zeiger } from './typen.ts'
 
 interface Zug {
-  art: 'raum' | 'ecke' | 'kante' | 'objekt' | 'oeffnung' | 'linie'
+  art: 'raum' | 'ecke' | 'kante' | 'objekt' | 'oeffnung' | 'linie' | 'symbol'
   start: Punkt
   basis: Dok
   auswahl: NonNullable<Auswahl>
@@ -72,6 +74,8 @@ export function griffAn(k: Kontext, p: Punkt): Griff | null {
 /** So nah (Bildschirmpixel) muss eine Wand an einer fremden Wand sein,
  *  damit der gezogene Raum buendig einrastet. */
 const MAGNET_PX = 12
+/** Treffweite fuer Steckdose, Licht, Schalter (Bildschirmpixel). */
+const SYMBOL_PX = 12
 
 /** Kleinste Korrektur (dx, dy), mit der eine waagrechte oder senkrechte
  *  Kante des verschobenen Raums genau auf einer parallelen Kante eines
@@ -160,6 +164,10 @@ function entwurfFuer(k: Kontext, zug: Zug, p: Punkt, frei: boolean): Dok {
       if (a.art !== 'linie') return d
       return linieVerschieben(d, a.id, einrasten(dx, r), einrasten(dy, r))
     }
+    case 'symbol': {
+      if (a.art !== 'symbol') return d
+      return symbolVerschieben(d, a.id, einrasten(dx, r), einrasten(dy, r))
+    }
     case 'oeffnung': {
       if (a.art !== 'oeffnung') return d
       const o = d.oeffnungen.find((x) => x.id === a.id)
@@ -190,6 +198,9 @@ function pfeil(k: Kontext, code: string, schritt: number): Aktion[] | null {
       break
     case 'linie':
       neu = linieVerschieben(d, a.id, dx, dy)
+      break
+    case 'symbol':
+      neu = symbolVerschieben(d, a.id, dx, dy)
       break
     case 'objekt': {
       const o = d.objekte.find((x) => x.id === a.id)
@@ -246,7 +257,11 @@ export const auswahlWerkzeug: Werkzeug<AuswahlZustand> = {
     const g = griffAn(k, z.p)
     let auswahl: NonNullable<Auswahl> | null = null
     let art: Zug['art'] | null = null
-    if (g?.art === 'ecke') {
+    const sym = symbolAn(k.dok, z.p, SYMBOL_PX / k.massstab)
+    if (sym) {
+      auswahl = { art: 'symbol', id: sym.id }
+      art = 'symbol'
+    } else if (g?.art === 'ecke') {
       auswahl = { art: 'ecke', raumId: g.raumId, ecke: g.ecke }
       art = 'ecke'
     } else if (g?.art === 'kante') {

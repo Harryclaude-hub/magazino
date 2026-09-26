@@ -11,7 +11,7 @@
  * arabischen Tastatur) und event.key (das getippte Zeichen, fuer Zahlen).
  */
 import type { ObjektForm, Punkt } from '../../lib/geometrie.ts'
-import type { Oeffnung, Raum } from '../../lib/types'
+import type { Oeffnung, Raum, SymbolArt } from '../../lib/types'
 import type { Auswahl, Dok, Vorlage } from '../dok'
 
 export type WerkzeugName =
@@ -27,6 +27,7 @@ export type WerkzeugName =
   | 'kiste'
   | 'messen'
   | 'linie'
+  | 'strom'
 
 /** Die Kiste, die "Kiste setzen" gerade in der Hand hat. */
 export interface KisteInHand {
@@ -49,6 +50,8 @@ export interface Kontext {
   neueId: () => string
   vorlage: Vorlage | null
   kiste: KisteInHand | null
+  /** Was das Werkzeug Strom setzt. */
+  symbolArt?: SymbolArt
 }
 
 export interface Zeiger {
