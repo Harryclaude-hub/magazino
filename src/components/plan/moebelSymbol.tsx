@@ -9,87 +9,8 @@ import { objektUmriss } from './hilfe'
  * den Koordinaten des Moebels (Breite entlang x, Tiefe entlang y, y = 0 an
  * der Wand) und mit ihm gedreht. */
 
-export type MoebelArt =
-  | 'wc'
-  | 'waschbecken'
-  | 'badewanne'
-  | 'dusche'
-  | 'geschirrspueler'
-  | 'waschmaschine'
-  | 'trockner'
-  | 'spuele'
-  | 'herd'
-  | 'kuehlschrank'
-  | 'kuechenzeile'
-  | 'bett'
-  | 'sofa'
-  | 'fernseher'
-  | 'kommode'
-  | 'tisch'
-  | 'sessel'
-  | 'couchtisch'
-  | 'sideboard'
-  | 'esstisch_rund'
-  | 'buerostuhl'
-  | 'stuhl'
-  | 'teppich'
-  | 'stehlampe'
-  | 'pflanze'
-  | 'klavier'
-  | 'nachttisch'
-  | 'kinderbett'
-  | 'schreibtisch'
-  | 'schuhschrank'
-  | 'garderobe'
-  | 'gefrierschrank'
-  | 'fahrrad'
-
-/** Reihenfolge zaehlt: das Genauere zuerst (Geschirrspueler vor Spuele,
- *  Waschtisch vor Tisch, Couchtisch vor Couch, Buerostuhl vor Stuhl,
- *  Kinderbett und Nachttisch vor Bett). */
-const WOERTER: [MoebelArt, string[]][] = [
-  ['couchtisch', ['couchtisch', 'wohnzimmertisch', 'طاولة قهوة']],
-  ['nachttisch', ['nachttisch', 'nachtkästchen', 'nachtkaestchen', 'طاولة جانبية']],
-  ['schreibtisch', ['schreibtisch', 'طاولة مكتب']],
-  ['esstisch_rund', ['runder', 'مستديرة']],
-  ['buerostuhl', ['bürostuhl', 'buerostuhl', 'drehstuhl', 'كرسي مكتب']],
-  ['sessel', ['sessel', 'كرسي بذراعين']],
-  ['kinderbett', ['kinderbett', 'babybett', 'سرير أطفال']],
-  ['gefrierschrank', ['gefrierschrank', 'gefriertruhe', 'tiefkühl', 'مجمد']],
-  ['schuhschrank', ['schuhschrank', 'schuhregal', 'خزانة أحذية']],
-  ['garderobe', ['garderobe', 'علاقة ملابس']],
-  ['sideboard', ['sideboard', 'anrichte', 'خزانة جانبية']],
-  ['stehlampe', ['stehlampe', 'lampe', 'مصباح']],
-  ['pflanze', ['pflanze', 'blume', 'نبتة']],
-  ['teppich', ['teppich', 'سجادة']],
-  ['klavier', ['klavier', 'piano', 'بيانو']],
-  ['fahrrad', ['fahrrad', 'دراجة']],
-  ['geschirrspueler', ['geschirrspüler', 'geschirrspueler', 'spülmaschine', 'spuelmaschine', 'غسالة صحون']],
-  ['wc', ['wc', 'toilette', 'klo', 'مرحاض']],
-  ['waschbecken', ['waschbecken', 'waschtisch', 'مغسلة']],
-  ['badewanne', ['badewanne', 'wanne', 'حوض استحمام']],
-  ['dusche', ['dusche', 'دش']],
-  ['trockner', ['trockner', 'مجفف']],
-  ['waschmaschine', ['waschmaschine', 'غسالة']],
-  ['spuele', ['spüle', 'spuele', 'حوض المطبخ']],
-  ['herd', ['herd', 'kochfeld', 'موقد']],
-  ['kuehlschrank', ['kühlschrank', 'kuehlschrank', 'ثلاجة']],
-  ['kuechenzeile', ['küchenzeile', 'kuechenzeile', 'küche', 'kueche', 'وحدة مطبخ']],
-  ['bett', ['bett', 'سرير']],
-  ['sofa', ['sofa', 'couch', 'أريكة']],
-  ['fernseher', ['fernseher', 'tv', 'تلفاز']],
-  ['kommode', ['kommode', 'خزانة أدراج']],
-  ['tisch', ['tisch', 'طاولة']],
-  ['stuhl', ['stuhl', 'كرسي']],
-]
-
-export function moebelArt(name: string): MoebelArt | null {
-  const n = name.toLowerCase()
-  for (const [art, woerter] of WOERTER) {
-    if (woerter.some((w) => n.includes(w))) return art
-  }
-  return null
-}
+import { moebelArt, type MoebelArt } from './moebelArt'
+export { moebelArt, type MoebelArt }
 
 type Form = { art: 'linie'; a: Punkt; b: Punkt } | { art: 'zug'; p: Punkt[]; zu: boolean } | { art: 'kreis'; m: Punkt; r: number }
 
@@ -295,6 +216,21 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
         { art: 'linie', a: [mx - d * 0.7, my + d * 0.7], b: [mx + d * 0.7, my - d * 0.7] },
       ]
     }
+    case 'tv_board':
+      return [
+        rechteck(B * 0.15, T * 0.05, B * 0.85, T * 0.22),
+        ...[1 / 3, 2 / 3].map((f): Form => ({ art: 'linie', a: [B * f, T * 0.35], b: [B * f, T * 0.95] })),
+      ]
+    case 'essgruppe': {
+      const c = Math.min(45, T * 0.3)
+      const stuehle = [B * 0.3, B * 0.7].flatMap((cx): Form[] => [
+        rechteck(cx - c / 2, T * 0.02, cx + c / 2, c),
+        rechteck(cx - c / 2, T - c, cx + c / 2, T * 0.98),
+      ])
+      return [rechteck(B * 0.1, T * 0.27, B * 0.9, T * 0.73), ...stuehle]
+    }
+    case 'backofen':
+      return [rechteck(B * 0.1, T * 0.55, B * 0.9, T * 0.95), { art: 'linie', a: [B * 0.2, T * 0.75], b: [B * 0.8, T * 0.75] }]
     case 'fahrrad': {
       const r = Math.min(T * 0.4, B * 0.18)
       return [

@@ -43,6 +43,29 @@ const F = {
   fach: '#b8ab93',
   kisteRand: '#1d1b16',
   hervor: '#b23a2e',
+  strom: '#a16207',
+  steckdose: '#dc2626',
+  wandKopf: '#cfc9bf',
+  wandKante: '#a9a296',
+  tuer3d: '#f4f2ed',
+  zarge3d: '#d6d0c5',
+  rahmen3d: '#eeece8',
+  boden3d: '#c9a77c',
+  bodenDraussen3d: '#b7b3aa',
+  holz: '#b98c5a',
+  holzDunkel: '#5c4430',
+  stoff: '#7f858c',
+  waesche: '#f1eee7',
+  keramik: '#f6f6f3',
+  metall: '#9aa0a6',
+  schwarz: '#26272a',
+  front: '#d4b48a',
+  platte: '#4a4a4c',
+  weiss: '#eeede9',
+  gruen: '#56793f',
+  topf: '#b0643c',
+  teppich: '#a48a73',
+  glas: '#9fc3d9',
 }
 
 function raum(id, punkte, extra = {}) {
@@ -112,9 +135,9 @@ const nach = (r) => alle.filter((k) => k.rolle === r)
   const b = nach('boden')
   gleich('zwei Boeden', b.length, 2)
   gleich('Boden in Metern', b[0].punkte, [[0, 0], [4, 0], [4, 3], [0, 3]])
-  gleich('Boden Farbe', b[0].farbe, F.boden)
+  gleich('Boden Farbe (Eiche in 3D)', b[0].farbe, F.boden3d)
   const draussen = baueSzene({ ...daten, raeume: [raum('b', [[0, 0], [100, 0], [100, 100], [0, 100]], { art: 'draussen' })] }, F)
-  gleich('Balkon Farbe', draussen.find((k) => k.rolle === 'boden').farbe, F.bodenDraussen)
+  gleich('Balkon Farbe', draussen.find((k) => k.rolle === 'boden').farbe, F.bodenDraussen3d)
   const eigen = baueSzene({ ...daten, raeume: [raum('b', [[0, 0], [100, 0], [100, 100], [0, 100]], { bodenfarbe: '#b08a5a' })] }, F)
   gleich('eigene Bodenfarbe', eigen.find((k) => k.rolle === 'boden').farbe, '#b08a5a')
 }
@@ -160,10 +183,10 @@ const nach = (r) => alle.filter((k) => k.rolle === r)
   nahe('Sturz so breit wie die Tuer', tuerSturz.masse[0], 0.9)
   const zarge = nach('zarge')
   gleich('Zarge: zwei Pfosten und oben', zarge.length, 3)
-  wahr('Zarge orange', zarge.every((x) => x.farbe === F.tuer))
+  wahr('Zarge etwas dunkler als das Blatt', zarge.every((x) => x.farbe === F.zarge3d))
   const blatt = nach('tuerblatt')
   gleich('ein Tuerblatt', blatt.length, 1)
-  gleich('Blatt orange', blatt[0].farbe, F.tuer)
+  gleich('Blatt weiss', blatt[0].farbe, F.tuer3d)
   // Wand entlang +y (Kante 1: (400,0) -> (400,300)), Blatt 25 Grad zur Innenseite (-x).
   const richtung = -blatt[0].drehY // Winkel in (x, z)
   const wandRichtung = Math.PI / 2
@@ -190,14 +213,16 @@ const nach = (r) => alle.filter((k) => k.rolle === r)
   gleich('Bruestung in der Wandfarbe', br[0].farbe, '#3e5f7a')
   const sturz = nach('sturz').find((x) => Math.abs(x.mitte[2]) < 1e-9)
   nahe('Fenstersturz ab 210 cm', sturz.mitte[1] - sturz.masse[1] / 2, 2.1)
-  wahr('Fensterrahmen blau', nach('rahmen').length === 4 && nach('rahmen').every((x) => x.farbe === F.fenster))
+  wahr('Fensterrahmen weiss', nach('rahmen').length === 4 && nach('rahmen').every((x) => x.farbe === F.rahmen3d))
 }
 
 /* ------------------------------------------------------------ Moebel, Regal */
 {
   const sofa = alle.filter((k) => k.id === 'sofa')
-  gleich('L-Sofa als zwei Quader', sofa.length, 2)
-  wahr('Sofa 80 cm hoch', sofa.every((x) => Math.abs(x.masse[1] - 0.8) < 1e-9))
+  // Mit Form (E64): Sockel, Lehnen, Armlehnen, Polster; nichts ragt ueber 80 cm.
+  wahr('L-Sofa aus mehreren Teilen', sofa.length >= 8)
+  wahr('Sofa hoechstens 80 cm hoch', sofa.every((x) => x.mitte[1] + x.masse[1] / 2 <= 0.8 + 1e-9))
+  wahr('Sofa im Stoffton', sofa.some((x) => x.farbe === F.stoff))
   const billy = alle.filter((k) => k.id === 'billy')
   // 2 Seiten + Deckel + 1 Teiler + 3 Bretter (40, 80, 120; 0 steht auf dem Boden).
   gleich('Regal: Seiten, Deckel, Teiler', billy.filter((x) => x.rolle === 'regal').length, 4)

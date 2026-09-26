@@ -354,3 +354,21 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   und Durchgaenge sind offen, Moebel halten nicht auf. Beim Begehen sind
   alle Waende voll sichtbar. Esc oder "Begehen beenden" bringt die Kamera
   zurueck, wo sie vorher war.
+- **E64 3D echter:** Eigene 3D-Tokens (`--plan3d-*`): Wandoberkante
+  hellgrau statt fast schwarz, Wandkanten zart, Tueren weiss mit etwas
+  dunklerer Zarge, Fensterrahmen weiss, Boden Eiche, Loggia Stein, Waende
+  warmweiss. 2D bleibt bei orange Tueren und blauen Fenstern. Licht:
+  weniger Umgebung, mehr schraege Sonne (leicht warm), damit jede
+  Wandseite ihren Ton hat. Moebel mit Form (`plan3d/moebel3d.ts`): Couch
+  und Sessel mit Sockel, Fuessen, Sitz- und Rueckenpolstern und
+  Armlehnen, L-Couch ebenso; Bett mit Rahmen, Kopfteil, Matratze,
+  Kissen und Decke; Tische mit Beinen; Stuehle; Kueche mit Sockel,
+  Eichenfronten (Fugen alle 60 cm), anthrazit Arbeitsplatte und
+  Rueckwand, Oberschraenke bis unter die Decke, schwarzes Kochfeld und
+  Spuele (nach Karams IKEA-Planung); Bad in Keramik; Geraete weiss mit
+  dunklen Tueren. Jeder Teil hat eine Kante im dunkleren Ton seiner
+  Farbe. Eigene Moebelfarbe = Stoff- bzw. Korpusfarbe; zehn neue Farben
+  (Anthrazit bis Schwarz). Neu im Katalog: Fernseher an der Wand (haengt
+  auf 105 cm), TV-Board, Essgruppe (Tisch und 4 Stuehle als ein Moebel),
+  Hochschrank mit Backofen. Die Moebelerkennung am Namen liegt jetzt in
+  `plan/moebelArt.ts` (ohne React, fuer szene.ts unter node).

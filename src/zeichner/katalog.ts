@@ -39,10 +39,13 @@ export const KATALOG: Vorlage[] = [
   v({ schluessel: 'sessel', art: 'moebel', breite_cm: 80, tiefe_cm: 85, hoehe_cm: 90 }),
   v({ schluessel: 'couchtisch', art: 'moebel', breite_cm: 110, tiefe_cm: 60, hoehe_cm: 45 }),
   v({ schluessel: 'fernseher', art: 'moebel', breite_cm: 160, tiefe_cm: 40, hoehe_cm: 50 }),
+  v({ schluessel: 'fernseher_wand', art: 'moebel', breite_cm: 145, tiefe_cm: 6, hoehe_cm: 84, boden_cm: 105 }),
+  v({ schluessel: 'tv_board', art: 'moebel', breite_cm: 180, tiefe_cm: 40, hoehe_cm: 45 }),
   v({ schluessel: 'sideboard', art: 'moebel', breite_cm: 180, tiefe_cm: 45, hoehe_cm: 80 }),
   v({ schluessel: 'kommode', art: 'moebel', breite_cm: 100, tiefe_cm: 45, hoehe_cm: 80 }),
   v({ schluessel: 'tisch', art: 'moebel', breite_cm: 160, tiefe_cm: 90, hoehe_cm: 75 }),
   v({ schluessel: 'esstisch_rund', art: 'moebel', breite_cm: 110, tiefe_cm: 110, hoehe_cm: 75 }),
+  v({ schluessel: 'essgruppe', art: 'moebel', breite_cm: 200, tiefe_cm: 170, hoehe_cm: 90 }),
   v({ schluessel: 'stuhl', art: 'moebel', breite_cm: 45, tiefe_cm: 50, hoehe_cm: 90 }),
   v({ schluessel: 'teppich', art: 'moebel', breite_cm: 200, tiefe_cm: 140, hoehe_cm: 1 }),
   v({ schluessel: 'stehlampe', art: 'moebel', breite_cm: 35, tiefe_cm: 35, hoehe_cm: 170 }),
@@ -93,6 +96,7 @@ export const KATALOG_KUECHE: Vorlage[] = [
   v({ schluessel: 'herd', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 90 }),
   v({ schluessel: 'geschirrspueler', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 87 }),
   v({ schluessel: 'kuehlschrank', art: 'moebel', breite_cm: 60, tiefe_cm: 65, hoehe_cm: 180 }),
+  v({ schluessel: 'backofen', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 220 }),
 ]
 
 export const REGAL_STANDARD: Vorlage = v({

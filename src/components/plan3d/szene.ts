@@ -13,6 +13,8 @@
 import { flaeche2, objektGlobal, objektRechtecke, punktImPolygon, wandStuecke, zuUmriss, type Punkt } from '../../lib/geometrie.ts'
 import { innenNormale, kisteAusdehnung, oeffnungPunkte, spaltenBereich, streckenAbstand } from '../plan/hilfe.ts'
 import type { GrundrissDaten, Objekt, Raum } from '../../lib/types'
+import { moebelArt } from '../plan/moebelArt.ts'
+import { moebelTeile, ton } from './moebel3d.ts'
 
 /** Die Farben, die die Szene braucht. Raum3D liest sie aus den Tokens. */
 export interface Farben3D {
@@ -30,6 +32,28 @@ export interface Farben3D {
   hervor: string
   strom: string
   steckdose: string
+  /* Nur 3D, damit es echter aussieht (E64): */
+  wandKopf: string
+  wandKante: string
+  tuer3d: string
+  zarge3d: string
+  rahmen3d: string
+  boden3d: string
+  bodenDraussen3d: string
+  holz: string
+  holzDunkel: string
+  stoff: string
+  waesche: string
+  keramik: string
+  metall: string
+  schwarz: string
+  front: string
+  platte: string
+  weiss: string
+  gruen: string
+  topf: string
+  teppich: string
+  glas: string
 }
 
 /** Welches Token hinter welcher Farbe steht (src/index.css). */
@@ -48,6 +72,27 @@ export const FARB_TOKENS: Record<keyof Farben3D, string> = {
   hervor: '--plan-hervor',
   strom: '--plan-strom',
   steckdose: '--plan-steckdose',
+  wandKopf: '--plan3d-wandkopf',
+  wandKante: '--plan3d-wandkante',
+  tuer3d: '--plan3d-tuer',
+  zarge3d: '--plan3d-zarge',
+  rahmen3d: '--plan3d-rahmen',
+  boden3d: '--plan3d-boden',
+  bodenDraussen3d: '--plan3d-boden-draussen',
+  holz: '--plan3d-holz',
+  holzDunkel: '--plan3d-holz-dunkel',
+  stoff: '--plan3d-stoff',
+  waesche: '--plan3d-waesche',
+  keramik: '--plan3d-keramik',
+  metall: '--plan3d-metall',
+  schwarz: '--plan3d-schwarz',
+  front: '--plan3d-front',
+  platte: '--plan3d-platte',
+  weiss: '--plan3d-weiss',
+  gruen: '--plan3d-gruen',
+  topf: '--plan3d-topf',
+  teppich: '--plan3d-teppich',
+  glas: '--plan3d-glas',
 }
 
 export type Rolle =
@@ -223,8 +268,8 @@ function waende(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: stri
     const innen = raumInnen(r, s.kante)
     const farbe = s.farbe ?? f.wand3d
     const H = r.hoehe_cm
-    const wand = streifen('wand', a, b, 0, H - KOPF_CM, dicke, farbe, { kante: s.dicke ? null : f.wand, innen })
-    const kopf = streifen('wandkopf', a, b, H - KOPF_CM, H, dicke, f.wand, { innen })
+    const wand = streifen('wand', a, b, 0, H - KOPF_CM, dicke, farbe, { kante: s.dicke ? null : f.wandKante, innen })
+    const kopf = streifen('wandkopf', a, b, H - KOPF_CM, H, dicke, f.wandKopf, { innen })
     if (wand) out.push(wand)
     if (kopf) out.push(kopf)
   }
@@ -255,18 +300,18 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
     if (o.art === 'durchgang') {
       // Offener Durchgang: nur der Sturz darueber, keine Zarge, kein Blatt.
       const th = Math.min(o.hoehe_cm, H)
-      dazu(streifen('sturz', a, b, th, H - KOPF_CM, WAND_CM, wf, { kante: f.wand, innen }))
-      dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wand, { innen }))
+      dazu(streifen('sturz', a, b, th, H - KOPF_CM, WAND_CM, wf, { kante: f.wandKante, innen }))
+      dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wandKopf, { innen }))
     } else if (o.art === 'tuer') {
       const th = Math.min(o.hoehe_cm, H)
       // Sturz ueber der Tuer, in der Wandfarbe.
-      dazu(streifen('sturz', a, b, th, H - KOPF_CM, WAND_CM, wf, { kante: f.wand, innen }))
-      dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wand, { innen }))
+      dazu(streifen('sturz', a, b, th, H - KOPF_CM, WAND_CM, wf, { kante: f.wandKante, innen }))
+      dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wandKopf, { innen }))
       // Zarge: zwei Pfosten und oben ein Streifen, orange.
       const z = Math.min(ZARGE_CM, l / 4)
-      dazu(streifen('zarge', bei(0), bei(z), 0, th, WAND_CM + 2, f.tuer, { innen }))
-      dazu(streifen('zarge', bei(l - z), bei(l), 0, th, WAND_CM + 2, f.tuer, { innen }))
-      dazu(streifen('zarge', a, b, Math.max(0, th - z), th, WAND_CM + 2, f.tuer, { innen }))
+      dazu(streifen('zarge', bei(0), bei(z), 0, th, WAND_CM + 2, f.zarge3d, { kante: f.wandKante, innen }))
+      dazu(streifen('zarge', bei(l - z), bei(l), 0, th, WAND_CM + 2, f.zarge3d, { kante: f.wandKante, innen }))
+      dazu(streifen('zarge', a, b, Math.max(0, th - z), th, WAND_CM + 2, f.zarge3d, { kante: f.wandKante, innen }))
       // Blatt: an der Angel, 25 Grad offen zur Aufschlagseite.
       const rechts = o.anschlag === 'rechts'
       const angel: Punkt = rechts ? bei(l - z) : bei(z)
@@ -278,23 +323,23 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
       const dy = Math.cos(w) * gy + Math.sin(w) * seite * innen[1]
       const lang = Math.max(1, l - 2 * z)
       dazu(
-        streifen('tuerblatt', angel, [angel[0] + dx * lang, angel[1] + dy * lang], 0, Math.max(1, th - z), BLATT_CM, f.tuer, {
-          kante: f.wand,
+        streifen('tuerblatt', angel, [angel[0] + dx * lang, angel[1] + dy * lang], 0, Math.max(1, th - z), BLATT_CM, f.tuer3d, {
+          kante: f.zarge3d,
           innen,
         }),
       )
     } else {
       const br = Math.max(0, Math.min(o.bruestung_cm, H))
       const top = Math.min(H, br + o.hoehe_cm)
-      dazu(streifen('bruestung', a, b, 0, br, WAND_CM, wf, { kante: f.wand, innen }))
-      dazu(streifen('sturz', a, b, top, H - KOPF_CM, WAND_CM, wf, { kante: f.wand, innen }))
-      dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wand, { innen }))
+      dazu(streifen('bruestung', a, b, 0, br, WAND_CM, wf, { kante: f.wandKante, innen }))
+      dazu(streifen('sturz', a, b, top, H - KOPF_CM, WAND_CM, wf, { kante: f.wandKante, innen }))
+      dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wandKopf, { innen }))
       // Rahmen blau: unten (Fensterbank), oben, links, rechts.
       const z = Math.min(RAHMEN_CM, l / 4)
-      dazu(streifen('rahmen', a, b, br, br + RAHMEN_CM, WAND_CM + 4, f.fenster, { innen }))
-      dazu(streifen('rahmen', a, b, top - RAHMEN_CM, top, WAND_CM, f.fenster, { innen }))
-      dazu(streifen('rahmen', bei(0), bei(z), br, top, WAND_CM, f.fenster, { innen }))
-      dazu(streifen('rahmen', bei(l - z), bei(l), br, top, WAND_CM, f.fenster, { innen }))
+      dazu(streifen('rahmen', a, b, br, br + RAHMEN_CM, WAND_CM + 4, f.rahmen3d, { kante: f.wandKante, innen }))
+      dazu(streifen('rahmen', a, b, top - RAHMEN_CM, top, WAND_CM, f.rahmen3d, { kante: f.wandKante, innen }))
+      dazu(streifen('rahmen', bei(0), bei(z), br, top, WAND_CM, f.rahmen3d, { kante: f.wandKante, innen }))
+      dazu(streifen('rahmen', bei(l - z), bei(l), br, top, WAND_CM, f.rahmen3d, { kante: f.wandKante, innen }))
       dazu(
         streifen('scheibe', bei(z), bei(l - z), br + RAHMEN_CM, top - RAHMEN_CM, 2, f.fenster, {
           deckkraft: SCHEIBE_DECKKRAFT,
@@ -329,7 +374,7 @@ function lokalQuader(
   return quader(rolle, [m((x0 + x1) / 2), m((unten + oben) / 2), m((y0 + y1) / 2)], [m(x1 - x0), m(oben - unten), m(y1 - y0)], farbe, mehr)
 }
 
-function objekte(liste: Objekt[], f: Farben3D, hervor: string | null): Koerper[] {
+function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Raum[]): Koerper[] {
   const out: Koerper[] = []
   for (const o of liste) {
     const ist = !!hervor && o.item_id === hervor
@@ -338,6 +383,22 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null): Koerper[]
     const H = o.hoehe_cm
     // Haengend (0039): alles um die Unterkante ueber dem Boden angehoben.
     const unten = o.boden_cm ?? 0
+    // Moebel mit Form (E64): Teile aus moebel3d, jedes mit einer Kante im
+    // dunkleren Ton der eigenen Farbe. Gesucht: alles in der Hervorfarbe.
+    const decke = (raeume.find((r) => r.id === o.raum_id)?.hoehe_cm ?? 250) - unten
+    const form = o.art === 'moebel' ? moebelTeile(o, moebelArt(o.name ?? ''), f, decke) : null
+    if (form) {
+      for (const q of form) {
+        const qf = ist ? f.hervor : q.farbe
+        const k = lokalQuader(o, 'moebel', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, qf, {
+          kante: ist ? f.kisteRand : ton(qf, 0.72),
+          id: o.id,
+          hervor: ist,
+        })
+        if (k) out.push(q.deckkraft !== undefined ? { ...k, deckkraft: q.deckkraft } : k)
+      }
+      continue
+    }
     if (o.art === 'moebel' || o.form === 'l') {
       // Moebel als Quader, die L-Form als zwei.
       for (const r of objektRechtecke(o)) {
@@ -402,14 +463,14 @@ export function baueSzene(daten: GrundrissDaten, farben: Farben3D, optionen: Sze
       rolle: 'boden',
       punkte: r.punkte.map(([x, y]) => [m(x), m(y)] as [number, number]),
       y: 0,
-      farbe: r.bodenfarbe ?? (r.art === 'draussen' ? farben.bodenDraussen : farben.boden),
+      farbe: r.bodenfarbe ?? (r.art === 'draussen' ? farben.bodenDraussen3d : farben.boden3d),
       deckkraft: 1,
       id: r.id,
     })
   }
   out.push(...waende(daten, raeume, farben, raumId))
   out.push(...oeffnungen(daten, raeume, farben, raumId))
-  out.push(...objekte(raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte, farben, hervor))
+  out.push(...objekte(raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte, farben, hervor, raeume))
   out.push(...kisten(daten, farben, raumId, hervor))
   out.push(...symbole(daten, sichtbar, farben))
   return out

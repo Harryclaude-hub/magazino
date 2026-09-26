@@ -42,6 +42,16 @@ export const OBJEKTFARBEN: DatenFarbe[] = [
   { schluessel: 'taubenblau', hex: '#8fa0b3' },
   { schluessel: 'terrakotta', hex: '#b88a74' },
   { schluessel: 'grau', hex: '#a39e95' },
+  { schluessel: 'anthrazit', hex: '#4b4f55' },
+  { schluessel: 'hellgrau', hex: '#b9b8b3' },
+  { schluessel: 'beige', hex: '#cdbfa5' },
+  { schluessel: 'cognac', hex: '#94592f' },
+  { schluessel: 'waldgruen', hex: '#445c48' },
+  { schluessel: 'nachtblau', hex: '#34435c' },
+  { schluessel: 'senf', hex: '#c09a3e' },
+  { schluessel: 'altrosa', hex: '#c7a19c' },
+  { schluessel: 'weiss', hex: '#eeede9' },
+  { schluessel: 'schwarz', hex: '#2a2b2e' },
 ]
 
 /** Der Boden, gegen den Wandfarben geprueft werden (--plan-boden hell). */

@@ -102,6 +102,15 @@ export const grundriss: Woerterbuch = {
   'plan.farbe.sand': { de: 'Sand', ar: 'رملي' },
   'plan.farbe.holz': { de: 'Holz', ar: 'خشبي' },
   'plan.farbe.grau': { de: 'Grau', ar: 'رمادي' },
+  'plan.farbe.hellgrau': { de: 'Hellgrau', ar: 'رمادي فاتح' },
+  'plan.farbe.beige': { de: 'Beige', ar: 'بيج' },
+  'plan.farbe.cognac': { de: 'Cognac', ar: 'كونياك' },
+  'plan.farbe.waldgruen': { de: 'Waldgrün', ar: 'أخضر غابي' },
+  'plan.farbe.nachtblau': { de: 'Nachtblau', ar: 'أزرق ليلي' },
+  'plan.farbe.senf': { de: 'Senf', ar: 'خردلي' },
+  'plan.farbe.altrosa': { de: 'Altrosa', ar: 'وردي باهت' },
+  'plan.farbe.weiss': { de: 'Weiß', ar: 'أبيض' },
+  'plan.farbe.schwarz': { de: 'Schwarz', ar: 'أسود' },
 
   // ------------------------------------------------------------- Lage
   'lage.titel': { de: 'Wo steht die Kiste', ar: 'أين يوجد الصندوق' },

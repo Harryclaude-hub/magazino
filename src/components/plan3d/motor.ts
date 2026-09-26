@@ -136,12 +136,15 @@ export function motorStarten(host: HTMLElement): Motor | null {
   // Licht von oben: der Boden hell, senkrechte Waende dunkler, damit Wand
   // und Boden deutlich auseinandergehen. three rechnet Licht physikalisch
   // (Lambert teilt durch Pi), darum die Staerken mal Pi: Umgebung plus
-  // Sonne ergeben auf dem Boden etwa die Farbe des Tokens.
-  scene.add(new AmbientLight(0xffffff, 0.72 * Math.PI))
-  const sonne = new DirectionalLight(0xffffff, 0.36 * Math.PI)
-  sonne.position.set(-3, 10, 5)
+  // Sonne ergeben auf dem Boden etwa die Farbe des Tokens. Weniger
+  // Umgebungslicht und mehr Sonne von schraeg (E64): jede Wandseite hat
+  // ihren eigenen Ton, nichts wirkt grell. Sonne leicht warm, Umgebung
+  // leicht kuehl, wie Tageslicht im Raum.
+  scene.add(new AmbientLight(0xf1f3f7, 0.5 * Math.PI))
+  const sonne = new DirectionalLight(0xfff4e6, 0.52 * Math.PI)
+  sonne.position.set(-4, 8, 6)
   scene.add(sonne)
-  const gegen = new DirectionalLight(0xffffff, 0.12 * Math.PI)
+  const gegen = new DirectionalLight(0xffffff, 0.16 * Math.PI)
   gegen.position.set(4, 3, -6)
   scene.add(gegen)
 

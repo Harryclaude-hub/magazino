@@ -103,7 +103,7 @@
   --plan-boden: #e6dccb;
   --plan-boden-draussen: #d9e2cf;
   --plan-wand: #3a3a3a;
-  --plan-wand-3d: #f1eee8;
+  --plan-wand-3d: #e7e2d9;
   --plan-strom: #a16207;
   --plan-steckdose: #dc2626;
   --plan-tuer: #e0700f;
@@ -117,6 +117,30 @@
   --plan-warnung: var(--warn);
   --plan-linie: #8a8171;
   --plan-grund: #d3c9b6;
+  /* 3D (E64): Materialtoene wie in echt. Waende warmweiss statt grell,
+     Wandoberkante hellgrau statt schwarz, Tueren weiss mit etwas
+     dunklerer Zarge, Boden Eiche, Kueche Eiche mit Anthrazit. */
+  --plan3d-wandkopf: #cfc9bf;
+  --plan3d-wandkante: #a9a296;
+  --plan3d-tuer: #f4f2ed;
+  --plan3d-zarge: #d6d0c5;
+  --plan3d-rahmen: #eeece8;
+  --plan3d-boden: #c9a77c;
+  --plan3d-boden-draussen: #b7b3aa;
+  --plan3d-holz: #b98c5a;
+  --plan3d-holz-dunkel: #5c4430;
+  --plan3d-stoff: #7f858c;
+  --plan3d-waesche: #f1eee7;
+  --plan3d-keramik: #f6f6f3;
+  --plan3d-metall: #9aa0a6;
+  --plan3d-schwarz: #26272a;
+  --plan3d-front: #d4b48a;
+  --plan3d-platte: #4a4a4c;
+  --plan3d-weiss: #eeede9;
+  --plan3d-gruen: #56793f;
+  --plan3d-topf: #b0643c;
+  --plan3d-teppich: #a48a73;
+  --plan3d-glas: #9fc3d9;
   color-scheme: light;
 }
 
