@@ -3,7 +3,7 @@ import { Check, Circle, Package } from 'lucide-react'
 import { FachAnsicht } from '../components/plan/FachAnsicht'
 import { objektName } from '../components/plan/lage'
 import { Button, CodeChip, ErrorBox, Input, Spinner } from '../components/ui'
-import type { Unterlage } from '../lib/geometrie'
+import { UEBERSTAND_MAX_CM, type Unterlage } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
 import type { EigeneGroesse, Item } from '../lib/types'
 import { cx } from '../lib/util'
@@ -309,7 +309,15 @@ export function UnterlagenWahl({
               )}
             >
               <span className="block font-bold">{text(u)}</span>
-              {!u.passt ? <span className="block text-sm">{t('zeichner.unterlage.passt_nicht', { grenze: u.grenze_cm })}</span> : null}
+              {!u.passt ? (
+                <span className="block text-sm">
+                  {u.grund === 'ueberstand'
+                    ? t('zeichner.unterlage.ueberstand_zu_gross', { cm: u.ueberstand_cm ?? 0, max: UEBERSTAND_MAX_CM })
+                    : t('zeichner.unterlage.passt_nicht', { grenze: u.grenze_cm })}
+                </span>
+              ) : u.ueberstand_cm ? (
+                <span className="block text-sm">{t('zeichner.unterlage.ragt_vor', { cm: u.ueberstand_cm })}</span>
+              ) : null}
             </button>
           </li>
         ))}

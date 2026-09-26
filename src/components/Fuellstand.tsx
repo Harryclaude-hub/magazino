@@ -145,3 +145,27 @@ export function FuellstandWahl({
     </div>
   )
 }
+
+/** Abschnitt fuer Kisten- und Moebelseite: Ueberschrift, dann die Eingabe
+ *  (wer bearbeiten darf) oder nur der Balken. */
+export function FuellstandFeld({
+  wert,
+  canEdit,
+  onWert,
+}: {
+  wert: number | null
+  canEdit: boolean
+  onWert: (v: number | null) => void
+}) {
+  const t = useT()
+  return (
+    <div className="grid gap-2.5">
+      <p className="text-sm font-black uppercase tracking-wider text-muted">{t('fuellstand.titel')}</p>
+      {canEdit ? (
+        <FuellstandWahl wert={wert} onWert={onWert} />
+      ) : (
+        <FuellBalken wert={wert} groesse="gross" />
+      )}
+    </div>
+  )
+}

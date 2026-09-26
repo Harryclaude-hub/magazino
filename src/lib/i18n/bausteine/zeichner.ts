@@ -322,6 +322,11 @@ export const zeichnerWoerter: Woerterbuch = {
     ar: '{name}، المستوى {ebene}، العمود {spalte}، من {von} إلى {bis} سم',
   },
   'zeichner.unterlage.passt_nicht': { de: 'zu hoch, Platz nur bis {grenze} cm', ar: 'مرتفع جدًا، المساحة حتى {grenze} سم فقط' },
+  'zeichner.unterlage.ragt_vor': { de: 'ragt {cm} cm aus dem Fach heraus', ar: 'يبرز {cm} سم خارج الخانة' },
+  'zeichner.unterlage.ueberstand_zu_gross': {
+    de: 'ragt {cm} cm heraus, erlaubt sind {max} cm',
+    ar: 'يبرز {cm} سم، والمسموح {max} سم',
+  },
   'zeichner.unterlage.ueberlappt': {
     de: 'Achtung, überdeckt sich mit {codes}. Speichern geht trotzdem.',
     ar: 'تنبيه: يتداخل مع {codes}. يمكن الحفظ رغم ذلك.',

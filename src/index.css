@@ -68,6 +68,14 @@
   --danger: #b23a2e;
   --warn: #8a5d10;
   --ok: #2f6b4f;
+  /* Fuellstand (0033): gruen leer, gelb-orange halb, rot voll; dazwischen
+     mischt color-mix (lib/fuellstand.ts). Gegen die Balkenrinne (--raised)
+     mindestens 3:1; die Prozentzahl steht in Tinte daneben, nie auf der
+     Farbe. Rot ist hier Karams Wunsch und bleibt eine eigene Variable,
+     nicht --danger. */
+  --fuell-leer: #2e8552;
+  --fuell-mitte: #ad6f05;
+  --fuell-voll: #c8372b;
   --glanz: rgba(255, 255, 255, 0.55);
   --schatten: rgba(61, 52, 38, 0.2);
   --schatten-fein: rgba(61, 52, 38, 0.06);
@@ -127,6 +135,9 @@
   --danger: #e8776a;
   --warn: #e0b15c;
   --ok: #79c79b;
+  --fuell-leer: #5cc489;
+  --fuell-mitte: #e7b547;
+  --fuell-voll: #f07463;
   --glanz: rgba(255, 255, 255, 0.07);
   --schatten: rgba(0, 0, 0, 0.6);
   --schatten-fein: rgba(0, 0, 0, 0.25);
@@ -184,6 +195,11 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overscroll-behavior-y: none;
+}
+
+/* Regler fuer den Fuellstand: Farbe der Spur und des Knopfs. */
+.fuell-regler {
+  accent-color: var(--ink);
 }
 
 /* Namen von Zimmern, Personen und Kisten. Eine Stelle, damit sie ueberall

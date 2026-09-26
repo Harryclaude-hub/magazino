@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Camera, Map as KarteIcon, Package, Search, X } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { Ausschnitt } from '../components/Ausschnitt'
+import { FuellBalken } from '../components/Fuellstand'
 import { PunktBild } from '../components/PunktBild'
 import { trefferOrt } from '../components/plan/lage'
 import { Badge, Button, CodeChip, Empty, ErrorBox, Input, Loading, Spinner, StatusPill } from '../components/ui'
@@ -376,6 +377,7 @@ function TrefferZeile({
         <span className="t-sub block truncate">{z.project_name}</span>
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <CodeChip code={z.item_code} size="sm" />
+          <FuellBalken wert={z.item_fuellstand} groesse="klein" ohneWert="nichts" />
           <Badge color={z.room_color ?? undefined}>{z.room_name ?? t('suche.ohne_zimmer')}</Badge>
           {z.schicht ? <Badge>{t('schichten.schicht_n', { n: z.schicht })}</Badge> : null}
           {/* Der Platz im Grundriss ist das Ziel. Solange die Kiste nicht
@@ -465,6 +467,15 @@ function TrefferDetail({
           <CodeChip code={z.item_code} size="sm" />
           {z.item_title ? <span className="break-words">{z.item_title}</span> : null}
         </dd>
+
+        {z.item_fuellstand !== null ? (
+          <>
+            <dt className="text-muted">{t('fuellstand.titel')}</dt>
+            <dd className="min-w-0">
+              <FuellBalken wert={z.item_fuellstand} />
+            </dd>
+          </>
+        ) : null}
 
         {z.schicht ? (
           <>

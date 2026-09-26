@@ -1,5 +1,6 @@
 /* Der Satz, der sagt, wo eine Kiste steht:
  *   Fach:      "Regal Billy, Fach 2 (Ebene 2), 44 bis 78 cm ueber dem Boden"
+ *              (ragt sie heraus, 0033: "..., ragt 25 cm heraus")
  *   auf Kiste: "auf Kiste K-6-003, 34 bis 68 cm"
  *   auf Objekt:"auf Kommode, 80 bis 111 cm"
  *   Boden:     "auf dem Boden, 0 bis 31 cm"
@@ -71,7 +72,7 @@ export function lageSatz(lage: KisteLage, t: T, spalten?: number | null): string
   if (lage.art === 'moebel') {
     return t('lage.satz_moebel', { name: objektName(t, lage.objekt), bis: lage.oben_cm })
   }
-  return platzSatz(
+  const satz = platzSatz(
     {
       unterlage_art: lage.unterlage_art,
       unterlage_code: lage.unterlage_code,
@@ -84,6 +85,9 @@ export function lageSatz(lage: KisteLage, t: T, spalten?: number | null): string
     },
     t,
   )
+  // Ragt sie aus dem Fach (0033), sagt der Satz es mit.
+  const cm = lage.ueberstand_cm ?? 0
+  return cm > 0 ? t('lage.ragt_vor', { satz, cm }) : satz
 }
 
 /** "Neue Wohnung, Wohnzimmer" */

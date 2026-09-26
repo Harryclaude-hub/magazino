@@ -489,6 +489,14 @@ export const fehler: Woerterbuch = {
     de: '{code} steht nicht in diesem Fach.',
     ar: '{code} ليس داخل هذه الخانة.',
   },
+  'fehler.db.grundriss.ueberstand_zu_gross': {
+    de: '{code} ragt {cm} cm aus {name} heraus, erlaubt sind höchstens {max} cm.',
+    ar: 'يبرز {code} مسافة {cm} سم خارج {name}، والمسموح {max} سم على الأكثر.',
+  },
+  'fehler.db.fuellstand': {
+    de: 'Der Füllstand muss zwischen 0 und 100 Prozent liegen.',
+    ar: 'يجب أن يكون مستوى الامتلاء بين 0 و100 بالمئة.',
+  },
   'fehler.db.grundriss.zu_hoch': {
     de: '{code} ginge bis {oben} cm, Platz ist bis {grenze} cm.',
     ar: 'سيصل {code} إلى {oben} سم، والمساحة المتاحة حتى {grenze} سم فقط.',

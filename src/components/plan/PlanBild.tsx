@@ -11,6 +11,7 @@ import {
 import { useSprache } from '../../lib/i18n'
 import { cmText, wandStuecke, type Punkt } from '../../lib/geometrie'
 import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, Raum } from '../../lib/types'
+import { fuellFarbe } from '../../lib/fuellstand'
 import { cx } from '../../lib/util'
 import {
   datenBox,
@@ -307,6 +308,31 @@ const KistenEbene = memo(function KistenEbene({ kisten, massstab }: { kisten: Pl
                   </tspan>
                 ) : null}
               </text>
+            ) : null}
+            {/* Fuellstand (0033) nur als kleiner Balken an der Unterkante, nie
+                als Farbe der ganzen Kiste: Rot heisst im Plan "hier ist es". */}
+            {k.fuellstand != null && oben.has(k.id) && ex * massstab > 24 && ey * massstab > 22 ? (
+              <g>
+                <title>{t('plan.fuellstand', { code: k.code, n: k.fuellstand })}</title>
+                <rect
+                  x={k.platz_x - ex * 0.4}
+                  y={k.platz_y + ey / 2 - px(massstab, 7)}
+                  width={ex * 0.8}
+                  height={px(massstab, 4.5)}
+                  rx={px(massstab, 2)}
+                  style={{ fill: 'var(--plan-boden)', stroke: 'var(--plan-kiste-rand)' }}
+                  strokeWidth={0.8}
+                  vectorEffect={NS}
+                />
+                <rect
+                  x={k.platz_x - ex * 0.4}
+                  y={k.platz_y + ey / 2 - px(massstab, 7)}
+                  width={(ex * 0.8 * k.fuellstand) / 100}
+                  height={px(massstab, 4.5)}
+                  rx={px(massstab, 2)}
+                  style={{ fill: fuellFarbe(k.fuellstand) }}
+                />
+              </g>
             ) : null}
           </g>
         )

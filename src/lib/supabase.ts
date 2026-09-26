@@ -97,6 +97,8 @@ export function errText(err: unknown): string {
   /* Eindeutige Indizes aus 0027 und 0028. Sie melden sich ohne Kennung,
    * nur mit ihrem Namen in der Meldung. */
   if (raw.includes('eigene_groessen_name_key')) return tg('fehler.db.groesse.name_doppelt')
+  // CHECK aus 0033: Fuellstand 0 bis 100.
+  if (raw.includes('items_fuellstand_check')) return tg('fehler.db.fuellstand')
   if (raw.includes('raeume_tag_je_grundriss')) {
     return tg('fehler.db.grundriss.zimmer_doppelt', { name: tg('fehler.dieses_zimmer') })
   }

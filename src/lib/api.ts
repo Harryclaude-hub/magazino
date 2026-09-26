@@ -879,6 +879,8 @@ export async function inhaltSuchen(q: string, max = 60): Promise<SuchTreffer[]> 
     hoehe_von: zahl(z.hoehe_von),
     hoehe_bis: zahl(z.hoehe_bis),
     treffer: Number(z.treffer ?? 0),
+    // Fehlt vor 0033 ganz: dann null (nicht angegeben).
+    item_fuellstand: zahl(z.item_fuellstand),
   }))
 }
 

@@ -19,6 +19,7 @@ import {
   Palette,
   X,
 } from 'lucide-react'
+import { FuellstandFeld } from '../components/Fuellstand'
 import { AppHeader, Page } from '../components/AppShell'
 import { Ausschnitt } from '../components/Ausschnitt'
 import { BildLesen } from '../components/BildLesen'
@@ -1061,6 +1062,15 @@ export default function ItemDetail() {
                     {t('kisten.angekommen_am', { wann: fmtDateTime(item.arrived_at) })}
                   </p>
                 ) : null}
+              </div>
+
+              {/* Wie voll (0033): Tipp-Knoepfe und feiner Regler, sofort gespeichert. */}
+              <div className="border-t border-line p-4">
+                <FuellstandFeld
+                  wert={item.fuellstand ?? null}
+                  canEdit={canEdit}
+                  onWert={(v) => void patch({ fuellstand: v })}
+                />
               </div>
             </Card>
 

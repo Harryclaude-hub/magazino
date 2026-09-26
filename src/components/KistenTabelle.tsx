@@ -2,6 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, Crosshair, DoorOpen, ExternalLink, User, X } from 'lucide-react'
 import { Button, Card, CodeChip, IconButton, StatusPill } from './ui'
+import { FuellBalken } from './Fuellstand'
 import { MarkIcon } from './Mark'
 import { TagTile, zielFuerItem } from './ItemRow'
 import { useSprache } from '../lib/i18n'
@@ -19,7 +20,7 @@ import { cx } from '../lib/util'
  * Handy zeigt weiter die Zeilen aus ItemRow.
  */
 
-type Spalte = 'nummer' | 'zimmer' | 'groesse' | 'status' | 'platz'
+type Spalte = 'nummer' | 'zimmer' | 'groesse' | 'status' | 'fuellstand' | 'platz'
 const STATUS_RANG: Record<ItemStatus, number> = { open: 0, transit: 1, arrived: 2 }
 
 type TagVon = (id: string | null | undefined) => Tag | undefined
@@ -74,6 +75,9 @@ export function KistenTabelle({
           return i.size
         case 'status':
           return STATUS_RANG[i.status]
+        case 'fuellstand':
+          // Ohne Angabe ans Ende (aufsteigend), wie leere Zimmer.
+          return i.fuellstand ?? 1000
         case 'platz':
           return i.platz_raum_id ? (i.unterlage_art ?? 'boden') : '￿'
       }
@@ -128,6 +132,7 @@ export function KistenTabelle({
               {kopf('zimmer', t('begriff.zimmer'))}
               {kopf('groesse', t('begriff.groesse'))}
               {kopf('status', t('begriff.status'))}
+              {kopf('fuellstand', t('fuellstand.titel'))}
               {kopf('platz', t('kisten.spalte_platz'), 'pe-3')}
             </tr>
           </thead>
@@ -211,6 +216,9 @@ export function KistenTabelle({
                           : undefined
                       }
                     />
+                  </td>
+                  <td className="px-2 align-middle">
+                    <FuellBalken wert={item.fuellstand} groesse="klein" className="whitespace-nowrap" />
                   </td>
                   <td className="px-2 pe-3 align-middle">
                     {platz ? (
@@ -306,6 +314,12 @@ export function KistenVorschau({
             <p className="text-sm font-black uppercase tracking-wider text-muted">{t('kisten.spalte_platz')}</p>
             <p className="mt-0.5 text-base font-bold">{platz ?? t('kisten.platz_nein')}</p>
           </div>
+          {item.fuellstand != null ? (
+            <div>
+              <p className="text-sm font-black uppercase tracking-wider text-muted">{t('fuellstand.titel')}</p>
+              <FuellBalken wert={item.fuellstand} className="mt-1" />
+            </div>
+          ) : null}
           {item.target_room ? (
             <div>
               <p className="text-sm font-black uppercase tracking-wider text-muted">{t('begriff.ziel')}</p>

@@ -125,6 +125,21 @@ export const gemeinsam: Woerterbuch = {
   'konto.passwort_anzeigen': { de: 'Passwort anzeigen', ar: 'إظهار كلمة المرور' },
   'konto.passwort_verbergen': { de: 'Passwort verbergen', ar: 'إخفاء كلمة المرور' },
 
+  // -------------------------------------------------------------- Fuellstand
+  'fuellstand.titel': { de: 'Füllstand', ar: 'مستوى الامتلاء' },
+  'fuellstand.frage': { de: 'Wie voll ist es?', ar: 'ما مدى امتلائه؟' },
+  'fuellstand.prozent': { de: '{n} %', ar: '{n}٪' },
+  'fuellstand.aria': { de: 'Füllstand {n} Prozent', ar: 'مستوى الامتلاء {n} بالمئة' },
+  'fuellstand.leer': { de: 'leer', ar: 'فارغ' },
+  'fuellstand.voll': { de: 'voll', ar: 'ممتلئ' },
+  'fuellstand.nicht_angegeben': { de: 'nicht angegeben', ar: 'غير محدد' },
+  'fuellstand.zuruecksetzen': { de: 'Nicht angeben', ar: 'بدون تحديد' },
+  'fuellstand.regler': { de: 'Genau einstellen (5er-Schritte)', ar: 'ضبط دقيق (بخطوات 5)' },
+  'fuellstand.nur_lesen': {
+    de: 'Nur wer bearbeiten darf, kann den Füllstand ändern.',
+    ar: 'لا يستطيع تغيير مستوى الامتلاء إلا من يملك صلاحية التعديل.',
+  },
+
   // ------------------------------------------------------------ Kopfzeile
   'kopf.profil': { de: 'Profil und Einstellungen', ar: 'الحساب والإعدادات' },
   'kopf.darstellung': { de: 'Darstellung umschalten, aktuell {wert}', ar: 'تبديل المظهر، الحالي {wert}' },

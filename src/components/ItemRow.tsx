@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, DoorOpen, User } from 'lucide-react'
 import { CodeChip, StatusPill } from './ui'
+import { FuellBalken } from './Fuellstand'
 import { MarkIcon } from './Mark'
 import { useT } from '../lib/i18n'
 import { markFlaeche } from '../lib/marken'
@@ -112,6 +113,7 @@ export function ItemRow({
             {t('begriff.zerbrechlich')}
           </span>
         ) : null}
+        <FuellBalken wert={item.fuellstand} groesse="klein" ohneWert="nichts" />
       </span>
       <span className="t-name block truncate">{item.title || t(`art.${item.kind}`)}</span>
       {zimmer || perso || item.target_room ? (

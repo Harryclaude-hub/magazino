@@ -78,6 +78,9 @@ export const grundriss: Woerterbuch = {
   'plan.fach': { de: 'Fach {ebene}/{spalte}', ar: 'الخانة {ebene}/{spalte}' },
   'plan.von_bis': { de: '{von} bis {bis} cm', ar: '{von} إلى {bis} سم' },
   'plan.m2': { de: '{n} m²', ar: '{n} م²' },
+  'plan.ragt_vor': { de: '{cm} cm vor', ar: '{cm} سم للخارج' },
+  'plan.ragt_vor_lang': { de: '{code} ragt {cm} cm aus dem Fach heraus', ar: 'يبرز {code} مسافة {cm} سم خارج الخانة' },
+  'plan.fuellstand': { de: '{code}: {n} % voll', ar: '{code}: ممتلئ {n}٪' },
   'plan.stapel': { de: 'Stapel {n}', ar: 'كومة {n}' },
   'plan.stapel_seite': { de: 'Stapel von der Seite', ar: 'الكومة من الجانب' },
   'plan.legende_hier': { de: 'Hier steht es', ar: 'موجود هنا' },
@@ -122,6 +125,7 @@ export const grundriss: Woerterbuch = {
   'lage.satz_boden': { de: 'auf dem Boden, {von} bis {bis} cm', ar: 'على الأرض، من {von} إلى {bis} سم' },
   'lage.satz_moebel': { de: '{name}, 0 bis {bis} cm', ar: '{name}، من 0 إلى {bis} سم' },
   'lage.satz_in_moebel': { de: 'in {name}, {von} bis {bis} cm', ar: 'داخل {name}، من {von} إلى {bis} سم' },
+  'lage.ragt_vor': { de: '{satz}, ragt {cm} cm heraus', ar: '{satz}، ويبرز {cm} سم إلى الخارج' },
   'lage.hoehe': { de: '{von} bis {bis} cm über dem Boden', ar: 'من {von} إلى {bis} سم فوق الأرض' },
   'lage.noch_nicht_da': {
     de: 'Noch nicht angekommen: hier kommt sie hin.',

@@ -1,7 +1,7 @@
 /* CircleCheck statt Check: Check steckt auch im Zeichner-Teil (siehe PlatzWahl). */
 import { CircleCheck } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
-import type { Unterlage } from '../../lib/geometrie'
+import { UEBERSTAND_MAX_CM, type Unterlage } from '../../lib/geometrie'
 import type { GrundrissDaten, Objekt } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { FachAnsicht } from './FachAnsicht'
@@ -11,8 +11,9 @@ import { insel, objektName } from './lage'
  * Boden, eine der Kisten dort, das Moebel dort, oder Regal bzw. Schrank
  * und dann das Fach. Die Liste kommt fertig aus unterlagenAn
  * (lib/geometrie.ts); was nicht passt, bleibt sichtbar, ist aber
- * ausgegraut und sagt, warum. Entscheiden tut die Datenbank beim
- * Speichern.
+ * ausgegraut und sagt, warum (zu hoch, oder ragt mehr als 40 cm aus dem
+ * Fach). Ragt eine Kiste weniger weit heraus, steht es dabei. Entscheiden
+ * tut die Datenbank beim Speichern.
  *
  * Grosse Knoepfe (mindestens 56 px hoch), ein Tipp waehlt. Regale zeigen
  * ihre Vorderansicht (Tipp auf ein Fach waehlt es) und darunter dieselben
@@ -102,7 +103,13 @@ export function UnterlageWahl({
         <span className="min-w-0 flex-1">
           <span className="block text-base font-bold break-words">{text(u)}</span>
           {!u.passt ? (
-            <span className="block text-sm font-semibold">{t('platz.passt_nicht', { grenze: u.grenze_cm })}</span>
+            <span className="block text-sm font-semibold">
+              {u.grund === 'ueberstand'
+                ? t('platz.ueberstand_zu_gross', { cm: u.ueberstand_cm ?? 0, max: UEBERSTAND_MAX_CM })
+                : t('platz.passt_nicht', { grenze: u.grenze_cm })}
+            </span>
+          ) : u.ueberstand_cm ? (
+            <span className="block text-sm font-semibold">{t('platz.ragt_vor', { cm: u.ueberstand_cm })}</span>
           ) : null}
         </span>
       </button>

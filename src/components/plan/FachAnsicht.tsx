@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useSprache } from '../../lib/i18n'
-import { fachDecke, objektLokal } from '../../lib/geometrie'
+import { fachDecke, kisteUeberstand2, objektLokal, ueberstandCm } from '../../lib/geometrie'
 import type { Objekt, PlanKiste } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { kisteAusdehnung, spaltenBereich, stapelWurzel } from './hilfe'
@@ -13,6 +13,11 @@ import { objektName } from './lage'
  *
  * Wie die Draufsicht nie gespiegelt: dir="ltr". Brettdicke 2 cm, Spalten
  * gleich breit mit 2 cm Teilern (BAUPLAN 2.2).
+ *
+ * Ragt eine Kiste in der Tiefe aus dem Fach (0033), sieht man das von
+ * vorn nicht; sie bekommt dann einen gestrichelten Rand und "25 cm vor".
+ * Gerechnet wird aus der Lage des Objekts, wenn sie bekannt ist (auch im
+ * Zeichner vor dem Speichern), sonst gilt ueberstand_cm der Datenbank.
  */
 
 type Form = Pick<Objekt, 'breite_cm' | 'hoehe_cm' | 'brett_cm' | 'spalten' | 'name' | 'art'> &
@@ -156,6 +161,25 @@ export function FachAnsicht({
           }
           const rot = k.id === hervor
           const hoehe = k.oben_cm - k.unten_cm
+          let vor = k.ueberstand_cm ?? 0
+          if (
+            k.unterlage_art === 'fach' &&
+            objekt.x !== undefined &&
+            objekt.y !== undefined &&
+            objekt.drehung !== undefined &&
+            objekt.tiefe_cm !== undefined
+          ) {
+            vor = ueberstandCm(
+              kisteUeberstand2(
+                { x: objekt.x, y: objekt.y, drehung: objekt.drehung, tiefe_cm: objekt.tiefe_cm },
+                k.platz_x,
+                k.platz_y,
+                { drehung: k.platz_drehung, laenge: k.laenge_cm, breite: k.breite_cm },
+              ),
+            )
+          } else if (k.unterlage_art !== 'fach') {
+            vor = 0
+          }
           return (
             <g key={k.id}>
               <rect
@@ -169,9 +193,28 @@ export function FachAnsicht({
                   stroke: rot ? 'var(--plan-hervor)' : 'var(--plan-kiste-rand)',
                 }}
                 fillOpacity={rot ? 0.55 : 0.7}
-                strokeWidth={rot ? 3 : 1}
+                strokeWidth={rot ? 3 : vor > 0 ? 1.5 : 1}
+                strokeDasharray={vor > 0 && !rot ? '4 3' : undefined}
                 vectorEffect="non-scaling-stroke"
-              />
+              >
+                {vor > 0 ? <title>{t('plan.ragt_vor_lang', { code: k.code, cm: vor })}</title> : null}
+              </rect>
+              {vor > 0 && breite > fs * 3 && hoehe > fs * 2.4 ? (
+                <text
+                  x={mitte}
+                  y={-k.unten_cm - fs * 0.35}
+                  textAnchor="middle"
+                  style={{
+                    fill: 'var(--ink)',
+                    fontSize: fs * 0.7,
+                    fontWeight: 700,
+                    direction: lang === 'ar' ? 'rtl' : 'ltr',
+                    unicodeBidi: 'isolate',
+                  }}
+                >
+                  {t('plan.ragt_vor', { cm: vor })}
+                </text>
+              ) : null}
               {breite > fs * 4 && hoehe > fs * 1.2 ? (
                 <text
                   x={mitte}

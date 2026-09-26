@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { FuellstandFeld } from '../components/Fuellstand'
 import { AppHeader, Page } from '../components/AppShell'
 import { BildLesen } from '../components/BildLesen'
 import { InhaltVerschieben } from '../components/InhaltVerschieben'
@@ -411,6 +412,15 @@ export default function FurnitureDetail() {
               ))}
             </div>
           ) : null}
+
+          {/* Wie voll (0033), wie auf der Kistenseite. */}
+          <div className="mt-4 border-t border-line pt-3">
+            <FuellstandFeld
+              wert={item.fuellstand ?? null}
+              canEdit={canEdit}
+              onWert={(v) => void aendern({ fuellstand: v })}
+            />
+          </div>
 
           {item.note ? (
             <p className="mt-4 border-t border-line pt-3 text-base break-words">{item.note}</p>

@@ -69,6 +69,11 @@ export const platzWoerter: Woerterbuch = {
     ar: 'الخانة {ebene}/{spalte} (المستوى {ebene}، العمود {spalte})، من {von} إلى {bis} سم',
   },
   'platz.passt_nicht': { de: 'Passt nicht: Platz nur bis {grenze} cm', ar: 'لا يتسع: المساحة حتى {grenze} سم فقط' },
+  'platz.ragt_vor': { de: 'ragt {cm} cm aus dem Fach heraus', ar: 'يبرز {cm} سم خارج الخانة' },
+  'platz.ueberstand_zu_gross': {
+    de: 'Passt nicht: ragt {cm} cm heraus, erlaubt sind {max} cm',
+    ar: 'لا يتسع: يبرز {cm} سم، والمسموح {max} سم',
+  },
   'platz.ueberlappt': {
     de: 'Achtung, hier steht schon etwas: {codes}. Speichern geht trotzdem.',
     ar: 'انتبه، يوجد شيء هنا بالفعل: {codes}. الحفظ ممكن رغم ذلك.',
