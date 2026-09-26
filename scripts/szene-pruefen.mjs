@@ -7,6 +7,7 @@
 // Aufruf im Projektordner: node scripts/szene-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import { baueSzene, hervorMitte, szeneRahmen, GEDAEMPFT, SCHEIBE_DECKKRAFT, TUER_OFFEN_GRAD } from '../src/components/plan3d/szene.ts'
+import { moebelTeile } from '../src/components/plan3d/moebel3d.ts'
 
 let fehler = 0
 function gleich(name, ist, soll) {
@@ -214,6 +215,20 @@ const nach = (r) => alle.filter((k) => k.rolle === r)
   const sturz = nach('sturz').find((x) => Math.abs(x.mitte[2]) < 1e-9)
   nahe('Fenstersturz ab 210 cm', sturz.mitte[1] - sturz.masse[1] / 2, 2.1)
   wahr('Fensterrahmen weiss', nach('rahmen').length === 4 && nach('rahmen').every((x) => x.farbe === F.rahmen3d))
+}
+
+/* ------------------------------------------------------------ Eckbank und Mauer (E73) */
+{
+  // Eckbank als L um einen Mauervorsprung: Ausschnitt links unten (Front), 159 x 15.
+  const bank = { breite_cm: 180, tiefe_cm: 65, hoehe_cm: 85, form: 'l', ausschnitt_breite_cm: 159, ausschnitt_tiefe_cm: 15, ausschnitt_ecke: 'lu', farbe: null }
+  const teile = moebelTeile(bank, 'bank', F, 250)
+  wahr('Eckbank: nichts im Ausschnitt', teile.every((q) => !(q.x0 < 159 - 0.01 && q.y1 > 50 + 0.01)))
+  wahr('Eckbank: Spalte bis vorne', teile.some((q) => q.x0 >= 159 && q.y1 >= 65 - 0.01))
+  wahr('Eckbank: Klappen an beiden Kaesten', teile.filter((q) => q.front?.art === 'tuer').some((q) => q.y1 === 50) && teile.filter((q) => q.front?.art === 'tuer').some((q) => q.y1 === 65))
+  const mauer = moebelTeile({ breite_cm: 29, tiefe_cm: 65, hoehe_cm: 250, form: 'rechteck', farbe: null }, 'mauer', F, 250)
+  gleich('Mauer: ein Block', mauer.length, 1)
+  gleich('Mauer in der Wandfarbe', mauer[0].farbe, F.wand3d)
+  gleich('Mauer bis zur Decke', mauer[0].z1, 250)
 }
 
 /* ------------------------------------------------------------ Moebel, Regal */

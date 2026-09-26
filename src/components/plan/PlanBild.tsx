@@ -27,7 +27,7 @@ import {
   type PlanTreffer,
 } from './hilfe'
 import { objektName } from './lage'
-import { MoebelSymbol } from './moebelSymbol'
+import { MoebelSymbol, moebelArt } from './moebelSymbol'
 import { radArt, radFaktor } from './ansicht'
 
 /* Die Draufsicht eines Grundrisses als SVG in Zentimetern.
@@ -204,7 +204,10 @@ const ObjektEbene = memo(function ObjektEbene({ objekte, massstab }: { objekte: 
         // Beschriftung nur, wenn sie in den Rahmen passt (grob: 0,6 Schriftbreiten je Zeichen).
         const rahmen = punkteBox(umriss)
         const name = objektName(t, o)
+        // Ein Stueck Wand (Schacht, Pfeiler) sieht aus wie die Wand, ohne Namen.
+        const mauer = o.art === 'moebel' && moebelArt(o.name ?? '') === 'mauer'
         const passt =
+          !mauer &&
           (rahmen.x1 - rahmen.x0) * massstab > Math.max(name.length, 9) * 11 * 0.62 + 6 &&
           (rahmen.y1 - rahmen.y0) * massstab > 30
         const teiler: [Punkt, Punkt][] = []
@@ -218,7 +221,7 @@ const ObjektEbene = memo(function ObjektEbene({ objekte, massstab }: { objekte: 
           <g key={o.id}>
             <polygon
               points={umriss.map((p) => p.join(',')).join(' ')}
-              style={{ fill: o.farbe ?? 'var(--plan-objekt)', stroke: 'var(--plan-objekt-rand)' }}
+              style={mauer ? { fill: 'var(--plan-wand)', stroke: 'var(--plan-wand)' } : { fill: o.farbe ?? 'var(--plan-objekt)', stroke: 'var(--plan-objekt-rand)' }}
               strokeWidth={1.5}
               vectorEffect={NS}
               // Haengend (0039): gestrichelter Rand, wie im Bauplan fuer Oberschraenke.

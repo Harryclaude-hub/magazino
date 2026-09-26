@@ -434,6 +434,7 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.katalog.garderobe': { de: 'Garderobe', ar: 'علاقة ملابس' },
   'zeichner.katalog.gefrierschrank': { de: 'Gefrierschrank', ar: 'مجمد' },
   'zeichner.katalog.fahrrad': { de: 'Fahrrad', ar: 'دراجة' },
+  'zeichner.katalog.mauervorsprung': { de: 'Mauervorsprung (Schacht)', ar: 'بروز جدار (فتحة تمديدات)' },
   'zeichner.katalog.sitzbank': { de: 'Sitzbank mit Stauraum', ar: 'مقعد طويل مع تخزين' },
   'zeichner.katalog.haengelampe': { de: 'Hängelampe', ar: 'مصباح معلق' },
   'zeichner.katalog.fernseher_wand': { de: 'Fernseher an der Wand', ar: 'تلفاز على الجدار' },

@@ -9,7 +9,7 @@ import { objektUmriss } from './hilfe'
  * den Koordinaten des Moebels (Breite entlang x, Tiefe entlang y, y = 0 an
  * der Wand) und mit ihm gedreht. */
 
-import { moebelArt, type MoebelArt } from './moebelArt'
+import { bankStuecke, moebelArt, type MoebelArt } from './moebelArt'
 export { moebelArt, type MoebelArt }
 
 type Form = { art: 'linie'; a: Punkt; b: Punkt } | { art: 'zug'; p: Punkt[]; zu: boolean } | { art: 'kreis'; m: Punkt; r: number }
@@ -230,10 +230,19 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
       return [rechteck(B * 0.1, T * 0.27, B * 0.9, T * 0.73), ...stuehle]
     }
     case 'bank': {
-      const n = Math.max(1, Math.round(B / 60))
-      const fugen: Form[] = []
-      for (let i = 1; i < n; i++) fugen.push({ art: 'linie', a: [(B * i) / n, T * 0.3], b: [(B * i) / n, T] })
-      return [{ art: 'linie', a: [0, T * 0.3], b: [B, T * 0.3] }, ...fugen]
+      // Rueckenkissen an der Wand, Fugen zwischen den Sitzpolstern; beim L je Kasten.
+      const lehne = Math.min(T * 0.3, 15)
+      const out: Form[] = []
+      for (const s of bankStuecke(o)) {
+        const n = Math.max(1, Math.round((s.x1 - s.x0) / 60))
+        const y0 = s.lehne ? lehne : s.y0
+        if (s.lehne) out.push({ art: 'linie', a: [s.x0, lehne], b: [s.x1, lehne] })
+        for (let i = 1; i < n; i++) {
+          const x = s.x0 + ((s.x1 - s.x0) * i) / n
+          out.push({ art: 'linie', a: [x, y0], b: [x, s.y1] })
+        }
+      }
+      return out
     }
     case 'haengelampe': {
       const d = k * 0.3
@@ -243,6 +252,8 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
         { art: 'linie', a: [B / 2, T / 2 - d], b: [B / 2, T / 2 + d] },
       ]
     }
+    case 'mauer':
+      return []
     case 'hochschrank':
       return [{ art: 'linie', a: [B * 0.1, T * 0.9], b: [B * 0.9, T * 0.9] }, { art: 'linie', a: [B * 0.85, T * 0.3], b: [B * 0.85, T * 0.7] }]
     case 'backofen':

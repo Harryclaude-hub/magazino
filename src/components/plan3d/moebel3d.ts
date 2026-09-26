@@ -11,7 +11,7 @@
  * Farbe, traegt sie der Hauptteil (Stoff der Couch, Korpus der Kommode);
  * Polster und Kanten sind leicht hellere oder dunklere Toene davon. */
 import type { Objekt } from '../../lib/types'
-import type { MoebelArt } from '../plan/moebelArt.ts'
+import { bankStuecke, type MoebelArt } from '../plan/moebelArt.ts'
 
 /** Die Farben, die dieser Teil braucht (Auszug aus Farben3D). */
 export interface MoebelFarben {
@@ -30,6 +30,7 @@ export interface MoebelFarben {
   topf: string
   teppich: string
   glas: string
+  wand3d: string
 }
 
 /** Ein Quader im Moebel: x0..x1, y0..y1 (lokal), z0..z1 (Hoehe), cm. */
@@ -359,6 +360,9 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
   const H = o.hoehe_cm
   const eigen = o.farbe
   switch (art) {
+    case 'mauer':
+      // Ein Stueck Wand: ein Block bis unter die Decke, in der Wandfarbe.
+      return [t(0, 0, B, T, 0, decke, eigen ?? f.wand3d)]
     case 'sofa':
       if (o.form === 'l' && o.ausschnitt_breite_cm && o.ausschnitt_tiefe_cm) return lCouch(o, eigen ?? f.stoff)
       return couch(B, T, H, eigen ?? f.stoff, f, false)
@@ -464,19 +468,26 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       return kueche(o, decke, f)
     case 'bank': {
       // Sitzbank an der Wand (y = 0): Kasten mit Stauraum, Sitzpolster,
-      // Rueckenkissen je 60 cm an der Wand.
+      // Rueckenkissen je 60 cm an der Wand. Als L (E73) je Kasten, der
+      // Ausschnitt bleibt frei (Eckbank um einen Mauervorsprung).
       const korpus = eigen ?? f.weiss
       const stoff = f.stoff
       const sitz = Math.min(46, H)
-      const n = Math.max(1, Math.round(B / 60))
-      const out: Teil[] = [
-        t(2, 2, B - 2, T - 4, 0, 8, ton(korpus, 0.8)),
-        t(0, 0, B, T, 8, sitz - 8, korpus),
-        ...polster(0, B, n, 0, T, sitz - 8, sitz, ton(stoff, 1.1)),
-      ]
-      if (H > sitz + 10) out.push(...polster(0, B, n, 0, Math.min(14, T * 0.3), sitz, H, ton(stoff, 1.18)))
-      // Fronten des Kastens als Klappen (Stauraum).
-      for (let i = 0; i < n; i++) out.push(tuer((B / n) * i + 0.5, T - 1, (B / n) * (i + 1) - 0.5, T, 9, sitz - 9, ton(korpus, 1.03), i % 2 === 0 ? 'min' : 'max', 1))
+      const out: Teil[] = []
+      for (const s of bankStuecke(o)) {
+        const w = s.x1 - s.x0
+        const n = Math.max(1, Math.round(w / 60))
+        out.push(
+          t(s.x0 + 2, s.y0 + 2, s.x1 - 2, s.y1 - 4, 0, 8, ton(korpus, 0.8)),
+          t(s.x0, s.y0, s.x1, s.y1, 8, sitz - 8, korpus),
+          ...polster(s.x0, s.x1, n, s.y0, s.y1, sitz - 8, sitz, ton(stoff, 1.1)),
+        )
+        if (s.lehne && H > sitz + 10) out.push(...polster(s.x0, s.x1, n, 0, Math.min(14, T * 0.3), sitz, H, ton(stoff, 1.18)))
+        // Fronten des Kastens als Klappen (Stauraum).
+        for (let i = 0; i < n; i++) {
+          out.push(tuer(s.x0 + (w / n) * i + 0.5, s.y1 - 1, s.x0 + (w / n) * (i + 1) - 0.5, s.y1, 9, sitz - 9, ton(korpus, 1.03), i % 2 === 0 ? 'min' : 'max', 1))
+        }
+      }
       return out
     }
     case 'haengelampe': {

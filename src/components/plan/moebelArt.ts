@@ -2,6 +2,8 @@
  * ihn setzt, auf Deutsch oder Arabisch). Eigene Datei ohne React, damit
  * auch die 3D-Szene (szene.ts, Pruefskripte unter node) sie nutzen kann. */
 
+import type { Objekt } from '../../lib/types'
+
 export type MoebelArt =
   | 'wc'
   | 'waschbecken'
@@ -42,11 +44,14 @@ export type MoebelArt =
   | 'hochschrank'
   | 'bank'
   | 'haengelampe'
+  | 'mauer'
 
 /** Reihenfolge zaehlt: das Genauere zuerst (Geschirrspueler vor Spuele,
  *  Waschtisch vor Tisch, Couchtisch vor Couch, Buerostuhl vor Stuhl,
  *  Kinderbett und Nachttisch vor Bett). */
 const WOERTER: [MoebelArt, string[]][] = [
+  // Kein Moebel: ein Stueck Wand im Raum (Schacht, Pfeiler), E73.
+  ['mauer', ['mauervorsprung', 'wandvorsprung', 'mauerstück', 'mauerstueck', 'بروز جدار']],
   ['tv_board', ['tv-board', 'tv-bank', 'tvboard', 'lowboard', 'fernsehschrank', 'طاولة تلفاز']],
   ['essgruppe', ['essgruppe', 'essbereich', 'مجموعة طعام']],
   ['haengelampe', ['hängeleuchte', 'haengeleuchte', 'hängelampe', 'haengelampe', 'pendelleuchte', 'pendellampe', 'مصباح معلق']],
@@ -94,4 +99,27 @@ export function moebelArt(name: string): MoebelArt | null {
     if (woerter.some((w) => n.includes(w))) return art
   }
   return null
+}
+
+/** Die Kaesten einer Sitzbank in ihren lokalen Koordinaten: ein Rechteck,
+ *  oder beim L (E73, Eckbank um einen Mauervorsprung) zwei: die Spalte
+ *  ueber die volle Tiefe und der Rest neben dem Ausschnitt. lehne: der
+ *  Kasten liegt an der Wand (y = 0) und bekommt Rueckenkissen. */
+export function bankStuecke(
+  o: Pick<Objekt, 'breite_cm' | 'tiefe_cm' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke'>,
+): { x0: number; y0: number; x1: number; y1: number; lehne: boolean }[] {
+  const B = o.breite_cm
+  const T = o.tiefe_cm
+  const aB = o.ausschnitt_breite_cm ?? 0
+  const aT = o.ausschnitt_tiefe_cm ?? 0
+  if (o.form !== 'l' || aB <= 0 || aT <= 0 || aB >= B || aT >= T) return [{ x0: 0, y0: 0, x1: B, y1: T, lehne: true }]
+  const e = o.ausschnitt_ecke ?? 'ro'
+  const links = e[0] === 'l'
+  const oben = e[1] === 'o'
+  const voll = links ? { x0: aB, x1: B } : { x0: 0, x1: B - aB }
+  const rest = links ? { x0: 0, x1: aB } : { x0: B - aB, x1: B }
+  return [
+    { ...voll, y0: 0, y1: T, lehne: true },
+    { ...rest, y0: oben ? aT : 0, y1: oben ? T : T - aT, lehne: !oben },
+  ]
 }

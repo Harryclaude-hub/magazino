@@ -74,6 +74,7 @@ export const KATALOG_SONST: Vorlage[] = [
   v({ schluessel: 'garderobe', art: 'moebel', breite_cm: 100, tiefe_cm: 35, hoehe_cm: 180 }),
   v({ schluessel: 'gefrierschrank', art: 'moebel', breite_cm: 60, tiefe_cm: 65, hoehe_cm: 145 }),
   v({ schluessel: 'fahrrad', art: 'moebel', breite_cm: 180, tiefe_cm: 60, hoehe_cm: 100 }),
+  v({ schluessel: 'mauervorsprung', art: 'moebel', breite_cm: 30, tiefe_cm: 60, hoehe_cm: 250 }),
 ]
 
 /** Bad und WC: Sanitaer in ueblichen Groessen. */

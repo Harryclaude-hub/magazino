@@ -36,11 +36,14 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - Nachtrag 27.09. (E49, Migration 0036): neue Konten warten auf
   Freischaltung durch den Admin (Warte-Seite), Admin kann sperren,
   entsperren und Konten loeschen; die Datenbank erzwingt das.
+- Nachtrag (E73): Elektro aus Plan E10 (39 Symbole), Moebelart "Mauer"
+  fuer Schaechte und Pfeiler, Sitzbank als L; Ess-Eck um den Schacht in
+  der Wohnkueche; Eltern im grossen, Kind im mittleren Zimmer.
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E72.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E73.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler

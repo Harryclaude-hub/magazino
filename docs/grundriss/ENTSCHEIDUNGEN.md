@@ -450,3 +450,27 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Sitzbank aus BESTA mit KUDDARNA-Polstern unter dem Fenster, STOCKHOLM
   2025 Tisch 230x90 in Eiche, 4 STOCKHOLM-Stuehle (Eiche/Rattan), zwei
   SINNERLIG-Haengeleuchten. Namen hoechstens 60 Zeichen (DB-Regel).
+- **E73 Plan E10 mit Elektro, Ess-Eck um den Schacht, Zimmertausch:**
+  Aus dem bemassten Plan "HAUS E Top E10 + ELO" stehen jetzt 39 Symbole
+  im Grundriss (14 Lichtauslaesse, 16 Steckdosen, 9 Schalter), von Hand
+  aus dem Foto abgelesen und in Plan-cm umgerechnet. In der Ecke der
+  Wohnkueche (Fenster- und Aussenwand) steht laut Plan ein Schacht, 28,5
+  x 65 cm. Er ist kein Raum-Einschnitt (sonst fehlte dort die
+  Aussenwand und alle Oeffnungen der Kueche bekaemen neue Kantennummern),
+  sondern eine neue Moebelart "Mauer": erkannt an "Mauervorsprung",
+  "Wandvorsprung" oder "Mauerstueck", in 2D wie Wand gefuellt und ohne
+  Namen, in 3D ein Block in der Wandfarbe bis zur Decke. Im Katalog unter
+  Sonstiges. Die Sitzbank kann jetzt ein L sein (`bankStuecke`): je
+  Kasten Korpus, Polster und Klappen, Rueckenkissen nur an der Wand, der
+  Ausschnitt bleibt frei. Ess-Eck: Nordbank BESTA 180 als L, deren
+  volle Tiefe an den Schacht stoesst; Ostbank BESTA 120 unter dem
+  Schacht bis zur Wand; TONSTAD Ausziehtisch 140/196x85 Eiche (der
+  STOCKHOLM-Tisch war in AT nicht zu finden); zwei Stuehle gegenueber,
+  einer am Kopfende, der vierte ist weg; Haengeleuchten mittig ueber dem
+  Tisch (der Deckenauslass laut Plan liegt 60 cm suedlich, braucht also
+  einen Baldachin-Versatz). Karams Wunsch: Eltern ins grosse Zimmer, das
+  Kind ins mittlere. Eltern: Kopfteil an der linken Wand, Nachttische
+  daneben, PAX 75 und PAX 100 links und rechts der Tuer, Kommode an der
+  Wand zur Kueche; Fenster und beide Tueren frei. Kind: Juniorbett links
+  neben dem Fenster, SMASTAD und TROFAST an der Tuerwand, LAETT-Tisch auf
+  dem LEN-Teppich.

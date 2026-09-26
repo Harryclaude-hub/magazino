@@ -491,7 +491,7 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
         const qf = ist ? f.hervor : q.farbe
         // Kanten nur an groesseren Teilen: sauberer und schneller.
         const gross = Math.max(q.x1 - q.x0, q.y1 - q.y0) >= 25 && q.z1 - q.z0 >= 4
-        const kante = ist ? f.kisteRand : gross ? ton(qf, 0.72) : undefined
+        const kante = ist ? f.kisteRand : gross && art !== 'mauer' ? ton(qf, 0.72) : undefined
         const k =
           q.front?.art === 'tuer'
             ? drehTuer(o, `${o.id}:t${form.indexOf(q)}`, q, unten, qf, kante ?? ton(qf, 0.8))
