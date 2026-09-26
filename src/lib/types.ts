@@ -406,6 +406,41 @@ export interface GroessenFolgen {
   neue_nummer: number
 }
 
+/* ------------------------------------------------------------- Admin */
+
+/** Ein Umzug in der Admin-Uebersicht (admin_uebersicht, 0035). */
+export interface AdminUmzug {
+  id: string
+  name: string
+  rolle: MemberRole
+  eigentuemer: boolean
+  umzugstag: string | null
+  archiviert: boolean
+  erstellt: string
+  kisten: number
+  angekommen: number
+  grundrisse: number
+  raeume: number
+  mitglieder: number
+}
+
+export interface AdminNutzer {
+  id: string
+  email: string | null
+  name: string | null
+  erstellt: string
+  zuletzt: string | null
+  admin: boolean
+  umzuege: AdminUmzug[]
+}
+
+export interface AdminUebersicht {
+  nutzer: AdminNutzer[]
+  umzuege: number
+  kisten: number
+  grundrisse: number
+}
+
 /* ------------------------------------------------------------ Grundriss */
 
 export interface Grundriss {

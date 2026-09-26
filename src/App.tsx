@@ -39,6 +39,7 @@ const GrundrissWeiche = lazy(() => import('./pages/Grundriss').then((m) => ({ de
 const AlterPlanLink = lazy(() => import('./pages/Grundriss').then((m) => ({ default: m.AlterPlanLink })))
 /* Kiste platzieren am Handy: eigener Teil, erst beim Oeffnen geladen. */
 const PlatzWahl = lazy(() => import('./pages/PlatzWahl'))
+const Admin = lazy(() => import('./pages/Admin'))
 
 function Nachladen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<Loading />}>{children}</Suspense>
@@ -104,6 +105,7 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="einstellungen" element={<Settings />} />
+              <Route path="admin" element={<Nachladen><Admin /></Nachladen>} />
               <Route path="scan" element={<ScanHub />} />
               <Route path="suche" element={<Suche />} />
               <Route path="p/:pid" element={<ProjectLayout />}>

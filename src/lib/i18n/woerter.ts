@@ -18,6 +18,7 @@ import { bereichsseite } from './bausteine/bereichsseite'
 import { kisten } from './bausteine/kisten'
 import { gegenstand } from './bausteine/gegenstand'
 import { fuehrung } from './bausteine/fuehrung'
+import { admin } from './bausteine/admin'
 import { grundriss } from './bausteine/grundriss'
 import { groessen } from './bausteine/groessen'
 import { suche } from './bausteine/suche'
@@ -62,6 +63,7 @@ export const WOERTER: Woerterbuch = zusammenlegen(
   kisten,
   gegenstand,
   fuehrung,
+  admin,
   grundriss,
   groessen,
   suche,

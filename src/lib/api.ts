@@ -7,6 +7,7 @@ import { supabase, errText } from './supabase'
 import { tg } from './i18n'
 import { zuPunkten, zuUmriss } from './geometrie'
 import type {
+  AdminUebersicht,
   Call,
   CallParticipant,
   EigeneGroesse,
@@ -48,6 +49,22 @@ function unwrap<T>(res: { data: T | null; error: unknown }, key: string): T {
   if (res.error) throw new Error(tg(key, { grund: errText(res.error) }))
   if (res.data === null) throw new Error(tg(key, { grund: tg('fehler.keine_daten') }))
   return res.data
+}
+
+/* ================================================================ Admin */
+
+/** Ist das angemeldete Konto Admin (0035)? Fuer den Menuepunkt. */
+export async function istAdmin(): Promise<boolean> {
+  const res = await supabase.rpc('ist_admin')
+  if (res.error) throw new Error(tg('fehler.admin_laden', { grund: errText(res.error) }))
+  return res.data === true
+}
+
+/** Alle Nutzer mit ihren Umzuegen. Nur fuer Admins; sonst lehnt die
+ *  Datenbank ab (kistly:admin.kein_zugriff). */
+export async function ladeAdminUebersicht(): Promise<AdminUebersicht> {
+  const res = await supabase.rpc('admin_uebersicht')
+  return unwrap(res, 'fehler.admin_laden') as AdminUebersicht
 }
 
 /* ============================================================= Projekte */

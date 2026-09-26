@@ -54,6 +54,10 @@ export const zeichnerWoerter: Woerterbuch = {
     ar: 'للعرض فقط: يحدد مثلاً درجاً أو منطقة. السحب ينقله.',
   },
   'zeichner.eig.linie_loeschen': { de: 'Linie löschen', ar: 'حذف الخط' },
+  'zeichner.werkzeuge_schmal': { de: 'Werkzeuge schmal', ar: 'تصغير الأدوات' },
+  'zeichner.werkzeuge_breit': { de: 'Werkzeuge mit Namen', ar: 'الأدوات بأسمائها' },
+  'zeichner.spalte_ausblenden': { de: 'Rechte Spalte ausblenden', ar: 'إخفاء العمود الجانبي' },
+  'zeichner.spalte_zeigen': { de: 'Rechte Spalte zeigen', ar: 'إظهار العمود الجانبي' },
   'zeichner.nische_leer': {
     de: 'Erst zwei verschiedene Punkte auf der Wand, dann die Maus rein oder raus bewegen.',
     ar: 'أولاً نقطتان مختلفتان على الجدار، ثم حرّك الفأرة للداخل أو للخارج.',

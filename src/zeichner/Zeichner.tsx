@@ -22,6 +22,11 @@ import {
   ZoomOut,
   Slash,
   SquareDashedBottom,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  RectangleHorizontal,
 } from 'lucide-react'
 import { BereichDialog } from '../components/BereichDialog'
 import { neuerBereich, type BereichEntwurf } from '../lib/bereich'
@@ -128,10 +133,17 @@ export default function Zeichner({
   raumId,
   kisteId,
   onUngespeichert,
+  kopf,
+  kopfEnde,
 }: {
   start: GrundrissDaten
   raumId: string | null
   kisteId: string | null
+  /** Kopf der Seite (Zurueck, Grundrisse, Profil), steht vorne in der
+   *  einen Leiste des Zeichners, damit oben nur eine schmale Zeile bleibt. */
+  kopf?: ReactNode
+  /** Rechts am Ende der Leiste (Erklaerung, Profil). */
+  kopfEnde?: ReactNode
   /** Meldet, ob gerade etwas nicht gespeichert ist (fuer die Seite, falls
    *  der Zeichner beim Verkleinern des Fensters verschwindet). */
   onUngespeichert?: (ja: boolean) => void
@@ -139,6 +151,10 @@ export default function Zeichner({
   const { project, rooms, tags, reloadTags } = useProject()
   const { t, lang } = useSprache()
   const toast = useToast()
+  /* Mehr Platz zum Zeichnen: Werkzeuge links schmal (nur Zeichen), rechte
+   * Spalte ganz weg. Das Geraet merkt es sich. */
+  const [schmal, setSchmal] = useMerker('kistly.zeichner.werkzeuge_schmal')
+  const [rechtsZu, setRechtsZu] = useMerker('kistly.zeichner.rechts_zu')
 
   const [z, dispatch] = useReducer(zReducer, start, zStart)
   const [werkzeug, setWerkzeug] = useState<{ name: WerkzeugName; s: unknown }>({
@@ -899,26 +915,23 @@ export default function Zeichner({
   return (
     <div className="flex h-full min-h-0 flex-col bg-paper">
       {/* Kopfzeile des Zeichners */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2">
-        <Button data-tour="z-rueck"
-          size="sm"
-          variant="outline"
-          onClick={() => dispatch({ typ: 'zurueck' })}
-          disabled={z.zurueck.length === 0}
-          title={t('zeichner.zurueck_taste')}
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-line bg-surface px-2 py-1">
+        {kopf}
+        {kopf ? <span className="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden="true" /> : null}
+        <LeistenKnopf
+          tour="z-links"
+          label={t(schmal ? 'zeichner.werkzeuge_breit' : 'zeichner.werkzeuge_schmal')}
+          onClick={() => setSchmal(!schmal)}
         >
-          <Undo2 size={16} className="spiegeln" /> {t('zeichner.zurueck')}
-        </Button>
-        <Button data-tour="z-vor"
-          size="sm"
-          variant="outline"
-          onClick={() => dispatch({ typ: 'vor' })}
-          disabled={z.vor.length === 0}
-          title={t('zeichner.vor_taste')}
-        >
-          <Redo2 size={16} className="spiegeln" /> {t('zeichner.vor')}
-        </Button>
-        <p data-tour="z-hilfe" className="t-sub min-w-0 flex-1 truncate px-2">{hilfe}</p>
+          {schmal ? <PanelLeftOpen size={17} className="spiegeln" /> : <PanelLeftClose size={17} className="spiegeln" />}
+        </LeistenKnopf>
+        <LeistenKnopf tour="z-rueck" label={t('zeichner.zurueck_taste')} onClick={() => dispatch({ typ: 'zurueck' })} disabled={z.zurueck.length === 0}>
+          <Undo2 size={17} className="spiegeln" />
+        </LeistenKnopf>
+        <LeistenKnopf tour="z-vor" label={t('zeichner.vor_taste')} onClick={() => dispatch({ typ: 'vor' })} disabled={z.vor.length === 0}>
+          <Redo2 size={17} className="spiegeln" />
+        </LeistenKnopf>
+        <p data-tour="z-hilfe" className="t-sub min-w-0 flex-1 truncate px-1 text-sm" title={hilfe}>{hilfe}</p>
         {vorschau.eingabe ? (
           <span className="t-serial rounded-lg border-2 border-ink bg-paper px-2 py-1 text-base" aria-live="polite">
             {vorschau.eingabe}
@@ -945,6 +958,14 @@ export default function Zeichner({
         <span data-tour="z-speichern" className="flex">
           <SpeicherAnzeige status={status} onNochmal={() => { setStatus('gespeichert'); setLeiste(null) }} />
         </span>
+        <LeistenKnopf
+          tour="z-rechts"
+          label={t(rechtsZu ? 'zeichner.spalte_zeigen' : 'zeichner.spalte_ausblenden')}
+          onClick={() => setRechtsZu(!rechtsZu)}
+        >
+          {rechtsZu ? <PanelRightOpen size={17} className="spiegeln" /> : <PanelRightClose size={17} className="spiegeln" />}
+        </LeistenKnopf>
+        {kopfEnde}
       </div>
 
       {leiste ? (
@@ -998,33 +1019,54 @@ export default function Zeichner({
 
       <div className="flex min-h-0 flex-1">
         {/* Werkzeuge */}
-        <nav data-tour="z-werkzeuge" className="flex w-52 shrink-0 flex-col gap-1 overflow-y-auto border-e border-line bg-surface p-2" aria-label={t('zeichner.werkzeuge')}>
+        <nav
+          data-tour="z-werkzeuge"
+          className={cx('flex shrink-0 flex-col gap-1 overflow-y-auto border-e border-line bg-surface p-1.5 scrollbar-thin', schmal ? 'w-14' : 'w-48')}
+          aria-label={t('zeichner.werkzeuge')}
+        >
           {REIHENFOLGE.map((name) => (
             <button data-tour={`z-w-${name}`}
               key={name}
               type="button"
               onClick={() => wechseln(name)}
               aria-pressed={werkzeug.name === name}
-              title={t(`zeichner.hilfe.${name}`)}
+              title={schmal ? `${t(`zeichner.werkzeug.${name}`)} (${tastenZeichen(name)}): ${t(`zeichner.hilfe.${name}`)}` : t(`zeichner.hilfe.${name}`)}
+              aria-label={t(`zeichner.werkzeug.${name}`)}
               className={cx(
-                'flex min-h-10 items-center gap-2 rounded-xl px-2.5 text-start text-[0.9375rem] font-bold transition',
+                'flex min-h-9 items-center gap-2 rounded-xl text-start text-[0.9375rem] font-bold transition',
+                schmal ? 'justify-center px-0' : 'px-2.5',
                 werkzeug.name === name ? 'bg-ink text-paper' : 'text-ink hover:bg-raised',
               )}
             >
               <span className="shrink-0" style={name === 'tuer' ? { color: 'var(--plan-tuer)' } : name === 'fenster' ? { color: 'var(--plan-fenster)' } : undefined}>
                 {SYMBOL[name]}
               </span>
-              <span className="min-w-0 flex-1 truncate">{t(`zeichner.werkzeug.${name}`)}</span>
-              <kbd className="t-serial rounded border border-current/30 px-1 text-xs opacity-70">{tastenZeichen(name)}</kbd>
+              {schmal ? null : (
+                <>
+                  <span className="min-w-0 flex-1 truncate">{t(`zeichner.werkzeug.${name}`)}</span>
+                  <kbd className="t-serial rounded border border-current/30 px-1 text-xs opacity-70">{tastenZeichen(name)}</kbd>
+                </>
+              )}
             </button>
           ))}
           <button data-tour="z-rechteck"
             type="button"
             onClick={() => wechseln('raum', true)}
-            className="flex min-h-9 items-center gap-2 rounded-xl px-2.5 text-start text-sm font-bold text-muted hover:bg-raised hover:text-ink"
+            title={t('zeichner.werkzeug.rechteck')}
+            aria-label={t('zeichner.werkzeug.rechteck')}
+            className={cx(
+              'flex min-h-9 items-center gap-2 rounded-xl text-start text-sm font-bold text-muted hover:bg-raised hover:text-ink',
+              schmal ? 'justify-center px-0' : 'px-2.5',
+            )}
           >
-            <span className="min-w-0 flex-1 truncate">{t('zeichner.werkzeug.rechteck')}</span>
-            <kbd className="t-serial rounded border border-current/30 px-1 text-xs opacity-70">⇧R</kbd>
+            {schmal ? (
+              <RectangleHorizontal size={18} />
+            ) : (
+              <>
+                <span className="min-w-0 flex-1 truncate">{t('zeichner.werkzeug.rechteck')}</span>
+                <kbd className="t-serial rounded border border-current/30 px-1 text-xs opacity-70">⇧R</kbd>
+              </>
+            )}
           </button>
         </nav>
 
@@ -1139,7 +1181,11 @@ export default function Zeichner({
         </div>
 
         {/* Rechte Spalte */}
-        <aside data-tour="z-seite" className="w-80 shrink-0 space-y-4 overflow-y-auto border-s border-line bg-surface p-4 scrollbar-thin">
+        <aside
+          data-tour="z-seite"
+          hidden={rechtsZu}
+          className="w-80 shrink-0 space-y-4 overflow-y-auto border-s border-line bg-surface p-4 scrollbar-thin"
+        >
           {letztePlatzierung ? (
             <div className="flex items-center gap-2 rounded-xl border border-line bg-paper p-2">
               <CodeChip code={letztePlatzierung.code} size="sm" />
@@ -1293,4 +1339,58 @@ function SpeicherAnzeige({ status, onNochmal }: { status: Speicherstand; onNochm
       <Check size={16} /> {t('grundriss.gespeichert')}
     </span>
   )
+}
+
+/** Kleiner Symbolknopf fuer die eine Leiste oben (duenn, damit die
+ *  Zeichenflaeche Platz hat). */
+function LeistenKnopf({
+  label,
+  onClick,
+  disabled,
+  tour,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  tour?: string
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      data-tour={tour}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line text-ink transition hover:bg-raised disabled:opacity-35"
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Ein Schalter, den das Geraet sich merkt (localStorage, nur Bequemlichkeit). */
+function useMerker(schluessel: string): [boolean, (v: boolean) => void] {
+  const [wert, setWert] = useState(() => {
+    try {
+      return localStorage.getItem(schluessel) === '1'
+    } catch {
+      return false
+    }
+  })
+  const setzen = useCallback(
+    (v: boolean) => {
+      setWert(v)
+      try {
+        if (v) localStorage.setItem(schluessel, '1')
+        else localStorage.removeItem(schluessel)
+      } catch {
+        /* ohne Speicher gilt es bis zum Neuladen */
+      }
+    },
+    [schluessel],
+  )
+  return [wert, setzen]
 }

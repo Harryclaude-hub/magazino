@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Bell, BellOff, LogOut, ShieldCheck } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { InstallCard } from '../components/InstallCard'
@@ -19,7 +19,7 @@ import {
 } from '../components/ui'
 import { STUFEN, STUFE_SYMBOL, useMotion, type Stufe } from '../lib/bewegung'
 import { displayNameOf, useAuth } from '../lib/auth'
-import { getPrefs, setPrefs } from '../lib/api'
+import { getPrefs, istAdmin, setPrefs } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 import type { NotificationPrefs } from '../lib/types'
@@ -57,6 +57,16 @@ export default function Settings() {
   const toast = useToast()
   const nav = useNavigate()
   const t = useT()
+  const [admin, setAdmin] = useState(false)
+  useEffect(() => {
+    let alive = true
+    istAdmin()
+      .then((ja) => alive && setAdmin(ja))
+      .catch((err: unknown) => console.warn('[einstellungen] Admin nicht geprueft:', err instanceof Error ? err.message : err))
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const [name, setName] = useState(profile?.display_name ?? '')
   const [password, setPassword] = useState('')
@@ -333,6 +343,14 @@ export default function Settings() {
         <div className="mb-8">
           <InstallCard />
         </div>
+
+        {admin ? (
+          <Link to="/app/admin" className="mb-4 block">
+            <Button data-tour="profil-admin" variant="outline" size="lg" className="w-full justify-center sm:w-auto">
+              <ShieldCheck size={18} /> {t('admin.titel')}
+            </Button>
+          </Link>
+        ) : null}
 
         <Button data-tour="profil-abmelden"
           variant="outline"

@@ -9,7 +9,7 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - Repo: https://github.com/Harryclaude-hub/kistly, Zweig `main` ist aktuell
   (der Cloud-Arbeitszweig `claude/vibrant-planck-jlsatf` ist identisch).
 - Datenbank: Supabase `vqpirkgvclfsduklnnzv` (nur dieses Projekt!).
-  Migrationen 0001 bis 0034 sind angewandt.
+  Migrationen 0001 bis 0035 sind angewandt.
 
 ## Was fertig ist
 
@@ -29,15 +29,19 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - Nachtrag nachts (E45, E46, Migration 0034): Werkzeug Nische / Ecke (N)
   fuer Nischen, weggeschnittene Ecken und Vorspruenge; gestrichelte
   Hilfslinien (L), gespeichert in grundrisse.linien.
+- Nachtrag 27.09. (E47, E48, Migration 0035): Admin-Portal /app/admin nur
+  fuer Konten in app_admins (von Hand gesetzt, nicht im Repo); Zeichner
+  mit einer duennen Leiste oben, Werkzeuge schmal schaltbar, rechte Spalte
+  ausblendbar.
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E46.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E48.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler
-  bekommen eine neue Nummer (naechste: 0035).
+  bekommen eine neue Nummer (naechste: 0036).
 - Regel-Spiegel: SQL-Geometrie und `src/lib/geometrie.ts` immer zusammen
   aendern (`scripts/geometrie-pruefen.mjs`).
 

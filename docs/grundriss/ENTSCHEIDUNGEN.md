@@ -224,3 +224,21 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Ecke ziehen, Wand parallel ziehen, Doppelklick setzt oder entfernt eine
   Ecke. Empfehlung in der Fuehrung: erst die ganze Wohnung als Umriss,
   dann mit "Raum teilen" in Zimmer.
+
+## Nachtrag 27.09.2026 (mehr Platz im Zeichner, Admin-Portal)
+
+- **E47 Admin-Portal:** Seite `/app/admin`, nur fuer Konten in
+  `public.app_admins` (Migration 0035). Die Tabelle hat Zeilensicherheit
+  ohne Regeln; nur `ist_admin()` und `admin_uebersicht()` (security
+  definer) lesen sie. Welche Konten Admin sind, steht nicht im
+  oeffentlichen Repo; die Zeile wurde von Hand gesetzt. Das Portal zeigt
+  alle Nutzer (Name, E-Mail, seit, zuletzt angemeldet) mit ihren Umzuegen
+  und Zahlen (Kisten, angekommen, Grundrisse, Raeume, Mitglieder), nur zum
+  Ansehen. Menuepunkt in der Seitenleiste und Knopf im Profil nur fuer
+  Admins.
+- **E48 Mehr Platz im Zeichner:** Im Zeichner gibt es oben nur noch eine
+  duenne Leiste: Zurueck, Grundriss-Reiter, Knoepfe des Zeichners
+  (Rueckgaengig und Wiederholen nur als Zeichen), Erklaerung und Profil.
+  Die grosse Kopfzeile und die Suchleiste fallen dort weg. Werkzeuge links
+  lassen sich schmal schalten (nur Zeichen), die rechte Spalte ganz
+  ausblenden; das Geraet merkt sich beides.

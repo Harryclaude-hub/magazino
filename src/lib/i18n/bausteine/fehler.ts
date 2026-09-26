@@ -12,6 +12,14 @@ import type { Woerterbuch } from '../woerter'
  */
 export const fehler: Woerterbuch = {
   // --------------------------------------------------------- Allgemein
+  'fehler.admin_laden': {
+    de: 'Admin-Übersicht nicht geladen: {grund}',
+    ar: 'تعذّر تحميل لوحة الإدارة: {grund}',
+  },
+  'fehler.db.admin.kein_zugriff': {
+    de: 'Nur für Admins.',
+    ar: 'للمسؤولين فقط.',
+  },
   'fehler.linien_speichern': {
     de: 'Die Hilfslinien wurden nicht gespeichert: {grund}',
     ar: 'لم تُحفظ الخطوط المساعدة: {grund}',

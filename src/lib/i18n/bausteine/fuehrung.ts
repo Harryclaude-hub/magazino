@@ -433,6 +433,16 @@ export const fuehrung: Woerterbuch = {
     de: 'Links stehen alle Werkzeuge. Jedes hat eine Taste (steht daneben), damit es schneller geht.',
     ar: 'على الجانب توجد كل الأدوات. لكل أداة زر في لوحة المفاتيح (مكتوب بجانبها) لتسريع العمل.',
   },
+  'fuehrung.zeichner.links.titel': { de: 'Werkzeuge schmal', ar: 'تصغير الأدوات' },
+  'fuehrung.zeichner.links.text': {
+    de: 'Macht die Werkzeugleiste links schmal, nur mit Zeichen. So hast du mehr Platz zum Zeichnen. Noch ein Klick zeigt die Namen wieder.',
+    ar: 'يجعل شريط الأدوات ضيقاً بالرموز فقط، ليصبح لديك مكان أكبر للرسم. نقرة أخرى تُظهر الأسماء من جديد.',
+  },
+  'fuehrung.zeichner.rechts.titel': { de: 'Rechte Spalte ein und aus', ar: 'إظهار وإخفاء العمود الجانبي' },
+  'fuehrung.zeichner.rechts.text': {
+    de: 'Blendet die rechte Spalte mit Erklärung, Maßen und Einstellungen aus oder wieder ein.',
+    ar: 'يخفي العمود الجانبي مع الشرح والمقاسات والإعدادات أو يُظهره من جديد.',
+  },
   'fuehrung.zeichner.w_auswahl.titel': { de: 'Auswahl (V)', ar: 'تحديد (V)' },
   'fuehrung.zeichner.w_auswahl.text': {
     de: 'Klicke etwas an, um es zu wählen und rechts seine Maße zu ändern. Ziehen verschiebt Räume, Ecken, Wände, Möbel und Türen. Entf löscht.',

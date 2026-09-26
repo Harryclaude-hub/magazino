@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { Boxes, MessageCircle, ScanLine, Search, User, Warehouse } from 'lucide-react'
+import { Boxes, MessageCircle, ScanLine, Search, ShieldCheck, User, Warehouse } from 'lucide-react'
 import { BottomNav, NavTab } from '../components/AppShell'
 import { LeistenSymbole, Seitenleiste, SuchKopf } from '../components/Seitenleiste'
 import { useT } from '../lib/i18n'
-import { countUnread, listMembers } from '../lib/api'
+import { countUnread, istAdmin, listMembers } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { getLastProject, setLastProject } from '../lib/lastProject'
@@ -36,6 +36,22 @@ export default function AppLayout() {
   const loc = useLocation()
   const [lastProject, setLast] = useState<string | null>(() => getLastProject())
   const [unread, setUnread] = useState(0)
+  /* Admin-Portal (0035): der Menuepunkt nur fuer Admins. Die Datenbank
+   * prueft beim Laden selbst noch einmal. */
+  const [admin, setAdmin] = useState(false)
+  useEffect(() => {
+    if (!user?.id) {
+      setAdmin(false)
+      return
+    }
+    let alive = true
+    istAdmin()
+      .then((ja) => alive && setAdmin(ja))
+      .catch((err: unknown) => console.warn('[shell] Admin nicht geprueft:', err instanceof Error ? err.message : err))
+    return () => {
+      alive = false
+    }
+  }, [user?.id])
 
   const rememberProject = useCallback((id: string) => {
     setLast((cur) => {
@@ -168,10 +184,22 @@ export default function AppLayout() {
               active: path === '/app/einstellungen',
               tour: 'nav-profil',
             },
+            ...(admin
+              ? [
+                  {
+                    to: '/app/admin',
+                    icon: <ShieldCheck size={20} />,
+                    label: t('admin.nav'),
+                    active: path === '/app/admin',
+                    tour: 'nav-admin',
+                  },
+                ]
+              : []),
           ]}
         />
       <div className="flex min-w-0 flex-1 flex-col">
-        <SuchKopf />
+        {/* Im Grundriss zaehlt jede Zeile Platz: dort keine Suchleiste. */}
+        {/\/grundriss(\/|$)/.test(path) ? null : <SuchKopf />}
         <div className="flex-1">
           <Outlet />
         </div>

@@ -29,6 +29,7 @@ const NAVIGATION: TourSchritt[] = [
   k('nav.scannen', 'nav-scannen'),
   k('nav.chat', 'nav-chat'),
   k('nav.profil_nav', 'nav-profil'),
+  k('nav.admin', 'nav-admin'),
 ]
 
 const KOPF: TourSchritt[] = [k('kopf.zurueck', 'zurueck'), k('kopf.erklaerung', 'erklaerung'), k('kopf.profil', 'profil')]
@@ -49,6 +50,7 @@ export type TourName =
   | 'scan'
   | 'chat'
   | 'profil'
+  | 'admin'
   | 'allgemein'
 
 /** Welche Seite ist das? */
@@ -58,6 +60,7 @@ export function tourName(pfad: string, g: { desktop: boolean; zeichnen: boolean 
   if (p === '/app/suche') return 'suche'
   if (p === '/app/scan' || /^\/app\/p\/[^/]+\/scan$/.test(p)) return 'scan'
   if (p === '/app/einstellungen') return 'profil'
+  if (p === '/app/admin') return 'admin'
   const m = /^\/app\/p\/[^/]+(\/.*)?$/.exec(p)
   if (!m) return 'allgemein'
   const rest = m[1] ?? ''
@@ -149,6 +152,8 @@ const SEITEN: Record<TourName, TourSchritt[]> = {
     k('zeichner.flaeche', 'z-flaeche'),
     k('zeichner.maus'),
     k('zeichner.werkzeuge', 'z-werkzeuge'),
+    k('zeichner.links', 'z-links'),
+    k('zeichner.rechts', 'z-rechts'),
     k('zeichner.w_auswahl', 'z-w-auswahl'),
     k('zeichner.w_raum', 'z-w-raum'),
     k('zeichner.w_rechteck', 'z-rechteck'),
@@ -191,8 +196,10 @@ const SEITEN: Record<TourName, TourSchritt[]> = {
     k('profil.sprache', 'profil-sprache'),
     k('profil.aussehen', 'profil-aussehen'),
     k('profil.bewegung', 'profil-bewegung'),
+    k('profil.admin', 'profil-admin'),
     k('profil.abmelden', 'profil-abmelden'),
   ],
+  admin: [k('admin.start'), k('admin.zahlen', 'admin-zahlen'), k('admin.suche', 'admin-suche')],
   allgemein: [k('allgemein.start')],
 }
 

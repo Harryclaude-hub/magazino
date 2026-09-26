@@ -1,11 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Monitor, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Monitor, Pencil, Plus, Trash2 } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
+import { ErklaerKnopf } from '../components/Fuehrung'
+import { displayNameOf, useAuth } from '../lib/auth'
 import { FachAnsicht } from '../components/plan/FachAnsicht'
 import { raumTitel, type PlanTreffer } from '../components/plan/hilfe'
 import { PlanBild, PlanLegende } from '../components/plan/PlanBild'
 import {
+  Avatar,
   Button,
   Chip,
   CodeChip,
@@ -159,6 +162,7 @@ function Reiter({
   onNeu,
   onUmbenennen,
   onLoeschen,
+  kompakt = false,
 }: {
   liste: GrundrissTyp[]
   aktiv: string
@@ -166,11 +170,18 @@ function Reiter({
   onNeu: () => void
   onUmbenennen: () => void
   onLoeschen: () => void
+  /** Im Zeichner: klein, ohne eigene Zeile. */
+  kompakt?: boolean
 }) {
   const { project } = useProject()
   const { t } = useSprache()
   return (
-    <div className="no-print flex items-center gap-2 overflow-x-auto border-b border-line bg-paper px-3 py-2 scrollbar-thin sm:px-5">
+    <div
+      className={cx(
+        'no-print flex items-center overflow-x-auto scrollbar-thin',
+        kompakt ? 'min-w-0 gap-1' : 'gap-2 border-b border-line bg-paper px-3 py-2 sm:px-5',
+      )}
+    >
       <div role="tablist" aria-label={t('grundriss.reiter')} className="flex shrink-0 items-center gap-1.5">
         {liste.map((g) => (
           <Link
@@ -179,7 +190,8 @@ function Reiter({
             aria-selected={g.id === aktiv}
             to={`/app/p/${project.id}/grundriss/${g.id}`}
             className={cx(
-              'inline-flex h-10 shrink-0 items-center rounded-full border-2 px-4 text-[0.9375rem] font-bold transition',
+              'inline-flex shrink-0 items-center rounded-full font-bold transition',
+              kompakt ? 'h-8 border px-3 text-sm' : 'h-10 border-2 px-4 text-[0.9375rem]',
               g.id === aktiv ? 'border-ink bg-ink text-paper' : 'border-line bg-surface text-ink hover:border-ink/35',
             )}
           >
@@ -192,7 +204,7 @@ function Reiter({
           <IconButton label={t('grundriss.anlegen')} size="sm" onClick={onNeu}>
             <Plus size={17} />
           </IconButton>
-          <span className="flex-1" />
+          {kompakt ? null : <span className="flex-1" />}
           <IconButton label={t('grundriss.umbenennen')} size="sm" onClick={onUmbenennen}>
             <Pencil size={16} />
           </IconButton>
@@ -392,6 +404,7 @@ function Ansehen({ daten, raumId, kisteId }: { daten: GrundrissDaten; raumId: st
 export default function Grundriss() {
   const { gid = '' } = useParams()
   const { project, canEdit } = useProject()
+  const { profile, user } = useAuth()
   const { t } = useSprache()
   const toast = useToast()
   const nav = useNavigate()
@@ -431,6 +444,50 @@ export default function Grundriss() {
       .then((zahl) => setLoeschen((l) => (l ? { ...l, zahl } : l)))
       .catch((err: unknown) => setLoeschen((l) => (l ? { ...l, fehler: err instanceof Error ? err.message : String(err) } : l)))
   }
+
+  /* Im Zeichner eine einzige schmale Leiste: Zurueck, Grundrisse, dann die
+   * Knoepfe des Zeichners, am Ende Erklaerung und Profil. */
+  const kompaktKopf = (
+    <>
+      <Link
+        to={`/app/p/${project.id}`}
+        data-tour="zurueck"
+        aria-label={t('aktion.zurueck')}
+        title={t('aktion.zurueck')}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink hover:bg-raised"
+      >
+        <ArrowLeft size={18} className="spiegeln" />
+      </Link>
+      <span className="hidden shrink-0 text-sm font-black xl:inline" title={project.name}>
+        {t('grundriss.titel')}
+      </span>
+      {liste.data ? (
+        <Reiter
+          kompakt
+          liste={liste.data}
+          aktiv={gid}
+          canEdit={canEdit}
+          onNeu={() => setDialog('neu')}
+          onUmbenennen={() => setDialog('umbenennen')}
+          onLoeschen={loeschenFragen}
+        />
+      ) : null}
+    </>
+  )
+  const kompaktEnde = (
+    <>
+      <ErklaerKnopf />
+      <Link
+        to="/app/einstellungen"
+        data-tour="profil"
+        aria-label={t('kopf.profil')}
+        title={t('kopf.profil')}
+        className="shrink-0 rounded-full ring-2 ring-transparent transition hover:ring-line"
+      >
+        <Avatar name={displayNameOf(profile, user?.email ?? '?')} size={32} />
+      </Link>
+    </>
+  )
 
   const kopf = (
     <>
@@ -486,16 +543,26 @@ export default function Grundriss() {
   } else if (mitZeichner) {
     inhalt = (
       <Suspense fallback={<Skelett />}>
-        <Zeichner key={gid} start={passend} raumId={raumId} kisteId={kisteId} onUngespeichert={ungespeichertMelden} />
+        <Zeichner
+          key={gid}
+          start={passend}
+          raumId={raumId}
+          kisteId={kisteId}
+          onUngespeichert={ungespeichertMelden}
+          kopf={kompaktKopf}
+          kopfEnde={kompaktEnde}
+        />
       </Suspense>
     )
   } else {
     inhalt = <Ansehen daten={passend} raumId={raumId} kisteId={kisteId} />
   }
 
+  // Der Zeichner bringt den Kopf in seiner eigenen Leiste mit.
+  const zeichnerDa = mitZeichner && !!passend && !daten.error && !daten.loading && !alt
   return (
-    <div className={cx(mitZeichner && 'flex h-[calc(100dvh-3rem)] flex-col')}>
-      {kopf}
+    <div className={cx(mitZeichner && 'flex h-dvh flex-col')}>
+      {zeichnerDa ? null : kopf}
       <div className={cx(mitZeichner && 'min-h-0 flex-1')}>{inhalt}</div>
 
       <NameDialog
