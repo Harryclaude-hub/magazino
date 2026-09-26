@@ -47,9 +47,40 @@ export function datenBox(daten: Pick<GrundrissDaten, 'raeume'>, raumId?: string 
   return punkteBox(raeume.flatMap((r) => r.punkte))
 }
 
-/** Flaeche in Quadratmetern, eine Nachkommastelle. */
+/** Halbe Wandstaerke in cm: jede Wand ist 12 cm dick und steht mittig auf
+ *  der Kante (PlanBild, wandStuecke). */
+const WAND_HALB_CM = 6
+
+/** Nutzflaeche in Quadratmetern, zwei Nachkommastellen (wie auf einem
+ *  Wohnungsplan, 3,97 m2): die Flaeche innen
+ *  bis an die gezeichneten Waende, wie sie auf einem Wohnungsplan steht
+ *  (nicht bis zur Wandmitte). Rechnung: Flaeche des um die halbe
+ *  Wandstaerke nach innen versetzten Umrisses, A - d*U + d^2 * Summe
+ *  tan(Knick/2) ueber die Ecken (bei rechten Winkeln +1 je Aussenecke,
+ *  -1 je Innenecke). */
 export function flaecheQm(p: Punkt[]): number {
-  return Math.round(Math.abs(flaeche2(zuUmriss(p))) / 2 / 1000) / 10
+  const n = p.length
+  if (n < 3) return 0
+  const a2 = flaeche2(zuUmriss(p))
+  const richtung = a2 >= 0 ? 1 : -1
+  let umfang = 0
+  let knicke = 0
+  for (let i = 0; i < n; i++) {
+    const a = p[(i + n - 1) % n]
+    const b = p[i]
+    const c = p[(i + 1) % n]
+    umfang += Math.hypot(c[0] - b[0], c[1] - b[1])
+    const w1 = Math.atan2(b[1] - a[1], b[0] - a[0])
+    const w2 = Math.atan2(c[1] - b[1], c[0] - b[0])
+    let knick = w2 - w1
+    while (knick > Math.PI) knick -= 2 * Math.PI
+    while (knick < -Math.PI) knick += 2 * Math.PI
+    // Nur echte Ecken; fast gerade Knicke und Spitzen zaehlen nicht.
+    if (Math.abs(knick) > 1e-6 && Math.abs(knick) < Math.PI - 1e-3) knicke += Math.tan((knick * richtung) / 2)
+  }
+  const d = WAND_HALB_CM
+  const innen = Math.abs(a2) / 2 - d * umfang + d * d * knicke
+  return Math.round(Math.max(0, innen) / 100) / 100
 }
 
 /** Ein Punkt sicher im Raum fuer die Beschriftung: der Schwerpunkt, und

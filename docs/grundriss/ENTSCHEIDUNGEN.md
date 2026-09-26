@@ -256,3 +256,13 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Speicher bleiben liegen. Admins koennen sich selbst und andere Admins
   weder sperren noch loeschen. Der Admin-Menuepunkt zeigt die Zahl der
   Wartenden.
+- **E50 Masse wie auf dem Wohnungsplan:** Die Flaeche eines Raums zeigt
+  Kistly jetzt als Nutzflaeche innen bis an die gezeichneten 12-cm-Waende
+  (Umriss um 6 cm nach innen versetzt), mit zwei Nachkommastellen
+  (3,97 m2), nicht mehr bis zur Wandmitte. Echte Plaene haben dickere
+  Waende: jeder Raum darf darum seine eigene Kante 6 cm in der Wand
+  haben. Tueren und Fenster schneiden dann auch die parallele Kante des
+  Nachbarraums, wenn sie hoechstens 40 cm entfernt ist
+  (`WAND_DURCH_CM`), und Luecken bis 40 cm zwischen zwei Wandstuecken auf
+  derselben Linie (dicke Wand trifft Fassade) werden geschlossen.
+  Schmale Flaechen unter 60 cm (Schacht, Vorwand) bekommen keine Schrift.

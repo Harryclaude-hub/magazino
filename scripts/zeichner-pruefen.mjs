@@ -13,8 +13,8 @@ import { WERKZEUGE } from '../src/zeichner/werkzeuge/index.ts'
 import { raumStart } from '../src/zeichner/werkzeuge/raum.ts'
 import { KATALOG, REGAL_STANDARD, SCHRANK_STANDARD } from '../src/zeichner/katalog.ts'
 import { BODEN_STANDARD, WANDFARBEN, kontrast } from '../src/lib/farben.ts'
-import { faecherGueltig, flaeche2, zuUmriss, polygonFehler } from '../src/lib/geometrie.ts'
-import { trefferAn, innenPunkt, objektUmriss, stapelVon } from '../src/components/plan/hilfe.ts'
+import { faecherGueltig, flaeche2, zuUmriss, polygonFehler, wandStuecke } from '../src/lib/geometrie.ts'
+import { trefferAn, innenPunkt, objektUmriss, stapelVon, flaecheQm } from '../src/components/plan/hilfe.ts'
 import * as ans from '../src/components/plan/ansicht.ts'
 
 let fehler = 0
@@ -554,6 +554,27 @@ const vorab = (z) => dok.kistenDraussen(z.dok, dok.umrissGeaendert(z.basis, z.do
   gleich('Linien bleiben nach Antwort', dok.linienVon(z2.dok).length, 1)
   const z3 = zReducer(z2, { typ: 'linien_gespeichert', linien: dok.linienVon(z2.dok) })
   wahr('Linien gespeichert: gleich', dok.gleicheLinien(z3.basis, z3.dok))
+}
+
+/* ------------------------------------------ Flaeche und dicke Waende */
+
+{
+  // Nutzflaeche innen bis an die 12-cm-Waende (6 cm je Seite).
+  gleich('Flaeche innen Rechteck', flaecheQm([[0, 0], [400, 0], [400, 300], [0, 300]]), 11.17)
+  gleich('Flaeche innen L', flaecheQm([[0, 0], [400, 0], [400, 200], [200, 200], [200, 400], [0, 400]]), 11.05)
+  // Zwei Zimmer mit 32 cm dicker Wand: jede Seite ihre Kante, 20 cm Luecke.
+  const links = { id: 'a', punkte: [[0, 0], [300, 0], [300, 400], [0, 400]] }
+  const rechts = { id: 'b', punkte: [[320, 0], [700, 0], [700, 400], [320, 400]] }
+  const w = wandStuecke([links, rechts], [])
+  wahr('Luecke an der Fassade geschlossen', w.some((s) => s.a[1] === 400 && s.b[1] === 400 && Math.min(s.a[0], s.b[0]) === 300 && Math.max(s.a[0], s.b[0]) === 320))
+  wahr('Luecke oben geschlossen', w.some((s) => s.a[1] === 0 && Math.min(s.a[0], s.b[0]) === 300 && Math.max(s.a[0], s.b[0]) === 320))
+  // Tuer im linken Raum geht auch durch die parallele Kante des rechten.
+  const mitTuer = wandStuecke([links, rechts], [{ raum_id: 'a', kante: 1, abstand_cm: 100, breite_cm: 90 }])
+  const rechteWand = mitTuer.filter((s) => s.raumId === 'b' && s.a[0] === 320 && s.b[0] === 320)
+  wahr('Tuer durch dicke Wand', rechteWand.length === 2)
+  // Weiter als 40 cm auseinander: nicht mehr.
+  const weit = { id: 'c', punkte: [[350, 0], [700, 0], [700, 400], [350, 400]] }
+  wahr('Weit weg: keine Luecke geschlossen', !wandStuecke([links, weit], []).some((s) => Math.min(s.a[0], s.b[0]) === 300 && Math.max(s.a[0], s.b[0]) === 350))
 }
 
 /* ------------------------------------------------------ Farben */

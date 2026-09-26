@@ -346,6 +346,10 @@ const BeschriftungEbene = memo(function BeschriftungEbene({ raeume, massstab }: 
   return (
     <g>
       {raeume.map((r) => {
+        // Schmale Flaechen (Schacht, Vorwand) bekommen keine Schrift: sie
+        // stuende quer ueber den Waenden.
+        const box = punkteBox(r.punkte)
+        if (Math.min(box.x1 - box.x0, box.y1 - box.y0) < 60) return null
         const [x, y] = innenPunkt(r.punkte)
         const fs = px(massstab, 13)
         const qm = flaecheQm(r.punkte)

@@ -655,20 +655,27 @@ export interface WandStueck {
 
 /** Jede Kante wird ein Strich (12 cm, mittig). Abgezogen werden die
  *  Oeffnungen dieser Kante und die jeder anderen Kante auf derselben Linie
- *  (gemeinsame Wand zweier Raeume). Gleiche Strecken aus zwei Raeumen
- *  werden nur einmal gezeichnet. */
+ *  (gemeinsame Wand zweier Raeume). Hat ein Nachbarraum seine eigene,
+ *  parallele Kante in derselben Wand (dicke Wand, jede Seite ihre Kante,
+ *  hoechstens WAND_DURCH_CM auseinander), geht die Oeffnung auch durch
+ *  deren Strich. Gleiche Strecken aus zwei Raeumen werden nur einmal
+ *  gezeichnet. */
+/** So dick darf eine Wand hoechstens sein, damit eine Tuer oder ein
+ *  Fenster auch die parallele Kante des Nachbarraums durchbricht. */
+export const WAND_DURCH_CM = 40
+
 export function wandStuecke(
   raeume: { id: string; punkte: Punkt[]; wandfarben?: (string | null)[] | null }[],
   oeffnungen: { raum_id: string; kante: number; abstand_cm: number; breite_cm: number }[],
 ): WandStueck[] {
   // Alle Oeffnungen als Strecken in Grundriss-cm, samt ihrer Kante.
   const umrisse = new Map(raeume.map((r) => [r.id, zuUmriss(r.punkte)]))
-  const loecher: { a: Punkt; b: Punkt }[] = []
+  const loecher: { a: Punkt; b: Punkt; raumId: string }[] = []
   for (const o of oeffnungen) {
     const u = umrisse.get(o.raum_id)
     if (!u || o.kante < 0 || o.kante >= u.length / 2) continue
     const [a, b] = oeffnungStrecke(u, o)
-    loecher.push({ a, b })
+    loecher.push({ a, b, raumId: o.raum_id })
   }
   const gesehen = new Set<string>()
   const out: WandStueck[] = []
@@ -687,10 +694,14 @@ export function wandStuecke(
       // Loecher auf derselben Linie als Abschnitte [t0, t1] entlang der Kante.
       const abschnitte: [number, number][] = []
       for (const l of loecher) {
-        const kreuzA = (l.a[0] - a[0]) * dy - (l.a[1] - a[1]) * dx
-        const kreuzB = (l.b[0] - a[0]) * dy - (l.b[1] - a[1]) * dx
-        // Toleranz fuer Kommazahlen: 0,5 cm Abstand zur Linie.
-        if (Math.abs(kreuzA) / laenge > 0.5 || Math.abs(kreuzB) / laenge > 0.5) continue
+        const abstandA = ((l.a[0] - a[0]) * dy - (l.a[1] - a[1]) * dx) / laenge
+        const abstandB = ((l.b[0] - a[0]) * dy - (l.b[1] - a[1]) * dx) / laenge
+        // Auf derselben Linie (Toleranz 0,5 cm fuer Kommazahlen), oder parallel
+        // in derselben dicken Wand, aber nur bei einem anderen Raum.
+        const aufLinie = Math.abs(abstandA) <= 0.5 && Math.abs(abstandB) <= 0.5
+        const inDerWand =
+          l.raumId !== raum.id && Math.abs(abstandA - abstandB) <= 0.5 && Math.abs(abstandA) <= WAND_DURCH_CM
+        if (!aufLinie && !inDerWand) continue
         const ta = (l.a[0] - a[0]) * rx + (l.a[1] - a[1]) * ry
         const tb = (l.b[0] - a[0]) * rx + (l.b[1] - a[1]) * ry
         const t0 = Math.max(0, Math.min(ta, tb))
@@ -716,6 +727,55 @@ export function wandStuecke(
         out.push({ a: pa, b: pb, raumId: raum.id, kante: k, farbe: raum.wandfarben?.[k] ?? null })
       }
     }
+  }
+  out.push(...wandLueckenSchliessen(raeume))
+  return out
+}
+
+/** Eine dicke Wand zwischen zwei Raeumen (jede Seite ihre eigene Kante)
+ *  endet an der Fassade: dort liegen die Kanten beider Raeume auf derselben
+ *  Linie, mit einer Luecke so breit wie die Wand. Solche Luecken bis
+ *  WAND_DURCH_CM schliesst ein eigenes Wandstueck, sonst saehe die Fassade
+ *  dort offen aus. Nur zwischen Kanten verschiedener Raeume und nur, wenn
+ *  keine andere Kante die Luecke schon deckt. */
+function wandLueckenSchliessen(raeume: { id: string; punkte: Punkt[] }[]): WandStueck[] {
+  const kanten: { a: Punkt; b: Punkt; raumId: string; kante: number }[] = []
+  for (const r of raeume) {
+    const n = r.punkte.length
+    for (let k = 0; k < n; k++) kanten.push({ a: r.punkte[k], b: r.punkte[(k + 1) % n], raumId: r.id, kante: k })
+  }
+  const out: WandStueck[] = []
+  const gesehen = new Set<string>()
+  for (const e of kanten) {
+    const dx = e.b[0] - e.a[0]
+    const dy = e.b[1] - e.a[1]
+    const l = Math.hypot(dx, dy)
+    if (l === 0) continue
+    const rx = dx / l
+    const ry = dy / l
+    const aufLinie = (q: Punkt) => Math.abs((q[0] - e.a[0]) * ry - (q[1] - e.a[1]) * rx) <= 0.5
+    const t = (q: Punkt) => (q[0] - e.a[0]) * rx + (q[1] - e.a[1]) * ry
+    // Abschnitte aller Kanten auf dieser Linie, entlang der Linie gemessen.
+    const abschnitte = kanten
+      .filter((x) => aufLinie(x.a) && aufLinie(x.b))
+      .map((x) => ({ von: Math.min(t(x.a), t(x.b)), bis: Math.max(t(x.a), t(x.b)), raumId: x.raumId }))
+    const ende = Math.max(t(e.a), t(e.b))
+    // Die naechste Kante eines anderen Raums hinter dem Ende dieser Kante.
+    let naechste: { von: number; raumId: string } | null = null
+    for (const s of abschnitte) {
+      if (s.raumId === e.raumId || s.von <= ende + 0.5) continue
+      if (!naechste || s.von < naechste.von) naechste = s
+    }
+    if (!naechste || naechste.von - ende > WAND_DURCH_CM) continue
+    // Deckt schon eine Kante die Luecke (ganz oder teilweise), bleibt es so.
+    const gedeckt = abschnitte.some((s) => s.von < naechste!.von - 0.5 && s.bis > ende + 0.5)
+    if (gedeckt) continue
+    const pa: Punkt = [e.a[0] + ende * rx, e.a[1] + ende * ry]
+    const pb: Punkt = [e.a[0] + naechste.von * rx, e.a[1] + naechste.von * ry]
+    const schluessel = [pa, pb].map((p) => `${Math.round(p[0] * 100) / 100},${Math.round(p[1] * 100) / 100}`).sort().join('|')
+    if (gesehen.has(schluessel)) continue
+    gesehen.add(schluessel)
+    out.push({ a: pa, b: pb, raumId: e.raumId, kante: e.kante, farbe: null })
   }
   return out
 }
