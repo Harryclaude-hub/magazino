@@ -102,8 +102,8 @@
      vor. */
   --plan-boden: #e6dccb;
   --plan-boden-draussen: #d9e2cf;
-  --plan-wand: #3f3931;
-  --plan-wand-3d: #b9ad98;
+  --plan-wand: #3a3a3a;
+  --plan-wand-3d: #f1eee8;
   --plan-tuer: #e0700f;
   --plan-fenster: #2b78c9;
   --plan-objekt: #cbbfa9;
@@ -148,8 +148,8 @@
      etwas heller, damit sie auf dem dunklen Boden leuchten. */
   --plan-boden: #3a342b;
   --plan-boden-draussen: #2f372b;
-  --plan-wand: #cbbfa9;
-  --plan-wand-3d: #8f8472;
+  --plan-wand: #cfcfcf;
+  --plan-wand-3d: #b9b6b0;
   --plan-tuer: #f28c2e;
   --plan-fenster: #5ea4ee;
   --plan-objekt: #5a5243;

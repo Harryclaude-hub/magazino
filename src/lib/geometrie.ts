@@ -651,6 +651,9 @@ export interface WandStueck {
   raumId: string
   kante: number
   farbe: string | null
+  /** Nur bei Fuellungen dicker Waende: Dicke in cm (a-b ist die Mitte),
+   *  ohne ueberstehende Enden zu zeichnen. Sonst 12 cm. */
+  dicke?: number
 }
 
 /** Jede Kante wird ein Strich (12 cm, mittig). Abgezogen werden die
@@ -666,7 +669,7 @@ export const WAND_DURCH_CM = 40
 
 export function wandStuecke(
   raeume: { id: string; punkte: Punkt[]; wandfarben?: (string | null)[] | null }[],
-  oeffnungen: { raum_id: string; kante: number; abstand_cm: number; breite_cm: number }[],
+  oeffnungen: { raum_id: string; kante: number; abstand_cm: number; breite_cm: number; art?: string }[],
 ): WandStueck[] {
   // Alle Oeffnungen als Strecken in Grundriss-cm, samt ihrer Kante.
   const umrisse = new Map(raeume.map((r) => [r.id, zuUmriss(r.punkte)]))
@@ -729,6 +732,128 @@ export function wandStuecke(
     }
   }
   out.push(...wandLueckenSchliessen(raeume))
+  out.push(...wandFuellungen(raeume, oeffnungen, umrisse))
+  return out
+}
+
+/** Dicke Waende ohne Luecke: liegen sich zwei Kanten verschiedener Raeume
+ *  parallel gegenueber (jede zeigt mit ihrer Aussenseite zur anderen,
+ *  hoechstens WAND_DURCH_CM auseinander), wird der Streifen dazwischen
+ *  als Wand gefuellt. Tueren schneiden die Fuellung (Durchgang), Fenster
+ *  nicht (die Wand bleibt, das Fenster steht darin). Wo zwei solche
+ *  Fuellungen im rechten Winkel aufeinander treffen, kommt das Eckstueck
+ *  dazu. */
+function wandFuellungen(
+  raeume: { id: string; punkte: Punkt[] }[],
+  oeffnungen: { raum_id: string; kante: number; abstand_cm: number; breite_cm: number; art?: string }[],
+  umrisse: Map<string, Umriss>,
+): WandStueck[] {
+  type Kante = { a: Punkt; b: Punkt; raumId: string; kante: number; nx: number; ny: number }
+  const kanten: Kante[] = []
+  for (const r of raeume) {
+    const n = r.punkte.length
+    if (n < 3) continue
+    const sinn = flaeche2(zuUmriss(r.punkte)) >= 0 ? 1 : -1
+    for (let k = 0; k < n; k++) {
+      const a = r.punkte[k]
+      const b = r.punkte[(k + 1) % n]
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+      if (l === 0) continue
+      const rx = (b[0] - a[0]) / l
+      const ry = (b[1] - a[1]) / l
+      // Aussen: bei positivem Umlauf (wie die Datenbank ihn will) (ry, -rx).
+      kanten.push({ a, b, raumId: r.id, kante: k, nx: ry * sinn, ny: -rx * sinn })
+    }
+  }
+  // Tueren als Strecken (Fenster lassen die Wand stehen).
+  const tueren: { a: Punkt; b: Punkt }[] = []
+  for (const o of oeffnungen) {
+    if (o.art === 'fenster') continue
+    const u = umrisse.get(o.raum_id)
+    if (!u || o.kante < 0 || o.kante >= u.length / 2) continue
+    const [a, b] = oeffnungStrecke(u, o)
+    tueren.push({ a, b })
+  }
+
+  const out: WandStueck[] = []
+  const rechtecke: { x0: number; y0: number; x1: number; y1: number; raumId: string; kante: number }[] = []
+  for (let i = 0; i < kanten.length; i++) {
+    const e = kanten[i]
+    const l = Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1])
+    const rx = (e.b[0] - e.a[0]) / l
+    const ry = (e.b[1] - e.a[1]) / l
+    for (let j = i + 1; j < kanten.length; j++) {
+      const f = kanten[j]
+      if (f.raumId === e.raumId) continue
+      // Gegenueber: Aussenseiten zeigen gegeneinander.
+      if (e.nx * f.nx + e.ny * f.ny > -0.999) continue
+      const d = (f.a[0] - e.a[0]) * e.nx + (f.a[1] - e.a[1]) * e.ny
+      const d2 = (f.b[0] - e.a[0]) * e.nx + (f.b[1] - e.a[1]) * e.ny
+      if (Math.abs(d - d2) > 0.5 || d <= 0.5 || d > WAND_DURCH_CM) continue
+      // Gemeinsamer Abschnitt entlang e.
+      const tf0 = (f.a[0] - e.a[0]) * rx + (f.a[1] - e.a[1]) * ry
+      const tf1 = (f.b[0] - e.a[0]) * rx + (f.b[1] - e.a[1]) * ry
+      const s0 = Math.max(0, Math.min(tf0, tf1))
+      const s1 = Math.min(l, Math.max(tf0, tf1))
+      if (s1 - s0 < 0.5) continue
+      // Tueren in diesem Wandstreifen herausschneiden.
+      const loecher: [number, number][] = []
+      for (const t of tueren) {
+        const da = (t.a[0] - e.a[0]) * e.nx + (t.a[1] - e.a[1]) * e.ny
+        const db = (t.b[0] - e.a[0]) * e.nx + (t.b[1] - e.a[1]) * e.ny
+        if (Math.abs(da - db) > 0.5 || da < -0.5 || da > d + 0.5) continue
+        const ta = (t.a[0] - e.a[0]) * rx + (t.a[1] - e.a[1]) * ry
+        const tb = (t.b[0] - e.a[0]) * rx + (t.b[1] - e.a[1]) * ry
+        loecher.push([Math.min(ta, tb), Math.max(ta, tb)])
+      }
+      loecher.sort((x, y) => x[0] - y[0])
+      let t = s0
+      const stuecke: [number, number][] = []
+      for (const [l0, l1] of loecher) {
+        if (l1 <= t || l0 >= s1) continue
+        if (l0 > t) stuecke.push([t, l0])
+        t = Math.max(t, l1)
+      }
+      if (t < s1) stuecke.push([t, s1])
+      for (const [p0, p1] of stuecke) {
+        if (p1 - p0 < 0.5) continue
+        const m = d / 2
+        const pa: Punkt = [e.a[0] + rx * p0 + e.nx * m, e.a[1] + ry * p0 + e.ny * m]
+        const pb: Punkt = [e.a[0] + rx * p1 + e.nx * m, e.a[1] + ry * p1 + e.ny * m]
+        out.push({ a: pa, b: pb, raumId: e.raumId, kante: e.kante, farbe: null, dicke: d })
+      }
+      // Fuer die Eckstuecke: die ganze Fuellung als Rechteck (nur waagrecht/senkrecht).
+      if (Math.abs(rx) < 1e-9 || Math.abs(ry) < 1e-9) {
+        const q0: Punkt = [e.a[0] + rx * s0, e.a[1] + ry * s0]
+        const q1: Punkt = [e.a[0] + rx * s1 + e.nx * d, e.a[1] + ry * s1 + e.ny * d]
+        rechtecke.push({
+          x0: Math.min(q0[0], q1[0]), y0: Math.min(q0[1], q1[1]),
+          x1: Math.max(q0[0], q1[0]), y1: Math.max(q0[1], q1[1]),
+          raumId: e.raumId, kante: e.kante,
+        })
+      }
+    }
+  }
+
+  // Eckstuecke: eine waagrechte und eine senkrechte Fuellung, die sich an
+  // einer Ecke beruehren, bekommen das Quadrat dazwischen.
+  const gesehen = new Set<string>()
+  const nah = (x: number, y: number) => Math.abs(x - y) <= 1
+  for (const h of rechtecke) {
+    if (h.x1 - h.x0 < h.y1 - h.y0) continue // waagrecht: breiter als hoch
+    for (const v of rechtecke) {
+      if (v === h || v.y1 - v.y0 < v.x1 - v.x0) continue
+      const ecke = { x0: v.x0, x1: v.x1, y0: h.y0, y1: h.y1 }
+      const vBeruehrt = nah(v.y0, h.y1) || nah(v.y1, h.y0)
+      const hBeruehrt = nah(h.x0, v.x1) || nah(h.x1, v.x0)
+      if (!vBeruehrt || !hBeruehrt) continue
+      const key = `${Math.round(ecke.x0)},${Math.round(ecke.y0)},${Math.round(ecke.x1)},${Math.round(ecke.y1)}`
+      if (gesehen.has(key)) continue
+      gesehen.add(key)
+      const ym = (ecke.y0 + ecke.y1) / 2
+      out.push({ a: [ecke.x0, ym], b: [ecke.x1, ym], raumId: h.raumId, kante: h.kante, farbe: null, dicke: ecke.y1 - ecke.y0 })
+    }
+  }
   return out
 }
 

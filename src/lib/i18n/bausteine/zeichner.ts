@@ -26,8 +26,8 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.werkzeug.kiste': { de: 'Kiste setzen', ar: 'وضع صندوق' },
   'zeichner.werkzeug.messen': { de: 'Messen', ar: 'قياس' },
   'zeichner.hilfe.auswahl': {
-    de: 'Klicken wählt, Ziehen verschiebt. Doppelklick auf eine Wand fügt eine Ecke ein, auf eine Ecke entfernt sie. Pfeile 1 cm, mit Umschalt 10 cm. Entf löscht.',
-    ar: 'النقر يحدد والسحب ينقل. النقر المزدوج على جدار يضيف زاوية، وعلى زاوية يحذفها. الأسهم 1 سم، ومع Shift عشرة. Delete يحذف.',
+    de: 'Klicken wählt, Ziehen verschiebt. Räume rasten an Nachbarwänden ein, mit Umschalt nur waagrecht oder senkrecht. Doppelklick auf eine Wand fügt eine Ecke ein, auf eine Ecke entfernt sie. Pfeile 1 cm, mit Umschalt 10 cm. Entf löscht.',
+    ar: 'النقر يحدد والسحب ينقل. الغرف تلتصق بجدران الغرف المجاورة، ومع Shift أفقياً أو عمودياً فقط. النقر المزدوج على جدار يضيف زاوية، وعلى زاوية يحذفها. الأسهم 1 سم، ومع Shift عشرة. Delete يحذف.',
   },
   'zeichner.hilfe.raum': {
     de: 'Punkt für Punkt: Richtung zeigen, Länge tippen (3,45 oder 345), Enter. Klick auf den Start oder Enter schließt den Raum.',

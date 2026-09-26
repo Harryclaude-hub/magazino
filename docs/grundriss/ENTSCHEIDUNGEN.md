@@ -266,3 +266,11 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   (`WAND_DURCH_CM`), und Luecken bis 40 cm zwischen zwei Wandstuecken auf
   derselben Linie (dicke Wand trifft Fassade) werden geschlossen.
   Schmale Flaechen unter 60 cm (Schacht, Vorwand) bekommen keine Schrift.
+- **E51 Dicke Waende gefuellt, Raeume leichter verschieben, natuerliche
+  Waende:** Liegen sich zwei Kanten verschiedener Raeume bis 40 cm
+  gegenueber, fuellt Kistly den Streifen dazwischen als Wand (2D und 3D),
+  samt Eckstuecken; Tueren schneiden die Fuellung, Fenster nicht. Ein Raum
+  wird beim Ziehen frei in beide Richtungen bewegt (Raster), nur mit
+  Umschalt in einer Achse, und rastet an parallelen Waenden anderer Raeume
+  in der Naehe buendig ein (12 Bildschirmpixel). Waende in 3D sind
+  hell (#f1eee8), in 2D anthrazit (#3a3a3a).

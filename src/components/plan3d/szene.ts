@@ -212,13 +212,15 @@ function waende(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: stri
     const ux = (s.b[0] - s.a[0]) / l
     const uy = (s.b[1] - s.a[1]) / l
     const h = WAND_CM / 2
-    const a: Punkt = istEcke(r, s.a) ? [s.a[0] - ux * h, s.a[1] - uy * h] : s.a
-    const b: Punkt = istEcke(r, s.b) ? [s.b[0] + ux * h, s.b[1] + uy * h] : s.b
+    // Fuellungen dicker Waende sind genau so lang und so dick wie die Wand.
+    const dicke = s.dicke ?? WAND_CM
+    const a: Punkt = !s.dicke && istEcke(r, s.a) ? [s.a[0] - ux * h, s.a[1] - uy * h] : s.a
+    const b: Punkt = !s.dicke && istEcke(r, s.b) ? [s.b[0] + ux * h, s.b[1] + uy * h] : s.b
     const innen = raumInnen(r, s.kante)
     const farbe = s.farbe ?? f.wand3d
     const H = r.hoehe_cm
-    const wand = streifen('wand', a, b, 0, H - KOPF_CM, WAND_CM, farbe, { kante: f.wand, innen })
-    const kopf = streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wand, { innen })
+    const wand = streifen('wand', a, b, 0, H - KOPF_CM, dicke, farbe, { kante: s.dicke ? null : f.wand, innen })
+    const kopf = streifen('wandkopf', a, b, H - KOPF_CM, H, dicke, f.wand, { innen })
     if (wand) out.push(wand)
     if (kopf) out.push(kopf)
   }

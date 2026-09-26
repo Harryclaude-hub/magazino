@@ -106,9 +106,14 @@ const WandEbene = memo(function WandEbene({ raeume, oeffnungen }: { raeume: Raum
   const stuecke = useMemo(() => wandStuecke(raeume, oeffnungen), [raeume, oeffnungen])
   return (
     <g style={{ stroke: 'var(--plan-wand)' }} strokeWidth={WAND} strokeLinecap="square">
-      {stuecke.map((s, i) => (
-        <line key={i} x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} />
-      ))}
+      {stuecke.map((s, i) =>
+        s.dicke ? (
+          // Fuellung einer dicken Wand: genau so breit wie die Wand, Enden buendig.
+          <line key={i} x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} strokeWidth={s.dicke} strokeLinecap="butt" />
+        ) : (
+          <line key={i} x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} />
+        ),
+      )}
     </g>
   )
 })

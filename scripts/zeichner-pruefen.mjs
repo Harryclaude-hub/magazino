@@ -302,7 +302,14 @@ function rechteckDok() {
 {
   const d = rechteckDok()
   const r = spielen('auswahl', [{ runter: [200, 150] }, { bewegen: [257, 153] }, { hoch: [257, 153] }], d)
-  gleich('Auswahl: Raum gezogen (90 Grad, Raster 5)', r.d.raeume[0].punkte[0], [55, 0])
+  // Raeume gehen frei in beide Richtungen (Raster 5), mit Umschalt nur in einer Achse.
+  gleich('Auswahl: Raum gezogen (frei, Raster 5)', r.d.raeume[0].punkte[0], [55, 5])
+  const ra = spielen('auswahl', [{ runter: [200, 150] }, { bewegen: [257, 153], frei: true }, { hoch: [257, 153], frei: true }], d)
+  gleich('Auswahl: Raum gezogen mit Umschalt (eine Achse)', ra.d.raeume[0].punkte[0], [55, 0])
+  // Magnet: ein zweiter Raum rastet buendig an die Wand des ersten.
+  const zwei = dok.raumAnlegen(d, 'r2', [[420, 0], [700, 0], [700, 300], [420, 300]]).dok
+  const m = spielen('auswahl', [{ runter: [560, 150] }, { bewegen: [545, 150] }, { hoch: [545, 150] }], zwei)
+  gleich('Auswahl: Magnet an der Nachbarwand', m.d.raeume.find((x) => x.id === 'r2').punkte.map((q) => q[0]).sort((a, b) => a - b)[0], 400)
   const e = spielen('auswahl', [{ runter: [398, 2] }, { bewegen: [452, 1] }, { hoch: [452, 1] }], d)
   gleich('Auswahl: Ecke gezogen', e.d.raeume[0].punkte[1], [450, 0])
   const dop = spielen('auswahl', [{ doppel: [100, 300] }], d)

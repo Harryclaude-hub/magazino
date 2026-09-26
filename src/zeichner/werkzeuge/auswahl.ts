@@ -69,6 +69,43 @@ export function griffAn(k: Kontext, p: Punkt): Griff | null {
   return null
 }
 
+/** So nah (Bildschirmpixel) muss eine Wand an einer fremden Wand sein,
+ *  damit der gezogene Raum buendig einrastet. */
+const MAGNET_PX = 12
+
+/** Kleinste Korrektur (dx, dy), mit der eine waagrechte oder senkrechte
+ *  Kante des verschobenen Raums genau auf einer parallelen Kante eines
+ *  anderen Raums liegt, der sich entlang der Kante mit ihr ueberdeckt. */
+export function magnet(d: Dok, raumId: string, punkte: Punkt[], gx: number, gy: number, tol: number): [number, number] {
+  const eigene = kantenAchsen(punkte.map(([x, y]) => [x + gx, y + gy] as Punkt))
+  const fremde = d.raeume.filter((r) => r.id !== raumId).flatMap((r) => kantenAchsen(r.punkte))
+  let bx: number | null = null
+  let by: number | null = null
+  for (const e of eigene) {
+    for (const f of fremde) {
+      if (e.achse !== f.achse) continue
+      if (Math.min(e.bis, f.bis) - Math.max(e.von, f.von) <= 0) continue
+      const diff = f.lage - e.lage
+      if (Math.abs(diff) > tol || Math.abs(diff) < 1e-9) continue
+      if (e.achse === 'x' && (bx === null || Math.abs(diff) < Math.abs(bx))) bx = diff
+      if (e.achse === 'y' && (by === null || Math.abs(diff) < Math.abs(by))) by = diff
+    }
+  }
+  return [Math.round(bx ?? 0), Math.round(by ?? 0)]
+}
+
+/** Senkrechte Kanten (achse x: Lage = x) und waagrechte (achse y). */
+function kantenAchsen(p: Punkt[]): { achse: 'x' | 'y'; lage: number; von: number; bis: number }[] {
+  const out: { achse: 'x' | 'y'; lage: number; von: number; bis: number }[] = []
+  for (let i = 0; i < p.length; i++) {
+    const a = p[i]
+    const b = p[(i + 1) % p.length]
+    if (a[0] === b[0] && a[1] !== b[1]) out.push({ achse: 'x', lage: a[0], von: Math.min(a[1], b[1]), bis: Math.max(a[1], b[1]) })
+    else if (a[1] === b[1] && a[0] !== b[0]) out.push({ achse: 'y', lage: a[1], von: Math.min(a[0], b[0]), bis: Math.max(a[0], b[0]) })
+  }
+  return out
+}
+
 function entwurfFuer(k: Kontext, zug: Zug, p: Punkt, frei: boolean): Dok {
   const d = zug.basis
   const r = k.raster
@@ -80,9 +117,18 @@ function entwurfFuer(k: Kontext, zug: Zug, p: Punkt, frei: boolean): Dok {
       if (a.art !== 'raum') return d
       let gx = einrasten(dx, r)
       let gy = einrasten(dy, r)
-      if (k.winkel && !frei) {
+      // Ein Raum geht frei in jede Richtung; mit Umschalt nur in einer Achse.
+      if (frei) {
         if (Math.abs(dx) >= Math.abs(dy)) gy = 0
         else gx = 0
+      }
+      // Magnet: liegt eine Wand nahe an einer Wand eines anderen Raums,
+      // rastet der Raum buendig an (ohne Umschalt in beiden Achsen).
+      const raum = raumVon(d, a.id)
+      if (raum) {
+        const [mx, my] = magnet(d, raum.id, raum.punkte, gx, gy, MAGNET_PX / k.massstab)
+        if (!frei || gy === 0) gx += mx
+        if (!frei || gx === 0) gy += my
       }
       return raumVerschieben(d, a.id, gx, gy)
     }
