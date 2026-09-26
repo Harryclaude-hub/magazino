@@ -26,7 +26,9 @@ import {
   LineSegments,
   Mesh,
   MeshLambertMaterial,
+  MeshBasicMaterial,
   MeshPhongMaterial,
+  PointLight,
   MOUSE,
   PerspectiveCamera,
   Plane,
@@ -43,7 +45,7 @@ import {
   type Object3D,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { hervorMitte, szeneRahmen, type Koerper, type TuerDreh, type Vec3 } from './szene'
+import { hervorMitte, szeneRahmen, type Koerper, type Licht3D, type TuerDreh, type Vec3 } from './szene'
 
 export type Blick = 'oben' | 'schraeg' | 'kiste'
 
@@ -64,13 +66,23 @@ export interface Motor {
   begehen(an: boolean, start: [number, number] | null): void
   /** Gehen per Knopf (Handy): Richtung halten, loslassen stoppt. */
   gehenKnopf(richtung: GehRichtung, an: boolean): void
+  /** Lichtquellen der Szene (Decke, Kueche, Lampen). E71. */
+  lichter(liste: Licht3D[]): void
+  /** Tag: Sonne, Lampen aus. Abend: wenig Himmel, alle Lampen an. */
+  lichtModus(modus: 'tag' | 'abend'): void
   /** Kurzer Klick in die Szene (nicht auf eine Tuer): die Stelle im Plan
    *  in cm, auf Moebeln die Stelle auf ihnen. null schaltet es aus. */
-  tippen(fn: ((xCm: number, yCm: number) => void) | null): void
+  tippen(fn: ((xCm: number, yCm: number, treffer: Treffer3D | null) => void) | null): void
   dispose(): void
 }
 
 export type GehRichtung = 'vor' | 'zurueck' | 'links' | 'rechts'
+
+/** Was ein Klick in 3D getroffen hat (Moebel oder Kiste). */
+export interface Treffer3D {
+  objekt?: string
+  kiste?: string
+}
 
 /** Ab so vielen Pixeln wird aus einem Druck auf ein Moebel ein Ziehen. */
 const ZIEH_PX = 4
@@ -155,7 +167,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
   // Umgebungslicht und mehr Sonne von schraeg (E64): jede Wandseite hat
   // ihren eigenen Ton, nichts wirkt grell. Sonne leicht warm, Umgebung
   // leicht kuehl, wie Tageslicht im Raum.
-  scene.add(new AmbientLight(0xf1f3f7, 0.5 * Math.PI))
+  const umgebung = new AmbientLight(0xf1f3f7, 0.5 * Math.PI)
+  scene.add(umgebung)
   const sonne = new DirectionalLight(0xfff4e6, 0.52 * Math.PI)
   sonne.position.set(-4, 8, 6)
   scene.add(sonne)
@@ -388,6 +401,43 @@ export function motorStarten(host: HTMLElement): Motor | null {
   /* Gleiche Farbe und Deckkraft: ein Material fuer alle. Waende bekommen je
    * ein eigenes, weil ihre Deckkraft einzeln wechselt. */
   const flaechenMat = new Map<string, MeshLambertMaterial | MeshPhongMaterial>()
+  /** Leuchten an der Decke: selbstleuchtend, am Abend warm-hell. */
+  const leuchteMat = new MeshBasicMaterial({ color: new Color('#e9e4da') })
+
+  /* ------------------------------------------------ Licht (E71) */
+  let punktLichter: PointLight[] = []
+  let modus: 'tag' | 'abend' = 'tag'
+  function lichterSetzen(liste: Licht3D[]) {
+    for (const l of punktLichter) {
+      scene.remove(l)
+      l.dispose()
+    }
+    // Hoechstens 20 Lichter, damit schwache Rechner fluessig bleiben.
+    punktLichter = liste.slice(0, 20).map((l) => {
+      const p = new PointLight(new Color(l.farbe), 0, l.art === 'kueche' ? 2.2 : 7, 2)
+      p.position.set(l.pos[0], l.pos[1], l.pos[2])
+      p.userData = { staerke: l.staerke, art: l.art }
+      scene.add(p)
+      return p
+    })
+    modusSetzen(modus)
+  }
+  function modusSetzen(m: 'tag' | 'abend') {
+    modus = m
+    const abend = m === 'abend'
+    umgebung.intensity = (abend ? 0.16 : 0.5) * Math.PI
+    umgebung.color.set(abend ? 0x9aa6c4 : 0xf1f3f7)
+    sonne.intensity = (abend ? 0.04 : 0.52) * Math.PI
+    gegen.intensity = (abend ? 0.03 : 0.16) * Math.PI
+    for (const l of punktLichter) {
+      const d = l.userData as { staerke: number; art: string }
+      // Candela (three rechnet physikalisch): Decke etwa 12, Kueche naeher dran.
+      const basis = d.art === 'kueche' ? 2.2 : d.art === 'lampe' ? 7 : 13
+      l.intensity = abend ? basis * d.staerke : 0
+    }
+    leuchteMat.color.set(abend ? '#fff4dc' : '#e9e4da')
+    rendern()
+  }
   const linienMat = new Map<string, LineBasicMaterial>()
   function flaecheMaterial(farbe: string, deckkraft: number, durch: boolean, glanz = 0): MeshLambertMaterial | MeshPhongMaterial {
     const key = `${farbe}|${deckkraft}|${durch}|${glanz}`
@@ -447,7 +497,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
       }
       const wand = k.innen !== null
       const durch = k.deckkraft < 1 || wand
-      const mat = wand
+      const mat = k.rolle === 'leuchte'
+        ? leuchteMat
+        : wand
         ? new MeshLambertMaterial({
             color: new Color(k.farbe),
             transparent: durch,
@@ -711,7 +763,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
         // (Wand) zaehlt der Boden unter dem Zeiger.
         const u = hit.object.userData as { objektId?: string; kisteId?: string }
         if (tippFn && (u.objektId || u.kisteId)) {
-          tippFn(Math.round(hit.point.x * 100), Math.round(hit.point.z * 100))
+          tippFn(Math.round(hit.point.x * 100), Math.round(hit.point.z * 100), { objekt: u.objektId, kiste: u.kisteId })
           return
         }
         break
@@ -719,9 +771,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
     }
     if (!tippFn) return
     const p = bodenPunkt(e)
-    if (p) tippFn(Math.round(p.x * 100), Math.round(p.z * 100))
+    if (p) tippFn(Math.round(p.x * 100), Math.round(p.z * 100), null)
   }
-  let tippFn: ((xCm: number, yCm: number) => void) | null = null
+  let tippFn: ((xCm: number, yCm: number, treffer: Treffer3D | null) => void) | null = null
   renderer.domElement.addEventListener('pointerdown', tippRunter)
   renderer.domElement.addEventListener('pointerup', tippHoch)
 
@@ -811,6 +863,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       if (!fn) renderer.domElement.style.cursor = ''
     },
     begehen: gehenAn,
+    lichter: lichterSetzen,
+    lichtModus: modusSetzen,
     tippen(fn) {
       tippFn = fn
     },
@@ -832,6 +886,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       renderer.domElement.removeEventListener('pointerdown', tippRunter)
       renderer.domElement.removeEventListener('pointerup', tippHoch)
       if (tuerLauf) cancelAnimationFrame(tuerLauf)
+      for (const l of punktLichter) l.dispose()
+      leuchteMat.dispose()
       renderer.domElement.removeEventListener('pointermove', schauBewegen)
       renderer.domElement.removeEventListener('pointerup', schauHoch)
       renderer.domElement.removeEventListener('pointercancel', schauHoch)

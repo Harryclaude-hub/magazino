@@ -427,3 +427,13 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Lueftung frei). Kueche: Link zur IKEA-Planung, Preis der ganzen Kueche
   nur an der Kuechenzeile. Sets (LAETT, NAEMMAROE): Preis am Tisch,
   Stuehle "im Set" ohne Preis. "TV-Bank" zaehlt als TV-Board.
+- **E71 Licht, Auswahl in 3D, Sitzbank, Haengelampe:** `lichter()` in
+  szene.ts: je Innenraum Deckenlicht (ab 12 m2 zwei entlang der langen
+  Seite), eigene Licht-Symbole ersetzen das automatische, Licht unter den
+  Kuechen-Oberschraenken, Haenge- und Stehlampen leuchten. Hoechstens 20
+  PointLights. 3D-Leiste: Tag / Abend / Automatisch (7 bis 19 Uhr Tag);
+  am Abend wenig Himmel, alle Lampen an, Deckenleuchten selbstleuchtend.
+  Im Zeichner waehlt ein Klick in 3D (Modus Auswaehlen) ein Moebel oder
+  eine Kiste; rechts stehen seine Eigenschaften, in 3D leuchtet es auf.
+  Neue Moebelarten: Sitzbank mit Stauraum (Kasten mit Klappen, Sitz- und
+  Rueckenpolster) und Haengelampe (Kabel, runder Schirm).

@@ -66,6 +66,7 @@ import { zReducer, zStart } from './zustand'
 import { woerterNachladen } from '../lib/i18n/woerter'
 import { zeichnerWoerter } from '../lib/i18n/bausteine/zeichner'
 import { Ueberlagerung3D } from '../components/plan3d/oeffnen'
+import type { Treffer3D } from '../components/plan3d/motor'
 
 // Die Saetze des Zeichners kommen mit seinem Code-Teil (siehe zeichner.ts).
 woerterNachladen(zeichnerWoerter)
@@ -477,7 +478,16 @@ export default function Zeichner({
   /* Klick in 3D (auch beim Begehen): wie ein Klick an derselben Stelle
    * im Plan, fuer die Werkzeuge, die etwas hinstellen (E66). */
   const stelltHin = werkzeug.name === 'kiste' || werkzeug.name === 'moebel' || werkzeug.name === 'regal' || werkzeug.name === 'schrank'
-  function planTippen(x: number, y: number) {
+  function planTippen(x: number, y: number, treffer: Treffer3D | null) {
+    if (werkzeug.name === 'auswahl') {
+      // Auswaehlen in 3D: Moebel oder Kiste waehlen, rechts erscheinen ihre Eigenschaften.
+      if (treffer?.kiste) dispatch({ typ: 'waehlen', auswahl: { art: 'kiste', id: treffer.kiste } })
+      else if (treffer?.objekt) dispatch({ typ: 'waehlen', auswahl: { art: 'objekt', id: treffer.objekt } })
+      else dispatch({ typ: 'waehlen', auswahl: null })
+      setRechtsZu(false)
+      return
+    }
+    if (!stelltHin) return
     const w = WERKZEUGE[werkzeug.name]
     ausfuehren(w.runter(kontext, { p: [x, y], frei: false }, werkzeug.s), werkzeug.name)
   }
@@ -1304,7 +1314,8 @@ export default function Zeichner({
               daten={z.dok}
               hervor={z.auswahl?.art === 'kiste' ? z.auswahl.id : kisteId}
               onSchliessen={() => setDrei(false)}
-              onTippen={stelltHin ? planTippen : undefined}
+              onTippen={stelltHin || werkzeug.name === 'auswahl' ? planTippen : undefined}
+              markiert={z.auswahl?.art === 'objekt' ? z.auswahl.id : null}
               onObjektZiehen={(id, dx, dy) => {
                 // Wie Ziehen in 2D: frei, nur das Raster gilt; die Datenbank prueft beim Speichern.
                 const o = z.dok.objekte.find((x) => x.id === id)

@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Crosshair, Eye, Footprints, Hand, Layers, Map as KarteIcon, Rotate3d, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clock, Crosshair, Eye, Footprints, Hand, Layers, Map as KarteIcon, Moon, Rotate3d, Sun, X } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
 import type { GrundrissDaten } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { Button } from '../ui'
 import { flaecheQm, innenPunkt } from '../plan/hilfe'
-import { motorStarten, type Blick, type GehRichtung, type Motor } from './motor'
+import { motorStarten, type Blick, type GehRichtung, type Motor, type Treffer3D } from './motor'
 import { farbenLesen } from './farben3d'
-import { baueSzene, hervorMitte, type Farben3D } from './szene'
+import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
 
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
  *
@@ -43,7 +43,9 @@ export interface Raum3DProps {
   onObjektZiehen?: (id: string, dxCm: number, dyCm: number) => void
   /** Kurzer Klick in die Szene (nicht auf eine Tuer), Stelle im Plan in
    *  cm: der Zeichner stellt dort eine Kiste oder ein Moebel hin. */
-  onTippen?: (xCm: number, yCm: number) => void
+  onTippen?: (xCm: number, yCm: number, treffer: Treffer3D | null) => void
+  /** Gewaehltes Moebel (Objekt-Id): leuchtet in 3D auf. */
+  markiert?: string | null
   className?: string
 }
 
@@ -82,7 +84,7 @@ function traegerKarte(daten: GrundrissDaten): Map<string, string> {
   return out
 }
 
-export default function Raum3D({ daten, raumId = null, hervor = null, onSchliessen, onObjektZiehen, onTippen, className }: Raum3DProps) {
+export default function Raum3D({ daten, raumId = null, hervor = null, markiert = null, onSchliessen, onObjektZiehen, onTippen, className }: Raum3DProps) {
   const { t } = useSprache()
   const host = useRef<HTMLDivElement>(null)
   const motor = useRef<Motor | null>(null)
@@ -110,6 +112,14 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
   }
   const ausgerichtet = useRef<string | null>(null)
   const [gehen, setGehen] = useState(false)
+  // Licht (E71): Automatisch nach Uhrzeit (7 bis 19 Uhr Tag), oder fest.
+  const [licht, setLicht] = useState<'auto' | 'tag' | 'abend'>('auto')
+  const [stunde, setStunde] = useState(() => new Date().getHours())
+  useEffect(() => {
+    const uhr = window.setInterval(() => setStunde(new Date().getHours()), 60_000)
+    return () => window.clearInterval(uhr)
+  }, [])
+  const lichtJetzt: 'tag' | 'abend' = licht === 'auto' ? (stunde >= 7 && stunde < 19 ? 'tag' : 'abend') : licht
 
   // Hell/Dunkel: die Klasse an <html> wechselt, die Tokens auch.
   useEffect(() => {
@@ -131,7 +141,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
     }
   }, [])
 
-  const koerper = useMemo(() => baueSzene(daten, farben, { raumId, hervor }), [daten, farben, raumId, hervor])
+  const koerper = useMemo(() => baueSzene(daten, farben, { raumId, hervor, markiert }), [daten, farben, raumId, hervor, markiert])
   const hatKiste = useMemo(() => hervorMitte(koerper) !== null, [koerper])
   const leer = koerper.length === 0
 
@@ -150,6 +160,14 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
     motor.current?.waendeHalb(halb)
   }, [halb, geht])
 
+  const lichtListe = useMemo(() => lichter(daten, raumId), [daten, raumId])
+  useEffect(() => {
+    motor.current?.lichter(lichtListe)
+  }, [lichtListe, geht])
+  useEffect(() => {
+    motor.current?.lichtModus(lichtJetzt)
+  }, [lichtJetzt, geht])
+
   useEffect(() => {
     motor.current?.hand(hand)
   }, [hand, geht])
@@ -167,7 +185,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
   })
   const kannTippen = Boolean(onTippen)
   useEffect(() => {
-    motor.current?.tippen(kannTippen ? (x, y) => tippRueck.current?.(x, y) : null)
+    motor.current?.tippen(kannTippen ? (x, y, tr) => tippRueck.current?.(x, y, tr) : null)
   }, [kannTippen, geht])
   /** Bedienung mit Fingern (Handy, Tablet): anderer Hinweis. */
   const beruehren = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
@@ -244,6 +262,26 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
           >
             <Rotate3d size={15} /> {t('plan3d.drehen')}
           </button>
+        </div>
+        <div className="flex rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('plan3d.licht')}>
+          {(
+            [
+              ['tag', Sun, 'plan3d.licht_tag'],
+              ['abend', Moon, 'plan3d.licht_abend'],
+              ['auto', Clock, 'plan3d.licht_auto'],
+            ] as const
+          ).map(([wert, Zeichen, schluessel]) => (
+            <button
+              key={wert}
+              type="button"
+              aria-pressed={licht === wert}
+              onClick={() => setLicht(wert)}
+              title={t(schluessel)}
+              className={cx('flex h-8 items-center gap-1 rounded-lg px-2 text-sm font-bold', licht === wert ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
+            >
+              <Zeichen size={15} /> <span className="hidden sm:inline">{t(schluessel)}</span>
+            </button>
+          ))}
         </div>
         <Button
           size="sm"

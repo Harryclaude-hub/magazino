@@ -229,6 +229,20 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
       ])
       return [rechteck(B * 0.1, T * 0.27, B * 0.9, T * 0.73), ...stuehle]
     }
+    case 'bank': {
+      const n = Math.max(1, Math.round(B / 60))
+      const fugen: Form[] = []
+      for (let i = 1; i < n; i++) fugen.push({ art: 'linie', a: [(B * i) / n, T * 0.3], b: [(B * i) / n, T] })
+      return [{ art: 'linie', a: [0, T * 0.3], b: [B, T * 0.3] }, ...fugen]
+    }
+    case 'haengelampe': {
+      const d = k * 0.3
+      return [
+        { art: 'kreis', m: [B / 2, T / 2], r: k * 0.45 },
+        { art: 'linie', a: [B / 2 - d, T / 2], b: [B / 2 + d, T / 2] },
+        { art: 'linie', a: [B / 2, T / 2 - d], b: [B / 2, T / 2 + d] },
+      ]
+    }
     case 'hochschrank':
       return [{ art: 'linie', a: [B * 0.1, T * 0.9], b: [B * 0.9, T * 0.9] }, { art: 'linie', a: [B * 0.85, T * 0.3], b: [B * 0.85, T * 0.7] }]
     case 'backofen':

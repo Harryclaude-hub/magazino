@@ -462,6 +462,34 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       return [...zeile(0, B, 0, T, true, H, 0, f).filter((q) => q.z1 <= H + 0.01), ...becken(8, 10, B - 8, T - 10, H, f)]
     case 'kuechenzeile':
       return kueche(o, decke, f)
+    case 'bank': {
+      // Sitzbank an der Wand (y = 0): Kasten mit Stauraum, Sitzpolster,
+      // Rueckenkissen je 60 cm an der Wand.
+      const korpus = eigen ?? f.weiss
+      const stoff = f.stoff
+      const sitz = Math.min(46, H)
+      const n = Math.max(1, Math.round(B / 60))
+      const out: Teil[] = [
+        t(2, 2, B - 2, T - 4, 0, 8, ton(korpus, 0.8)),
+        t(0, 0, B, T, 8, sitz - 8, korpus),
+        ...polster(0, B, n, 0, T, sitz - 8, sitz, ton(stoff, 1.1)),
+      ]
+      if (H > sitz + 10) out.push(...polster(0, B, n, 0, Math.min(14, T * 0.3), sitz, H, ton(stoff, 1.18)))
+      // Fronten des Kastens als Klappen (Stauraum).
+      for (let i = 0; i < n; i++) out.push(tuer((B / n) * i + 0.5, T - 1, (B / n) * (i + 1) - 0.5, T, 9, sitz - 9, ton(korpus, 1.03), i % 2 === 0 ? 'min' : 'max', 1))
+      return out
+    }
+    case 'haengelampe': {
+      // Haengt von der Decke: Kabel oben, Schirm unten (rund aus zwei Kreuzstuecken).
+      const schirm = Math.min(40, H * 0.45)
+      const farbe = eigen ?? '#c8a574'
+      return [
+        t(B / 2 - 0.4, T / 2 - 0.4, B / 2 + 0.4, T / 2 + 0.4, schirm, H, f.schwarz),
+        t(B * 0.15, 0, B * 0.85, T, 0, schirm, farbe),
+        t(0, T * 0.15, B, T * 0.85, 0, schirm, farbe),
+        t(B * 0.35, T * 0.35, B * 0.65, T * 0.65, -2, 0.5, f.waesche),
+      ]
+    }
     case 'hochschrank': {
       // Hochschrank mit Eichenfronten (z. B. mit eingebautem Kuehlschrank):
       // unten eine hohe Tuer, oben eine kurze, Sockel dunkel.

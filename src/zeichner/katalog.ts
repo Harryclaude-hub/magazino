@@ -46,6 +46,8 @@ export const KATALOG: Vorlage[] = [
   v({ schluessel: 'tisch', art: 'moebel', breite_cm: 160, tiefe_cm: 90, hoehe_cm: 75 }),
   v({ schluessel: 'esstisch_rund', art: 'moebel', breite_cm: 110, tiefe_cm: 110, hoehe_cm: 75 }),
   v({ schluessel: 'essgruppe', art: 'moebel', breite_cm: 200, tiefe_cm: 170, hoehe_cm: 90 }),
+  v({ schluessel: 'sitzbank', art: 'moebel', breite_cm: 180, tiefe_cm: 45, hoehe_cm: 85 }),
+  v({ schluessel: 'haengelampe', art: 'moebel', breite_cm: 45, tiefe_cm: 45, hoehe_cm: 90, boden_cm: 160 }),
   v({ schluessel: 'stuhl', art: 'moebel', breite_cm: 45, tiefe_cm: 50, hoehe_cm: 90 }),
   v({ schluessel: 'teppich', art: 'moebel', breite_cm: 200, tiefe_cm: 140, hoehe_cm: 1 }),
   v({ schluessel: 'stehlampe', art: 'moebel', breite_cm: 35, tiefe_cm: 35, hoehe_cm: 170 }),

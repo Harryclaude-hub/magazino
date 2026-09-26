@@ -11,7 +11,7 @@
  * Entschieden wird hier nichts, gezeigt wird, was grundriss_laden liefert.
  */
 import { flaeche2, objektGlobal, objektRechtecke, punktImPolygon, wandStuecke, zuUmriss, type Punkt } from '../../lib/geometrie.ts'
-import { innenNormale, kisteAusdehnung, oeffnungPunkte, spaltenBereich, streckenAbstand } from '../plan/hilfe.ts'
+import { flaecheQm, innenNormale, innenPunkt, kisteAusdehnung, oeffnungPunkte, spaltenBereich, streckenAbstand } from '../plan/hilfe.ts'
 import type { GrundrissDaten, Objekt, Raum } from '../../lib/types'
 import { moebelArt } from '../plan/moebelArt.ts'
 import { moebelTeile, ton, type Teil } from './moebel3d.ts'
@@ -110,6 +110,7 @@ export type Rolle =
   | 'brett'
   | 'kiste'
   | 'front'
+  | 'leuchte'
 
 export type Vec3 = [number, number, number]
 
@@ -169,6 +170,8 @@ export interface SzeneOptionen {
   raumId?: string | null
   /** Item-Id der gesuchten oder gewaehlten Kiste (oder eines Moebels). */
   hervor?: string | null
+  /** Im Zeichner gewaehltes Moebel (Objekt-Id): leuchtet auf. */
+  markiert?: string | null
 }
 
 /** Wandstaerke in cm, wie in 2D (PlanBild). */
@@ -466,10 +469,10 @@ function lokalQuader(
   return quader(rolle, [m((x0 + x1) / 2), m((unten + oben) / 2), m((y0 + y1) / 2)], [m(x1 - x0), m(oben - unten), m(y1 - y0)], farbe, mehr)
 }
 
-function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Raum[]): Koerper[] {
+function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Raum[], markiert: string | null = null): Koerper[] {
   const out: Koerper[] = []
   for (const o of liste) {
-    const ist = !!hervor && o.item_id === hervor
+    const ist = (!!hervor && o.item_id === hervor) || (!!markiert && o.id === markiert)
     const farbe = ist ? f.hervor : (o.farbe ?? f.objekt)
     const mehr = { kante: ist ? f.kisteRand : f.objektRand, id: o.id, hervor: ist }
     const H = o.hoehe_cm
@@ -633,9 +636,76 @@ export function baueSzene(daten: GrundrissDaten, farben: Farben3D, optionen: Sze
   }
   out.push(...waende(daten, raeume, farben, raumId))
   out.push(...oeffnungen(daten, raeume, farben, raumId))
-  out.push(...objekte(raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte, farben, hervor, raeume))
+  out.push(...objekte(raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte, farben, hervor, raeume, optionen.markiert ?? null))
   out.push(...kisten(daten, farben, raumId, hervor))
   out.push(...symbole(daten, sichtbar, farben))
+  // Deckenleuchten, wo der Raum keine eigene hat (E71).
+  for (const l of lichter(daten, raumId)) {
+    if (l.leuchte) out.push(quader('leuchte', [l.pos[0], l.pos[1] + 0.03, l.pos[2]], [0.34, 0.03, 0.34], farben.waesche, { kante: farben.metall }))
+  }
+  return out
+}
+
+/** Eine Lichtquelle in Metern (E71). leuchte: an der Decke eine Leuchte
+ *  zeichnen (automatische Deckenlichter). */
+export interface Licht3D {
+  pos: Vec3
+  staerke: number
+  farbe: string
+  art: 'decke' | 'kueche' | 'lampe'
+  leuchte: boolean
+}
+
+/** Wo es Licht gibt: je Raum Deckenlicht (ab 12 m2 zwei, entlang der
+ *  langen Seite), eigene Licht-Symbole statt des automatischen, unter den
+ *  Oberschraenken der Kueche, in Haenge- und Stehlampen. */
+export function lichter(daten: GrundrissDaten, raumId: string | null = null): Licht3D[] {
+  const raeume = daten.raeume.filter((r) => r.punkte.length >= 3 && (!raumId || r.id === raumId))
+  const out: Licht3D[] = []
+  const eigene = (daten.grundriss.symbole ?? []).filter((s) => s.art === 'licht')
+  for (const r of raeume) {
+    const H = r.hoehe_cm
+    const hier = eigene.filter((s) => punktImPolygon(zuUmriss(r.punkte), s.x, s.y))
+    if (hier.length) {
+      for (const s of hier) out.push({ pos: [m(s.x), m(H - 6), m(s.y)], staerke: 1, farbe: '#ffe2b8', art: 'decke', leuchte: false })
+      continue
+    }
+    const p = innenPunkt(r.punkte)
+    const flaeche = flaecheQm(r.punkte)
+    const xs = r.punkte.map((q) => q[0])
+    const ys = r.punkte.map((q) => q[1])
+    const breit = Math.max(...xs) - Math.min(...xs)
+    const tief = Math.max(...ys) - Math.min(...ys)
+    const draussen = r.art === 'draussen'
+    if (flaeche >= 12 && !draussen) {
+      // Zwei Leuchten entlang der langen Seite, beide sicher im Raum.
+      const d = (breit >= tief ? breit : tief) / 4
+      for (const s of [-1, 1]) {
+        const q: [number, number] = breit >= tief ? [p[0] + s * d, p[1]] : [p[0], p[1] + s * d]
+        const im = punktImPolygon(zuUmriss(r.punkte), q[0], q[1])
+        const z = im ? q : p
+        out.push({ pos: [m(z[0]), m(H - 6), m(z[1])], staerke: 0.8, farbe: '#ffe2b8', art: 'decke', leuchte: true })
+      }
+    } else {
+      out.push({ pos: [m(p[0]), m(H - 6), m(p[1])], staerke: draussen ? 0.5 : Math.min(1, 0.55 + flaeche / 20), farbe: draussen ? '#ffd29a' : '#ffe2b8', art: 'decke', leuchte: true })
+    }
+  }
+  const drin = new Set(raeume.map((r) => r.id))
+  for (const o of daten.objekte) {
+    if (!drin.has(o.raum_id)) continue
+    const a = moebelArt(o.name ?? '')
+    const boden = o.boden_cm ?? 0
+    if (a === 'kuechenzeile') {
+      // LED unter den Oberschraenken: je Arm ein Licht auf 145 cm.
+      for (const q of objektRechtecke(o)) {
+        out.push({ pos: [m((q.x0 + q.x1) / 2), m(boden + o.hoehe_cm + 50), m((q.y0 + q.y1) / 2)], staerke: 0.35, farbe: '#fff1d6', art: 'kueche', leuchte: false })
+      }
+    } else if (a === 'haengelampe' || a === 'stehlampe') {
+      const [cx, cy] = objektGlobal(o, o.breite_cm / 2, o.tiefe_cm / 2)
+      const z = a === 'haengelampe' ? boden - 4 : boden + o.hoehe_cm - 12
+      out.push({ pos: [m(cx), m(z), m(cy)], staerke: a === 'haengelampe' ? 0.6 : 0.45, farbe: '#ffd9a8', art: 'lampe', leuchte: false })
+    }
+  }
   return out
 }
 
@@ -647,7 +717,7 @@ function symbole(daten: GrundrissDaten, raeume: Raum[], f: Farben3D): Koerper[] 
     const r = raeume.find((x) => punktImPolygon(zuUmriss(x.punkte), s.x, s.y))
     if (!r) continue
     if (s.art === 'licht') {
-      out.push(quader('moebel', [m(s.x), m(r.hoehe_cm - 2), m(s.y)], [m(30), m(4), m(30)], f.strom))
+      out.push(quader('leuchte', [m(s.x), m(r.hoehe_cm - 2), m(s.y)], [m(30), m(4), m(30)], f.waesche, { kante: f.metall }))
     } else {
       const h = s.art === 'schalter' ? 105 : 30
       out.push(quader('moebel', [m(s.x), m(h), m(s.y)], [m(9), m(9), m(9)], s.art === 'steckdose' ? f.steckdose : f.strom, { kante: f.objektRand }))

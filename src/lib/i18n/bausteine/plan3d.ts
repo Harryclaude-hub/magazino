@@ -38,6 +38,10 @@ export const plan3dWoerter: Woerterbuch = {
   'plan3d.modus': { de: 'Linke Maustaste', ar: 'زر الفأرة الأيسر' },
   'plan3d.hand': { de: 'Hand', ar: 'يد' },
   'plan3d.begehen': { de: 'Begehen', ar: 'تجوّل' },
+  'plan3d.licht': { de: 'Licht', ar: 'الإضاءة' },
+  'plan3d.licht_tag': { de: 'Tag', ar: 'نهار' },
+  'plan3d.licht_abend': { de: 'Abend', ar: 'مساء' },
+  'plan3d.licht_auto': { de: 'Automatisch', ar: 'تلقائي' },
   'plan3d.begehen_ende': { de: 'Begehen beenden', ar: 'إنهاء التجوّل' },
   'plan3d.begehen_hilfe': {
     de: 'Durch die Wohnung gehen, als wärst du drin.',
