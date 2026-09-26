@@ -37,6 +37,8 @@ export interface LeistenEintrag {
   label: string
   active: boolean
   badge?: number
+  /** Name fuer die Fuehrung (data-tour). */
+  tour?: string
 }
 
 export function Seitenleiste({
@@ -75,6 +77,7 @@ export function Seitenleiste({
 
   return (
     <aside
+      data-tour="leiste"
       className={cx(
         'no-print sticky top-0 hidden h-screen shrink-0 flex-col border-e border-line bg-surface lg:flex',
         zu ? 'w-[4.5rem]' : 'w-60',
@@ -96,6 +99,7 @@ export function Seitenleiste({
               <p className="text-sm text-muted">{t('leiste.keine_umzuege')}</p>
             ) : (
               <select
+                data-tour="leiste-umzug"
                 value={projektId ?? ''}
                 onChange={(e) => e.target.value && nav(`/app/p/${e.target.value}`)}
                 className="h-10 w-full truncate rounded-xl border-2 border-line bg-paper px-2 text-sm font-bold text-ink"
@@ -111,6 +115,7 @@ export function Seitenleiste({
           </div>
         ) : null}
         <button
+          data-tour="leiste-klappen"
           onClick={umschalten}
           aria-label={t(zu ? 'leiste.aufklappen' : 'leiste.einklappen')}
           title={t(zu ? 'leiste.aufklappen' : 'leiste.einklappen')}
@@ -128,6 +133,7 @@ export function Seitenleiste({
           <Link
             key={e.label}
             to={e.to}
+            data-tour={e.tour}
             title={zu ? e.label : undefined}
             aria-label={e.label}
             aria-current={e.active ? 'page' : undefined}
@@ -179,6 +185,7 @@ export function SuchKopf() {
   return (
     <div className="no-print hidden border-b border-line bg-surface/80 lg:block">
       <form
+        data-tour="suchkopf"
         className="mx-auto flex h-12 max-w-[1600px] items-center gap-2 px-5"
         onSubmit={(e) => {
           e.preventDefault()

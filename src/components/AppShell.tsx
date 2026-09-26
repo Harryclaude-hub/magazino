@@ -5,6 +5,7 @@ import { cx } from '../lib/util'
 import { Avatar } from './ui'
 import { displayNameOf, useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
+import { ErklaerKnopf } from './Fuehrung'
 
 /** Kopfzeile. Rechts steht immer das eigene Profil, so wie bei den grossen
  *  Messengern. Zusaetzliche Knoepfe kommen links daneben. */
@@ -44,6 +45,7 @@ export function AppHeader({
       >
         {back ? (
           <button
+            data-tour="zurueck"
             onClick={() => (typeof back === 'string' ? nav(back) : nav(-1))}
             aria-label={t('aktion.zurueck')}
             title={t('aktion.zurueck')}
@@ -60,8 +62,10 @@ export function AppHeader({
 
         <div className="flex shrink-0 items-center gap-1.5">
           {actions}
+          <ErklaerKnopf />
           {showProfile ? (
             <Link
+              data-tour="profil"
               to="/app/einstellungen"
               aria-label={t('kopf.profil')}
               title={t('kopf.profil')}
@@ -105,6 +109,7 @@ export function NavTab({
   active,
   badge,
   raised,
+  tour,
 }: {
   to: string
   icon: ReactNode
@@ -112,11 +117,14 @@ export function NavTab({
   active: boolean
   badge?: number
   raised?: boolean
+  /** Name fuer die Fuehrung (data-tour). */
+  tour?: string
 }) {
   if (raised) {
     return (
       <Link
         to={to}
+        data-tour={tour}
         aria-label={label}
         aria-current={active ? 'page' : undefined}
         className="relative flex flex-1 flex-col items-center gap-1 py-1.5 text-[0.6875rem] font-bold text-ink"
@@ -136,6 +144,7 @@ export function NavTab({
   return (
     <Link
       to={to}
+      data-tour={tour}
       aria-current={active ? 'page' : undefined}
       className={cx(
         'relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[0.6875rem] font-bold transition',

@@ -52,7 +52,7 @@ function TagRow({
         {/* Das Kuerzel ist die Verbindung zur Nummer auf dem Etikett, darum
             steht es so gross wie moeglich. Es bleibt immer von links nach
             rechts, auch im arabischen Satz. */}
-        <Link to={to} className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-1">
+        <Link data-tour="bereiche-zeile" to={to} className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-1">
           <span
             dir="ltr"
             className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl font-mono font-black ${
@@ -73,14 +73,14 @@ function TagRow({
         </Link>
         {canEdit ? (
           <div className="flex shrink-0 gap-1.5">
-            <IconButton
+            <IconButton data-tour="bereiche-bearbeiten"
               label={t('bereiche.bearbeiten_label', { name: tag.name })}
               size="sm"
               onClick={onEdit}
             >
               <Pencil size={17} />
             </IconButton>
-            <IconButton
+            <IconButton data-tour="bereiche-loeschen"
               label={t('bereiche.loeschen_label', { name: tag.name })}
               size="sm"
               tone="danger"
@@ -159,7 +159,7 @@ export default function Areas() {
       <SectionTitle
         action={
           canEdit ? (
-            <Button size="sm" variant="soft" onClick={() => openNew(kind)}>
+            <Button data-tour="bereiche-neu" size="sm" variant="soft" onClick={() => openNew(kind)}>
               <Plus size={16} /> {kind === 'room' ? t('begriff.zimmer') : t('begriff.person')}
             </Button>
           ) : null

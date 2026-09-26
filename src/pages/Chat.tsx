@@ -821,7 +821,7 @@ export default function Chat() {
         back={`/app/p/${project.id}`}
         actions={
           <>
-            <IconButton
+            <IconButton data-tour="chat-anruf"
               label={t('chat.anrufen')}
               size="sm"
               onClick={() => void calls.start(false)}
@@ -829,7 +829,7 @@ export default function Chat() {
             >
               <Phone size={20} />
             </IconButton>
-            <IconButton
+            <IconButton data-tour="chat-video"
               label={t('chat.videoanruf')}
               size="sm"
               onClick={() => void calls.start(true)}

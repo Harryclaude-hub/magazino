@@ -53,7 +53,7 @@ function ProjectCard({ row }: { row: ProjectWithStats }) {
   const t = useT()
   const { project, stats, role, members } = row
   return (
-    <Link to={`/app/p/${project.id}`} className="block">
+    <Link data-tour="umzuege-karte" to={`/app/p/${project.id}`} className="block">
       <Card className="p-5 transition hover:border-ink/25 hover:shadow-sm active:scale-[0.99]">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -169,10 +169,10 @@ export default function Dashboard() {
           <p className="t-sub mt-1">{t('umzuege.blick')}</p>
 
           <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
-            <Button size="lg" full className="sm:w-auto" onClick={() => openNew(true)}>
+            <Button data-tour="umzuege-neu" size="lg" full className="sm:w-auto" onClick={() => openNew(true)}>
               <Plus size={20} /> {t('umzuege.neu')}
             </Button>
-            <Button
+            <Button data-tour="umzuege-beitreten"
               size="lg"
               variant="outline"
               full

@@ -169,7 +169,7 @@ export default function ProjectHome() {
         subtitle={project.note ?? tn('begriff.mitglieder_anzahl', members.length)}
         back="/app"
         actions={
-          <IconButton
+          <IconButton data-tour="umzug-einstellen"
             label={t('umzuege.einstellen')}
             onClick={() => nav(`${base}/einstellungen`)}
           >
@@ -214,7 +214,7 @@ export default function ProjectHome() {
               </div>
             </Card>
 
-            <div className="mb-5 grid grid-cols-3 gap-2">
+            <div data-tour="umzug-zahlen" className="mb-5 grid grid-cols-3 gap-2">
               <StatTile
                 label={t('status.open')}
                 value={s?.items_open ?? 0}
@@ -238,7 +238,7 @@ export default function ProjectHome() {
         )}
 
         {/* Schnellzugriff */}
-        <div className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div data-tour="umzug-schnell" className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           {canEdit ? (
             <Quick
               icon={<Plus size={26} />}
@@ -281,7 +281,7 @@ export default function ProjectHome() {
         {/* Zimmer */}
         <SectionTitle
           action={
-            <Link to={`${base}/bereiche`}>
+            <Link data-tour="umzug-zimmer" to={`${base}/bereiche`}>
               <Button variant="outline" size="sm">
                 {t('umzuege.verwalten')}
               </Button>
@@ -331,7 +331,7 @@ export default function ProjectHome() {
           <>
             <SectionTitle
               action={
-                <Link to={`${base}/bereiche`}>
+                <Link data-tour="umzug-personen" to={`${base}/bereiche`}>
                   <Button variant="outline" size="sm">
                     {t('umzuege.verwalten')}
                   </Button>
@@ -385,7 +385,7 @@ export default function ProjectHome() {
           )}
         </Card>
 
-        <div className="mt-6 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+        <div data-tour="umzug-fuss" className="mt-6 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
           <Link to={`${base}/kisten`} className="block">
             <Button variant="soft" full>
               <Boxes size={18} /> {t('umzuege.alle_kisten')}

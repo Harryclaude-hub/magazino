@@ -1,6 +1,6 @@
 # Kistly: Uebergabe fuer eine neue (lokale) Claude-Sitzung
 
-Stand: 26.09.2026. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
+Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 
 ## Wo alles ist
 
@@ -21,11 +21,16 @@ Stand: 26.09.2026. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
   altes Raster entfernt.
 - Nachtrag: Kisten duerfen bis 40 cm aus dem Regal ragen (angezeigt),
   Fuellstand 0 bis 100 % (Gruen bis Rot), Grundriss frei verschiebbar.
+- Nachtrag 26.09. abends (E37 bis E44): Mausrad zoomt, Ziehen verschiebt
+  die Ansicht auch beim Zeichnen, einzelne Gegenstaende mit Foto und
+  ungefaehrer Groesse, Zimmerzahlen (Moebel, Regale, Kisten, Gegenstaende,
+  Inhalt je Regal), 3D fluessiger mit Moebel-Ziehen, 3D auch am Handy,
+  Fuehrung "Erklaerung" auf jeder Seite (Deutsch und Arabisch).
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E36.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E44.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler
@@ -36,7 +41,10 @@ Stand: 26.09.2026. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 ## Offen (naechste Schritte)
 
 1. Mit echtem Handy testen: Platz waehlen, Zoomen mit zwei Fingern, 3D mit
-   echten Daten am Computer.
+   echten Daten am Computer und am Handy, Moebel in 3D ziehen, die
+   Fuehrung auf jeder Seite (Deutsch und Arabisch), Gegenstand mit Foto
+   anlegen. Die Fuehrung und das Gegenstand-Fenster sind nur auf einer
+   lokalen Testseite geprueft, nicht mit Anmeldung.
 2. Fuellstand auch beim Anlegen einer Kiste und im CSV-Export.
 3. Moebel mit ihrer Inhaltsliste nur im Zeichner verknuepfbar; evtl. auch
    auf der Moebelseite.

@@ -80,7 +80,7 @@ export function ZimmerInhalt({ projectId, tagId, stand }: { projectId: string; t
   )
 
   return (
-    <section className="mb-6">
+    <section data-tour="zimmer-inhalt" className="mb-6">
       <SectionTitle>{t('gegenstand.im_zimmer')}</SectionTitle>
       {daten.loading ? (
         <p className="t-sub text-center">{t('bereichsseite.zahlen_laden')}</p>

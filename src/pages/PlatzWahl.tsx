@@ -648,10 +648,10 @@ function Stelle({
                   <span className="t-sub basis-full">
                     {t('platz.masse', { masse: t('groessen.eigene_masse', { l: masse.laenge_cm, b: masse.breite_cm, h: masse.hoehe_cm }) })}
                   </span>
-                  <Button variant="outline" className="min-h-12" onClick={() => setDrehung((d) => (d === 0 ? 90 : 0))}>
+                  <Button data-tour="platz-drehen" variant="outline" className="min-h-12" onClick={() => setDrehung((d) => (d === 0 ? 90 : 0))}>
                     <RotateCwSquare size={18} /> {t('platz.drehen')}
                   </Button>
-                  <Button
+                  <Button data-tour="platz-fein"
                     variant="outline"
                     className="min-h-12"
                     aria-expanded={fein}
@@ -745,7 +745,7 @@ function Stelle({
                   <span className="hidden shrink-0 sm:block">
                     <CodeChip code={item.code} size="sm" />
                   </span>
-                  <Button
+                  <Button data-tour="platz-speichern"
                     size="lg"
                     full
                     className="sm:w-auto sm:flex-1"

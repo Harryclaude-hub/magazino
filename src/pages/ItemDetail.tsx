@@ -462,13 +462,13 @@ export default function ItemDetail() {
         actions={
           canEdit ? (
             <>
-              <IconButton label={t('marken.markieren')} size="sm" onClick={() => setMarkieren(true)}>
+              <IconButton data-tour="kiste-markieren" label={t('marken.markieren')} size="sm" onClick={() => setMarkieren(true)}>
                 <Palette size={19} />
               </IconButton>
-              <IconButton label={t('kisten.bearbeiten')} size="sm" onClick={() => setEditOpen(true)}>
+              <IconButton data-tour="kiste-bearbeiten" label={t('kisten.bearbeiten')} size="sm" onClick={() => setEditOpen(true)}>
                 <Pencil size={19} />
               </IconButton>
-              <IconButton
+              <IconButton data-tour="kiste-loeschen"
                 label={t('kisten.loeschen')}
                 tone="danger"
                 size="sm"
@@ -510,7 +510,7 @@ export default function ItemDetail() {
               <SectionTitle
                 action={
                   canEdit && photos.some((p) => p.art === 'foto') ? (
-                    <Button size="sm" variant="outline" onClick={() => setBildLesen(true)}>
+                    <Button data-tour="kiste-foto-lesen" size="sm" variant="outline" onClick={() => setBildLesen(true)}>
                       <Sparkles size={16} />
                       {t('bildki.knopf_kurz')}
                     </Button>
@@ -670,7 +670,7 @@ export default function ItemDetail() {
 
                 {canEdit ? (
                   <div className="flex gap-2 border-t border-line p-3">
-                    <Input
+                    <Input data-tour="kiste-eintrag"
                       className="min-w-0"
                       value={newEntry}
                       onChange={(e) => setNewEntry(e.target.value)}
@@ -699,7 +699,7 @@ export default function ItemDetail() {
               <SectionTitle
                 action={
                   canEdit ? (
-                    <Button
+                    <Button data-tour="kiste-foto"
                       size="sm"
                       variant="soft"
                       loading={uploading}
@@ -736,7 +736,7 @@ export default function ItemDetail() {
                     <Layers size={18} /> {t('schichten.waehlen')}
                   </p>
                   <p className="t-sub mt-1.5">{t('schichten.hinweis')}</p>
-                  <div className="-mx-1 mt-3 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1">
+                  <div data-tour="kiste-schicht" className="-mx-1 mt-3 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1">
                     <Chip active={neueSchicht === null} onClick={() => setNeueSchicht(null)}>
                       {t('schichten.ohne')}
                     </Chip>
@@ -984,7 +984,7 @@ export default function ItemDetail() {
           <div className="contents lg:sticky lg:top-20 lg:block lg:min-w-0">
             {/* Wo die Kiste steht (START 5.8): am Handy ganz unten, am Computer
               die mittlere Spalte, die beim Rollen stehen bleibt. */}
-            <section id="lage" className="order-6 min-w-0 scroll-mt-24 lg:order-none">
+            <section data-tour="kiste-lage" id="lage" className="order-6 min-w-0 scroll-mt-24 lg:order-none">
               <SectionTitle>{t(item.kind === 'furniture' ? 'lage.titel_moebel' : 'lage.titel')}</SectionTitle>
               <NahLaden platzhalter={<NahPlatzhalter text={t('lage.laedt')} />}>
                 <KistenLage
@@ -1040,7 +1040,7 @@ export default function ItemDetail() {
                 <p className="mb-2.5 text-sm font-black uppercase tracking-wider text-muted">
                   {t('begriff.status')}
                 </p>
-                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
+                <div data-tour="kiste-status" className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
                   {STATI.map((s) => (
                     <Button
                       key={s}
@@ -1065,7 +1065,7 @@ export default function ItemDetail() {
               </div>
 
               {/* Wie voll (0033): Tipp-Knoepfe und feiner Regler, sofort gespeichert. */}
-              <div className="border-t border-line p-4">
+              <div data-tour="kiste-fuellstand" className="border-t border-line p-4">
                 <FuellstandFeld
                   wert={item.fuellstand ?? null}
                   canEdit={canEdit}
@@ -1084,7 +1084,7 @@ export default function ItemDetail() {
                       im Bearbeiten: suchen muss auch, wer nur schauen darf.
                       Ein Sprung nach unten zum Lageplan. */}
                   {item.kind !== 'furniture' ? (
-                    <Button variant="soft" full onClick={zurLage} className="lg:hidden">
+                    <Button data-tour="kiste-wo" variant="soft" full onClick={zurLage} className="lg:hidden">
                       <MapPin size={18} /> {t('lage.wo_steht_sie')}
                     </Button>
                   ) : null}
@@ -1104,10 +1104,10 @@ export default function ItemDetail() {
                 <div className="flex flex-col items-center gap-3 border-t border-line pt-4">
                   <QrPanel value={labelUrl(item.id)} code={item.code} size={168} />
                   <div className="grid w-full gap-2">
-                    <Button variant="soft" full onClick={() => void copyLink(item.id)}>
+                    <Button data-tour="kiste-link" variant="soft" full onClick={() => void copyLink(item.id)}>
                       <Copy size={18} /> {t('kisten.link_kopieren')}
                     </Button>
-                    <Link to={printHref} className="block">
+                    <Link data-tour="kiste-druck" to={printHref} className="block">
                       <Button variant="outline" full>
                         <Printer size={18} /> {t('kisten.druckansicht')}
                       </Button>

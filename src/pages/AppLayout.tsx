@@ -130,38 +130,43 @@ export default function AppLayout() {
         <Seitenleiste
           projektId={projektId}
           eintraege={[
-            { to: '/app', icon: LeistenSymbole.umzuege, label: t('nav.umzuege'), active: path === '/app' },
+            { to: '/app', icon: LeistenSymbole.umzuege, label: t('nav.umzuege'), active: path === '/app', tour: 'nav-umzuege' },
             {
               to: itemsTo,
               icon: LeistenSymbole.kisten,
               label: t('nav.kisten'),
               active: inProject && path.includes('/kisten'),
+              tour: 'nav-kisten',
             },
             {
               to: zimmerTo,
               icon: LeistenSymbole.zimmer,
               label: t('leiste.zimmer'),
               active: inProject && (path.includes('/bereiche') || path.includes('/zimmer/')),
+              tour: 'nav-zimmer',
             },
             {
               to: grundrissTo,
               icon: LeistenSymbole.grundriss,
               label: t('leiste.grundriss'),
               active: inProject && path.includes('/grundriss'),
+              tour: 'nav-grundriss',
             },
-            { to: '/app/suche', icon: LeistenSymbole.suchen, label: t('nav.suchen'), active: path === '/app/suche' },
+            { to: '/app/suche', icon: LeistenSymbole.suchen, label: t('nav.suchen'), active: path === '/app/suche', tour: 'nav-suchen' },
             {
               to: '/app/scan',
               icon: LeistenSymbole.scannen,
               label: t('nav.scannen'),
               active: path === '/app/scan' || path.endsWith('/scan'),
+              tour: 'nav-scannen',
             },
-            { to: chatTo, icon: LeistenSymbole.chat, label: t('nav.chat'), active: inChat, badge: unread },
+            { to: chatTo, icon: LeistenSymbole.chat, label: t('nav.chat'), active: inChat, badge: unread, tour: 'nav-chat' },
             {
               to: '/app/einstellungen',
               icon: LeistenSymbole.profil,
               label: t('nav.profil'),
               active: path === '/app/einstellungen',
+              tour: 'nav-profil',
             },
           ]}
         />
@@ -177,18 +182,21 @@ export default function AppLayout() {
             to="/app"
             icon={<Warehouse size={21} />}
             label={t('nav.umzuege')}
+            tour="nav-umzuege"
             active={path === '/app'}
           />
           <NavTab
             to={itemsTo}
             icon={<Boxes size={21} />}
             label={t('nav.kisten')}
+            tour="nav-kisten"
             active={inProject && path.includes('/kisten')}
           />
           <NavTab
             to="/app/scan"
             icon={<ScanLine size={26} />}
             label={t('nav.scannen')}
+            tour="nav-scannen"
             active={path === '/app/scan' || path.endsWith('/scan')}
             raised
           />
@@ -196,12 +204,14 @@ export default function AppLayout() {
             to="/app/suche"
             icon={<Search size={21} />}
             label={t('nav.suchen')}
+            tour="nav-suchen"
             active={path === '/app/suche'}
           />
           <NavTab
             to={chatTo}
             icon={<MessageCircle size={21} />}
             label={t('nav.chat')}
+            tour="nav-chat"
             active={inChat}
             badge={unread}
           />
@@ -209,6 +219,7 @@ export default function AppLayout() {
             to="/app/einstellungen"
             icon={<User size={21} />}
             label={t('nav.profil')}
+            tour="nav-profil"
             active={path === '/app/einstellungen'}
           />
         </BottomNav>

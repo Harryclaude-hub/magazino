@@ -39,7 +39,7 @@ export const gegenstand: Woerterbuch = {
     ar: 'تم إنشاء {code}، لكن الصورة لم تُحفظ: {grund}',
   },
   'gegenstand.speichern': { de: 'Anlegen', ar: 'إنشاء' },
-  'gegenstand.und_noch_einer': { de: 'Anlegen und noch einer', ar: 'إنشاء وإضافة آخر' },
+  'gegenstand.und_noch_einer': { de: 'Noch einer', ar: 'وآخر' },
 
   // Zimmerseite: was im Zimmer steht
   'gegenstand.im_zimmer': { de: 'Im Zimmer', ar: 'في الغرفة' },

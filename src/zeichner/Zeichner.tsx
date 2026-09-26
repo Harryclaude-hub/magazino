@@ -873,7 +873,7 @@ export default function Zeichner({
     <div className="flex h-full min-h-0 flex-col bg-paper">
       {/* Kopfzeile des Zeichners */}
       <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2">
-        <Button
+        <Button data-tour="z-rueck"
           size="sm"
           variant="outline"
           onClick={() => dispatch({ typ: 'zurueck' })}
@@ -882,7 +882,7 @@ export default function Zeichner({
         >
           <Undo2 size={16} className="spiegeln" /> {t('zeichner.zurueck')}
         </Button>
-        <Button
+        <Button data-tour="z-vor"
           size="sm"
           variant="outline"
           onClick={() => dispatch({ typ: 'vor' })}
@@ -891,13 +891,13 @@ export default function Zeichner({
         >
           <Redo2 size={16} className="spiegeln" /> {t('zeichner.vor')}
         </Button>
-        <p className="t-sub min-w-0 flex-1 truncate px-2">{hilfe}</p>
+        <p data-tour="z-hilfe" className="t-sub min-w-0 flex-1 truncate px-2">{hilfe}</p>
         {vorschau.eingabe ? (
           <span className="t-serial rounded-lg border-2 border-ink bg-paper px-2 py-1 text-base" aria-live="polite">
             {vorschau.eingabe}
           </span>
         ) : null}
-        <div className="flex rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('plan3d.umschalter')}>
+        <div data-tour="z-ansicht" className="flex rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('plan3d.umschalter')}>
           <button
             type="button"
             aria-pressed={!drei}
@@ -915,7 +915,9 @@ export default function Zeichner({
             {t('plan3d.drei_d')}
           </button>
         </div>
-        <SpeicherAnzeige status={status} onNochmal={() => { setStatus('gespeichert'); setLeiste(null) }} />
+        <span data-tour="z-speichern" className="flex">
+          <SpeicherAnzeige status={status} onNochmal={() => { setStatus('gespeichert'); setLeiste(null) }} />
+        </span>
       </div>
 
       {leiste ? (
@@ -941,7 +943,7 @@ export default function Zeichner({
       ) : null}
 
       {offeneZimmer.length > 0 ? (
-        <div className="flex items-center gap-2 overflow-x-auto border-b border-line bg-surface px-3 py-1.5 scrollbar-thin">
+        <div data-tour="z-zimmer" className="flex items-center gap-2 overflow-x-auto border-b border-line bg-surface px-3 py-1.5 scrollbar-thin">
           <span className="shrink-0 text-sm font-bold text-muted">{t('zeichner.noch_nicht_gezeichnet')}</span>
           {offeneZimmer.map((r) => (
             <button
@@ -969,9 +971,9 @@ export default function Zeichner({
 
       <div className="flex min-h-0 flex-1">
         {/* Werkzeuge */}
-        <nav className="flex w-52 shrink-0 flex-col gap-1 overflow-y-auto border-e border-line bg-surface p-2" aria-label={t('zeichner.werkzeuge')}>
+        <nav data-tour="z-werkzeuge" className="flex w-52 shrink-0 flex-col gap-1 overflow-y-auto border-e border-line bg-surface p-2" aria-label={t('zeichner.werkzeuge')}>
           {REIHENFOLGE.map((name) => (
-            <button
+            <button data-tour={`z-w-${name}`}
               key={name}
               type="button"
               onClick={() => wechseln(name)}
@@ -989,7 +991,7 @@ export default function Zeichner({
               <kbd className="t-serial rounded border border-current/30 px-1 text-xs opacity-70">{tastenZeichen(name)}</kbd>
             </button>
           ))}
-          <button
+          <button data-tour="z-rechteck"
             type="button"
             onClick={() => wechseln('raum', true)}
             className="flex min-h-9 items-center gap-2 rounded-xl px-2.5 text-start text-sm font-bold text-muted hover:bg-raised hover:text-ink"
@@ -1000,7 +1002,7 @@ export default function Zeichner({
         </nav>
 
         {/* Zeichenflaeche */}
-        <div
+        <div data-tour="z-flaeche"
           dir="ltr"
           ref={flaeche}
           className={cx('relative min-w-0 flex-1 overflow-hidden', cursor)}
@@ -1096,7 +1098,7 @@ export default function Zeichner({
             </div>
           ) : null}
 
-          <div className="absolute end-3 top-3 flex flex-col gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+          <div data-tour="z-zoom" className="absolute end-3 top-3 flex flex-col gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
             <Rund label={t('zeichner.zoom_rein')} onClick={() => zoomen(1.25)}>
               <ZoomIn size={18} />
             </Rund>
@@ -1110,7 +1112,7 @@ export default function Zeichner({
         </div>
 
         {/* Rechte Spalte */}
-        <aside className="w-80 shrink-0 space-y-4 overflow-y-auto border-s border-line bg-surface p-4 scrollbar-thin">
+        <aside data-tour="z-seite" className="w-80 shrink-0 space-y-4 overflow-y-auto border-s border-line bg-surface p-4 scrollbar-thin">
           {letztePlatzierung ? (
             <div className="flex items-center gap-2 rounded-xl border border-line bg-paper p-2">
               <CodeChip code={letztePlatzierung.code} size="sm" />
@@ -1129,7 +1131,7 @@ export default function Zeichner({
         <span className="t-serial min-w-44 text-muted" dir="ltr">
           {zeigerCm ? `x ${cmText(Math.max(0, zeigerCm[0]), lang)}  y ${cmText(Math.max(0, zeigerCm[1]), lang)}` : ' '}
         </span>
-        <span className="flex items-center gap-1">
+        <span data-tour="z-raster" className="flex items-center gap-1">
           <span className="font-bold text-muted">{t('zeichner.raster')}</span>
           {([1, 5, 10] as const).map((r) => (
             <button
@@ -1144,7 +1146,7 @@ export default function Zeichner({
           ))}
           <span className="text-muted">cm</span>
         </span>
-        <button
+        <button data-tour="z-winkel"
           type="button"
           onClick={() => setWinkel((v) => !v)}
           aria-pressed={winkel}
@@ -1153,7 +1155,7 @@ export default function Zeichner({
           {t('zeichner.winkel')}
         </button>
         <span className="t-serial text-muted">{ansicht ? `${Math.round(ansicht.s * 100)} %` : ''}</span>
-        <span className="t-sub ms-auto">{t('zeichner.tasten_hilfe')}</span>
+        <span data-tour="z-tasten" className="t-sub ms-auto">{t('zeichner.tasten_hilfe')}</span>
       </div>
 
       {/* Dialoge */}

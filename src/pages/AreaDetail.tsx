@@ -218,6 +218,7 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
                 {/* Auf dem Handy nur das Zeichen: mit beiden Beschriftungen
                     lief die Kopfzeile seitlich ueber den Rand. */}
                 <Button
+                  data-tour="zimmer-grundriss"
                   variant="outline"
                   size="sm"
                   aria-label={t('grundriss.titel')}
@@ -231,6 +232,7 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
             {canEdit ? (
             <>
               <IconButton
+                data-tour="zimmer-auswahl"
                 label={waehlen ? t('auswahl.modus_aus') : t('auswahl.modus_an')}
                 size="sm"
                 onClick={() => {
@@ -242,6 +244,7 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
               </IconButton>
               <Link to={`/app/p/${project.id}/bereiche?bearbeiten=${tag.id}`}>
                 <Button
+                  data-tour="zimmer-bearbeiten"
                   variant="outline"
                   size="sm"
                   aria-label={t('aktion.bearbeiten')}
@@ -301,7 +304,7 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
           <p className="t-sub mb-5 text-center">{t('bereichsseite.zahlen_laden')}</p>
         ) : alles.error ? null : (
           <>
-            <div className="mb-5 grid grid-cols-3 gap-2">
+            <div data-tour="zimmer-zahlen" className="mb-5 grid grid-cols-3 gap-2">
               <Zahl wert={offen} wort={t('status.open')} farbe="var(--danger)" />
               <Zahl wert={unterwegs} wort={t('status.transit')} farbe="var(--warn)" />
               <Zahl wert={angekommen} wort={t('status.arrived')} farbe="var(--ok)" />
@@ -314,7 +317,7 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
 
         {kind === 'room' ? <ZimmerInhalt projectId={project.id} tagId={tag.id} stand={stand} /> : null}
 
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div data-tour="zimmer-knoepfe" className="mb-6 flex flex-wrap gap-2">
           <Link to={listenZiel}>
             <Button variant="outline" size="sm">
               <Boxes size={16} />
@@ -377,7 +380,7 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
             {/* Kisten dieses Zimmers ohne Platz im Grundriss: ein Tipp stellt
                 sie hin, danach kommt die naechste. */}
             {kind === 'room' && canEdit && ohnePlatz.length > 0 && (gezeichnet || raeume.error) ? (
-              <section className="mb-6">
+              <section data-tour="zimmer-ohne-platz" className="mb-6">
                 <SectionTitle>
                   {t('bereichsseite.ohne_platz')} ({ohnePlatz.length})
                 </SectionTitle>
@@ -409,7 +412,7 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
               action={
                 canEdit ? (
                   <Link to={`/app/p/${project.id}/kisten?neu=1&${param}=${tag.id}`}>
-                    <Button size="sm" variant="outline">
+                    <Button data-tour="zimmer-kiste-neu" size="sm" variant="outline">
                       {t('bereichsseite.kiste_anlegen')}
                     </Button>
                   </Link>
@@ -452,7 +455,7 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
                 <SectionTitle
                   action={
                     canEdit ? (
-                      <Button size="sm" variant="outline" onClick={() => setGegenstandOffen(true)}>
+                      <Button data-tour="zimmer-gegenstand-neu" size="sm" variant="outline" onClick={() => setGegenstandOffen(true)}>
                         <Lamp size={16} />
                         {t('gegenstand.anlegen')}
                       </Button>
@@ -495,7 +498,7 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
                   <Link
                     to={`/app/p/${project.id}/moebel?neu=1${kind === 'room' ? `&room=${tag.id}` : ''}`}
                   >
-                    <Button size="sm" variant="outline">
+                    <Button data-tour="zimmer-moebel-neu" size="sm" variant="outline">
                       {t('bereichsseite.moebel_anlegen')}
                     </Button>
                   </Link>

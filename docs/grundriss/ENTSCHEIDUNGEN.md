@@ -193,3 +193,14 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
 - **E43 3D am Handy:** Der Knopf "In 3D ansehen" steht jetzt auf jedem
   Geraet (Lageplan, Grundriss-Ansicht). Am Handy fuellt das Fenster den
   Bildschirm; ein Finger dreht, zwei Finger verschieben und zoomen.
+- **E44 Fuehrung ("Erklaerung"):** Ein Knopf "Erklaerung" steht in jeder
+  Kopfzeile links neben dem Profil (am Handy nur das Fragezeichen). Er
+  erklaert die jetzige Seite Schritt fuer Schritt, danach Kopfzeile und
+  Navigation. Schritte zeigen auf Elemente mit `data-tour="..."`; ist ein
+  Ziel nicht sichtbar (Seitenleiste am Handy, untere Leiste am Computer),
+  faellt der Schritt still weg. Darum gibt es eine Liste fuer beide
+  Geraete (`src/lib/fuehrung.ts`). Der Zeichner am Computer hat eine
+  eigene, lange Erklaerung (jedes Werkzeug mit Taste, Maus, 3D). Texte
+  Deutsch und Arabisch in `bausteine/fuehrung.ts`; auf Arabisch laeuft
+  die Karte von rechts nach links, Pfeile und Pfeiltasten tauschen die
+  Seiten. Esc beendet, Enter geht weiter.

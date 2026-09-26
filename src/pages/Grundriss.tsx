@@ -327,7 +327,7 @@ function Ansehen({ daten, raumId, kisteId }: { daten: GrundrissDaten; raumId: st
           <Empty title={t('grundriss.leer')} hint={t('grundriss.leer_hinweis')} />
         ) : (
           <>
-            <div className="flex flex-wrap gap-2">
+            <div data-tour="grundriss-raeume" className="flex flex-wrap gap-2">
               <Chip active={!raumId} onClick={() => setParams({}, { replace: true })}>
                 {t('grundriss.alles')}
               </Chip>
@@ -342,6 +342,7 @@ function Ansehen({ daten, raumId, kisteId }: { daten: GrundrissDaten; raumId: st
                 </Chip>
               ))}
             </div>
+            <div data-tour="grundriss-plan">
             <PlanBild
               daten={daten}
               ausschnitt={raum ? { raumId: raum.id } : 'alles'}
@@ -356,9 +357,10 @@ function Ansehen({ daten, raumId, kisteId }: { daten: GrundrissDaten; raumId: st
                 } else setTipp(treffer && treffer.art !== 'raum' ? treffer : null)
               }}
             />
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <PlanLegende mitKiste={Boolean(kisteId)} />
-              <Knopf3D daten={daten} raumId={raum?.id ?? null} hervor={kisteId} className="justify-center" />
+              <Knopf3D daten={daten} raumId={raum?.id ?? null} hervor={kisteId} className="justify-center" tour="grundriss-3d" />
             </div>
             {gewaehlt.kiste ? (
               <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-3">

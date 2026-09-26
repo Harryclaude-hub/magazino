@@ -259,7 +259,7 @@ export default function Suche() {
             size={20}
             className="pointer-events-none absolute start-3.5 top-1/2 -translate-y-1/2 text-muted"
           />
-          <Input
+          <Input data-tour="suche-feld"
             ref={feld}
             type="search"
             enterKeyHint="search"

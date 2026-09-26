@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Camera, X } from 'lucide-react'
+import { Camera, Plus, X } from 'lucide-react'
 import { Button, Chip, ErrorBox, Field, Input, Modal, Select, useToast } from './ui'
 import { addPhotoRecord, createItem, groesseFuerMasse, setCoverPhoto } from '../lib/api'
 import { compressImage, uploadTo } from '../lib/media'
@@ -190,10 +190,10 @@ export function GegenstandDialog({
       title={t('gegenstand.titel')}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
-            {t('aktion.abbrechen')}
-          </Button>
+          {/* Kein eigenes Abbrechen: das X oben schliesst, sonst passten am
+              Handy die Knoepfe nicht in eine Zeile. */}
           <Button variant="outline" disabled={busy} onClick={(e) => void speichern(e, true)}>
+            <Plus size={16} />
             {t('gegenstand.und_noch_einer')}
           </Button>
           <Button form="gegenstand-form" type="submit" loading={busy}>

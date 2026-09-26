@@ -72,17 +72,20 @@ export function Knopf3D({
   raumId,
   hervor,
   className,
+  tour,
 }: {
   daten: GrundrissDaten
   raumId?: string | null
   hervor?: string | null
   className?: string
+  /** Name fuer die Fuehrung (data-tour). */
+  tour?: string
 }) {
   const { t } = useSprache()
   const [offen, setOffen] = useState(false)
   return (
     <>
-      <Button variant="outline" className={className ?? 'w-full justify-center'} onClick={() => setOffen(true)}>
+      <Button data-tour={tour} variant="outline" className={className ?? 'w-full justify-center'} onClick={() => setOffen(true)}>
         <Box size={18} /> {t('plan3d.oeffnen')}
       </Button>
       {offen ? (

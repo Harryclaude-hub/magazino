@@ -133,7 +133,7 @@ export function Lageplan({
           ) : null}
           {/* Nur am Computer; three laedt erst beim Oeffnen (plan3d/oeffnen.tsx). */}
           {daten ? (
-            <Knopf3D daten={daten} raumId={lage.raum.id} hervor={itemId} className="min-w-48 flex-1 justify-center" />
+            <Knopf3D daten={daten} raumId={lage.raum.id} hervor={itemId} className="min-w-48 flex-1 justify-center" tour="lage-3d" />
           ) : null}
         </div>
       ) : null}

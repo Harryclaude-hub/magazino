@@ -409,12 +409,12 @@ export default function Items() {
           <>
             {/* Groessen pruefen bleibt erreichbar, auch wenn der Hinweis in
                 der Liste weggetippt ist. */}
-            <Link to={`/app/p/${project.id}/groessen`}>
+            <Link data-tour="kisten-groessen" to={`/app/p/${project.id}/groessen`}>
               <IconButton label={t('groessen.titel')} size="sm">
                 <Ruler size={19} />
               </IconButton>
             </Link>
-            <IconButton
+            <IconButton data-tour="kisten-export"
               label={t('aktion.exportieren')}
               size="sm"
               disabled={exporting}
@@ -423,7 +423,7 @@ export default function Items() {
               {exporting ? <Spinner /> : <Download size={19} />}
             </IconButton>
             {canEdit ? (
-              <IconButton
+              <IconButton data-tour="kisten-auswahl"
                 label={waehlen ? t('auswahl.modus_aus') : t('auswahl.modus_an')}
                 size="sm"
                 onClick={() => {
@@ -435,12 +435,12 @@ export default function Items() {
               </IconButton>
             ) : null}
             {canEdit ? (
-              <IconButton label={t('gegenstand.anlegen')} title={t('gegenstand.anlegen')} size="sm" onClick={() => setGegenstandOffen(true)}>
+              <IconButton data-tour="kisten-gegenstand" label={t('gegenstand.anlegen')} title={t('gegenstand.anlegen')} size="sm" onClick={() => setGegenstandOffen(true)}>
                 <Lamp size={19} />
               </IconButton>
             ) : null}
             {canEdit ? (
-              <Button size="sm" onClick={() => setOpen(true)}>
+              <Button data-tour="kisten-neu" size="sm" onClick={() => setOpen(true)}>
                 <Plus size={16} /> {t('aktion.neu')}
               </Button>
             ) : null}
@@ -455,7 +455,7 @@ export default function Items() {
         <div className="mb-3 flex gap-2">
           <div className="relative min-w-0 flex-1">
             <Search size={19} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted" />
-            <Input
+            <Input data-tour="kisten-suche"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('kisten.suche_platzhalter')}
@@ -472,7 +472,7 @@ export default function Items() {
               </IconButton>
             ) : null}
           </div>
-          <IconButton
+          <IconButton data-tour="kisten-filter"
             label={
               activeFilters > 0
                 ? t('kisten.filter_gesetzt', { n: activeFilters })
@@ -493,7 +493,7 @@ export default function Items() {
         </div>
 
         {/* Statusleiste. Sie darf waagerecht rollen, die Seite nicht. */}
-        <div className="-mx-3 mb-3 flex flex-nowrap gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0">
+        <div data-tour="kisten-status" className="-mx-3 mb-3 flex flex-nowrap gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0">
           <Chip active={status === 'all'} onClick={() => setParam('status', 'all')}>
             {t('aktion.alle')}
           </Chip>
@@ -620,6 +620,7 @@ export default function Items() {
               </div>
             ) : null}
             {desktop ? (
+              <div data-tour="kisten-liste">
               <KistenTabelle
                 rows={rows}
                 tagById={tagById}
@@ -640,9 +641,10 @@ export default function Items() {
                 }}
                 unvollstaendig={rows.length < total}
               />
+              </div>
             ) : (
             /* Handy: volle Breite, von Rand zu Rand. */
-            <Card className="zebra -mx-3 divide-y divide-line overflow-hidden rounded-none border-x-0 sm:mx-0 sm:rounded-karte sm:border-x">
+            <Card data-tour="kisten-liste" className="zebra -mx-3 divide-y divide-line overflow-hidden rounded-none border-x-0 sm:mx-0 sm:rounded-karte sm:border-x">
               {rows.map((item) => (
                 <ItemRow
                   key={item.id}

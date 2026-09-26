@@ -198,7 +198,7 @@ export default function Furniture() {
         back={`/app/p/${project.id}`}
         actions={
           canEdit ? (
-            <Button size="sm" onClick={() => setOffen(true)}>
+            <Button data-tour="moebel-neu" size="sm" onClick={() => setOffen(true)}>
               <Plus size={17} />
               {t('aktion.neu')}
             </Button>
@@ -207,7 +207,7 @@ export default function Furniture() {
       />
       <Page>
         {rooms.length > 1 ? (
-          <div className="mb-4 flex flex-wrap gap-2">
+          <div data-tour="moebel-filter" className="mb-4 flex flex-wrap gap-2">
             <Chip active={zimmerFilter === 'all'} onClick={() => setzeZimmer('all')}>
               {t('aktion.alle')}
             </Chip>

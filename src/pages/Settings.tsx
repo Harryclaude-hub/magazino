@@ -279,13 +279,13 @@ export default function Settings() {
 
         {/* Sprache. Die Wahl dreht auch die Leserichtung der ganzen App. */}
         <Abschnitt>{t('einstellungen.sprache')}</Abschnitt>
-        <Card className="mb-8 p-4">
+        <Card data-tour="profil-sprache" className="mb-8 p-4">
           <SpracheWahl />
         </Card>
 
         {/* Darstellung */}
         <Abschnitt>{t('einstellungen.darstellung')}</Abschnitt>
-        <Card className="mb-8 p-4">
+        <Card data-tour="profil-aussehen" className="mb-8 p-4">
           <div className="flex gap-2">
             {(['system', 'light', 'dark'] as const).map((m) => (
               <button
@@ -306,7 +306,7 @@ export default function Settings() {
           <div className="mt-5 border-t-2 border-line pt-4">
             <p className="t-name">{t('einstellungen.bewegung')}</p>
             <p className="t-sub mt-1">{t(`${BEWEGUNG_KEY[stufe]}_hinweis`)}</p>
-            <div className="mt-3 flex gap-2">
+            <div data-tour="profil-bewegung" className="mt-3 flex gap-2">
               {STUFEN.map((s) => {
                 const Symbol = STUFE_SYMBOL[s]
                 return (
@@ -334,7 +334,7 @@ export default function Settings() {
           <InstallCard />
         </div>
 
-        <Button
+        <Button data-tour="profil-abmelden"
           variant="outline"
           size="lg"
           className="w-full justify-center sm:w-auto"

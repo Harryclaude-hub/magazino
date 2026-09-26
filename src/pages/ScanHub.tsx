@@ -287,7 +287,7 @@ export default function ScanHub() {
     <>
       <AppHeader title={t('nav.scannen')} subtitle={t('scannen.untertitel_alle')} />
       <Page>
-        <div className="mb-4">
+        <div data-tour="scan-kamera" className="mb-4">
           <Scanner onResult={onScanned} paused={paused || busy || schnellId !== null} />
         </div>
 
@@ -304,7 +304,7 @@ export default function ScanHub() {
                   size={18}
                   className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted"
                 />
-                <Input
+                <Input data-tour="scan-nummer"
                   value={manual}
                   onChange={(e) => setManual(e.target.value.toUpperCase())}
                   onKeyDown={(e) => {
