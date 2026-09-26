@@ -89,6 +89,31 @@ function becken(x0: number, y0: number, x1: number, y1: number): Form[] {
   return [rechteck(x0 + w * 0.12, y0 + h * 0.22, x1 - w * 0.12, y1 - h * 0.12), { art: 'kreis', m: [x0 + w / 2, y0 + h * 0.58], r: Math.min(w, h) * 0.06 }]
 }
 
+/** L-Sofa: Lehne an den beiden Aussenseiten, Armlehnen an den freien Enden.
+ *  Gerechnet mit der freien Ecke rechts oben, dann gespiegelt. */
+function lSofa(o: Pick<Objekt, 'breite_cm' | 'tiefe_cm' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke'>): Form[] {
+  const B = o.breite_cm
+  const T = o.tiefe_cm
+  const aB = o.ausschnitt_breite_cm ?? 0
+  const aT = o.ausschnitt_tiefe_cm ?? 0
+  if (aB <= 0 || aT <= 0) return []
+  const schenkel = B - aB
+  const lang = T - aT
+  const r = Math.min(20, schenkel * 0.25, lang * 0.25)
+  const e = o.ausschnitt_ecke ?? 'ro'
+  const sx = e === 'lo' || e === 'lu'
+  const sy = e === 'ru' || e === 'lu'
+  const m = (q: Punkt): Punkt => [sx ? B - q[0] : q[0], sy ? T - q[1] : q[1]]
+  const formen: Form[] = [
+    { art: 'zug', p: [[r, 0], [r, T - r], [B, T - r]], zu: false },
+    { art: 'linie', a: [r, r], b: [schenkel, r] },
+    { art: 'linie', a: [B - r, aT], b: [B - r, T - r] },
+  ]
+  return formen.map((f) =>
+    f.art === 'zug' ? { ...f, p: f.p.map(m) } : f.art === 'linie' ? { ...f, a: m(f.a), b: m(f.b) } : f,
+  )
+}
+
 /** Die Striche des Zeichens in lokalen Koordinaten. */
 export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tiefe_cm' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke'>): Form[] {
   const B = o.breite_cm
@@ -149,7 +174,7 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
       return [...kissen, { art: 'linie', a: [0, kopf + T * 0.1], b: [B, kopf + T * 0.1] }]
     }
     case 'sofa':
-      if (o.form === 'l') return [{ art: 'linie', a: [0, T * 0.28], b: [B, T * 0.28] }]
+      if (o.form === 'l') return lSofa(o)
       return [rechteck(0, 0, B, T * 0.28), rechteck(0, T * 0.28, B * 0.1, T), rechteck(B * 0.9, T * 0.28, B, T)]
     case 'fernseher':
       return [rechteck(B * 0.05, T * 0.35, B * 0.95, T * 0.6)]

@@ -497,6 +497,12 @@ function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
     p.aendern(objektSetzen(p.dok, neu), p.auswahl)
   }
   const verknuepft = new Set(p.dok.objekte.filter((x) => x.id !== o.id && x.item_id).map((x) => x.item_id))
+  // L-Form in verstaendlichen Massen: ragt = wie weit der Schenkel ueber den
+  // langen Teil heraussteht, schenkel = seine Breite, lang = Tiefe des langen Teils.
+  const l =
+    o.form === 'l' && o.ausschnitt_breite_cm && o.ausschnitt_tiefe_cm
+      ? { ragt: o.ausschnitt_tiefe_cm, schenkel: o.breite_cm - o.ausschnitt_breite_cm, lang: o.tiefe_cm - o.ausschnitt_tiefe_cm }
+      : null
 
   return (
     <>
@@ -507,20 +513,22 @@ function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
           platzhalter={objektName(t, { ...o, name: '' })}
           onSetzen={(name) => p.aendern(objektSetzen(p.dok, { ...o, name }), p.auswahl)}
         />
-        {/* Beim L bleibt der Ausschnitt kleiner als das Moebel (Regel der Datenbank). */}
+        {/* Beim L bleibt der Ausschnitt kleiner als das Moebel (Regel der
+            Datenbank). Breite und Tiefe aendern dort das ganze Moebel, der
+            Schenkel behaelt seine Breite und der lange Teil seine Tiefe. */}
         <MassFeld
           label={t('zeichner.eig.breite')}
           wert={o.breite_cm}
-          min={o.form === 'l' ? Math.max(5, (o.ausschnitt_breite_cm ?? 0) + 1) : 5}
+          min={l ? Math.max(5, l.schenkel + 1) : 5}
           max={2000}
-          onSetzen={(v) => setze({ ...o, breite_cm: v })}
+          onSetzen={(v) => setze(l ? { ...o, breite_cm: v, ausschnitt_breite_cm: v - l.schenkel } : { ...o, breite_cm: v })}
         />
         <MassFeld
           label={t('zeichner.eig.tiefe')}
           wert={o.tiefe_cm}
-          min={o.form === 'l' ? Math.max(5, (o.ausschnitt_tiefe_cm ?? 0) + 1) : 5}
+          min={l ? Math.max(5, l.lang + 1) : 5}
           max={2000}
-          onSetzen={(v) => setze({ ...o, tiefe_cm: v })}
+          onSetzen={(v) => setze(l ? { ...o, tiefe_cm: v, ausschnitt_tiefe_cm: v - l.lang } : { ...o, tiefe_cm: v })}
         />
         {o.art === 'moebel' ? (
           <MassFeld label={t('zeichner.eig.hoehe')} wert={o.hoehe_cm} min={1} max={600} onSetzen={(v) => setze({ ...o, hoehe_cm: v })} />
@@ -563,21 +571,30 @@ function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
             </div>
           </Zeile>
         ) : null}
-        {o.form === 'l' ? (
+        {l ? (
           <>
+            {/* Verstaendliche Masse statt des Ausschnitts: wie weit der Schenkel
+                heraussteht, wie breit er ist, wie tief der lange Teil ist. */}
             <MassFeld
-              label={t('zeichner.eig.ausschnitt_breite')}
-              wert={o.ausschnitt_breite_cm ?? 1}
+              label={t('zeichner.eig.l_ragt')}
+              wert={l.ragt}
               min={1}
-              max={o.breite_cm - 1}
-              onSetzen={(v) => setze({ ...o, ausschnitt_breite_cm: v })}
+              max={2000 - l.lang}
+              onSetzen={(v) => setze({ ...o, tiefe_cm: l.lang + v, ausschnitt_tiefe_cm: v })}
             />
             <MassFeld
-              label={t('zeichner.eig.ausschnitt_tiefe')}
-              wert={o.ausschnitt_tiefe_cm ?? 1}
+              label={t('zeichner.eig.l_schenkel')}
+              wert={l.schenkel}
               min={1}
-              max={o.tiefe_cm - 1}
-              onSetzen={(v) => setze({ ...o, ausschnitt_tiefe_cm: v })}
+              max={o.breite_cm - 1}
+              onSetzen={(v) => setze({ ...o, ausschnitt_breite_cm: o.breite_cm - v })}
+            />
+            <MassFeld
+              label={t('zeichner.eig.l_lang')}
+              wert={l.lang}
+              min={1}
+              max={2000 - l.ragt}
+              onSetzen={(v) => setze({ ...o, tiefe_cm: v + l.ragt })}
             />
             <Zeile label={t('zeichner.eig.ausschnitt_ecke')}>
               <div className="flex flex-wrap gap-2">

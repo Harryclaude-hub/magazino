@@ -130,8 +130,10 @@ function Fenster3D({ titel, onClose, children }: { titel: string; onClose: () =>
   )
 }
 
-/** 3D ueber der Zeichenflaeche. Zeiger und Rad bleiben hier, damit der
- *  Zeichner darunter nichts davon abbekommt. Als (nicht modaler) Dialog
+/** 3D ueber der Zeichenflaeche. Zeigerereignisse laufen hier bewusst weiter
+ *  nach oben: OrbitControls hoert Bewegen und Loslassen am Dokument, ein
+ *  stopPropagation hier liess die Kamera nur ausserhalb der Flaeche folgen.
+ *  Der Zeichner selbst ignoriert Zeiger, solange 3D offen ist. Als (nicht modaler) Dialog
  *  ausgezeichnet: dann ruhen die Tasten des Zeichners (Entf, Strg+Z, Werkzeuge),
  *  solange 3D offen ist; Escape schaltet zurueck auf 2D. */
 export function Ueberlagerung3D(props: Props) {
@@ -151,9 +153,6 @@ export function Ueberlagerung3D(props: Props) {
       role="dialog"
       aria-label={t('plan3d.titel')}
       className="absolute inset-0 z-20 bg-paper"
-      onPointerDown={stopp}
-      onPointerMove={stopp}
-      onPointerUp={stopp}
       onDoubleClick={stopp}
       onContextMenu={(e) => {
         e.preventDefault()

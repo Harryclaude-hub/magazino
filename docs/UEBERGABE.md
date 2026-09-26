@@ -40,7 +40,7 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E56.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E58.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler

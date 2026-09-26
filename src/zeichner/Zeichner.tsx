@@ -468,7 +468,8 @@ export default function Zeichner({
   }
 
   function runter(e: React.PointerEvent<HTMLDivElement>) {
-    if (!ansicht) return
+    // Bei offenem 3D gehoert der Zeiger der Kamera (siehe Ueberlagerung3D).
+    if (!ansicht || drei) return
     if (e.button === 1 || (e.button === 0 && leertaste.current)) {
       e.preventDefault()
       schieben.current = { x: e.clientX, y: e.clientY, a: ansicht }
@@ -511,6 +512,7 @@ export default function Zeichner({
   }
 
   function bewegen(e: React.PointerEvent<HTMLDivElement>) {
+    if (drei) return
     const sc = schieben.current
     if (sc && sc.warten && Math.hypot(e.clientX - sc.x, e.clientY - sc.y) >= ZIEHEN_PX) {
       sc.warten = false
@@ -528,6 +530,7 @@ export default function Zeichner({
   }
 
   function hoch(e: React.PointerEvent<HTMLDivElement>) {
+    if (drei) return
     const sc = schieben.current
     if (sc) {
       schieben.current = null
@@ -547,6 +550,7 @@ export default function Zeichner({
   }
 
   function doppel(e: React.MouseEvent<HTMLDivElement>) {
+    if (drei) return
     const p = cm(e)
     const w = WERKZEUGE[werkzeug.name]
     if (!p || !w.doppel) return

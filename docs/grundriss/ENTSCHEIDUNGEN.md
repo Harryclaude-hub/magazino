@@ -307,3 +307,13 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   wieder. Das Rechtsklick-Menue hat ausserdem Umbenennen (ein Raum mit
   Zimmer benennt das Zimmer um), Drehen, Eigenschaften und Loeschen.
   Pfeiltasten bleiben wie bisher.
+- **E57 L-Moebel in verstaendlichen Massen:** Statt "Ausschnitt Breite /
+  Tiefe" zeigen die Eigenschaften "Schenkel ragt heraus um", "Breite des
+  Schenkels" und "Tiefe des langen Teils". Gespeichert wird weiter der
+  Ausschnitt (keine Migration). Aendert man beim L die Breite oder Tiefe,
+  bleiben Schenkelbreite und Tiefe des langen Teils gleich. Das L-Sofa
+  zeichnet Lehne an den Aussenseiten und Armlehnen an den freien Enden.
+- **E58 3D im Zeichner fangen keine Zeiger mehr ab:** OrbitControls hoert
+  Bewegen und Loslassen am Dokument. Das stopPropagation der Ueberlagerung
+  liess die Kamera nur ausserhalb der Flaeche folgen. Jetzt laufen die
+  Ereignisse durch, und der Zeichner ignoriert Zeiger, solange 3D offen ist.
