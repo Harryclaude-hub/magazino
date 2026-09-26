@@ -545,8 +545,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.zeichner.drei_d.titel': { de: 'So bewegst du 3D', ar: 'كيف تحرّك العرض الثلاثي' },
   'fuehrung.zeichner.drei_d.text': {
-    de: 'Oben wählst du, was die linke Maustaste tut: Hand (greifen und nach oben, unten, links, rechts verschieben) oder Drehen. Die rechte Maustaste tut das andere, das Mausrad zoomt. Loslassen: die Maus bewegt sich frei.\nMöbel, Regal oder Schrank greifen und ziehen: es wird verschoben, mit allen Kisten darauf.',
-    ar: 'في الأعلى تختار ما يفعله زر الفأرة الأيسر: يد (الإمساك والتحريك للأعلى والأسفل واليسار واليمين) أو تدوير. الزر الأيمن يفعل الآخر، والعجلة تكبّر وتصغّر. عند الإفلات تتحرك الفأرة بحرية.\nأمسك قطعة أثاث أو رفاً أو خزانة واسحب: تنتقل مع كل الصناديق عليها.',
+    de: 'Maustaste gedrückt halten und ziehen dreht die Wohnung wie ein schwebendes Modell. Die rechte Maustaste verschiebt, das Mausrad zoomt. Ohne Drücken passiert nichts, die Maus bewegt sich frei.\nMöbel verschieben: oben "Hand" wählen, dann Möbel, Regal oder Schrank greifen und ziehen, mit allen Kisten darauf.',
+    ar: 'اضغط زر الفأرة واسحب لتدوير الشقة كنموذج عائم. الزر الأيمن يحرّك، والعجلة تكبّر وتصغّر. بدون ضغط لا يحدث شيء، والفأرة تتحرك بحرية.\nلنقل الأثاث: اختر "يد" في الأعلى، ثم أمسك قطعة أثاث أو رفاً أو خزانة واسحب، مع كل الصناديق عليها.',
   },
   'fuehrung.zeichner.speichern.titel': { de: 'Speichern', ar: 'الحفظ' },
   'fuehrung.zeichner.speichern.text': {
