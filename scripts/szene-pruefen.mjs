@@ -67,6 +67,8 @@ const F = {
   topf: '#b0643c',
   teppich: '#a48a73',
   glas: '#9fc3d9',
+  schalter3d: '#f6f4ef',
+  spiegel: '#c3d0d6',
 }
 
 function raum(id, punkte, extra = {}) {
@@ -215,6 +217,39 @@ const nach = (r) => alle.filter((k) => k.rolle === r)
   const sturz = nach('sturz').find((x) => Math.abs(x.mitte[2]) < 1e-9)
   nahe('Fenstersturz ab 210 cm', sturz.mitte[1] - sturz.masse[1] / 2, 2.1)
   wahr('Fensterrahmen weiss', nach('rahmen').length === 4 && nach('rahmen').every((x) => x.farbe === F.rahmen3d))
+}
+
+/* ------------------------------------------------------------ Schalter an der Wand (E74) */
+{
+  // Schalter 30 cm neben der Wand (y = 0) im Wohnzimmer, schaltet die Kueche.
+  // Steckdose mitten im Raum: sitzt trotzdem an der naechsten Wand.
+  const mit = {
+    ...daten,
+    grundriss: {
+      ...daten.grundriss,
+      symbole: [
+        { id: 's1', art: 'schalter', x: 60, y: 30, schaltet: 'k' },
+        { id: 's2', art: 'steckdose', x: 200, y: 160 },
+        { id: 's3', art: 'schalter', x: 420, y: 150 },
+      ],
+    },
+  }
+  const k = baueSzene(mit, F)
+  const sch = k.filter((x) => x.rolle === 'schalter')
+  wahr('Schalter: zwei Platten je Schalter', sch.length === 4)
+  wahr('Schalter an der Wand (Innenseite 6 cm)', sch.filter((x) => x.id === 'k' && x.mitte[2] < 0.1).every((x) => x.mitte[2] > 0.06 && x.mitte[2] < 0.08))
+  wahr('Schalter schaltet laut Plan die Kueche', sch.some((x) => x.id === 'k' && x.mitte[0] < 1))
+  wahr('Schalter in 105 cm', sch.every((x) => Math.abs(x.mitte[1] - 1.05) < 1e-9))
+  wahr('Schalter unauffaellig weiss', sch.every((x) => x.farbe === F.schalter3d))
+  const dose = k.filter((x) => x.rolle === 'moebel' && x.id === null && Math.abs(x.mitte[1] - 0.3) < 1e-9)
+  wahr('Steckdose nicht mitten im Raum', dose.length === 1 && (dose[0].mitte[2] > 2.9 || dose[0].mitte[2] < 0.1))
+  // s3 liegt in der Kueche vor der Tuer der gemeinsamen Wand (y 100..190): nicht in der Tuer.
+  const k3 = sch.filter((x) => x.id === 'k' && x.mitte[0] > 4)
+  wahr('Schalter nicht in einer Tuer', k3.length === 2 && k3.every((x) => x.mitte[2] < 1.0 || x.mitte[2] > 1.9 || x.mitte[0] > 4.2))
+  // Teppiche lassen sich ausblenden.
+  const mitTeppich = { ...daten, objekte: [...daten.objekte, objekt('Teppich', 'w', 'moebel', { x: 50, y: 50, breite_cm: 120, tiefe_cm: 80, hoehe_cm: 1 })] }
+  wahr('Teppich sichtbar', baueSzene(mitTeppich, F).some((x) => x.id === 'Teppich'))
+  wahr('Teppich ausgeblendet', !baueSzene(mitTeppich, F, { teppiche: false }).some((x) => x.id === 'Teppich'))
 }
 
 /* ------------------------------------------------------------ Eckbank und Mauer (E73) */

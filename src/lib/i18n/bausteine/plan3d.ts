@@ -42,6 +42,16 @@ export const plan3dWoerter: Woerterbuch = {
   'plan3d.licht_tag': { de: 'Tag', ar: 'نهار' },
   'plan3d.licht_abend': { de: 'Abend', ar: 'مساء' },
   'plan3d.licht_auto': { de: 'Automatisch', ar: 'تلقائي' },
+  'plan3d.licht_raeume': { de: 'Licht je Zimmer', ar: 'الإضاءة لكل غرفة' },
+  'plan3d.licht_schalter_hilfe': {
+    de: 'Licht pro Zimmer an und aus. Ein Klick auf einen Lichtschalter an der Wand geht auch.',
+    ar: 'تشغيل الإضاءة وإطفاؤها لكل غرفة. يمكن أيضًا النقر على مفتاح الإضاءة على الجدار.',
+  },
+  'plan3d.licht_alle_an': { de: 'Alle an', ar: 'تشغيل الكل' },
+  'plan3d.licht_alle_aus': { de: 'Alle aus', ar: 'إطفاء الكل' },
+  'plan3d.licht_an': { de: 'an', ar: 'مضاءة' },
+  'plan3d.licht_aus': { de: 'aus', ar: 'مطفأة' },
+  'plan3d.teppiche': { de: 'Teppiche', ar: 'السجاد' },
   'plan3d.begehen_ende': { de: 'Begehen beenden', ar: 'إنهاء التجوّل' },
   'plan3d.begehen_hilfe': {
     de: 'Durch die Wohnung gehen, als wärst du drin.',

@@ -467,6 +467,9 @@ export interface PlanSymbol {
   art: SymbolArt
   x: number
   y: number
+  /** Nur Schalter (E74): welchen Raum er schaltet, wenn nicht den, in dem
+   *  er sitzt (Bad, WC, Abstellraum werden vom Flur aus geschaltet). */
+  schaltet?: string | null
 }
 
 /** Eine gestrichelte Hilfslinie in cm (Treppe, Stufe, Bereich). */

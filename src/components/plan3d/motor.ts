@@ -70,6 +70,11 @@ export interface Motor {
   lichter(liste: Licht3D[]): void
   /** Tag: Sonne, Lampen aus. Abend: wenig Himmel, alle Lampen an. */
   lichtModus(modus: 'tag' | 'abend'): void
+  /** In welchen Raeumen das Licht an ist (E74). Die anderen sind dunkel. */
+  lichtRaeume(an: Set<string>): void
+  /** Klick auf einen Lichtschalter an der Wand: der Raum, den er schaltet.
+   *  null schaltet es aus. */
+  schalter(fn: ((raumId: string) => void) | null): void
   /** Kurzer Klick in die Szene (nicht auf eine Tuer): die Stelle im Plan
    *  in cm, auf Moebeln die Stelle auf ihnen. null schaltet es aus. */
   tippen(fn: ((xCm: number, yCm: number, treffer: Treffer3D | null) => void) | null): void
@@ -401,12 +406,27 @@ export function motorStarten(host: HTMLElement): Motor | null {
   /* Gleiche Farbe und Deckkraft: ein Material fuer alle. Waende bekommen je
    * ein eigenes, weil ihre Deckkraft einzeln wechselt. */
   const flaechenMat = new Map<string, MeshLambertMaterial | MeshPhongMaterial>()
-  /** Leuchten an der Decke: selbstleuchtend, am Abend warm-hell. */
-  const leuchteMat = new MeshBasicMaterial({ color: new Color('#e9e4da') })
+  /** Leuchten (Decke, LED, Lampenschirm): selbstleuchtend, je Raum ein
+   *  Material, damit der Schalter nur seinen Raum hell macht (E74). */
+  const leuchteMats = new Map<string, MeshBasicMaterial>()
+  function leuchteMat(raum: string): MeshBasicMaterial {
+    let mat = leuchteMats.get(raum)
+    if (!mat) {
+      mat = new MeshBasicMaterial({ color: new Color(leuchteFarbe(raum)) })
+      leuchteMats.set(raum, mat)
+    }
+    return mat
+  }
+  /** An: warm-hell. Aus: am Tag hellgrau wie ein Schirm, am Abend dunkel. */
+  function leuchteFarbe(raum: string): string {
+    return raeumeAn.has(raum) ? '#fff4dc' : modus === 'abend' ? '#6f6b64' : '#e9e4da'
+  }
 
   /* ------------------------------------------------ Licht (E71) */
   let punktLichter: PointLight[] = []
   let modus: 'tag' | 'abend' = 'tag'
+  let raeumeAn = new Set<string>()
+  let schalterFn: ((raumId: string) => void) | null = null
   function lichterSetzen(liste: Licht3D[]) {
     for (const l of punktLichter) {
       scene.remove(l)
@@ -416,7 +436,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     punktLichter = liste.slice(0, 20).map((l) => {
       const p = new PointLight(new Color(l.farbe), 0, l.art === 'kueche' ? 2.2 : 7, 2)
       p.position.set(l.pos[0], l.pos[1], l.pos[2])
-      p.userData = { staerke: l.staerke, art: l.art }
+      p.userData = { staerke: l.staerke, art: l.art, raum: l.raumId }
       scene.add(p)
       return p
     })
@@ -430,13 +450,18 @@ export function motorStarten(host: HTMLElement): Motor | null {
     sonne.intensity = (abend ? 0.04 : 0.52) * Math.PI
     gegen.intensity = (abend ? 0.03 : 0.16) * Math.PI
     for (const l of punktLichter) {
-      const d = l.userData as { staerke: number; art: string }
+      const d = l.userData as { staerke: number; art: string; raum: string }
       // Candela (three rechnet physikalisch): Decke etwa 12, Kueche naeher dran.
-      const basis = d.art === 'kueche' ? 2.2 : d.art === 'lampe' ? 7 : 13
-      l.intensity = abend ? basis * d.staerke : 0
+      // Am Tag gibt eingeschaltetes Licht nur etwas dazu.
+      const basis = d.art === 'kueche' ? 2.6 : d.art === 'lampe' ? 7 : 13
+      l.intensity = raeumeAn.has(d.raum) ? basis * d.staerke * (abend ? 1 : 0.45) : 0
     }
-    leuchteMat.color.set(abend ? '#fff4dc' : '#e9e4da')
+    for (const [raum, mat] of leuchteMats) mat.color.set(leuchteFarbe(raum))
     rendern()
+  }
+  function lichtRaeume(an: Set<string>) {
+    raeumeAn = new Set(an)
+    modusSetzen(modus)
   }
   const linienMat = new Map<string, LineBasicMaterial>()
   function flaecheMaterial(farbe: string, deckkraft: number, durch: boolean, glanz = 0): MeshLambertMaterial | MeshPhongMaterial {
@@ -498,7 +523,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       const wand = k.innen !== null
       const durch = k.deckkraft < 1 || wand
       const mat = k.rolle === 'leuchte'
-        ? leuchteMat
+        ? leuchteMat(k.id ?? '')
         : wand
         ? new MeshLambertMaterial({
             color: new Color(k.farbe),
@@ -510,6 +535,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       const mesh = new Mesh(einheit, mat)
       if (k.id && (k.rolle === 'moebel' || k.rolle === 'regal' || k.rolle === 'brett')) mesh.userData = { objektId: k.id }
       else if (k.id && k.rolle === 'kiste') mesh.userData = { kisteId: k.id }
+      else if (k.id && k.rolle === 'schalter') mesh.userData = { schalterRaum: k.id }
       if (HINDERNIS.has(k.rolle)) hindernisse.push(mesh)
       if (k.art === 'quader' && k.tuer) {
         // Tuerstand behalten, wenn die Szene neu gebaut wird (Zeichner aendert live).
@@ -753,6 +779,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
         tuerUmschalten(hit.object as Mesh)
         return
       }
+      if (hit.object.userData.schalterRaum && schalterFn) {
+        schalterFn(hit.object.userData.schalterRaum as string)
+        return
+      }
       if (hit.object.userData.schub) {
         schubUmschalten((hit.object.userData.schub as { id: string }).id)
         return
@@ -865,6 +895,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
     begehen: gehenAn,
     lichter: lichterSetzen,
     lichtModus: modusSetzen,
+    lichtRaeume,
+    schalter(fn) {
+      schalterFn = fn
+    },
     tippen(fn) {
       tippFn = fn
     },
@@ -887,7 +921,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       renderer.domElement.removeEventListener('pointerup', tippHoch)
       if (tuerLauf) cancelAnimationFrame(tuerLauf)
       for (const l of punktLichter) l.dispose()
-      leuchteMat.dispose()
+      for (const mat of leuchteMats.values()) mat.dispose()
       renderer.domElement.removeEventListener('pointermove', schauBewegen)
       renderer.domElement.removeEventListener('pointerup', schauHoch)
       renderer.domElement.removeEventListener('pointercancel', schauHoch)

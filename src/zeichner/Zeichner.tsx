@@ -170,6 +170,8 @@ export default function Zeichner({
   const [groesse, setGroesse] = useState<[number, number]>([0, 0])
   const [raster, setRaster] = useState<1 | 5 | 10>(5)
   const [winkel, setWinkel] = useState(true)
+  // Teppiche ein- und ausblenden (E74), nur die Ansicht.
+  const [teppiche, setTeppiche] = useState(true)
   /** Umschalter 2D/3D: 3D liegt ueber der Zeichenflaeche und zeigt z.dok live. */
   const [drei, setDrei] = useState(false)
   const [zeigerCm, setZeigerCm] = useState<Punkt | null>(null)
@@ -1249,6 +1251,7 @@ export default function Zeichner({
               breite={groesse[0]}
               hoehe={groesse[1]}
               vorschau={vorschau}
+              teppiche={teppiche}
               onMass={(m) => {
                 if (werkzeug.name !== 'auswahl') return
                 setMassEingabe({ ...m, text: String(m.laenge) })
@@ -1429,6 +1432,14 @@ export default function Zeichner({
           className={cx('rounded-md px-2 py-0.5 font-bold', winkel ? 'bg-ink text-paper' : 'hover:bg-raised')}
         >
           {t('zeichner.winkel')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setTeppiche((v) => !v)}
+          aria-pressed={teppiche}
+          className={cx('rounded-md px-2 py-0.5 font-bold', teppiche ? 'bg-ink text-paper' : 'hover:bg-raised')}
+        >
+          {t('zeichner.teppiche')}
         </button>
         <span className="t-serial text-muted">{ansicht ? `${Math.round(ansicht.s * 100)} %` : ''}</span>
         <span data-tour="z-tasten" className="t-sub ms-auto">{t('zeichner.tasten_hilfe')}</span>

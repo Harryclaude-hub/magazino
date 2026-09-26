@@ -39,11 +39,15 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - Nachtrag (E73): Elektro aus Plan E10 (39 Symbole), Moebelart "Mauer"
   fuer Schaechte und Pfeiler, Sitzbank als L; Ess-Eck um den Schacht in
   der Wohnkueche; Eltern im grossen, Kind im mittleren Zimmer.
+- Nachtrag (E74): Steckdosen und Schalter immer an der Wand, Licht je
+  Zimmer in 3D (Liste oder Klick auf den Schalter), Spiegel, Teppiche
+  (ausblendbar), mehr Kontrast, Fenster laut Plan, Abstellraum und
+  Flurende neu.
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E73.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E74.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler

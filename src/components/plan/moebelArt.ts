@@ -45,6 +45,7 @@ export type MoebelArt =
   | 'bank'
   | 'haengelampe'
   | 'mauer'
+  | 'spiegel'
 
 /** Reihenfolge zaehlt: das Genauere zuerst (Geschirrspueler vor Spuele,
  *  Waschtisch vor Tisch, Couchtisch vor Couch, Buerostuhl vor Stuhl,
@@ -52,6 +53,7 @@ export type MoebelArt =
 const WOERTER: [MoebelArt, string[]][] = [
   // Kein Moebel: ein Stueck Wand im Raum (Schacht, Pfeiler), E73.
   ['mauer', ['mauervorsprung', 'wandvorsprung', 'mauerstück', 'mauerstueck', 'بروز جدار']],
+  ['spiegel', ['spiegel', 'مرآة']],
   ['tv_board', ['tv-board', 'tv-bank', 'tvboard', 'lowboard', 'fernsehschrank', 'طاولة تلفاز']],
   ['essgruppe', ['essgruppe', 'essbereich', 'مجموعة طعام']],
   ['haengelampe', ['hängeleuchte', 'haengeleuchte', 'hängelampe', 'haengelampe', 'pendelleuchte', 'pendellampe', 'مصباح معلق']],
@@ -71,7 +73,7 @@ const WOERTER: [MoebelArt, string[]][] = [
   ['sideboard', ['sideboard', 'anrichte', 'خزانة جانبية']],
   ['stehlampe', ['stehlampe', 'lampe', 'مصباح']],
   ['pflanze', ['pflanze', 'blume', 'نبتة']],
-  ['teppich', ['teppich', 'سجادة']],
+  ['teppich', ['teppich', 'läufer', 'laeufer', 'badematte', 'fußmatte', 'fussmatte', 'سجادة']],
   ['klavier', ['klavier', 'piano', 'بيانو']],
   ['fahrrad', ['fahrrad', 'دراجة']],
   ['geschirrspueler', ['geschirrspüler', 'geschirrspueler', 'spülmaschine', 'spuelmaschine', 'غسالة صحون']],

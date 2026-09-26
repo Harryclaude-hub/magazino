@@ -11,7 +11,7 @@
  * Entschieden wird hier nichts, gezeigt wird, was grundriss_laden liefert.
  */
 import { flaeche2, objektGlobal, objektRechtecke, punktImPolygon, wandStuecke, zuUmriss, type Punkt } from '../../lib/geometrie.ts'
-import { flaecheQm, innenNormale, innenPunkt, kisteAusdehnung, oeffnungPunkte, spaltenBereich, streckenAbstand } from '../plan/hilfe.ts'
+import { flaecheQm, innenNormale, innenPunkt, kisteAusdehnung, oeffnungPunkte, spaltenBereich, streckenAbstand, symbolAnWand } from '../plan/hilfe.ts'
 import type { GrundrissDaten, Objekt, Raum } from '../../lib/types'
 import { moebelArt } from '../plan/moebelArt.ts'
 import { moebelTeile, ton, type Teil } from './moebel3d.ts'
@@ -54,6 +54,9 @@ export interface Farben3D {
   topf: string
   teppich: string
   glas: string
+  /** Schalter- und Steckdosenplatte, Spiegel (E74). */
+  schalter3d: string
+  spiegel: string
 }
 
 /** Welches Token hinter welcher Farbe steht (src/index.css). */
@@ -93,6 +96,8 @@ export const FARB_TOKENS: Record<keyof Farben3D, string> = {
   topf: '--plan3d-topf',
   teppich: '--plan3d-teppich',
   glas: '--plan3d-glas',
+  schalter3d: '--plan3d-schalter',
+  spiegel: '--plan3d-spiegel',
 }
 
 export type Rolle =
@@ -111,6 +116,7 @@ export type Rolle =
   | 'kiste'
   | 'front'
   | 'leuchte'
+  | 'schalter'
 
 export type Vec3 = [number, number, number]
 
@@ -172,6 +178,8 @@ export interface SzeneOptionen {
   hervor?: string | null
   /** Im Zeichner gewaehltes Moebel (Objekt-Id): leuchtet auf. */
   markiert?: string | null
+  /** Teppiche zeigen (Standard) oder ausblenden (E74). */
+  teppiche?: boolean
 }
 
 /** Wandstaerke in cm, wie in 2D (PlanBild). */
@@ -488,10 +496,18 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
       // (Keramik, Metall, Kochfeld) behalten ihn.
       const glanz = materialGlanz(o.material ?? standardMaterial(art))
       for (const q of form) {
+        // Leuchtende Teile (LED unter den Oberschraenken, Lampenschirm unten)
+        // gehoeren zum Licht ihres Raums und gehen mit dem Schalter an (E74).
+        if (q.leuchte && !ist) {
+          const l = lokalQuader(o, 'leuchte', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, q.farbe, { id: o.raum_id })
+          if (l) out.push(l)
+          continue
+        }
         const qf = ist ? f.hervor : q.farbe
-        // Kanten nur an groesseren Teilen: sauberer und schneller.
-        const gross = Math.max(q.x1 - q.x0, q.y1 - q.y0) >= 25 && q.z1 - q.z0 >= 4
-        const kante = ist ? f.kisteRand : gross && art !== 'mauer' ? ton(qf, 0.72) : undefined
+        // Kanten an allem, was man sieht (E74: mehr Kontrast), nur nicht an
+        // ganz kleinen Teilen; sauberer und schneller.
+        const gross = Math.max(q.x1 - q.x0, q.y1 - q.y0) >= 12 && q.z1 - q.z0 >= 2
+        const kante = ist ? f.kisteRand : gross && art !== 'mauer' ? ton(qf, 0.68) : undefined
         const k =
           q.front?.art === 'tuer'
             ? drehTuer(o, `${o.id}:t${form.indexOf(q)}`, q, unten, qf, kante ?? ton(qf, 0.8))
@@ -636,12 +652,21 @@ export function baueSzene(daten: GrundrissDaten, farben: Farben3D, optionen: Sze
   }
   out.push(...waende(daten, raeume, farben, raumId))
   out.push(...oeffnungen(daten, raeume, farben, raumId))
-  out.push(...objekte(raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte, farben, hervor, raeume, optionen.markiert ?? null))
+  const ohneTeppich = (o: Objekt) => optionen.teppiche !== false || moebelArt(o.name ?? '') !== 'teppich'
+  out.push(
+    ...objekte(
+      (raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte).filter(ohneTeppich),
+      farben,
+      hervor,
+      raeume,
+      optionen.markiert ?? null,
+    ),
+  )
   out.push(...kisten(daten, farben, raumId, hervor))
   out.push(...symbole(daten, sichtbar, farben))
   // Deckenleuchten, wo der Raum keine eigene hat (E71).
   for (const l of lichter(daten, raumId)) {
-    if (l.leuchte) out.push(quader('leuchte', [l.pos[0], l.pos[1] + 0.03, l.pos[2]], [0.34, 0.03, 0.34], farben.waesche, { kante: farben.metall }))
+    if (l.leuchte) out.push(quader('leuchte', [l.pos[0], l.pos[1] + 0.03, l.pos[2]], [0.34, 0.03, 0.34], farben.waesche, { kante: farben.metall, id: l.raumId }))
   }
   return out
 }
@@ -654,6 +679,8 @@ export interface Licht3D {
   farbe: string
   art: 'decke' | 'kueche' | 'lampe'
   leuchte: boolean
+  /** Der Raum, dessen Schalter dieses Licht schaltet (E74). */
+  raumId: string
 }
 
 /** Wo es Licht gibt: je Raum Deckenlicht (ab 12 m2 zwei, entlang der
@@ -667,7 +694,7 @@ export function lichter(daten: GrundrissDaten, raumId: string | null = null): Li
     const H = r.hoehe_cm
     const hier = eigene.filter((s) => punktImPolygon(zuUmriss(r.punkte), s.x, s.y))
     if (hier.length) {
-      for (const s of hier) out.push({ pos: [m(s.x), m(H - 6), m(s.y)], staerke: 1, farbe: '#ffe2b8', art: 'decke', leuchte: false })
+      for (const s of hier) out.push({ pos: [m(s.x), m(H - 6), m(s.y)], staerke: 1, farbe: '#ffe2b8', art: 'decke', leuchte: false, raumId: r.id })
       continue
     }
     const p = innenPunkt(r.punkte)
@@ -684,10 +711,10 @@ export function lichter(daten: GrundrissDaten, raumId: string | null = null): Li
         const q: [number, number] = breit >= tief ? [p[0] + s * d, p[1]] : [p[0], p[1] + s * d]
         const im = punktImPolygon(zuUmriss(r.punkte), q[0], q[1])
         const z = im ? q : p
-        out.push({ pos: [m(z[0]), m(H - 6), m(z[1])], staerke: 0.8, farbe: '#ffe2b8', art: 'decke', leuchte: true })
+        out.push({ pos: [m(z[0]), m(H - 6), m(z[1])], staerke: 0.8, farbe: '#ffe2b8', art: 'decke', leuchte: true, raumId: r.id })
       }
     } else {
-      out.push({ pos: [m(p[0]), m(H - 6), m(p[1])], staerke: draussen ? 0.5 : Math.min(1, 0.55 + flaeche / 20), farbe: draussen ? '#ffd29a' : '#ffe2b8', art: 'decke', leuchte: true })
+      out.push({ pos: [m(p[0]), m(H - 6), m(p[1])], staerke: draussen ? 0.5 : Math.min(1, 0.55 + flaeche / 20), farbe: draussen ? '#ffd29a' : '#ffe2b8', art: 'decke', leuchte: true, raumId: r.id })
     }
   }
   const drin = new Set(raeume.map((r) => r.id))
@@ -698,29 +725,43 @@ export function lichter(daten: GrundrissDaten, raumId: string | null = null): Li
     if (a === 'kuechenzeile') {
       // LED unter den Oberschraenken: je Arm ein Licht auf 145 cm.
       for (const q of objektRechtecke(o)) {
-        out.push({ pos: [m((q.x0 + q.x1) / 2), m(boden + o.hoehe_cm + 50), m((q.y0 + q.y1) / 2)], staerke: 0.35, farbe: '#fff1d6', art: 'kueche', leuchte: false })
+        out.push({ pos: [m((q.x0 + q.x1) / 2), m(boden + o.hoehe_cm + 50), m((q.y0 + q.y1) / 2)], staerke: 0.45, farbe: '#fff1d6', art: 'kueche', leuchte: false, raumId: o.raum_id })
       }
     } else if (a === 'haengelampe' || a === 'stehlampe') {
       const [cx, cy] = objektGlobal(o, o.breite_cm / 2, o.tiefe_cm / 2)
       const z = a === 'haengelampe' ? boden - 4 : boden + o.hoehe_cm - 12
-      out.push({ pos: [m(cx), m(z), m(cy)], staerke: a === 'haengelampe' ? 0.6 : 0.45, farbe: '#ffd9a8', art: 'lampe', leuchte: false })
+      out.push({ pos: [m(cx), m(z), m(cy)], staerke: a === 'haengelampe' ? 0.6 : 0.45, farbe: '#ffd9a8', art: 'lampe', leuchte: false, raumId: o.raum_id })
     }
   }
   return out
 }
 
-/** Steckdosen (30 cm hoch), Schalter (105 cm) und Lichter (an der Decke)
- *  als kleine Platten im Raum, in dem sie stehen. */
+/** Lichter an der Decke; Steckdosen (30 cm hoch) und Schalter (105 cm)
+ *  als flache Platten an der naechsten Wand (E74), nie frei im Raum.
+ *  Schalter sind unauffaellig weiss und schalten ihren Raum (oder den, den
+ *  sie laut Plan schalten); Steckdosen haben einen roten Rand. */
 function symbole(daten: GrundrissDaten, raeume: Raum[], f: Farben3D): Koerper[] {
   const out: Koerper[] = []
+  const drin = new Set(raeume.map((r) => r.id))
   for (const s of daten.grundriss.symbole ?? []) {
-    const r = raeume.find((x) => punktImPolygon(zuUmriss(x.punkte), s.x, s.y))
-    if (!r) continue
     if (s.art === 'licht') {
-      out.push(quader('leuchte', [m(s.x), m(r.hoehe_cm - 2), m(s.y)], [m(30), m(4), m(30)], f.waesche, { kante: f.metall }))
+      const r = raeume.find((x) => punktImPolygon(zuUmriss(x.punkte), s.x, s.y))
+      if (r) out.push(quader('leuchte', [m(s.x), m(r.hoehe_cm - 2), m(s.y)], [m(30), m(4), m(30)], f.waesche, { kante: f.metall, id: r.id }))
+      continue
+    }
+    const w = symbolAnWand([s.x, s.y], daten)
+    if (!w || !drin.has(w.raumId)) continue
+    const h = s.art === 'schalter' ? 105 : 30
+    // Laengs der Wand: senkrecht zur Innenrichtung.
+    const drehY = -Math.atan2(-w.innen[0], w.innen[1])
+    const platte = (tief: number, breit: number, farbe: string, kante: string | null, rolle: Rolle, id: string | null) =>
+      quader(rolle, [m(w.punkt[0] + w.innen[0] * tief / 2), m(h), m(w.punkt[1] + w.innen[1] * tief / 2)], [m(breit), m(breit), m(tief)], farbe, { drehY, kante, id })
+    if (s.art === 'schalter') {
+      const raum = s.schaltet && daten.raeume.some((r) => r.id === s.schaltet) ? s.schaltet : w.raumId
+      out.push(platte(1.2, 8.5, f.schalter3d, f.wandKante, 'schalter', raum))
+      out.push(platte(1.8, 5.5, f.schalter3d, null, 'schalter', raum))
     } else {
-      const h = s.art === 'schalter' ? 105 : 30
-      out.push(quader('moebel', [m(s.x), m(h), m(s.y)], [m(9), m(9), m(9)], s.art === 'steckdose' ? f.steckdose : f.strom, { kante: f.objektRand }))
+      out.push(platte(1.2, 8, f.schalter3d, f.steckdose, 'moebel', null))
     }
   }
   return out

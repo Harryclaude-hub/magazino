@@ -18,6 +18,7 @@ import {
   type Rechteck,
 } from '../../lib/geometrie.ts'
 import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, Raum } from '../../lib/types'
+import { moebelArt } from './moebelArt.ts'
 
 /** Name eines Raums: das Zimmer, sonst der eigene Name, sonst leer. */
 export function raumTitel(r: Pick<Raum, 'tag_name' | 'name'>): string {
@@ -251,9 +252,13 @@ export function trefferAn(
   }
   const oeff = oeffnungAn(daten, p, toleranz)
   if (oeff) return { art: 'oeffnung', id: oeff.id }
-  for (let i = daten.objekte.length - 1; i >= 0; i--) {
-    const o = daten.objekte[i]
-    if (objektEnthaelt(o, p[0], p[1])) return { art: 'objekt', id: o.id }
+  // Erst was auf dem Teppich steht, dann der Teppich selbst (E74).
+  for (const teppich of [false, true]) {
+    for (let i = daten.objekte.length - 1; i >= 0; i--) {
+      const o = daten.objekte[i]
+      if ((moebelArt(o.name ?? '') === 'teppich') !== teppich) continue
+      if (objektEnthaelt(o, p[0], p[1])) return { art: 'objekt', id: o.id }
+    }
   }
   for (let i = daten.raeume.length - 1; i >= 0; i--) {
     const r = daten.raeume[i]
@@ -302,4 +307,55 @@ export function oeffnungAn(
 export function spaltenBereich(o: { breite_cm: number; spalten: number }, s: number): [number, number] {
   const S = Math.max(1, o.spalten)
   return [((s - 1) * (o.breite_cm + 2)) / S, (s * (o.breite_cm + 2)) / S - 2]
+}
+
+
+/** Wo eine Steckdose oder ein Schalter wirklich sitzt (E74): an der
+ *  naechsten Wand des Raums, in dem der Punkt liegt, auf der Innenseite und
+ *  nicht in einer Tuer, einem Fenster oder Durchgang (auch nicht in dem des
+ *  Nachbarraums in derselben Wand). innen zeigt in den Raum. Liegt der
+ *  Punkt in keinem Raum, null. So schwebt nichts im Raum, auch wenn der
+ *  Punkt etwas neben der Wand gesetzt wurde. */
+export function symbolAnWand(
+  p: Punkt,
+  daten: Pick<GrundrissDaten, 'raeume' | 'oeffnungen'>,
+): { punkt: Punkt; innen: Punkt; raumId: string } | null {
+  const raum = daten.raeume.find((r) => r.punkte.length >= 3 && punktImPolygon(zuUmriss(r.punkte), p[0], p[1]))
+  if (!raum) return null
+  const loecher: [Punkt, Punkt][] = []
+  for (const o of daten.oeffnungen) {
+    const r = daten.raeume.find((x) => x.id === o.raum_id)
+    const s = r ? oeffnungPunkte(r, o) : null
+    if (s) loecher.push(s)
+  }
+  const sinn = flaeche2(zuUmriss(raum.punkte)) >= 0 ? 1 : -1
+  const n = raum.punkte.length
+  let beste: { punkt: Punkt; innen: Punkt; d: number; frei: boolean } | null = null
+  for (let k = 0; k < n; k++) {
+    const a = raum.punkte[k]
+    const b = raum.punkte[(k + 1) % n]
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+    // Zu kurz fuer ein Zeichen (Stufe, Knick): ueberspringen.
+    if (l < 2 * WAND_HALB_CM + 10) continue
+    const rx = (b[0] - a[0]) / l
+    const ry = (b[1] - a[1]) / l
+    const t = Math.max(WAND_HALB_CM + 5, Math.min(l - WAND_HALB_CM - 5, (p[0] - a[0]) * rx + (p[1] - a[1]) * ry))
+    const q: Punkt = [a[0] + rx * t, a[1] + ry * t]
+    const innen: Punkt = [-ry * sinn, rx * sinn]
+    // In einer Oeffnung dieser Wand (gleiche Richtung, hoechstens eine dicke Wand daneben)?
+    const frei = !loecher.some(([s0, s1]) => {
+      const sl = Math.hypot(s1[0] - s0[0], s1[1] - s0[1])
+      if (sl === 0) return false
+      const sx = (s1[0] - s0[0]) / sl
+      const sy = (s1[1] - s0[1]) / sl
+      if (Math.abs(sx * ry - sy * rx) > 0.01) return false
+      const quer = Math.abs((q[0] - s0[0]) * sy - (q[1] - s0[1]) * sx)
+      const laengs = (q[0] - s0[0]) * sx + (q[1] - s0[1]) * sy
+      return quer <= 41 && laengs > -5 && laengs < sl + 5
+    })
+    const d = Math.hypot(p[0] - q[0], p[1] - q[1])
+    const kandidat = { punkt: [q[0] + innen[0] * WAND_HALB_CM, q[1] + innen[1] * WAND_HALB_CM] as Punkt, innen, d, frei }
+    if (!beste || (kandidat.frei && !beste.frei) || (kandidat.frei === beste.frei && d < beste.d)) beste = kandidat
+  }
+  return beste ? { punkt: beste.punkt, innen: beste.innen, raumId: raum.id } : null
 }

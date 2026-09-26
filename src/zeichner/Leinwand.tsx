@@ -104,6 +104,7 @@ export function Leinwand({
   hoehe,
   vorschau,
   onMass,
+  teppiche = true,
 }: {
   dok: Dok
   auswahl: Auswahl
@@ -113,6 +114,7 @@ export function Leinwand({
   hoehe: number
   vorschau: Vorschau
   onMass: (m: WandMass) => void
+  teppiche?: boolean
 }) {
   const { t } = useSprache()
   const s = ansicht.s
@@ -134,7 +136,7 @@ export function Leinwand({
       aria-label={t('zeichner.leinwand')}
     >
       <Raster a={ansicht} w={breite} h={hoehe} />
-      <PlanEbenen daten={dok} massstab={s} hervor={hervor} auswahl={alsTreffer(auswahl)} />
+      <PlanEbenen daten={dok} massstab={s} hervor={hervor} auswahl={alsTreffer(auswahl)} teppiche={teppiche} />
 
       {/* Masse an jeder Wand; anklickbar zum Eintippen */}
       <g>

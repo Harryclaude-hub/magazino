@@ -86,6 +86,8 @@ export const KATALOG_BAD: Vorlage[] = [
   v({ schluessel: 'dusche', art: 'moebel', breite_cm: 90, tiefe_cm: 90, hoehe_cm: 5 }),
   v({ schluessel: 'waschmaschine', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 85 }),
   v({ schluessel: 'trockner', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 85 }),
+  v({ schluessel: 'spiegel', art: 'moebel', breite_cm: 60, tiefe_cm: 5, hoehe_cm: 80, boden_cm: 110 }),
+  v({ schluessel: 'badematte', art: 'moebel', breite_cm: 80, tiefe_cm: 50, hoehe_cm: 1 }),
 ]
 
 /** Kueche: die Zeile als Ganzes und einzelne Teile. Unter- und Hochschrank

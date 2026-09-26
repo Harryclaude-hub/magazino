@@ -103,9 +103,10 @@
   --plan-boden: #e6dccb;
   --plan-boden-draussen: #d9e2cf;
   --plan-wand: #3a3a3a;
-  --plan-wand-3d: #e7e2d9;
+  --plan-wand-3d: #e1dace;
   --plan-strom: #a16207;
   --plan-steckdose: #dc2626;
+  --plan-schalter: #9a9284;
   --plan-tuer: #e0700f;
   --plan-fenster: #2b78c9;
   --plan-objekt: #cbbfa9;
@@ -125,7 +126,7 @@
   --plan3d-tuer: #f4f2ed;
   --plan3d-zarge: #d6d0c5;
   --plan3d-rahmen: #eeece8;
-  --plan3d-boden: #c9a77c;
+  --plan3d-boden: #bb9670;
   --plan3d-boden-draussen: #b7b3aa;
   --plan3d-holz: #b98c5a;
   --plan3d-holz-dunkel: #5c4430;
@@ -141,6 +142,8 @@
   --plan3d-topf: #b0643c;
   --plan3d-teppich: #a48a73;
   --plan3d-glas: #9fc3d9;
+  --plan3d-schalter: #f6f4ef;
+  --plan3d-spiegel: #c3d0d6;
   color-scheme: light;
 }
 
@@ -178,6 +181,7 @@
   --plan-wand-3d: #b9b6b0;
   --plan-strom: #fbbf24;
   --plan-steckdose: #f87171;
+  --plan-schalter: #8a8478;
   --plan-tuer: #f28c2e;
   --plan-fenster: #5ea4ee;
   --plan-objekt: #5a5243;

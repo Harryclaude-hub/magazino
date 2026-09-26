@@ -23,6 +23,7 @@ import {
   oeffnungPunkte,
   punkteBox,
   raumTitel,
+  symbolAnWand,
   trefferAn,
   type PlanTreffer,
 } from './hilfe'
@@ -482,6 +483,8 @@ export interface PlanEbenenProps {
   auswahl?: PlanTreffer | null
   kisten?: boolean
   beschriftung?: boolean
+  /** Teppiche zeigen (Standard) oder ausblenden (E74). */
+  teppiche?: boolean
 }
 
 /** Alle Ebenen ohne eigenes svg, fuer PlanBild und den Zeichner. */
@@ -509,13 +512,28 @@ const LinienEbene = memo(function LinienEbene({ linien }: { linien: PlanLinie[] 
 
 /** Steckdosen, Lichter, Schalter (0037): kleine Zeichen, am Bildschirm
  *  immer gleich gross. Steckdose: Kreis mit zwei Loechern, Licht: Kreis
- *  mit Kreuz, Schalter: kleiner Punkt mit Hebel. */
-const SymbolEbene = memo(function SymbolEbene({ symbole, massstab }: { symbole: PlanSymbol[] | undefined; massstab: number }) {
+ *  mit Kreuz, Schalter: kleiner Punkt mit Hebel, ruhig grau (E74).
+ *  Steckdosen und Schalter sitzen an der naechsten Wand (symbolAnWand). */
+const SymbolEbene = memo(function SymbolEbene({
+  symbole,
+  massstab,
+  raeume,
+  oeffnungen,
+}: {
+  symbole: PlanSymbol[] | undefined
+  massstab: number
+  raeume: Raum[]
+  oeffnungen: Oeffnung[]
+}) {
   if (!symbole?.length) return null
   const r = px(massstab, 8)
   return (
     <g style={{ stroke: 'var(--plan-strom)' }} strokeWidth={px(massstab, 1.8)} fill="none" strokeLinecap="round">
-      {symbole.map((s) => {
+      {symbole.map((roh) => {
+        // An die Wand geruecktes Zeichen, knapp davor, damit es die Wand beruehrt.
+        const wand = roh.art === 'licht' ? null : symbolAnWand([roh.x, roh.y], { raeume, oeffnungen })
+        const abstand = roh.art === 'schalter' ? r * 0.5 : r
+        const s = wand ? { ...roh, x: wand.punkt[0] + wand.innen[0] * abstand, y: wand.punkt[1] + wand.innen[1] * abstand } : roh
         if (s.art === 'licht') {
           const d = r * 0.7
           return (
@@ -528,9 +546,9 @@ const SymbolEbene = memo(function SymbolEbene({ symbole, massstab }: { symbole: 
         }
         if (s.art === 'schalter') {
           return (
-            <g key={s.id}>
-              <circle cx={s.x} cy={s.y} r={r * 0.45} style={{ fill: 'var(--plan-strom)' }} />
-              <line x1={s.x} y1={s.y} x2={s.x + r * 1.1} y2={s.y - r * 1.1} />
+            <g key={s.id} style={{ stroke: 'var(--plan-schalter)' }} strokeWidth={px(massstab, 1.2)}>
+              <circle cx={s.x} cy={s.y} r={r * 0.32} style={{ fill: 'var(--plan-schalter)' }} />
+              <line x1={s.x} y1={s.y} x2={s.x + r * 0.8} y2={s.y - r * 0.8} />
             </g>
           )
         }
@@ -548,7 +566,14 @@ const SymbolEbene = memo(function SymbolEbene({ symbole, massstab }: { symbole: 
   )
 })
 
-export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, beschriftung = true }: PlanEbenenProps) {
+export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, beschriftung = true, teppiche = true }: PlanEbenenProps) {
+  // Teppiche zuunterst, Haengendes (Oberschraenke, Lampen) zuoberst, damit
+  // nichts verdeckt wird (E74); Teppiche lassen sich ausblenden.
+  const objekte = useMemo(() => {
+    const stufe = (o: Objekt) => (moebelArt(o.name ?? '') === 'teppich' ? 0 : (o.boden_cm ?? 0) > 0 ? 2 : 1)
+    const liste = teppiche ? daten.objekte : daten.objekte.filter((o) => stufe(o) !== 0)
+    return [...liste].sort((a, b) => stufe(a) - stufe(b))
+  }, [daten.objekte, teppiche])
   const hervorZiel = useMemo<PlanTreffer | null>(() => {
     if (!hervor) return null
     if (daten.kisten.some((k) => k.id === hervor)) return { art: 'kiste', id: hervor }
@@ -559,12 +584,12 @@ export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, be
     <g>
       <BodenEbene raeume={daten.raeume} />
       <WandFarbEbene raeume={daten.raeume} />
-      <ObjektEbene objekte={daten.objekte} massstab={massstab} />
+      <ObjektEbene objekte={objekte} massstab={massstab} />
       {kisten ? <KistenEbene kisten={daten.kisten} massstab={massstab} /> : null}
       <WandEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       <OeffnungEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       <LinienEbene linien={daten.grundriss.linien} />
-      <SymbolEbene symbole={daten.grundriss.symbole} massstab={massstab} />
+      <SymbolEbene symbole={daten.grundriss.symbole} massstab={massstab} raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       {beschriftung ? <BeschriftungEbene raeume={daten.raeume} massstab={massstab} /> : null}
       {/* Die Klassen sind nur Haken fuer die Designschicht (design/plan.css):
           weiche Auswahl und pulsierender Ring. Ohne sie bleibt alles wie es ist. */}
@@ -587,7 +612,7 @@ export interface PlanBildProps {
   ausschnitt?: { raumId: string } | 'alles'
   hervor?: string | null
   auswahl?: PlanTreffer | null
-  ebenen?: { kisten?: boolean; beschriftung?: boolean }
+  ebenen?: { kisten?: boolean; beschriftung?: boolean; teppiche?: boolean }
   onTipp?: (p: Punkt, treffer: PlanTreffer | null) => void
   /** Hoechstens so hoch (CSS), die Breite folgt dem Platz. */
   maxHoehe?: string
@@ -836,6 +861,7 @@ export function PlanBild({
           auswahl={auswahl}
           kisten={ebenen?.kisten}
           beschriftung={ebenen?.beschriftung}
+          teppiche={ebenen?.teppiche}
         />
         {zusatz ? zusatz(massstab) : null}
       </svg>

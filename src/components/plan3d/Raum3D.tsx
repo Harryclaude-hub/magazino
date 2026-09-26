@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clock, Crosshair, Eye, Footprints, Hand, Layers, Map as KarteIcon, Moon, Rotate3d, Sun, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clock, Crosshair, Eye, Footprints, Hand, Layers, Lightbulb, LightbulbOff, Map as KarteIcon, Moon, Rotate3d, Square, Sun, X } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
 import type { GrundrissDaten } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { Button } from '../ui'
-import { flaecheQm, innenPunkt } from '../plan/hilfe'
+import { flaecheQm, innenPunkt, raumTitel } from '../plan/hilfe'
 import { motorStarten, type Blick, type GehRichtung, type Motor, type Treffer3D } from './motor'
 import { farbenLesen } from './farben3d'
 import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
@@ -120,6 +120,24 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     return () => window.clearInterval(uhr)
   }, [])
   const lichtJetzt: 'tag' | 'abend' = licht === 'auto' ? (stunde >= 7 && stunde < 19 ? 'tag' : 'abend') : licht
+  // Licht je Raum (E74): ohne eigene Wahl folgt es Tag (aus) und Abend (an).
+  // Ein Klick auf einen Schalter an der Wand oder in der Liste schaltet um.
+  const [raumLicht, setRaumLicht] = useState<Record<string, boolean>>({})
+  const [lichtListeAuf, setLichtListeAuf] = useState(false)
+  const [teppiche, setTeppiche] = useState(true)
+  const lichtRaeumeListe = useMemo(
+    () => daten.raeume.filter((r) => r.punkte.length >= 3 && (!raumId || r.id === raumId)),
+    [daten.raeume, raumId],
+  )
+  const raumAn = (id: string) => raumLicht[id] ?? lichtJetzt === 'abend'
+  const lichtAnSet = useMemo(
+    () => new Set(lichtRaeumeListe.filter((r) => raumLicht[r.id] ?? lichtJetzt === 'abend').map((r) => r.id)),
+    [lichtRaeumeListe, raumLicht, lichtJetzt],
+  )
+  const lichtJetztRef = useRef(lichtJetzt)
+  useLayoutEffect(() => {
+    lichtJetztRef.current = lichtJetzt
+  })
 
   // Hell/Dunkel: die Klasse an <html> wechselt, die Tokens auch.
   useEffect(() => {
@@ -141,7 +159,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     }
   }, [])
 
-  const koerper = useMemo(() => baueSzene(daten, farben, { raumId, hervor, markiert }), [daten, farben, raumId, hervor, markiert])
+  const koerper = useMemo(() => baueSzene(daten, farben, { raumId, hervor, markiert, teppiche }), [daten, farben, raumId, hervor, markiert, teppiche])
   const hatKiste = useMemo(() => hervorMitte(koerper) !== null, [koerper])
   const leer = koerper.length === 0
 
@@ -167,6 +185,14 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   useEffect(() => {
     motor.current?.lichtModus(lichtJetzt)
   }, [lichtJetzt, geht])
+  useEffect(() => {
+    motor.current?.lichtRaeume(lichtAnSet)
+  }, [lichtAnSet, geht])
+  useEffect(() => {
+    motor.current?.schalter((id) =>
+      setRaumLicht((vorher) => ({ ...vorher, [id]: !(vorher[id] ?? lichtJetztRef.current === 'abend') })),
+    )
+  }, [geht])
 
   useEffect(() => {
     motor.current?.hand(hand)
@@ -275,7 +301,11 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
               key={wert}
               type="button"
               aria-pressed={licht === wert}
-              onClick={() => setLicht(wert)}
+              onClick={() => {
+                // Tag, Abend oder Automatisch gilt wieder fuer alle Raeume.
+                setLicht(wert)
+                setRaumLicht({})
+              }}
               title={t(schluessel)}
               className={cx('flex h-8 items-center gap-1 rounded-lg px-2 text-sm font-bold', licht === wert ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
             >
@@ -285,12 +315,26 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
         </div>
         <Button
           size="sm"
+          variant={lichtListeAuf ? 'aktiv' : 'outline'}
+          aria-pressed={lichtListeAuf}
+          aria-expanded={lichtListeAuf}
+          onClick={() => setLichtListeAuf((v) => !v)}
+          disabled={geht !== 'ja' || leer}
+          title={t('plan3d.licht_schalter_hilfe')}
+        >
+          <Lightbulb size={16} /> {t('plan3d.licht_raeume')}
+        </Button>
+        <Button
+          size="sm"
           variant={halb ? 'aktiv' : 'outline'}
           aria-pressed={halb}
           onClick={() => setHalb((v) => !v)}
           disabled={geht !== 'ja'}
         >
           <Layers size={16} /> {t('plan3d.waende_halb')}
+        </Button>
+        <Button size="sm" variant={teppiche ? 'aktiv' : 'outline'} aria-pressed={teppiche} onClick={() => setTeppiche((v) => !v)} disabled={geht !== 'ja'}>
+          <Square size={16} /> {t('plan3d.teppiche')}
         </Button>
         <p className="t-sub min-w-0 flex-1 truncate px-1">
           {geht !== 'ja'
@@ -313,6 +357,39 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
           role="img"
           aria-label={t('plan3d.leinwand')}
         />
+        {geht === 'ja' && lichtListeAuf && !leer ? (
+          // Licht je Raum: an, aus, alle. Auch ein Klick auf einen Schalter an der Wand schaltet.
+          <div dir="auto" className="absolute end-3 top-3 z-10 w-64 max-w-[calc(100%-1.5rem)] rounded-2xl border border-line bg-surface/95 p-2 shadow-lg">
+            <p className="t-sub px-1 pb-1">{t('plan3d.licht_schalter_hilfe')}</p>
+            <div className="flex flex-wrap gap-1 pb-1">
+              <Button size="sm" variant="outline" onClick={() => setRaumLicht(Object.fromEntries(lichtRaeumeListe.map((r) => [r.id, true])))}>
+                {t('plan3d.licht_alle_an')}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setRaumLicht(Object.fromEntries(lichtRaeumeListe.map((r) => [r.id, false])))}>
+                {t('plan3d.licht_alle_aus')}
+              </Button>
+            </div>
+            <ul className="max-h-72 overflow-y-auto">
+              {lichtRaeumeListe.map((r) => {
+                const an = raumAn(r.id)
+                return (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      aria-pressed={an}
+                      onClick={() => setRaumLicht((vorher) => ({ ...vorher, [r.id]: !an }))}
+                      className={cx('flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start text-sm font-bold hover:bg-raised', an ? 'text-ink' : 'text-muted')}
+                    >
+                      {an ? <Lightbulb size={16} style={{ color: 'var(--plan-strom)' }} /> : <LightbulbOff size={16} />}
+                      <span className="min-w-0 flex-1 truncate">{raumTitel(r)}</span>
+                      <span className="t-sub">{t(an ? 'plan3d.licht_an' : 'plan3d.licht_aus')}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : null}
         {geht === 'nein' ? (
           <div dir="auto" className="absolute inset-0 flex items-center justify-center p-6">
             <p className="max-w-md rounded-2xl border border-line bg-surface p-4 text-center font-bold text-ink" role="status">

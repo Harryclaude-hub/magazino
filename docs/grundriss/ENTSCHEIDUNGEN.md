@@ -474,3 +474,32 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Wand zur Kueche; Fenster und beide Tueren frei. Kind: Juniorbett links
   neben dem Fenster, SMASTAD und TROFAST an der Tuerwand, LAETT-Tisch auf
   dem LEN-Teppich.
+- **E74 Elektro an der Wand, Licht je Zimmer, Kontrast, Spiegel,
+  Teppiche:** Der Plan E10 wurde noch einmal Stueck fuer Stueck
+  gelesen: 3 Steckdosen fehlten (Wohnkueche am Durchgang, neben der
+  Loggiatuer, Loggia aussen), eine sass auf der falschen Wandseite, 4
+  Schalter fehlten (Taster Flurlicht an zwei Zimmertueren, Vorraum,
+  Wohnkueche neben der Loggiatuer). Jetzt 46 Zeichen. Steckdosen und
+  Schalter werden in 2D und 3D immer an die naechste Wand ihres Raums
+  gesetzt (`symbolAnWand`, nie in eine Tuer, ein Fenster oder einen
+  Durchgang), so schwebt nichts mehr; in 3D sind es flache Platten,
+  Schalter unauffaellig weiss, Steckdosen mit rotem Rand; in 2D sind
+  Schalter klein und grau (`--plan-schalter`). Ein Schalter kann laut
+  Plan einen anderen Raum schalten (`schaltet`, Bad, WC, Abstellraum vom
+  Flur aus). 3D: Licht je Zimmer an und aus, ueber die Liste "Licht je
+  Zimmer" oder einen Klick auf den Schalter an der Wand; Tag, Abend,
+  Automatisch setzt alle zurueck. Leuchten, die LED-Leiste unter den
+  Kuechen-Oberschraenken und die Lampenschirme leuchten mit ihrem Raum.
+  Fenster laut Plan: Wohnkueche FPH 65 (Kniehoehe), Zimmer FPH 86.
+  Neue Moebelart Spiegel (flach an der Wand, Glas mit Glanz); Spiegel in
+  Bad, WC und Vorraum. Teppiche in Bad, WC, Vorraum, Flur, den Zimmern
+  und unter dem Esstisch; Teppiche liegen in 2D zuunterst, ein Klick
+  trifft erst das Moebel darauf, und sie lassen sich in 2D (Statusleiste)
+  und 3D ausblenden. Kontrast: Kanten an allen Teilen ab 12 cm, Teppiche
+  mit dunklerem Rand, Boden etwas satter, Waende etwas waermer als weisse
+  Moebel, Esstisch in hellerer Eiche auf grauem Teppich. Abstellraum:
+  linke Wand ganz mit BILLY 80, BILLY/OXBERG 80 mit Tueren und BILLY 40
+  samt Aufsaetzen (30 cm bleiben fuer Staubsauger und Buegelbrett),
+  rechte Wand frei zum Arbeiten, nur drei EKET in Kopfhoehe. Flurende:
+  PAX 75 + 50 ueber die ganze Breite ohne Luecke (Flur laut Plan 125).
+  WC-Handwaschbecken richtig herum an der rechten Wand.

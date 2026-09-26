@@ -31,6 +31,7 @@ export interface MoebelFarben {
   teppich: string
   glas: string
   wand3d: string
+  spiegel: string
 }
 
 /** Ein Quader im Moebel: x0..x1, y0..y1 (lokal), z0..z1 (Hoehe), cm. */
@@ -45,6 +46,8 @@ export interface Teil {
   deckkraft?: number
   /** Eigener Glanz (Metall, Keramik, Kochfeld); sonst der des Materials. */
   glanz?: number
+  /** Leuchtet, wenn das Licht im Raum an ist (LED, Lampenschirm), E74. */
+  leuchte?: boolean
   /** Laesst sich oeffnen (E68). Beschrieben relativ zur langen und kurzen
    *  Seite des Teils, damit Spiegeln und Achsentausch es nicht aendern:
    *  Tuer: Angel am Anfang ('min') oder Ende ('max') der langen Seite,
@@ -293,6 +296,9 @@ function zeile(
     const ob0 = wandBeiY0 ? y0 : y1 - Math.min(35, tief)
     const ob1 = wandBeiY0 ? y0 + Math.min(35, tief) : y1
     out.push(t(x0, ob0, x1, ob1, H + 55, oben, ton(f.front, 0.95)))
+    // LED-Leiste unter den Oberschraenken, vorne: Licht auf die Arbeitsplatte.
+    const ly0 = wandBeiY0 ? ob1 - 7 : ob0 + 4
+    out.push({ ...t(x0 + 4, ly0, x1 - 4, ly0 + 3, H + 54, H + 55, f.waesche), leuchte: true })
     const fy0 = wandBeiY0 ? ob1 - 1 : ob0
     const fy1 = wandBeiY0 ? ob1 : ob0 + 1
     for (let i = 0; i < n; i++) {
@@ -498,7 +504,7 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
         t(B / 2 - 0.4, T / 2 - 0.4, B / 2 + 0.4, T / 2 + 0.4, schirm, H, f.schwarz),
         t(B * 0.15, 0, B * 0.85, T, 0, schirm, farbe),
         t(0, T * 0.15, B, T * 0.85, 0, schirm, farbe),
-        t(B * 0.35, T * 0.35, B * 0.65, T * 0.65, -2, 0.5, f.waesche),
+        { ...t(B * 0.35, T * 0.35, B * 0.65, T * 0.65, -2, 0.5, f.waesche), leuchte: true },
       ]
     }
     case 'hochschrank': {
@@ -535,13 +541,25 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       return [t(0, 0, B, T, 0, H, f.keramik), t(6, 6, B - 6, T - 6, H, H + 0.4, ton(f.keramik, 0.9))]
     case 'dusche':
       return [t(0, 0, B, T, 0, Math.max(3, H), f.keramik), t(0, T - 1, B, T, H, 200, f.glas, 0.25), t(B - 1, 0, B, T, H, 200, f.glas, 0.25)]
-    case 'teppich':
-      return [t(0, 0, B, T, 0, Math.max(1, H), eigen ?? f.teppich)]
+    case 'teppich': {
+      // Mit etwas dunklerem Rand, damit er sich vom Boden abhebt (E74).
+      const farbe = eigen ?? f.teppich
+      const h = Math.max(1, H)
+      const r = Math.min(5, B * 0.06, T * 0.06)
+      return [t(0, 0, B, T, 0, h, ton(farbe, 0.82)), t(r, r, B - r, T - r, h, h + 0.2, farbe)]
+    }
+    case 'spiegel': {
+      // Flach an der Wand (y = 0): schmaler Rahmen, davor das Glas mit Glanz
+      // (E74). Die Datenbank will mindestens 5 cm Tiefe, gezeichnet wird 2,5.
+      const d = Math.min(T, 2.5)
+      return [t(0, 0, B, d - 0.6, 0, H, eigen ?? f.weiss), { ...t(1.5, d - 0.6, B - 1.5, d, 1.5, H - 1.5, f.spiegel), glanz: 0.95 }]
+    }
     case 'stehlampe':
       return [
         t(B * 0.25, T * 0.25, B * 0.75, T * 0.75, 0, 3, f.metall),
         t(B * 0.46, T * 0.46, B * 0.54, T * 0.54, 3, H - 30, f.metall),
         t(B * 0.1, T * 0.1, B * 0.9, T * 0.9, H - 30, H, eigen ?? f.waesche),
+        { ...t(B * 0.2, T * 0.2, B * 0.8, T * 0.8, H - 31, H - 29.5, f.waesche), leuchte: true },
       ]
     case 'pflanze':
       return [t(B * 0.25, T * 0.25, B * 0.75, T * 0.75, 0, H * 0.3, f.topf), t(0, 0, B, T, H * 0.3, H, eigen ?? f.gruen)]

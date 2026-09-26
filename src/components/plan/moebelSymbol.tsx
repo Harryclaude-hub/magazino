@@ -254,6 +254,8 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
     }
     case 'mauer':
       return []
+    case 'spiegel':
+      return [{ art: 'linie', a: [B * 0.06, T * 0.6], b: [B * 0.94, T * 0.6] }]
     case 'hochschrank':
       return [{ art: 'linie', a: [B * 0.1, T * 0.9], b: [B * 0.9, T * 0.9] }, { art: 'linie', a: [B * 0.85, T * 0.3], b: [B * 0.85, T * 0.7] }]
     case 'backofen':
