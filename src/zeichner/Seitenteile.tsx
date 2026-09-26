@@ -1,18 +1,24 @@
-import { useMemo, useState } from 'react'
-import { Check, Circle, CircleHelp, Package, X } from 'lucide-react'
+import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react'
+import { Check, Circle, CircleHelp, Package, Plus, X } from 'lucide-react'
 import { FachAnsicht } from '../components/plan/FachAnsicht'
 import { objektName } from '../components/plan/lage'
 import { Button, CodeChip, ErrorBox, Input, Spinner } from '../components/ui'
 import { UEBERSTAND_MAX_CM, type Unterlage } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
-import type { EigeneGroesse, Item, SymbolArt } from '../lib/types'
+import type { EigeneGroesse, Item, PlanKiste, SymbolArt } from '../lib/types'
+import { createItem } from '../lib/api'
+import { groesseSatz, useKistenGroessen } from '../lib/groessen'
+import { useProject } from '../pages/ProjectLayout'
 import { cx } from '../lib/util'
 import { MassFeld } from './Eigenschaften'
 import { FaecherEditor } from './FaecherEditor'
 import { ausEigenerGroesse, KATALOG, KATALOG_BAD, KATALOG_KUECHE, KATALOG_SCHLAFEN, KATALOG_SONST } from './katalog'
 import { MoebelVorschau } from '../components/plan/moebelSymbol'
 import { SYMBOL_ARTEN } from './werkzeuge/strom'
-import type { Dok, Vorlage } from './dok'
+import { neuesObjekt, type Dok, type Vorlage } from './dok'
+
+/** Kleines 3D-Modell im Katalog, eigener Code-Teil samt three. */
+const Vorschau3D = lazy(() => import('../components/plan3d/Vorschau3D'))
 import type { KisteInHand, WerkzeugName } from './werkzeuge/typen'
 
 /* Die rechte Spalte des Zeichners, je nach Werkzeug: Assistent, Katalog
@@ -183,8 +189,38 @@ export function MoebelKatalog({
     </button>
   )
   const moebel = (eigene ?? []).filter((g) => g.art === 'moebel')
+  const vorschau = useMemo(() => (wahl ? neuesObjekt(wahl, 'vorschau', 'vorschau', { x: 0, y: 0 }, 0) : null), [wahl])
+  const lForm = wahl?.form === 'l'
   return (
     <div className="space-y-4">
+      {wahl && vorschau ? (
+        // Gewaehlt: so sieht es aus, Groesse vor dem Hinstellen einstellen (E66).
+        <div className="space-y-2 rounded-xl border-2 border-ink p-2.5">
+          <p className="font-bold">{wahl.name}</p>
+          <Suspense fallback={<div className="h-44 animate-pulse rounded-xl bg-raised" />}>
+            <Vorschau3D objekt={vorschau} />
+          </Suspense>
+          <MassFeld
+            label={t('zeichner.eig.breite')}
+            wert={wahl.breite_cm}
+            min={lForm ? (wahl.ausschnitt_breite_cm ?? 0) + 1 : 5}
+            max={2000}
+            onSetzen={(v) => onWahl({ ...wahl, breite_cm: v })}
+          />
+          <MassFeld
+            label={t('zeichner.eig.tiefe')}
+            wert={wahl.tiefe_cm}
+            min={lForm ? (wahl.ausschnitt_tiefe_cm ?? 0) + 1 : 5}
+            max={2000}
+            onSetzen={(v) => onWahl({ ...wahl, tiefe_cm: v })}
+          />
+          {wahl.art === 'moebel' ? (
+            <MassFeld label={t('zeichner.eig.hoehe')} wert={wahl.hoehe_cm} min={1} max={600} onSetzen={(v) => onWahl({ ...wahl, hoehe_cm: v })} />
+          ) : null}
+          <MassFeld label={t('zeichner.eig.boden')} wert={wahl.boden_cm ?? 0} min={0} max={600} onSetzen={(v) => onWahl({ ...wahl, boden_cm: v })} />
+          <p className="t-sub text-sm">{t('zeichner.katalog.dann_klicken')}</p>
+        </div>
+      ) : null}
       <div>
         <Kopf titel={t('zeichner.katalog.titel')} hilfe={t('zeichner.katalog.hilfe')} />
         <div className="space-y-1.5">{KATALOG.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
@@ -245,6 +281,70 @@ export function RegalVorlage({ wert, onAendern }: { wert: Vorlage; onAendern: (v
 
 /* ------------------------------------------------------------ Kisten */
 
+/** Schnell eine Kiste anlegen (E66): Zimmer und Groesse, sonst nichts.
+ *  Die Nummer vergibt die Datenbank; danach liegt sie in der Hand. */
+function NeueKisteKurz({ onAngelegt, onZu }: { onAngelegt: (i: Item) => void; onZu: () => void }) {
+  const { t, lang } = useSprache()
+  const { project, rooms } = useProject()
+  const tab = useKistenGroessen()
+  const [raum, setRaum] = useState(rooms[0]?.id ?? '')
+  const [groesse, setGroesse] = useState(4)
+  const [busy, setBusy] = useState(false)
+  const [fehler, setFehler] = useState<string | null>(null)
+  // Wird bei jedem Oeffnen neu eingehaengt: der Zustand faengt leer an.
+  async function anlegen(e: FormEvent) {
+    e.preventDefault()
+    if (!raum) {
+      setFehler(t('kisten.zimmer_waehlen_pflicht'))
+      return
+    }
+    setBusy(true)
+    setFehler(null)
+    try {
+      const i = await createItem({ project_id: project.id, kind: 'box', room_id: raum, code_source: 'room', size: groesse })
+      onAngelegt(i)
+      onZu()
+    } catch (err) {
+      setFehler(err instanceof Error ? err.message : String(err))
+      setBusy(false)
+    }
+  }
+  return (
+    <form onSubmit={(e) => void anlegen(e)} className="space-y-2 rounded-xl border-2 border-line p-2.5">
+      <p className="text-sm font-bold">{t('zeichner.kisten.neu_titel')}</p>
+      {fehler ? <ErrorBox error={fehler} /> : null}
+      <label className="block text-sm">
+        <span className="font-bold">{t('zeichner.kisten.neu_zimmer')}</span>
+        <select value={raum} onChange={(e) => setRaum(e.target.value)} className="mt-1 w-full rounded-lg border-2 border-line bg-surface px-2 py-1.5">
+          {rooms.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm">
+        <span className="font-bold">{t('zeichner.kisten.neu_groesse')}</span>
+        <select value={groesse} onChange={(e) => setGroesse(Number(e.target.value))} className="mt-1 w-full rounded-lg border-2 border-line bg-surface px-2 py-1.5">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+            <option key={n} value={n}>
+              {groesseSatz(t, lang, n, 'box', tab)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="flex gap-2">
+        <Button size="sm" type="submit" loading={busy}>
+          {t('zeichner.kisten.neu_anlegen')}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onZu}>
+          {t('aktion.abbrechen')}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 export function KistenListe({
   liste,
   fehler,
@@ -252,6 +352,8 @@ export function KistenListe({
   inHand,
   masse,
   onNehmen,
+  platziert = [],
+  onAngelegt,
 }: {
   liste: Item[] | null
   fehler: string | null
@@ -259,17 +361,36 @@ export function KistenListe({
   inHand: KisteInHand | null
   masse: (i: Item) => { laenge_cm: number; breite_cm: number; hoehe_cm: number }
   onNehmen: (k: KisteInHand) => void
+  /** Kisten, die schon im Plan stehen: per Suche finden und umstellen. */
+  platziert?: PlanKiste[]
+  /** Eine neue Kiste wurde angelegt (Schnell-Anlegen). */
+  onAngelegt?: (i: Item) => void
 }) {
   const { t } = useSprache()
   const [q, setQ] = useState('')
+  const [neu, setNeu] = useState(false)
   const gefiltert = useMemo(() => {
     const s = q.trim().toLowerCase()
     if (!liste) return null
     return s ? liste.filter((i) => i.code.toLowerCase().includes(s) || (i.title ?? '').toLowerCase().includes(s)) : liste
   }, [liste, q])
+  const imPlan = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    if (!s) return []
+    return platziert.filter((k) => k.code.toLowerCase().includes(s) || (k.title ?? '').toLowerCase().includes(s)).slice(0, 30)
+  }, [platziert, q])
   return (
     <div className="space-y-3">
       <Kopf titel={t('zeichner.kisten.titel')} hilfe={t('zeichner.kisten.hilfe')} />
+      {onAngelegt ? (
+        neu ? (
+          <NeueKisteKurz onAngelegt={onAngelegt} onZu={() => setNeu(false)} />
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => setNeu(true)}>
+            <Plus size={15} /> {t('zeichner.kisten.neu')}
+          </Button>
+        )
+      ) : null}
       {inHand ? (
         <div className="rounded-xl border-2 border-ink p-2.5">
           <p className="text-sm font-bold">{t('zeichner.kisten.in_der_hand')}</p>
@@ -319,6 +440,31 @@ export function KistenListe({
           })}
         </ul>
       )}
+      {imPlan.length ? (
+        <div className="space-y-1.5">
+          <p className="text-sm font-bold">{t('zeichner.kisten.im_plan')}</p>
+          <ul className="space-y-1.5">
+            {imPlan.map((k) => (
+              <li key={k.id}>
+                <button
+                  type="button"
+                  onClick={() => onNehmen({ id: k.id, code: k.code, laenge_cm: k.laenge_cm, breite_cm: k.breite_cm, hoehe_cm: k.hoehe_cm })}
+                  aria-pressed={inHand?.id === k.id}
+                  className={cx(
+                    'flex w-full items-center gap-2 rounded-xl border-2 px-2.5 py-2 text-start transition',
+                    inHand?.id === k.id ? 'border-ink bg-raised' : 'border-line bg-surface hover:border-ink/35',
+                  )}
+                >
+                  <Package size={16} className="shrink-0 text-muted" />
+                  <CodeChip code={k.code} size="sm" />
+                  <span className="min-w-0 flex-1 truncate text-sm">{k.title ?? ''}</span>
+                  <span className="shrink-0 text-xs text-muted">{t('zeichner.kisten.umstellen')}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   )
 }

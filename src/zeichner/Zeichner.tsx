@@ -458,6 +458,14 @@ export default function Zeichner({
     return ''
   }
 
+  /* Klick in 3D (auch beim Begehen): wie ein Klick an derselben Stelle
+   * im Plan, fuer die Werkzeuge, die etwas hinstellen (E66). */
+  const stelltHin = werkzeug.name === 'kiste' || werkzeug.name === 'moebel' || werkzeug.name === 'regal' || werkzeug.name === 'schrank'
+  function planTippen(x: number, y: number) {
+    const w = WERKZEUGE[werkzeug.name]
+    ausfuehren(w.runter(kontext, { p: [x, y], frei: false }, werkzeug.s), werkzeug.name)
+  }
+
   /* ------------------------------------------------------------ Zeiger */
 
   function cm(e: { clientX: number; clientY: number }): Punkt | null {
@@ -972,6 +980,11 @@ export default function Zeichner({
           inHand={inHand}
           masse={masse}
           onNehmen={setInHand}
+          platziert={z.dok.kisten}
+          onAngelegt={(i) => {
+            setOhnePlatzVersuch((v) => v + 1)
+            setInHand({ id: i.id, code: i.code, ...masse(i) })
+          }}
         />
       )
     }
@@ -1273,6 +1286,7 @@ export default function Zeichner({
               daten={z.dok}
               hervor={z.auswahl?.art === 'kiste' ? z.auswahl.id : kisteId}
               onSchliessen={() => setDrei(false)}
+              onTippen={stelltHin ? planTippen : undefined}
               onObjektZiehen={(id, dx, dy) => {
                 // Wie Ziehen in 2D: frei, nur das Raster gilt; die Datenbank prueft beim Speichern.
                 const o = z.dok.objekte.find((x) => x.id === id)
@@ -1294,7 +1308,7 @@ export default function Zeichner({
           ) : null}
 
           {hinweis ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center" aria-live="polite">
+            <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center" aria-live="polite">
               <p className="rounded-xl bg-ink px-4 py-2 text-base font-bold text-paper shadow-lg">{hinweis}</p>
             </div>
           ) : null}
@@ -1318,6 +1332,33 @@ export default function Zeichner({
           hidden={rechtsZu}
           className="w-80 shrink-0 space-y-4 overflow-y-auto border-s border-line bg-surface p-4 scrollbar-thin"
         >
+          {drei ? (
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-3 gap-1 rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('zeichner.drei.titel')}>
+                {(
+                  [
+                    ['kiste', 'zeichner.drei.kisten'],
+                    ['moebel', 'zeichner.drei.moebel'],
+                    ['auswahl', 'zeichner.drei.auswahl'],
+                  ] as const
+                ).map(([name, schluessel]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    aria-pressed={werkzeug.name === name}
+                    onClick={() => wechseln(name)}
+                    className={cx(
+                      'rounded-lg px-1.5 py-1.5 text-sm font-bold',
+                      werkzeug.name === name ? 'bg-ink text-paper' : 'text-ink hover:bg-raised',
+                    )}
+                  >
+                    {t(schluessel)}
+                  </button>
+                ))}
+              </div>
+              <p className="t-sub text-sm">{t('zeichner.drei.hilfe')}</p>
+            </div>
+          ) : null}
           {letztePlatzierung ? (
             <div className="flex items-center gap-2 rounded-xl border border-line bg-paper p-2">
               <CodeChip code={letztePlatzierung.code} size="sm" />

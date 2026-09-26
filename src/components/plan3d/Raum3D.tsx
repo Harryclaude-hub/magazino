@@ -6,7 +6,8 @@ import { cx } from '../../lib/util'
 import { Button } from '../ui'
 import { flaecheQm, innenPunkt } from '../plan/hilfe'
 import { motorStarten, type Blick, type GehRichtung, type Motor } from './motor'
-import { baueSzene, FARB_TOKENS, hervorMitte, type Farben3D } from './szene'
+import { farbenLesen } from './farben3d'
+import { baueSzene, hervorMitte, type Farben3D } from './szene'
 
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
  *
@@ -40,17 +41,12 @@ export interface Raum3DProps {
   /** Moebel, Regal oder Schrank wurde um dx, dy cm gezogen (nur im
    *  Zeichner). Ohne diese Angabe laesst sich nichts ziehen. */
   onObjektZiehen?: (id: string, dxCm: number, dyCm: number) => void
+  /** Kurzer Klick in die Szene (nicht auf eine Tuer), Stelle im Plan in
+   *  cm: der Zeichner stellt dort eine Kiste oder ein Moebel hin. */
+  onTippen?: (xCm: number, yCm: number) => void
   className?: string
 }
 
-function farbenLesen(): Farben3D {
-  const stil = getComputedStyle(document.documentElement)
-  const out = {} as Farben3D
-  for (const [k, token] of Object.entries(FARB_TOKENS) as [keyof Farben3D, string][]) {
-    out[k] = stil.getPropertyValue(token).trim() || '#888888'
-  }
-  return out
-}
 
 /** Wo das Begehen anfaengt: im gezeigten Raum, sonst im groessten Raum
  *  innen (meist Wohnzimmer oder Wohnkueche). Punkt im Plan in cm. */
@@ -86,7 +82,7 @@ function traegerKarte(daten: GrundrissDaten): Map<string, string> {
   return out
 }
 
-export default function Raum3D({ daten, raumId = null, hervor = null, onSchliessen, onObjektZiehen, className }: Raum3DProps) {
+export default function Raum3D({ daten, raumId = null, hervor = null, onSchliessen, onObjektZiehen, onTippen, className }: Raum3DProps) {
   const { t } = useSprache()
   const host = useRef<HTMLDivElement>(null)
   const motor = useRef<Motor | null>(null)
@@ -164,6 +160,15 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
     ziehRueck.current = onObjektZiehen
   })
   const kannZiehen = Boolean(onObjektZiehen)
+  // Klicken zum Hinstellen: der Rueckruf in einer Ref wie beim Ziehen.
+  const tippRueck = useRef(onTippen)
+  useLayoutEffect(() => {
+    tippRueck.current = onTippen
+  })
+  const kannTippen = Boolean(onTippen)
+  useEffect(() => {
+    motor.current?.tippen(kannTippen ? (x, y) => tippRueck.current?.(x, y) : null)
+  }, [kannTippen, geht])
   /** Bedienung mit Fingern (Handy, Tablet): anderer Hinweis. */
   const beruehren = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
   const traeger = useMemo(() => traegerKarte(daten), [daten])

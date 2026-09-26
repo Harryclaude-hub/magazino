@@ -42,7 +42,7 @@ import {
   type Object3D,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { hervorMitte, szeneRahmen, type Koerper, type Vec3 } from './szene'
+import { hervorMitte, szeneRahmen, type Koerper, type TuerDreh, type Vec3 } from './szene'
 
 export type Blick = 'oben' | 'schraeg' | 'kiste'
 
@@ -63,6 +63,9 @@ export interface Motor {
   begehen(an: boolean, start: [number, number] | null): void
   /** Gehen per Knopf (Handy): Richtung halten, loslassen stoppt. */
   gehenKnopf(richtung: GehRichtung, an: boolean): void
+  /** Kurzer Klick in die Szene (nicht auf eine Tuer): die Stelle im Plan
+   *  in cm, auf Moebeln die Stelle auf ihnen. null schaltet es aus. */
+  tippen(fn: ((xCm: number, yCm: number) => void) | null): void
   dispose(): void
 }
 
@@ -84,6 +87,17 @@ const GEHEN_M_S = 1.4
 const RENNEN_M_S = 2.8
 const WAND_ABSTAND_M = 0.25
 const HINDERNIS = new Set(['wand', 'bruestung', 'scheibe', 'rahmen', 'zarge'])
+
+/** Tuerblatt im Motor: Drehung aus szene.ts und der jetzige Winkel. */
+type TuerLage = TuerDreh & { winkel: number }
+
+/** Kleinster Unterschied zweier Winkel (-Pi bis Pi). */
+function winkelDiff(a: number, b: number): number {
+  let d = a - b
+  while (d > Math.PI) d -= 2 * Math.PI
+  while (d < -Math.PI) d += 2 * Math.PI
+  return d
+}
 
 /** Alles mit Innenseite (Wand, Sturz, Tuer, Fenster) wird im Weg halbdurchsichtig. */
 interface WandInfo {
@@ -290,6 +304,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
   let waende: WandInfo[] = []
   /** Woran man beim Begehen stoesst (Rollen in HINDERNIS). */
   let hindernisse: Mesh[] = []
+  /** Tuerblaetter, die sich per Klick drehen (E65). */
+  let tueren: Mesh[] = []
+  /** Winkel je Tuer, damit ein Neubau der Szene ihn nicht zuruecksetzt. */
+  const tuerStand = new Map<string, number>()
   let halb = true
   let koerperJetzt: Koerper[] = []
   let geplant = 0
@@ -395,6 +413,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     linienMat.clear()
     waende = []
     hindernisse = []
+    tueren = []
   }
 
   function bauen(liste: Koerper[]) {
@@ -423,6 +442,14 @@ export function motorStarten(host: HTMLElement): Motor | null {
       if (k.id && (k.rolle === 'moebel' || k.rolle === 'regal' || k.rolle === 'brett')) mesh.userData = { objektId: k.id }
       else if (k.id && k.rolle === 'kiste') mesh.userData = { kisteId: k.id }
       if (HINDERNIS.has(k.rolle)) hindernisse.push(mesh)
+      if (k.art === 'quader' && k.tuer) {
+        // Tuerstand behalten, wenn die Szene neu gebaut wird (Zeichner aendert live).
+        const stand = tuerStand.get(k.tuer.id)
+        const tuer: TuerLage = { ...k.tuer, winkel: stand ?? k.drehY }
+        mesh.userData = { tuer }
+        tuerSetzen(mesh, tuer.winkel)
+        tueren.push(mesh)
+      }
       mesh.position.set(k.mitte[0], k.mitte[1], k.mitte[2])
       mesh.scale.set(k.masse[0], k.masse[1], k.masse[2])
       mesh.rotation.y = k.drehY
@@ -475,7 +502,11 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (l < 1e-6) return true
     strahl.set(new Vector3(x, KNIE_M, z), new Vector3(dx / l, 0, dz / l))
     strahl.far = l + WAND_ABSTAND_M
-    const stoss = strahl.intersectObjects(hindernisse, false).length > 0
+    const zu = tueren.filter((t) => {
+      const d = t.userData.tuer as TuerLage
+      return Math.abs(winkelDiff(d.winkel, d.zu)) < 0.35
+    })
+    const stoss = strahl.intersectObjects(zu.length ? [...hindernisse, ...zu] : hindernisse, false).length > 0
     strahl.far = Infinity
     return !stoss
   }
@@ -576,6 +607,76 @@ export function motorStarten(host: HTMLElement): Motor | null {
   renderer.domElement.addEventListener('pointerup', schauHoch)
   renderer.domElement.addEventListener('pointercancel', schauHoch)
 
+  /* ------------------------------------------------ Tueren auf und zu */
+
+  /** Tuerblatt um die Angel auf Winkel w drehen (drehY). */
+  function tuerSetzen(mesh: Mesh, w: number) {
+    const d = mesh.userData.tuer as TuerLage
+    d.winkel = w
+    tuerStand.set(d.id, w)
+    mesh.rotation.y = w
+    mesh.position.x = d.angel[0] + (Math.cos(w) * d.laenge) / 2
+    mesh.position.z = d.angel[1] - (Math.sin(w) * d.laenge) / 2
+  }
+
+  let tuerLauf = 0
+  const tuerZiele = new Map<Mesh, { von: number; nach: number; start: number }>()
+  function tuerSchritt(zeit: number) {
+    tuerLauf = 0
+    for (const [mesh, z] of tuerZiele) {
+      const p = Math.min(1, (zeit - z.start) / 350)
+      const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2
+      tuerSetzen(mesh, z.von + winkelDiff(z.nach, z.von) * e)
+      if (p >= 1) tuerZiele.delete(mesh)
+    }
+    rendern()
+    if (tuerZiele.size) tuerLauf = requestAnimationFrame(tuerSchritt)
+  }
+
+  /** Offen -> zu, zu -> ganz offen. */
+  function tuerUmschalten(mesh: Mesh) {
+    const d = mesh.userData.tuer as TuerLage
+    const istZu = Math.abs(winkelDiff(d.winkel, d.zu)) < 0.05
+    tuerZiele.set(mesh, { von: d.winkel, nach: istZu ? d.auf : d.zu, start: performance.now() })
+    if (!tuerLauf) tuerLauf = requestAnimationFrame(tuerSchritt)
+  }
+
+  /** Ein kurzer Klick (ohne Ziehen) auf ein Tuerblatt schaltet es. Davor
+   *  stehende halbdurchsichtige Waende zaehlen nicht. */
+  let tipp: { x: number; y: number; zeit: number } | null = null
+  const tippRunter = (e: PointerEvent) => {
+    tipp = e.button === 0 ? { x: e.clientX, y: e.clientY, zeit: performance.now() } : null
+  }
+  const tippHoch = (e: PointerEvent) => {
+    const t = tipp
+    tipp = null
+    if (!t || Math.hypot(e.clientX - t.x, e.clientY - t.y) > 5 || performance.now() - t.zeit > 500) return
+    strahl.setFromCamera(zeigerNdc(e), camera)
+    for (const hit of strahl.intersectObjects(gruppe.children, false)) {
+      if (hit.object.userData.tuer) {
+        tuerUmschalten(hit.object as Mesh)
+        return
+      }
+      const mat = (hit.object as Mesh).material as MeshLambertMaterial | undefined
+      if (mat && mat.opacity >= 0.5) {
+        // Auf ein Moebel, Regal oder eine Kiste: die Stelle darauf. Sonst
+        // (Wand) zaehlt der Boden unter dem Zeiger.
+        const u = hit.object.userData as { objektId?: string; kisteId?: string }
+        if (tippFn && (u.objektId || u.kisteId)) {
+          tippFn(Math.round(hit.point.x * 100), Math.round(hit.point.z * 100))
+          return
+        }
+        break
+      }
+    }
+    if (!tippFn) return
+    const p = bodenPunkt(e)
+    if (p) tippFn(Math.round(p.x * 100), Math.round(p.z * 100))
+  }
+  let tippFn: ((xCm: number, yCm: number) => void) | null = null
+  renderer.domElement.addEventListener('pointerdown', tippRunter)
+  renderer.domElement.addEventListener('pointerup', tippHoch)
+
   function gehenAn(an: boolean, start: [number, number] | null) {
     if (an === gehen) return
     if (an) {
@@ -662,6 +763,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
       if (!fn) renderer.domElement.style.cursor = ''
     },
     begehen: gehenAn,
+    tippen(fn) {
+      tippFn = fn
+    },
     gehenKnopf(richtung, an) {
       if (!gehen) return
       if (an) {
@@ -677,6 +781,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
       window.removeEventListener('keyup', tasteHoch)
       window.removeEventListener('blur', fokusWeg)
       renderer.domElement.removeEventListener('pointerdown', schauRunter)
+      renderer.domElement.removeEventListener('pointerdown', tippRunter)
+      renderer.domElement.removeEventListener('pointerup', tippHoch)
+      if (tuerLauf) cancelAnimationFrame(tuerLauf)
       renderer.domElement.removeEventListener('pointermove', schauBewegen)
       renderer.domElement.removeEventListener('pointerup', schauHoch)
       renderer.domElement.removeEventListener('pointercancel', schauHoch)

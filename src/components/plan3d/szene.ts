@@ -131,6 +131,18 @@ export interface Quader {
    *  Fenster): Einheitsnormale zur Raum-Innenseite in (x, z). Zeigt die
    *  Aussenseite zur Kamera, wird das Teil halbdurchsichtig. */
   innen: [number, number] | null
+  /** Nur beim Tuerblatt: wie es sich um die Angel dreht (E65). Angel in
+   *  Metern (x, z), Laenge in Metern, Winkel als drehY fuer zu und ganz
+   *  offen (90 Grad). */
+  tuer?: TuerDreh
+}
+
+export interface TuerDreh {
+  id: string
+  angel: [number, number]
+  laenge: number
+  zu: number
+  auf: number
 }
 
 export interface Flaeche {
@@ -322,12 +334,21 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
       const dx = Math.cos(w) * gx + Math.sin(w) * seite * innen[0]
       const dy = Math.cos(w) * gy + Math.sin(w) * seite * innen[1]
       const lang = Math.max(1, l - 2 * z)
-      dazu(
-        streifen('tuerblatt', angel, [angel[0] + dx * lang, angel[1] + dy * lang], 0, Math.max(1, th - z), BLATT_CM, f.tuer3d, {
-          kante: f.zarge3d,
-          innen,
-        }),
-      )
+      const blatt = streifen('tuerblatt', angel, [angel[0] + dx * lang, angel[1] + dy * lang], 0, Math.max(1, th - z), BLATT_CM, f.tuer3d, {
+        kante: f.zarge3d,
+        innen,
+      })
+      if (blatt) {
+        // Zu: entlang der Wand zur anderen Zarge. Ganz offen: quer zur Wand.
+        blatt.tuer = {
+          id: o.id,
+          angel: [m(angel[0]), m(angel[1])],
+          laenge: m(lang),
+          zu: -Math.atan2(gy, gx),
+          auf: -Math.atan2(seite * innen[1], seite * innen[0]),
+        }
+      }
+      dazu(blatt)
     } else {
       const br = Math.max(0, Math.min(o.bruestung_cm, H))
       const top = Math.min(H, br + o.hoehe_cm)

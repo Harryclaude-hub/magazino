@@ -372,3 +372,18 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   auf 105 cm), TV-Board, Essgruppe (Tisch und 4 Stuehle als ein Moebel),
   Hochschrank mit Backofen. Die Moebelerkennung am Namen liegt jetzt in
   `plan/moebelArt.ts` (ohne React, fuer szene.ts unter node).
+- **E65 Tueren in 3D auf und zu:** Ein kurzer Klick (ohne Ziehen) auf ein
+  Tuerblatt schaltet: offen -> zu, zu -> ganz offen (90 Grad), mit einer
+  kurzen, weichen Drehung um die Angel (350 ms). szene.ts gibt dem Blatt
+  Angel, Laenge und die Winkel fuer zu und auf mit (TuerDreh). Der Stand
+  bleibt, solange 3D offen ist, auch wenn die Szene neu gebaut wird; er
+  wird nicht gespeichert. Eine geschlossene Tuer haelt beim Begehen auf.
+- **E66 Hinstellen in 3D:** Ist 3D im Zeichner offen, zaehlt ein kurzer
+  Klick in die Szene wie ein Klick an derselben Stelle im Plan (auf
+  Moebeln die Stelle auf ihnen), fuer die Werkzeuge Kiste, Moebel, Regal
+  und Schrank; auch beim Begehen. Rechts oben in 3D: Kisten / Moebel /
+  Auswaehlen. Kistenliste: Suche findet auch Kisten, die schon im Plan
+  stehen ("Umstellen"), und "Neue Kiste" legt mit Zimmer und Groesse
+  eine an und nimmt sie gleich in die Hand. Moebelkatalog: das gewaehlte
+  Moebel als kleines 3D-Modell (eigener Code-Teil) mit Breite, Tiefe,
+  Hoehe und Hoehe ueber dem Boden vor dem Hinstellen.
