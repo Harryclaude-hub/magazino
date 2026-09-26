@@ -45,7 +45,7 @@ export type MoebelArt =
  *  Waschtisch vor Tisch, Couchtisch vor Couch, Buerostuhl vor Stuhl,
  *  Kinderbett und Nachttisch vor Bett). */
 const WOERTER: [MoebelArt, string[]][] = [
-  ['tv_board', ['tv-board', 'tvboard', 'lowboard', 'fernsehschrank', 'طاولة تلفاز']],
+  ['tv_board', ['tv-board', 'tv-bank', 'tvboard', 'lowboard', 'fernsehschrank', 'طاولة تلفاز']],
   ['essgruppe', ['essgruppe', 'essbereich', 'مجموعة طعام']],
   ['backofen', ['backofen', 'ofenschrank', 'فرن']],
   ['hochschrank', ['hochschrank', 'einbaukühlschrank', 'خزانة عالية']],

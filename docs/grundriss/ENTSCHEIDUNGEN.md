@@ -417,3 +417,13 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   in 3D kein Wandstueck, sondern ein Glasgelaender (1 m) mit Handlauf und
   Fussleiste aus Metall. Neu im Katalog: Hochschrank mit
   Einbaukuehlschrank (Eichenfronten, zwei Tueren), wie in der IKEA-Kueche.
+- **E70 Wohnung eingerichtet (Daten, keine Migration):** 49 Moebel von
+  IKEA Oesterreich mit Link, Preis und Material (Stand 26.09.2026),
+  Zimmer: Mitte = Eltern, links = Karam, gross (Balkon) = Kinderzimmer
+  (2,5 Jahre), Abstellraum = Homeoffice, Vorraum = PAX-Garderobe,
+  Flur-Ende = flacher PAX (Kiste FL-5-002 bleibt davor stehen), Bad =
+  Waschturm rechts neben der Tuer (ENHET-Sockel, Waschmaschine,
+  Trockner; der alte Platz rechts vom Waschbecken bleibt wegen der
+  Lueftung frei). Kueche: Link zur IKEA-Planung, Preis der ganzen Kueche
+  nur an der Kuechenzeile. Sets (LAETT, NAEMMAROE): Preis am Tisch,
+  Stuehle "im Set" ohne Preis. "TV-Bank" zaehlt als TV-Board.
