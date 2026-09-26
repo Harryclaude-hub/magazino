@@ -1,7 +1,7 @@
 /* Geometrie des Grundrisses.
  *
  * Spiegel von supabase/migrations/0028_grundriss_modell.sql, Abschnitte 3
- * bis 8. Jede Aenderung an einer Regel in beiden Dateien und im Testfall
+ * bis 8, und 0033 (Ueberstand im Fach). Jede Aenderung an einer Regel in beiden Dateien und im Testfall
  * (scripts/geometrie-pruefen.mjs).
  *
  * Die Datenbank entscheidet. Der Browser rechnet hier nur vor: Vorschau,
@@ -357,6 +357,32 @@ export function objektImFach(
   )
 }
 
+/** Wie weit eine Kiste hoechstens in der Tiefe aus einem Fach ragen darf
+ *  (0033). ueberstand_max_cm */
+export const UEBERSTAND_MAX_CM = 40
+
+/** Doppelter Ueberstand (ganzzahlig, halbe cm moeglich) einer Kiste mit
+ *  Mitte (x,y) in der Tiefe des Objekts (lokal y), vorne oder hinten, der
+ *  groessere. Ausdehnung in Objekt-Tiefe: Breite, wenn Kiste 0 und Objekt
+ *  0/180 oder Kiste 90 und Objekt 90/270, sonst Laenge.
+ *  kiste_ueberstand2 */
+export function kisteUeberstand2(
+  o: Pick<ObjektForm, 'x' | 'y' | 'drehung' | 'tiefe_cm'>,
+  x: number,
+  y: number,
+  kiste: { drehung: number; laenge: number; breite: number },
+): number {
+  const [, ly] = objektLokal(o, x, y)
+  const gleich = (o.drehung === 0 || o.drehung === 180) === (kiste.drehung !== 90)
+  const t = gleich ? kiste.breite : kiste.laenge
+  return Math.max(0, t - 2 * ly, 2 * ly + t - 2 * o.tiefe_cm)
+}
+
+/** Ueberstand in ganzen cm, aufgerundet (wie kiste_ueberstand_cm). */
+export function ueberstandCm(ueberstand2: number): number {
+  return Math.floor((ueberstand2 + 1) / 2)
+}
+
 /** Bis wohin Ebene e (1 = unten) reicht: Unterkante des naechsten Bretts
  *  (2 cm), oben 2 cm Deckel. fach_decke */
 export function fachDecke(o: Pick<ObjektForm, 'brett_cm' | 'hoehe_cm'>, ebene: number): number {
@@ -543,6 +569,14 @@ export function platzFehler(k: GeoKiste & { kind?: string }, daten: GeoDaten): G
       }
       if (!objektImFach(o, spalte, k.platz_x, k.platz_y)) {
         return fehler('nicht_im_fach', { code, name: o.name, ebene, spalte })
+      }
+      const u2 = kisteUeberstand2(o, k.platz_x, k.platz_y, {
+        drehung: k.platz_drehung,
+        laenge: k.laenge_cm,
+        breite: k.breite_cm,
+      })
+      if (u2 > 2 * UEBERSTAND_MAX_CM) {
+        return fehler('ueberstand_zu_gross', { code, name: o.name, cm: ueberstandCm(u2), max: UEBERSTAND_MAX_CM })
       }
       unten = brett[ebene - 1]
       grenze = fachDecke(o, ebene)
@@ -825,6 +859,12 @@ export interface Unterlage {
   oben_cm: number
   grenze_cm: number
   passt: boolean
+  /** Nur Fach: wie weit die Kiste in der Tiefe herausragt (ganze cm,
+   *  aufgerundet), 0 wenn gar nicht. */
+  ueberstand_cm?: number
+  /** Warum sie nicht passt: zu hoch, oder im Fach zu weit heraus
+   *  (mehr als UEBERSTAND_MAX_CM). Nur bei passt = false. */
+  grund?: 'hoehe' | 'ueberstand'
   /** Sprachneutral: Code der Kiste, Name des Objekts, bei Faechern mit
    *  Ebene/Spalte. Die Oberflaeche setzt daraus ihren Satz. */
   text: string
@@ -832,7 +872,8 @@ export interface Unterlage {
 
 /** Worauf man an (x, y) eine Kiste stellen kann: Faecher (von unten nach
  *  oben), Kisten (oberste zuerst), Objekt oben drauf, Boden (nur ohne
- *  Objekt an der Stelle). passt = oben <= grenze. */
+ *  Objekt an der Stelle). passt = oben <= grenze und im Fach hoechstens
+ *  UEBERSTAND_MAX_CM Ueberstand. */
 export function unterlagenAn(
   daten: { raeume: GeoRaum[]; objekte: GeoObjekt[]; kisten: GeoPlanKiste[] },
   raumId: string,
@@ -844,28 +885,38 @@ export function unterlagenAn(
   if (!raum) return []
   const h = kiste.hoehe_cm
   const out: Unterlage[] = []
-  const eintrag = (u: Omit<Unterlage, 'oben_cm' | 'passt'>): Unterlage => ({
-    ...u,
-    oben_cm: u.unten_cm + h,
-    passt: u.unten_cm + h <= u.grenze_cm,
-  })
+  const eintrag = (u: Omit<Unterlage, 'oben_cm' | 'passt'>, ueberstand2 = 0): Unterlage => {
+    const hoehe = u.unten_cm + h <= u.grenze_cm
+    const tiefe = ueberstand2 <= 2 * UEBERSTAND_MAX_CM
+    return {
+      ...u,
+      oben_cm: u.unten_cm + h,
+      passt: hoehe && tiefe,
+      ...(hoehe && tiefe ? {} : { grund: hoehe ? ('ueberstand' as const) : ('hoehe' as const) }),
+    }
+  }
   const objekte = daten.objekte.filter((o) => o.raum_id === raumId)
 
   for (const o of objekte) {
     if (o.art === 'moebel' || !o.brett_cm) continue
     for (let s = 1; s <= o.spalten; s++) {
       if (!objektImFach(o, s, x, y)) continue
+      const u2 = kisteUeberstand2(o, x, y, { drehung: kiste.drehung, laenge: kiste.laenge_cm, breite: kiste.breite_cm })
       for (let e = 1; e <= o.brett_cm.length; e++) {
         out.push(
-          eintrag({
-            art: 'fach',
-            objektId: o.id,
-            ebene: e,
-            spalte: s,
-            unten_cm: o.brett_cm[e - 1],
-            grenze_cm: fachDecke(o, e),
-            text: `${o.name} ${e}/${s}`.trim(),
-          }),
+          eintrag(
+            {
+              art: 'fach',
+              objektId: o.id,
+              ebene: e,
+              spalte: s,
+              unten_cm: o.brett_cm[e - 1],
+              grenze_cm: fachDecke(o, e),
+              ueberstand_cm: ueberstandCm(u2),
+              text: `${o.name} ${e}/${s}`.trim(),
+            },
+            u2,
+          ),
         )
       }
     }

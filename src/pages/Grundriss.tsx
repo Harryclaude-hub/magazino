@@ -348,6 +348,7 @@ function Ansehen({ daten, raumId, kisteId }: { daten: GrundrissDaten; raumId: st
               auswahl={tipp ?? (raum ? { art: 'raum', id: raum.id } : null)}
               maxHoehe="68vh"
               label={daten.grundriss.name}
+              zoomen
               onTipp={(_p, treffer) => {
                 if (treffer?.art === 'raum' && treffer.id !== raumId) {
                   setParams(kisteId ? { raum: treffer.id, kiste: kisteId } : { raum: treffer.id }, { replace: true })

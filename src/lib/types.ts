@@ -113,6 +113,9 @@ export interface Item {
   unterlage_objekt_id: string | null
   fach_ebene: number | null
   fach_spalte: number | null
+  /* Wie voll, in Prozent (0033): 0 leer, 100 voll, null nicht angegeben.
+   * Gilt fuer Kisten, Taschen und Moebel. */
+  fuellstand: number | null
   /* Das Bild, das beim Scannen sofort erscheint. Verweis auf eine Zeile
    * in item_photos, kein zweiter Pfad. Siehe Migration 0012. */
   cover_photo_id: string | null
@@ -232,6 +235,8 @@ export interface SuchTreffer {
   hoehe_von: number | null
   hoehe_bis: number | null
   treffer: number
+  /** Fuellstand der Kiste in Prozent (0033), null = nicht angegeben. */
+  item_fuellstand: number | null
 }
 
 export type PhotoArt = 'foto' | 'anleitung'
@@ -503,6 +508,11 @@ export interface PlanKiste {
   grenze_cm: number
   wurzel_art: 'boden' | 'objekt' | 'fach'
   nr: number
+  /** Wie weit sie in der Tiefe aus ihrem Fach ragt, ganze cm (0033); 0
+   *  ausser im Fach. Fehlt bei Kisten, die der Zeichner selbst anlegt. */
+  ueberstand_cm?: number
+  /** Fuellstand in Prozent (0033), null = nicht angegeben. */
+  fuellstand?: number | null
 }
 
 export interface GrundrissDaten {
@@ -539,6 +549,9 @@ export type KisteLage =
       oben_cm: number
       grenze_cm: number
       nr: number
+      /** Ueberstand in der Tiefe aus dem Fach, ganze cm (0033), sonst 0. */
+      ueberstand_cm: number
+      fuellstand: number | null
       auf_ihr: string[]
     }
   | {
@@ -548,6 +561,7 @@ export type KisteLage =
       objekt: LageObjekt
       unten_cm: 0
       oben_cm: number
+      fuellstand: number | null
     }
 
 /** Aenderungen fuer grundriss_speichern. Reihenfolge in der Datenbank

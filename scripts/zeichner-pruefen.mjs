@@ -15,6 +15,7 @@ import { KATALOG, REGAL_STANDARD, SCHRANK_STANDARD } from '../src/zeichner/katal
 import { BODEN_STANDARD, WANDFARBEN, kontrast } from '../src/lib/farben.ts'
 import { faecherGueltig, flaeche2, zuUmriss, polygonFehler } from '../src/lib/geometrie.ts'
 import { trefferAn, innenPunkt, objektUmriss, stapelVon } from '../src/components/plan/hilfe.ts'
+import * as ans from '../src/components/plan/ansicht.ts'
 
 let fehler = 0
 function gleich(name, ist, soll) {
@@ -418,6 +419,70 @@ const vorab = (z) => dok.kistenDraussen(z.dok, dok.umrissGeaendert(z.basis, z.do
   gleich('Treffer: oberste Kiste', trefferAn(d, [100, 100]), { art: 'kiste', id: 'b' })
   gleich('Treffer: Raum', trefferAn(d, [300, 250]), { art: 'raum', id: 'r1' })
   gleich('Stapel von unten nach oben', stapelVon(d.kisten[1], d.kisten).map((k) => k.id), ['a', 'b'])
+}
+
+/* ------------------------------------------------------ Ansicht */
+
+{
+  const nah = (a, b) => Math.abs(a - b) < 1e-9
+  // Bildschirm <-> cm hin und zurueck, auch weit draussen und stark verkleinert.
+  for (const a of [{ x: 0, y: 0, s: 1 }, { x: -500, y: 1200, s: 0.03 }, { x: 49000, y: 49500, s: 7.5 }]) {
+    const [cx, cy] = ans.zuCm(a, 123, 456)
+    const [px, py] = ans.zuPx(a, cx, cy)
+    wahr(`Umrechnung hin und zurueck bei s=${a.s}`, nah(px, 123) && nah(py, 456))
+  }
+  gleich('zuCm bei s=2', ans.zuCm({ x: 100, y: -50, s: 2 }, 40, 10), [120, -45])
+
+  // Einpassen: Raeume 0 bis 800 und ein Keller bei 3000, Flaeche 880 x 800.
+  const box = { x0: 0, y0: 0, x1: 3400, y1: 400 }
+  const e = ans.einpassen(box, 880, 800, 48)
+  const [l] = ans.zuPx(e, box.x0, 0)
+  const [r] = ans.zuPx(e, box.x1, 0)
+  wahr('Einpassen: links Rand', nah(l, 48))
+  wahr('Einpassen: rechts Rand', nah(r, 880 - 48))
+  const [, oben] = ans.zuPx(e, 0, box.y0)
+  const [, unten] = ans.zuPx(e, 0, box.y1)
+  wahr('Einpassen: senkrecht mittig', nah(oben, 800 - unten))
+  // Leer: sinnvoller Startausschnitt um LEER_BOX.
+  const leer = ans.einpassen(null, 1000, 700)
+  const m = ans.zuCm(leer, 500, 350)
+  wahr('Einpassen leer: Mitte des Startausschnitts', nah(m[0], 550) && nah(m[1], 350))
+  wahr('Einpassen: Zoom begrenzt', ans.einpassen({ x0: 0, y0: 0, x1: 1, y1: 1 }, 5000, 5000).s <= ans.ZOOM_MAX)
+
+  // Zoom am Zeiger: der Punkt unter dem Zeiger bleibt.
+  const a0 = { x: 300, y: -200, s: 0.5 }
+  const vor = ans.zuCm(a0, 200, 150)
+  const z1 = ans.zoomAm(a0, 1.7, 200, 150)
+  const nach = ans.zuCm(z1, 200, 150)
+  wahr('Zoom am Zeiger haelt den Punkt', nah(vor[0], nach[0]) && nah(vor[1], nach[1]))
+  gleich('Zoom-Grenze oben', ans.zoomAm(a0, 1e6, 0, 0).s, ans.ZOOM_MAX)
+  gleich('Zoom-Grenze unten', ans.zoomAm(a0, 1e-6, 0, 0).s, ans.ZOOM_MIN)
+
+  // Verschieben ohne Grenzen: der Plan folgt dem Zeiger.
+  const v = ans.verschieben({ x: 0, y: 0, s: 2 }, 100, -40)
+  gleich('Verschieben', v, { x: -50, y: 20, s: 2 })
+  const weit = ans.verschieben({ x: 0, y: 0, s: 0.02 }, -2000, -2000)
+  gleich('Verschieben weit ueber 50000 hinaus', weit.x, 100000)
+
+  // Rad: Mausrad zoomt, Trackpad verschiebt, Strg zoomt.
+  const rad = (deltaX, deltaY, extra = {}) => ({ deltaX, deltaY, deltaMode: 0, ctrlKey: false, metaKey: false, ...extra })
+  gleich('Mausrad zoomt', ans.radArt(rad(0, 100)), 'zoom')
+  gleich('Mausrad in Zeilen zoomt', ans.radArt(rad(0, 3, { deltaMode: 1 })), 'zoom')
+  gleich('Trackpad fein verschiebt', ans.radArt(rad(0, 7.5)), 'schieben')
+  gleich('Trackpad schraeg verschiebt', ans.radArt(rad(12, 60)), 'schieben')
+  gleich('Trackpad-Folge bleibt verschieben', ans.radArt(rad(0, 120), true), 'schieben')
+  gleich('Strg+Rad zoomt', ans.radArt(rad(0, 4, { ctrlKey: true })), 'zoom')
+  wahr('Rad nach oben vergroessert', ans.radFaktor(rad(0, -100)) > 1)
+  wahr('Pinch auf wirkt deutlich', ans.radFaktor(rad(0, -10, { ctrlKey: true })) > 1.05)
+
+  // Raster fuellt die Sicht, auch links und oberhalb von 0,0.
+  const rl = ans.rasterLinien({ x: -1234, y: -567, s: 0.5 }, 800, 600)
+  wahr('Raster beginnt links der Sicht', rl.xs[0] <= -1234 && rl.xs[0] > -1234 - rl.schritt)
+  wahr('Raster beginnt oberhalb der Sicht', rl.ys[0] <= -567)
+  wahr('Raster reicht bis rechts', rl.xs[rl.xs.length - 1] + rl.schritt > -1234 + 800 / 0.5)
+  wahr('Raster: Linien mindestens 14 px', rl.schritt * 0.5 >= 14)
+  const fern = ans.rasterLinien({ x: 48000, y: 49000, s: 0.02 }, 1440, 900)
+  wahr('Raster weit weg und klein: wenige Linien', fern.xs.length < 100 && fern.ys.length < 100)
 }
 
 /* ------------------------------------------------------ Farben */

@@ -77,8 +77,8 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.zoom_raus': { de: 'Weiter weg', ar: 'تصغير' },
   'zeichner.alles_zeigen': { de: 'Alles zeigen (0)', ar: 'عرض الكل (0)' },
   'zeichner.tasten_hilfe': {
-    de: 'Mausrad zoomt, Leertaste oder mittlere Taste verschiebt, Esc bricht ab.',
-    ar: 'عجلة الفأرة للتكبير، المسافة أو الزر الأوسط للتحريك، Esc للإلغاء.',
+    de: 'Ziehen verschiebt, Mausrad zoomt, 0 zeigt alles, Esc bricht ab.',
+    ar: 'السحب للتحريك، عجلة الفأرة للتكبير، 0 لعرض الكل، Esc للإلغاء.',
   },
   'zeichner.leer_hinweis': {
     de: 'Noch leer. Drücke R und zeichne den ersten Raum, oder Umschalt+R für ein Rechteck.',

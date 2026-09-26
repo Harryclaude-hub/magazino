@@ -116,6 +116,34 @@ gleich('platzFehler zu_hoch im Fach', g.platzFehler({ ...daten.kisten[0], platz_
   unterlage_art: 'fach', unterlage_objekt_id: 'o', fach_ebene: 1, fach_spalte: 1 }, daten),
   { kennung: 'zu_hoch', werte: { code: 'W-5-001', oben: 40, grenze: 38 } })
 
+// Ueberstand im Fach (0033). Dieselben Faelle stehen als Teil B1 im Probelauf 0033.
+const fach = (drehung, x, y) => ({ ...regal, spalten: 1, brett_cm: [0, 40], drehung, x, y })
+gleich('kisteUeberstand2 Mitte', g.kisteUeberstand2(fach(0, 0, 0), 40, 15, { drehung: 0, laenge: 40, breite: 30 }), 0)
+gleich('kisteUeberstand2 vorne 25', g.kisteUeberstand2(fach(0, 0, 0), 40, 30, { drehung: 0, laenge: 40, breite: 50 }), 50)
+gleich('kisteUeberstand2 Kiste 90 halb', g.kisteUeberstand2(fach(0, 0, 0), 40, 30, { drehung: 90, laenge: 81, breite: 20 }), 81)
+gleich('kisteUeberstand2 Regal 90 Kiste 0', g.kisteUeberstand2(fach(90, 300, 100), 270, 140, { drehung: 0, laenge: 82, breite: 20 }), 82)
+gleich('kisteUeberstand2 Regal 90 Kiste 90', g.kisteUeberstand2(fach(90, 300, 100), 270, 140, { drehung: 90, laenge: 82, breite: 20 }), 20)
+gleich('kisteUeberstand2 Regal 180 hinten', g.kisteUeberstand2(fach(180, 90, 40), 50, 10, { drehung: 0, laenge: 40, breite: 50 }), 50)
+gleich('ueberstandCm', [0, 50, 80, 81, 82].map(g.ueberstandCm), [0, 25, 40, 41, 41])
+
+const mitFach = {
+  raeume: daten.raeume,
+  objekte: [{ ...fach(0, 10, 10), id: 'f', raum_id: 'r', art: 'regal', name: 'Billy' }],
+  kisten: [],
+}
+const inFach = (laenge, breite, drehung) => ({
+  ...daten.kisten[0], platz_x: 50, platz_y: 40, platz_drehung: drehung, unterlage_art: 'fach',
+  unterlage_objekt_id: 'f', fach_ebene: 1, fach_spalte: 1, laenge_cm: laenge, breite_cm: breite, hoehe_cm: 30,
+})
+gleich('platzFehler Ueberstand 40 ok', g.platzFehler(inFach(80, 20, 90), mitFach), null)
+gleich('platzFehler Ueberstand 41', g.platzFehler(inFach(82, 20, 90), mitFach),
+  { kennung: 'ueberstand_zu_gross', werte: { code: 'W-5-001', name: 'Billy', cm: 41, max: 40 } })
+gleich('platzFehler Ueberstand 40,5', g.platzFehler(inFach(40, 81, 0), mitFach)?.werte.cm, 41)
+const an = (l, b, d) => g.unterlagenAn({ ...mitFach, kisten: [] }, 'r', 50, 40, { laenge_cm: l, breite_cm: b, hoehe_cm: 30, drehung: d })
+  .filter((u) => u.art === 'fach').map((u) => [u.ueberstand_cm, u.passt, u.grund ?? null])
+gleich('unterlagenAn Fach 25', an(40, 50, 0), [[25, true, null], [25, true, null]])
+gleich('unterlagenAn Fach 41', an(82, 20, 90), [[41, false, 'ueberstand'], [41, false, 'ueberstand']])
+
 if (fehler) {
   console.log('Abweichungen:', fehler)
   process.exit(1)

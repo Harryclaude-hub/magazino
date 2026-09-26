@@ -26,6 +26,7 @@ import {
   type PlanTreffer,
 } from './hilfe'
 import { objektName } from './lage'
+import { radFaktor } from './ansicht'
 
 /* Die Draufsicht eines Grundrisses als SVG in Zentimetern.
  *
@@ -490,8 +491,13 @@ export interface PlanBildProps {
 }
 
 /** Ab so vielen Pixeln Bewegung ist es eine Geste, kein Tipp. */
-const GESTE_PX = 8
+const GESTE_PX = 6
 const ZOOM_MAX = 8
+/** Etwas weiter weg als "ganz" darf man, damit der Rand greifbar bleibt. */
+const ZOOM_MIN = 0.5
+/** Zwei Tipps so schnell und so nah: Doppeltipp, passt den Plan ein. */
+const DOPPEL_MS = 320
+const DOPPEL_PX = 30
 
 type Ansicht = { z: number; cx: number; cy: number }
 
@@ -517,6 +523,7 @@ export function PlanBild({
   /* Laufende Geste: Zeiger, Startabstand, Startansicht, ob schon bewegt. */
   const zeiger = useRef(new Map<number, { x: number; y: number }>())
   const geste = useRef<{ bewegt: boolean; start: Ansicht; abstand: number; mitte: [number, number] } | null>(null)
+  const letzterTipp = useRef<{ zeit: number; x: number; y: number } | null>(null)
 
   const box = useMemo(() => {
     const b = datenBox(daten, ausschnitt === 'alles' ? null : ausschnitt.raumId) ?? { x0: 0, y0: 0, x1: 400, y1: 300 }
@@ -538,15 +545,13 @@ export function PlanBild({
     return () => ro.disconnect()
   }, [])
 
-  /* Sichtbarer Ausschnitt: bei Zoom kleiner, um die Mitte, nie ueber den
-   * Rand der Box hinaus. */
+  /* Sichtbarer Ausschnitt um die Mitte der Ansicht. Verschieben ist frei,
+   * ohne Grenze am Rand der Box; nur der Zoom ist begrenzt. */
   const sicht = useMemo(() => {
-    if (!ansicht || ansicht.z <= 1) return box
+    if (!ansicht) return box
     const w = box.w / ansicht.z
     const h = box.h / ansicht.z
-    const x = Math.min(Math.max(ansicht.cx - w / 2, box.x), box.x + box.w - w)
-    const y = Math.min(Math.max(ansicht.cy - h / 2, box.y), box.y + box.h - h)
-    return { x, y, w, h }
+    return { x: ansicht.cx - w / 2, y: ansicht.cy - h / 2, w, h }
   }, [ansicht, box])
 
   const massstab =
@@ -613,7 +618,7 @@ export function PlanBild({
     if (punkte.length >= 2) {
       const [a, b] = punkte
       const d = Math.hypot(a.x - b.x, a.y - b.y) || 1
-      const z = Math.min(ZOOM_MAX, Math.max(1, (g.start.z * d) / g.abstand))
+      const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, (g.start.z * d) / g.abstand))
       const mx = (a.x + b.x) / 2
       const my = (a.y + b.y) / 2
       // Der Planpunkt, der zu Beginn zwischen den Fingern lag, bleibt zwischen den Fingern.
@@ -626,7 +631,6 @@ export function PlanBild({
     const dy = e.clientY - g.mitte[1]
     if (!g.bewegt && Math.hypot(dx, dy) < GESTE_PX) return
     g.bewegt = true
-    if (g.start.z <= 1) return
     const k = basis / g.start.z
     setAnsicht({ z: g.start.z, cx: g.start.cx - dx * k, cy: g.start.cy - dy * k })
   }
@@ -640,7 +644,16 @@ export function PlanBild({
     zeiger.current.delete(e.pointerId)
     if (zeiger.current.size === 0) {
       geste.current = null
-      if (!warGeste) tippen(e.clientX, e.clientY)
+      if (warGeste) return
+      // Ohne eigenen Tipp-Auftrag passt ein Doppeltipp den Plan wieder ein.
+      const l = letzterTipp.current
+      if (!onTipp && l && e.timeStamp - l.zeit < DOPPEL_MS && Math.hypot(e.clientX - l.x, e.clientY - l.y) < DOPPEL_PX) {
+        letzterTipp.current = null
+        setAnsicht(null)
+        return
+      }
+      letzterTipp.current = { zeit: e.timeStamp, x: e.clientX, y: e.clientY }
+      tippen(e.clientX, e.clientY)
     } else if (geste.current) {
       // Ein Finger bleibt: ab hier weiter verschieben, nie mehr tippen.
       const [rest] = [...zeiger.current.values()]
@@ -653,6 +666,29 @@ export function PlanBild({
     if (zeiger.current.size === 0) geste.current = null
   }
 
+  /* Strg/Cmd+Rad und Pinch am Trackpad zoomen am Zeiger. Ein Rad ohne
+   * Taste rollt weiter die Seite. */
+  const rad = useRef<(e: WheelEvent) => void>(() => {})
+  useLayoutEffect(() => {
+    rad.current = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      const a = jetzigeAnsicht()
+      const { basis, sx, sy } = flaeche()
+      const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, a.z * radFaktor(e)))
+      const px0 = a.cx + (e.clientX - sx) * (basis / a.z)
+      const py0 = a.cy + (e.clientY - sy) * (basis / a.z)
+      setAnsicht({ z, cx: px0 - (e.clientX - sx) * (basis / z), cy: py0 - (e.clientY - sy) * (basis / z) })
+    }
+  })
+  useEffect(() => {
+    const el = svg.current
+    if (!el || !zoomen) return
+    const f = (e: WheelEvent) => rad.current(e)
+    el.addEventListener('wheel', f, { passive: false })
+    return () => el.removeEventListener('wheel', f)
+  }, [zoomen])
+
   const mitGesten = zoomen || Boolean(onTipp)
 
   return (
@@ -660,7 +696,13 @@ export function PlanBild({
       dir="ltr"
       ref={huelle}
       className={cx('relative w-full overflow-hidden rounded-2xl border border-line', className)}
-      style={{ aspectRatio: `${box.w} / ${box.h}`, maxHeight: maxHoehe, background: 'var(--plan-grund)' }}
+      style={{
+        aspectRatio: `${box.w} / ${box.h}`,
+        maxHeight: maxHoehe,
+        // Mit Gesten braucht auch ein sehr breiter Plan Platz zum Greifen.
+        minHeight: zoomen ? `min(16rem, ${maxHoehe})` : undefined,
+        background: 'var(--plan-grund)',
+      }}
     >
       <svg
         ref={svg}
@@ -685,7 +727,7 @@ export function PlanBild({
         />
         {zusatz ? zusatz(massstab) : null}
       </svg>
-      {zoomen && ansicht && ansicht.z > 1.01 ? (
+      {zoomen && ansicht ? (
         <button
           type="button"
           onClick={() => setAnsicht(null)}

@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
 import { OeffnungForm, PlanEbenen } from '../components/plan/PlanBild'
 import { innenNormale, objektUmriss, type PlanTreffer } from '../components/plan/hilfe'
+import { rasterLinien, type Ansicht } from '../components/plan/ansicht'
 import type { Punkt } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
 import type { Auswahl, Dok } from './dok'
@@ -12,29 +13,41 @@ import type { Vorschau } from './werkzeuge/typen'
  * Zeichner. Immer dir="ltr", nie gespiegelt.
  */
 
-export interface Ansicht {
-  /** Linke obere Ecke in cm. */
-  x: number
-  y: number
-  /** Pixel je cm. */
-  s: number
-}
+export type { Ansicht }
 
 const NS = 'non-scaling-stroke' as const
 
+/* Das Raster fuellt immer die ganze sichtbare Flaeche, auch links und
+ * oberhalb von 0,0: kein fester Kasten, der beim Verschieben in einer
+ * Ecke stehen bleibt. */
 const Raster = memo(function Raster({ a, w, h }: { a: Ansicht; w: number; h: number }) {
   const x1 = a.x + w / a.s
   const y1 = a.y + h / a.s
-  let schritt = 10
-  while (schritt * a.s < 14) schritt *= schritt === 10 ? 5 : 2
-  const linien: { x?: number; y?: number; gross: boolean }[] = []
-  const start = (v: number) => Math.max(0, Math.ceil(v / schritt) * schritt)
-  for (let x = start(a.x); x <= x1 && linien.length < 400; x += schritt) linien.push({ x, gross: x % 100 === 0 })
-  for (let y = start(a.y); y <= y1 && linien.length < 800; y += schritt) linien.push({ y, gross: y % 100 === 0 })
-  const oben = Math.max(0, a.y)
-  const links = Math.max(0, a.x)
+  const { schritt, xs, ys } = rasterLinien(a, w, h)
+  const grossAlle = schritt <= 50 ? 100 : schritt * 10
+  const linien: { x?: number; y?: number; gross: boolean }[] = [
+    ...xs.map((x) => ({ x, gross: x % grossAlle === 0 })),
+    ...ys.map((y) => ({ y, gross: y % grossAlle === 0 })),
+  ]
+  const oben = a.y
+  const links = a.x
+  // Gezeichnet wird nur zwischen 0 und 50000 cm: davor leicht abgedunkelt,
+  // das Raster laeuft trotzdem durch.
+  const G = 50000
+  const draussen: { x: number; y: number; w: number; h: number }[] = []
+  if (a.x < 0) draussen.push({ x: a.x, y: a.y, w: Math.min(0, x1) - a.x, h: y1 - a.y })
+  if (x1 > G) draussen.push({ x: Math.max(G, a.x), y: a.y, w: x1 - Math.max(G, a.x), h: y1 - a.y })
+  const ix0 = Math.max(0, a.x)
+  const ix1 = Math.min(G, x1)
+  if (ix1 > ix0 && a.y < 0) draussen.push({ x: ix0, y: a.y, w: ix1 - ix0, h: Math.min(0, y1) - a.y })
+  if (ix1 > ix0 && y1 > G) draussen.push({ x: ix0, y: Math.max(G, a.y), w: ix1 - ix0, h: y1 - Math.max(G, a.y) })
   return (
     <g style={{ stroke: 'var(--plan-linie)' }}>
+      {draussen.map((r, i) =>
+        r.w > 0 && r.h > 0 ? (
+          <rect key={`d${i}`} x={r.x} y={r.y} width={r.w} height={r.h} stroke="none" style={{ fill: 'var(--plan-linie)' }} fillOpacity={0.06} />
+        ) : null,
+      )}
       {linien.map((l, i) =>
         l.x !== undefined ? (
           <line key={i} x1={l.x} y1={oben} x2={l.x} y2={y1} strokeWidth={1} strokeOpacity={l.gross ? 0.45 : 0.18} vectorEffect={NS} />

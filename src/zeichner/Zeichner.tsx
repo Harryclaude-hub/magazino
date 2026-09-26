@@ -46,6 +46,7 @@ import { kanteLaengeSetzen, kistenDraussen, loeschen, objektBox, raumAendern, ra
 import { Eigenschaften } from './Eigenschaften'
 import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
+import { einpassen, radArt, radFaktor, verschieben, zoomAm } from '../components/plan/ansicht'
 import { Assistent, KistenListe, MoebelKatalog, RegalVorlage, UnterlagenWahl } from './Seitenteile'
 import { REIHENFOLGE, TASTEN, tastenZeichen, WERKZEUGE } from './werkzeuge'
 import { raumStart } from './werkzeuge/raum'
@@ -106,12 +107,16 @@ const SYMBOL: Record<WerkzeugName, ReactNode> = {
   messen: <Ruler size={19} />,
 }
 
-function passend(box: Rechteck, w: number, h: number, rand = 80): Ansicht {
-  const bw = Math.max(100, box.x1 - box.x0) + 2 * rand
-  const bh = Math.max(100, box.y1 - box.y0) + 2 * rand
-  const s = Math.min(8, Math.max(0.02, Math.min(w / bw, h / bh)))
-  return { s, x: (box.x0 + box.x1) / 2 - w / (2 * s), y: (box.y0 + box.y1) / 2 - h / (2 * s) }
+/** Pfeiltasten ohne Auswahl: so viele Pixel verschiebt die Ansicht. */
+const PFEIL_PX = 80
+const PFEILE: Record<string, [number, number]> = {
+  ArrowLeft: [1, 0],
+  ArrowRight: [-1, 0],
+  ArrowUp: [0, 1],
+  ArrowDown: [0, -1],
 }
+/** Ab so vielen Pixeln wird aus einem Klick auf leere Flaeche ein Ziehen. */
+const ZIEHEN_PX = 4
 
 export default function Zeichner({
   start,
@@ -164,6 +169,8 @@ export default function Zeichner({
   const [tick, setTick] = useState(0)
   /** Leertaste gedrueckt: Ziehen verschiebt die Ansicht (Hand als Zeiger). */
   const [hand, setHand] = useState(false)
+  /** Die Ansicht wird gerade gezogen (Zeiger als greifende Hand). */
+  const [gezogen, setGezogen] = useState(false)
 
   const flaeche = useRef<HTMLDivElement>(null)
   const laeuft = useRef(false)
@@ -171,7 +178,9 @@ export default function Zeichner({
    *  Senden nicht noch einmal fragen. */
   const loeschenBestaetigt = useRef(new Set<string>())
   const leertaste = useRef(false)
-  const schieben = useRef<{ x: number; y: number; a: Ansicht } | null>(null)
+  /** Laufendes Verschieben der Ansicht. warten: Klick auf leere Flaeche,
+   *  wird erst ab ZIEHEN_PX Bewegung zum Verschieben. */
+  const schieben = useRef<{ x: number; y: number; a: Ansicht; warten?: boolean } | null>(null)
 
   const stufen = useKistenGroessen()
   const eigene = useEigeneGroessen(project.id)
@@ -222,7 +231,9 @@ export default function Zeichner({
   const zeigen = useCallback(
     (was: 'alles' | { raumId: string } | Rechteck) => {
       if (groesse[0] === 0) return
-      setAnsicht(passend(zielBox(was), groesse[0], groesse[1]))
+      // 40 cm Luft um den Inhalt, dazu ein fester Rand in Pixeln.
+      const b = zielBox(was)
+      setAnsicht(einpassen({ x0: b.x0 - 40, y0: b.y0 - 40, x1: b.x1 + 40, y1: b.y1 + 40 }, groesse[0], groesse[1]))
     },
     [groesse, zielBox],
   )
@@ -241,36 +252,37 @@ export default function Zeichner({
     }
   }, [ansicht, groesse, raumId, kisteId, z.dok, zeigen])
 
-  // Zoomen am Zeiger (Mausrad). Nicht passiv, sonst rollt die Seite mit.
+  /* Rad und Trackpad. Mausrad und Strg/Cmd+Rad (auch Pinch) zoomen am
+   * Zeiger, Wischen mit zwei Fingern verschiebt. Nicht passiv, sonst
+   * rollt die Seite mit. */
   useEffect(() => {
     const el = flaeche.current
     if (!el) return
+    let trackpadBis = 0
     const rad = (e: WheelEvent) => {
       e.preventDefault()
+      const jetzt = e.timeStamp
+      const art = radArt(e, jetzt < trackpadBis)
+      if (art === 'schieben') {
+        trackpadBis = jetzt + 400
+        const k = e.deltaMode === 1 ? 16 : 1
+        const dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX
+        const dy = e.shiftKey && e.deltaX === 0 ? 0 : e.deltaY
+        setAnsicht((a) => (a ? verschieben(a, -dx * k, -dy * k) : a))
+        return
+      }
       const r = el.getBoundingClientRect()
       const mx = e.clientX - r.left
       const my = e.clientY - r.top
-      setAnsicht((a) => {
-        if (!a) return a
-        const f = Math.exp(-e.deltaY * 0.0015)
-        const s = Math.min(8, Math.max(0.02, a.s * f))
-        const cx = a.x + mx / a.s
-        const cy = a.y + my / a.s
-        return { s, x: cx - mx / s, y: cy - my / s }
-      })
+      const f = radFaktor(e)
+      setAnsicht((a) => (a ? zoomAm(a, f, mx, my) : a))
     }
     el.addEventListener('wheel', rad, { passive: false })
     return () => el.removeEventListener('wheel', rad)
   }, [])
 
   function zoomen(f: number) {
-    setAnsicht((a) => {
-      if (!a) return a
-      const s = Math.min(8, Math.max(0.02, a.s * f))
-      const cx = a.x + groesse[0] / (2 * a.s)
-      const cy = a.y + groesse[1] / (2 * a.s)
-      return { s, x: cx - groesse[0] / (2 * s), y: cy - groesse[1] / (2 * s) }
-    })
+    setAnsicht((a) => (a ? zoomAm(a, f, groesse[0] / 2, groesse[1] / 2) : a))
   }
 
   /* -------------------------------------------------------- Werkzeuge */
@@ -340,6 +352,7 @@ export default function Zeichner({
     if (e.button === 1 || (e.button === 0 && leertaste.current)) {
       e.preventDefault()
       schieben.current = { x: e.clientX, y: e.clientY, a: ansicht }
+      setGezogen(true)
       e.currentTarget.setPointerCapture(e.pointerId)
       return
     }
@@ -354,13 +367,22 @@ export default function Zeichner({
     if (!p) return
     e.currentTarget.setPointerCapture(e.pointerId)
     const w = WERKZEUGE[werkzeug.name]
-    ausfuehren(w.runter(kontext, { p, frei: e.shiftKey }, werkzeug.s), werkzeug.name)
+    const r = w.runter(kontext, { p, frei: e.shiftKey }, werkzeug.s)
+    ausfuehren(r, werkzeug.name)
+    // Auswahl auf leerer Flaeche: Ziehen verschiebt die Ansicht.
+    if (werkzeug.name === 'auswahl' && (r.s as { zug: unknown }).zug === null) {
+      schieben.current = { x: e.clientX, y: e.clientY, a: ansicht, warten: true }
+    }
   }
 
   function bewegen(e: React.PointerEvent<HTMLDivElement>) {
-    if (schieben.current) {
-      const sc = schieben.current
-      setAnsicht({ ...sc.a, x: sc.a.x - (e.clientX - sc.x) / sc.a.s, y: sc.a.y - (e.clientY - sc.y) / sc.a.s })
+    const sc = schieben.current
+    if (sc && sc.warten && Math.hypot(e.clientX - sc.x, e.clientY - sc.y) >= ZIEHEN_PX) {
+      sc.warten = false
+      setGezogen(true)
+    }
+    if (sc && !sc.warten) {
+      setAnsicht(verschieben(sc.a, e.clientX - sc.x, e.clientY - sc.y))
       return
     }
     const p = cm(e)
@@ -371,9 +393,11 @@ export default function Zeichner({
   }
 
   function hoch(e: React.PointerEvent<HTMLDivElement>) {
-    if (schieben.current) {
+    const sc = schieben.current
+    if (sc) {
       schieben.current = null
-      return
+      setGezogen(false)
+      if (!sc.warten) return
     }
     const p = cm(e)
     if (!p || e.button !== 0) return
@@ -443,10 +467,18 @@ export default function Zeichner({
       }
       if (e.altKey) return
       const w = WERKZEUGE[a.werkzeug.name]
-      const r = w.taste(a.kontext, e.code, e.key, e.shiftKey, a.werkzeug.s)
+      // Pfeiltasten ohne Auswahl verschieben die Ansicht (Umschalt: weiter).
+      const pf = PFEILE[e.code]
+      const r = pf && a.werkzeug.name === 'auswahl' && !a.z.auswahl ? null : w.taste(a.kontext, e.code, e.key, e.shiftKey, a.werkzeug.s)
       if (r) {
         e.preventDefault()
         a.ausfuehren(r, a.werkzeug.name)
+        return
+      }
+      if (pf) {
+        e.preventDefault()
+        const px = PFEIL_PX * (e.shiftKey ? 4 : 1)
+        setAnsicht((v) => (v ? verschieben(v, pf[0] * px, pf[1] * px) : v))
         return
       }
       if (e.code === 'Escape') {
@@ -819,7 +851,7 @@ export default function Zeichner({
   })()
 
   const hilfe = t(`zeichner.hilfe.${werkzeug.name === 'raum' && (werkzeug.s as { modus?: string }).modus === 'rechteck' ? 'rechteck' : werkzeug.name}`)
-  const cursor = hand ? 'cursor-grab' : werkzeug.name === 'auswahl' ? 'cursor-default' : 'cursor-crosshair'
+  const cursor = gezogen ? 'cursor-grabbing' : hand ? 'cursor-grab' : werkzeug.name === 'auswahl' ? 'cursor-default' : 'cursor-crosshair'
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-paper">
