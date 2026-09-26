@@ -462,8 +462,17 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       return [...zeile(0, B, 0, T, true, H, 0, f).filter((q) => q.z1 <= H + 0.01), ...becken(8, 10, B - 8, T - 10, H, f)]
     case 'kuechenzeile':
       return kueche(o, decke, f)
+    case 'hochschrank': {
+      // Hochschrank mit Eichenfronten (z. B. mit eingebautem Kuehlschrank):
+      // unten eine hohe Tuer, oben eine kurze, Sockel dunkel.
+      const out: Teil[] = [t(0, 0, B, T - 1, 10, H, ton(f.front, 0.95)), t(3, 0, B - 3, T - 7, 0, 10, ton(f.platte, 1.2))]
+      const teilung = Math.min(H - 40, 200)
+      out.push(tuer(0.3, T - 1, B - 0.3, T, 10.5, teilung - 0.3, f.front, 'max', 1))
+      out.push(tuer(0.3, T - 1, B - 0.3, T, teilung + 0.3, H - 0.5, f.front, 'max', 1))
+      return out
+    }
     case 'backofen': {
-      const out: Teil[] = [t(0, 0, B, T - 1, 0, H, ton(f.front, 0.95)), t(3, 0, B - 3, T - 7, 0, 10, ton(f.platte, 1.2))]
+      const out: Teil[] = [t(0, 0, B, T - 1, 10, H, ton(f.front, 0.95)), t(3, 0, B - 3, T - 7, 0, 10, ton(f.platte, 1.2))]
       out.push(tuer(0.3, T - 1, B - 0.3, T, 10.5, 80, f.front, 'min', 1))
       out.push(t(1, T - 1, B - 1, T + 0.5, 82, 142, f.schwarz))
       out.push(t(1, T - 1, B - 1, T + 0.5, 144, 182, f.schwarz))

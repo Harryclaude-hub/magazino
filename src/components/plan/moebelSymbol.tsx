@@ -229,6 +229,8 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
       ])
       return [rechteck(B * 0.1, T * 0.27, B * 0.9, T * 0.73), ...stuehle]
     }
+    case 'hochschrank':
+      return [{ art: 'linie', a: [B * 0.1, T * 0.9], b: [B * 0.9, T * 0.9] }, { art: 'linie', a: [B * 0.85, T * 0.3], b: [B * 0.85, T * 0.7] }]
     case 'backofen':
       return [rechteck(B * 0.1, T * 0.55, B * 0.9, T * 0.95), { art: 'linie', a: [B * 0.2, T * 0.75], b: [B * 0.8, T * 0.75] }]
     case 'fahrrad': {

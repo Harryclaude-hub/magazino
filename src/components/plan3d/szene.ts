@@ -253,6 +253,20 @@ function aufRand(r: Pick<Raum, 'punkte'>, p: Punkt): boolean {
   return false
 }
 
+/** Hoehe des Balkongelaenders in cm (Oberkante Handlauf etwas darueber). */
+const GELAENDER_CM = 100
+
+/** Liegt p (Mitte eines Wandstuecks) an einer Kante eines anderen Raums
+ *  (bis 45 cm, also in derselben dicken Wand)? Dann ist es eine echte Wand. */
+function anderemRaumNah(raeume: Raum[], r: Raum, p: Punkt): boolean {
+  for (const x of raeume) {
+    if (x.id === r.id) continue
+    const n = x.punkte.length
+    for (let k = 0; k < n; k++) if (streckenAbstand(p, x.punkte[k], x.punkte[(k + 1) % n]).abstand <= 45) return true
+  }
+  return false
+}
+
 function istEcke(r: Pick<Raum, 'punkte'>, p: Punkt): boolean {
   return r.punkte.some((q) => Math.abs(q[0] - p[0]) <= 0.5 && Math.abs(q[1] - p[1]) <= 0.5)
 }
@@ -286,6 +300,14 @@ function waende(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: stri
     const innen = raumInnen(r, s.kante)
     const farbe = s.farbe ?? f.wand3d
     const H = r.hoehe_cm
+    if (r.art === 'draussen' && !s.dicke && !anderemRaumNah(raeume, r, mitte)) {
+      // Offene Seite eines Balkons (E69): Glasgelaender mit Handlauf statt Wand.
+      const glas = streifen('bruestung', a, b, 4, GELAENDER_CM, 2, f.glas, { deckkraft: 0.28, kante: f.metall, innen })
+      const lauf = streifen('bruestung', a, b, GELAENDER_CM, GELAENDER_CM + 5, 6, f.metall, { innen })
+      const fuss = streifen('bruestung', a, b, 0, 4, 6, f.metall, { innen })
+      for (const q of [glas, lauf, fuss]) if (q) out.push({ ...q, glanz: q === glas ? 0.85 : 0.75 })
+      continue
+    }
     const wand = streifen('wand', a, b, 0, H - KOPF_CM, dicke, farbe, { kante: s.dicke ? null : f.wandKante, innen })
     const kopf = streifen('wandkopf', a, b, H - KOPF_CM, H, dicke, f.wandKopf, { innen })
     if (wand) out.push(wand)

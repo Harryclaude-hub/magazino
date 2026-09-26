@@ -97,6 +97,7 @@ export const KATALOG_KUECHE: Vorlage[] = [
   v({ schluessel: 'geschirrspueler', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 87 }),
   v({ schluessel: 'kuehlschrank', art: 'moebel', breite_cm: 60, tiefe_cm: 65, hoehe_cm: 180 }),
   v({ schluessel: 'backofen', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 220 }),
+  v({ schluessel: 'hochschrank_kuehl', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 220 }),
 ]
 
 export const REGAL_STANDARD: Vorlage = v({

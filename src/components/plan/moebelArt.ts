@@ -39,6 +39,7 @@ export type MoebelArt =
   | 'tv_board'
   | 'essgruppe'
   | 'backofen'
+  | 'hochschrank'
 
 /** Reihenfolge zaehlt: das Genauere zuerst (Geschirrspueler vor Spuele,
  *  Waschtisch vor Tisch, Couchtisch vor Couch, Buerostuhl vor Stuhl,
@@ -47,6 +48,7 @@ const WOERTER: [MoebelArt, string[]][] = [
   ['tv_board', ['tv-board', 'tvboard', 'lowboard', 'fernsehschrank', 'طاولة تلفاز']],
   ['essgruppe', ['essgruppe', 'essbereich', 'مجموعة طعام']],
   ['backofen', ['backofen', 'ofenschrank', 'فرن']],
+  ['hochschrank', ['hochschrank', 'einbaukühlschrank', 'خزانة عالية']],
   ['couchtisch', ['couchtisch', 'wohnzimmertisch', 'طاولة قهوة']],
   ['nachttisch', ['nachttisch', 'nachtkästchen', 'nachtkaestchen', 'طاولة جانبية']],
   ['schreibtisch', ['schreibtisch', 'طاولة مكتب']],

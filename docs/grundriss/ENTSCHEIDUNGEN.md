@@ -412,3 +412,8 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Fronten sind in moebel3d relativ zur langen und kurzen Seite
   beschrieben, damit Spiegeln (L-Form) und Achsentausch sie mitnehmen.
   Der Stand bleibt, solange 3D offen ist; er wird nicht gespeichert.
+- **E69 Balkon mit Gelaender, Hochschrank mit Eichenfronten:** Seiten
+  eines Draussen-Raums, an denen kein anderer Raum liegt (bis 45 cm), sind
+  in 3D kein Wandstueck, sondern ein Glasgelaender (1 m) mit Handlauf und
+  Fussleiste aus Metall. Neu im Katalog: Hochschrank mit
+  Einbaukuehlschrank (Eichenfronten, zwei Tueren), wie in der IKEA-Kueche.

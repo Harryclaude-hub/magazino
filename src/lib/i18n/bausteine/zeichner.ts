@@ -438,6 +438,7 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.katalog.tv_board': { de: 'TV-Board', ar: 'طاولة تلفاز' },
   'zeichner.katalog.essgruppe': { de: 'Essgruppe (Tisch und 4 Stühle)', ar: 'مجموعة طعام (طاولة و4 كراسي)' },
   'zeichner.katalog.backofen': { de: 'Hochschrank mit Backofen', ar: 'خزانة عالية مع فرن' },
+  'zeichner.katalog.hochschrank_kuehl': { de: 'Hochschrank mit Einbaukühlschrank', ar: 'خزانة عالية مع ثلاجة مدمجة' },
   'zeichner.katalog.haengeschrank': { de: 'Hängeschrank', ar: 'خزانة معلقة' },
   'zeichner.katalog.wandregal': { de: 'Wandregal', ar: 'رف جداري' },
   'zeichner.katalog.wandschrank': { de: 'Wandschrank', ar: 'خزانة جدارية' },
