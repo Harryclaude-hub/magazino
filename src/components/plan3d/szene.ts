@@ -336,11 +336,13 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null): Koerper[]
     const farbe = ist ? f.hervor : (o.farbe ?? f.objekt)
     const mehr = { kante: ist ? f.kisteRand : f.objektRand, id: o.id, hervor: ist }
     const H = o.hoehe_cm
+    // Haengend (0039): alles um die Unterkante ueber dem Boden angehoben.
+    const unten = o.boden_cm ?? 0
     if (o.art === 'moebel' || o.form === 'l') {
       // Moebel als Quader, die L-Form als zwei.
       for (const r of objektRechtecke(o)) {
         out.push(
-          quader('moebel', [m((r.x0 + r.x1) / 2), m(H / 2), m((r.y0 + r.y1) / 2)], [m(r.x1 - r.x0), m(H), m(r.y1 - r.y0)], farbe, mehr),
+          quader('moebel', [m((r.x0 + r.x1) / 2), m(unten + H / 2), m((r.y0 + r.y1) / 2)], [m(r.x1 - r.x0), m(H), m(r.y1 - r.y0)], farbe, mehr),
         )
       }
       continue
@@ -362,7 +364,7 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null): Koerper[]
       if (b < BRETT_CM || b > H - BRETT_CM) continue
       teile.push(lokalQuader(o, 'brett', 0, 0, B, T, b - BRETT_CM, b, f.fach, { kante: f.objektRand, id: o.id }))
     }
-    for (const q of teile) if (q) out.push(q)
+    for (const q of teile) if (q) out.push(unten ? { ...q, mitte: [q.mitte[0], q.mitte[1] + m(unten), q.mitte[2]] } : q)
   }
   return out
 }

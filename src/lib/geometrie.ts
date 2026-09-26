@@ -48,6 +48,14 @@ export interface ObjektForm {
   ausschnitt_ecke: Ecke | null
   brett_cm: number[] | null
   spalten: number
+  /** Unterkante ueber dem Boden (0039, haengende Schraenke und Regale).
+   *  Fehlt sie, steht das Objekt auf dem Boden. */
+  boden_cm?: number
+}
+
+/** Unterkante eines Objekts ueber dem Boden. */
+export function objektBoden(o: Pick<ObjektForm, 'boden_cm'>): number {
+  return o.boden_cm ?? 0
 }
 
 /* Was kisteBasis, platzFehler und unterlagenAn von einem Grundriss
@@ -486,7 +494,7 @@ export function kisteBasis(k: GeoKiste, daten: GeoDaten): KistenBasis | null {
     if (r.unterlage_art === 'objekt') {
       if (!raum) return null
       return {
-        unten_cm: unten + o.hoehe_cm,
+        unten_cm: unten + objektBoden(o) + o.hoehe_cm,
         grenze_cm: raum.hoehe_cm,
         wurzel_art: 'objekt',
         wurzel_objekt: o.id,
@@ -497,8 +505,8 @@ export function kisteBasis(k: GeoKiste, daten: GeoDaten): KistenBasis | null {
     const brett = o.brett_cm?.[e - 1]
     if (brett === undefined) return null
     return {
-      unten_cm: unten + brett,
-      grenze_cm: fachDecke(o, e),
+      unten_cm: unten + objektBoden(o) + brett,
+      grenze_cm: objektBoden(o) + fachDecke(o, e),
       wurzel_art: 'fach',
       wurzel_objekt: o.id,
       tiefe,
@@ -557,7 +565,7 @@ export function platzFehler(k: GeoKiste & { kind?: string }, daten: GeoDaten): G
       if (!objektEnthaelt(o, k.platz_x, k.platz_y)) {
         return fehler('nicht_darauf_objekt', { code, name: o.name, art: o.art })
       }
-      unten = o.hoehe_cm
+      unten = objektBoden(o) + o.hoehe_cm
       grenze = r.hoehe_cm
     } else {
       if (o.art === 'moebel') return fehler('kein_regal', { code, name: o.name })
@@ -578,8 +586,8 @@ export function platzFehler(k: GeoKiste & { kind?: string }, daten: GeoDaten): G
       if (u2 > 2 * UEBERSTAND_MAX_CM) {
         return fehler('ueberstand_zu_gross', { code, name: o.name, cm: ueberstandCm(u2), max: UEBERSTAND_MAX_CM })
       }
-      unten = brett[ebene - 1]
-      grenze = fachDecke(o, ebene)
+      unten = objektBoden(o) + brett[ebene - 1]
+      grenze = objektBoden(o) + fachDecke(o, ebene)
     }
   }
   const oben = unten + k.hoehe_cm

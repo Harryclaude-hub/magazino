@@ -667,6 +667,8 @@ export interface Vorlage {
   ausschnitt_ecke: Objekt['ausschnitt_ecke']
   brett_cm: number[] | null
   spalten: number
+  /** Haengend (Haengeschrank, Wandregal): Unterkante ueber dem Boden. */
+  boden_cm?: number
 }
 
 /** Rahmen eines Objekts (bei L der umfassende). */
@@ -697,7 +699,7 @@ export function objektGedreht<T extends ObjektForm>(o: T, richtung: 1 | -1): T {
 /** Passt das Objekt in diesen Raum (ganz drin, nicht hoeher)? */
 export function objektPasst(o: ObjektForm, raum: Pick<Raum, 'punkte' | 'hoehe_cm'>): boolean {
   const u = zuUmriss(raum.punkte)
-  return o.hoehe_cm <= raum.hoehe_cm && objektRechtecke(o).every((q) => rechteckImPolygon(u, q))
+  return (o.boden_cm ?? 0) + o.hoehe_cm <= raum.hoehe_cm && objektRechtecke(o).every((q) => rechteckImPolygon(u, q))
 }
 
 /** Der Raum, in dessen Innerem der Punkt liegt (Rand zaehlt). */
@@ -767,6 +769,7 @@ export function neuesObjekt(v: Vorlage, id: string, raumId: string, pos: { x: nu
     ausschnitt_ecke: v.art === 'moebel' && v.form === 'l' ? v.ausschnitt_ecke : null,
     brett_cm: v.art === 'moebel' ? null : v.brett_cm,
     spalten: v.art === 'moebel' ? 1 : v.spalten,
+    boden_cm: v.boden_cm ?? 0,
     farbe: null,
     item_id: null,
     item_code: null,

@@ -55,6 +55,7 @@ function objektWerte(o: Objekt): ObjektWerte {
     ausschnitt_ecke: o.ausschnitt_ecke,
     brett_cm: o.brett_cm,
     spalten: o.spalten,
+    boden_cm: o.boden_cm ?? 0,
     farbe: o.farbe,
     item_id: o.item_id,
   }

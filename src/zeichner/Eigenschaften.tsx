@@ -533,6 +533,15 @@ function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
         {o.art === 'moebel' ? (
           <MassFeld label={t('zeichner.eig.hoehe')} wert={o.hoehe_cm} min={1} max={600} onSetzen={(v) => setze({ ...o, hoehe_cm: v })} />
         ) : null}
+        {/* Haengend (0039): Unterkante ueber dem Boden, oben begrenzt durch die Raumhoehe. */}
+        <MassFeld
+          label={t('zeichner.eig.boden')}
+          wert={o.boden_cm ?? 0}
+          min={0}
+          max={Math.max(0, (raum?.hoehe_cm ?? 1000) - o.hoehe_cm)}
+          onSetzen={(v) => setze({ ...o, boden_cm: v })}
+        />
+        <p className="t-sub -mt-1 text-sm">{t('zeichner.eig.boden_hilfe')}</p>
         <Zeile label={t('zeichner.eig.drehung', { n: o.drehung })}>
           <div className="flex gap-2">
             <Button size="sm" variant="soft" onClick={() => setze(objektGedreht(o, -1))} aria-label={t('zeichner.eig.drehen_links')}>

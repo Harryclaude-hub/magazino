@@ -64,6 +64,8 @@ export const KATALOG_SCHLAFEN: Vorlage[] = [
 /** Flur, Abstellraum und Sonstiges. */
 export const KATALOG_SONST: Vorlage[] = [
   v({ schluessel: 'schuhschrank', art: 'moebel', breite_cm: 80, tiefe_cm: 35, hoehe_cm: 100 }),
+  v({ schluessel: 'wandregal', art: 'regal', breite_cm: 80, tiefe_cm: 25, ...faecherGleichmaessig(2, 50), spalten: 1, boden_cm: 150 }),
+  v({ schluessel: 'wandschrank', art: 'schrank', breite_cm: 80, tiefe_cm: 35, ...faecherGleichmaessig(2, 60), spalten: 1, boden_cm: 150 }),
   v({ schluessel: 'garderobe', art: 'moebel', breite_cm: 100, tiefe_cm: 35, hoehe_cm: 180 }),
   v({ schluessel: 'gefrierschrank', art: 'moebel', breite_cm: 60, tiefe_cm: 65, hoehe_cm: 145 }),
   v({ schluessel: 'fahrrad', art: 'moebel', breite_cm: 180, tiefe_cm: 60, hoehe_cm: 100 }),
@@ -86,6 +88,7 @@ export const KATALOG_KUECHE: Vorlage[] = [
   v({ schluessel: 'kuechenzeile', art: 'moebel', breite_cm: 240, tiefe_cm: 60, hoehe_cm: 90 }),
   v({ schluessel: 'unterschrank', art: 'schrank', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 87, brett_cm: [0, 40], spalten: 1 }),
   v({ schluessel: 'hochschrank', art: 'schrank', breite_cm: 60, tiefe_cm: 60, ...faecherGleichmaessig(5, 210), spalten: 1 }),
+  v({ schluessel: 'haengeschrank', art: 'schrank', breite_cm: 60, tiefe_cm: 35, ...faecherGleichmaessig(2, 70), spalten: 1, boden_cm: 145 }),
   v({ schluessel: 'spuele', art: 'moebel', breite_cm: 80, tiefe_cm: 60, hoehe_cm: 90 }),
   v({ schluessel: 'herd', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 90 }),
   v({ schluessel: 'geschirrspueler', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 87 }),

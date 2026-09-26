@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Crosshair, Eye, Hand, Layers, Map as KarteIcon, Rotate3d, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Crosshair, Eye, Footprints, Hand, Layers, Map as KarteIcon, Rotate3d, X } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
 import type { GrundrissDaten } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { Button } from '../ui'
-import { motorStarten, type Blick, type Motor } from './motor'
+import { flaecheQm, innenPunkt } from '../plan/hilfe'
+import { motorStarten, type Blick, type GehRichtung, type Motor } from './motor'
 import { baueSzene, FARB_TOKENS, hervorMitte, type Farben3D } from './szene'
 
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
@@ -19,6 +20,10 @@ import { baueSzene, FARB_TOKENS, hervorMitte, type Farben3D } from './szene'
  * gesuchte Kiste rot, die anderen gedaempft (szene.ts). Kamera drehen,
  * zoomen, verschieben; Waende, die zwischen Kamera und Raum stehen, werden
  * halbdurchsichtig.
+ *
+ * Begehen: in Augenhoehe durch die Wohnung (W A S D oder Pfeiltasten,
+ * ziehen schaut umher, am Handy Pfeilknoepfe). Waende halten auf, Tueren
+ * und Durchgaenge sind offen. Esc oder der Knopf beendet es.
  *
  * Die Farben kommen aus den Tokens (getComputedStyle) und werden bei
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
@@ -46,6 +51,22 @@ function farbenLesen(): Farben3D {
   }
   return out
 }
+
+/** Wo das Begehen anfaengt: im gezeigten Raum, sonst im groessten Raum
+ *  innen (meist Wohnzimmer oder Wohnkueche). Punkt im Plan in cm. */
+function startPunkt(daten: GrundrissDaten, raumId: string | null): [number, number] | null {
+  const kandidaten = raumId ? daten.raeume.filter((r) => r.id === raumId) : daten.raeume.filter((r) => r.art === 'innen')
+  let best: (typeof daten.raeume)[number] | null = null
+  for (const r of kandidaten) if (!best || flaecheQm(r.punkte) > flaecheQm(best.punkte)) best = r
+  return best ? innenPunkt(best.punkte) : null
+}
+
+const GEH_KNOEPFE: { r: GehRichtung; Zeichen: typeof ArrowUp; spalte: number; zeile: number }[] = [
+  { r: 'vor', Zeichen: ArrowUp, spalte: 2, zeile: 1 },
+  { r: 'links', Zeichen: ArrowLeft, spalte: 1, zeile: 2 },
+  { r: 'zurueck', Zeichen: ArrowDown, spalte: 2, zeile: 2 },
+  { r: 'rechts', Zeichen: ArrowRight, spalte: 3, zeile: 2 },
+]
 
 /** Kiste -> Objekt, auf oder in dem ihr Stapel steht (ueber Kisten hinweg). */
 function traegerKarte(daten: GrundrissDaten): Map<string, string> {
@@ -92,6 +113,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
     }
   }
   const ausgerichtet = useRef<string | null>(null)
+  const [gehen, setGehen] = useState(false)
 
   // Hell/Dunkel: die Klasse an <html> wechselt, die Tokens auch.
   useEffect(() => {
@@ -149,7 +171,30 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
     motor.current?.ziehen(kannZiehen ? (id, dx, dy) => ziehRueck.current?.(id, dx, dy) : null, traeger)
   }, [kannZiehen, traeger, geht])
 
-  const blick = (b: Blick) => motor.current?.blick(b)
+  const blick = (b: Blick) => {
+    setGehen(false)
+    motor.current?.blick(b)
+  }
+
+  // Begehen an und aus; der Motor merkt sich die Kamera von vorher.
+  useEffect(() => {
+    if (geht !== 'ja') return
+    motor.current?.begehen(gehen, gehen ? startPunkt(daten, raumId) : null)
+    // Nur beim Umschalten, nicht bei jeder Aenderung am Plan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gehen, geht])
+
+  // Esc beendet erst das Begehen, bevor es 3D schliesst.
+  useEffect(() => {
+    if (!gehen) return
+    const taste = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      setGehen(false)
+    }
+    window.addEventListener('keydown', taste, true)
+    return () => window.removeEventListener('keydown', taste, true)
+  }, [gehen])
 
   return (
     <div className={cx('relative flex h-full min-h-0 flex-col overflow-hidden bg-paper', className)}>
@@ -165,7 +210,17 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
             <Crosshair size={16} style={{ color: 'var(--plan-hervor)' }} /> {t('plan3d.zur_kiste')}
           </Button>
         ) : null}
-        <div className="flex rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('plan3d.modus')}>
+        <Button
+          size="sm"
+          variant={gehen ? 'aktiv' : 'outline'}
+          aria-pressed={gehen}
+          onClick={() => setGehen((v) => !v)}
+          disabled={geht !== 'ja' || leer}
+          title={t('plan3d.begehen_hilfe')}
+        >
+          <Footprints size={16} /> {t(gehen ? 'plan3d.begehen_ende' : 'plan3d.begehen')}
+        </Button>
+        <div className={cx('flex rounded-xl border-2 border-line p-0.5', gehen && 'pointer-events-none opacity-40')} role="group" aria-label={t('plan3d.modus')}>
           <button
             type="button"
             aria-pressed={hand}
@@ -195,7 +250,11 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
           <Layers size={16} /> {t('plan3d.waende_halb')}
         </Button>
         <p className="t-sub min-w-0 flex-1 truncate px-1">
-          {geht === 'ja' ? t(`${beruehren ? 'plan3d.bedienung_handy' : kannZiehen ? 'plan3d.bedienung_ziehen' : 'plan3d.bedienung'}${hand ? '_hand' : ''}`) : null}
+          {geht !== 'ja'
+            ? null
+            : gehen
+              ? t(beruehren ? 'plan3d.begehen_bedienung_handy' : 'plan3d.begehen_bedienung')
+              : t(`${beruehren ? 'plan3d.bedienung_handy' : kannZiehen ? 'plan3d.bedienung_ziehen' : 'plan3d.bedienung'}${hand ? '_hand' : ''}`)}
         </p>
         {onSchliessen ? (
           <Button size="sm" variant="outline" onClick={onSchliessen}>
@@ -216,6 +275,28 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
             <p className="max-w-md rounded-2xl border border-line bg-surface p-4 text-center font-bold text-ink" role="status">
               {t('plan3d.geht_nicht')}
             </p>
+          </div>
+        ) : geht === 'ja' && gehen ? (
+          // Gehen per Knopf: gedrueckt halten, loslassen bleibt stehen.
+          <div className="absolute bottom-4 start-4 grid grid-cols-3 gap-1.5" dir="ltr">
+            {GEH_KNOEPFE.map(({ r, Zeichen, spalte, zeile }) => (
+              <button
+                key={r}
+                type="button"
+                aria-label={t(`plan3d.gehen_${r}`)}
+                style={{ gridColumn: spalte, gridRow: zeile, touchAction: 'none' }}
+                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-line bg-surface/90 text-ink shadow active:bg-ink active:text-paper"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId)
+                  motor.current?.gehenKnopf(r, true)
+                }}
+                onPointerUp={() => motor.current?.gehenKnopf(r, false)}
+                onPointerCancel={() => motor.current?.gehenKnopf(r, false)}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                <Zeichen size={20} />
+              </button>
+            ))}
           </div>
         ) : geht === 'ja' && leer ? (
           <div dir="auto" className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">

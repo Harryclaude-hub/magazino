@@ -37,6 +37,24 @@ export const plan3dWoerter: Woerterbuch = {
   },
   'plan3d.modus': { de: 'Linke Maustaste', ar: 'زر الفأرة الأيسر' },
   'plan3d.hand': { de: 'Hand', ar: 'يد' },
+  'plan3d.begehen': { de: 'Begehen', ar: 'تجوّل' },
+  'plan3d.begehen_ende': { de: 'Begehen beenden', ar: 'إنهاء التجوّل' },
+  'plan3d.begehen_hilfe': {
+    de: 'Durch die Wohnung gehen, als wärst du drin.',
+    ar: 'تجوّل في الشقة كأنك بداخلها.',
+  },
+  'plan3d.begehen_bedienung': {
+    de: 'W A S D oder Pfeiltasten gehen, Umschalt rennt, ziehen schaut umher. Esc beendet.',
+    ar: 'W A S D أو مفاتيح الأسهم للمشي، Shift للركض، السحب للنظر حولك. Esc للإنهاء.',
+  },
+  'plan3d.begehen_bedienung_handy': {
+    de: 'Pfeile halten zum Gehen, mit dem Finger ziehen zum Umschauen.',
+    ar: 'اضغط على الأسهم للمشي، واسحب بإصبعك للنظر حولك.',
+  },
+  'plan3d.gehen_vor': { de: 'Vorwärts gehen', ar: 'امشِ للأمام' },
+  'plan3d.gehen_zurueck': { de: 'Rückwärts gehen', ar: 'امشِ للخلف' },
+  'plan3d.gehen_links': { de: 'Nach links gehen', ar: 'امشِ لليسار' },
+  'plan3d.gehen_rechts': { de: 'Nach rechts gehen', ar: 'امشِ لليمين' },
   'plan3d.drehen': { de: 'Drehen', ar: 'تدوير' },
   'plan3d.hand_hilfe': {
     de: 'Greifen und verschieben: nach oben, unten, links, rechts. Rechte Maustaste dreht.',

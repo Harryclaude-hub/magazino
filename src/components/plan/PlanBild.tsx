@@ -221,6 +221,9 @@ const ObjektEbene = memo(function ObjektEbene({ objekte, massstab }: { objekte: 
               style={{ fill: o.farbe ?? 'var(--plan-objekt)', stroke: 'var(--plan-objekt-rand)' }}
               strokeWidth={1.5}
               vectorEffect={NS}
+              // Haengend (0039): gestrichelter Rand, wie im Bauplan fuer Oberschraenke.
+              strokeDasharray={o.boden_cm ? '6 4' : undefined}
+              fillOpacity={o.boden_cm ? 0.55 : undefined}
             />
             {o.art !== 'moebel' ? (
               // Regal und Schrank: die Vorderkante doppelt, damit man sieht, wo man hineingreift.

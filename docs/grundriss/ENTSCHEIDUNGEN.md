@@ -333,3 +333,24 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Wohnen, Schlafen und Arbeiten, Bad, Kueche, Flur und mehr. Jeder
   Eintrag zeigt links ein kleines Bild aus Umriss und Planzeichen
   (`MoebelVorschau`), dasselbe Zeichen steht im Plan am Moebel.
+- **E62 Haengende Moebel (0039):** Neue Spalte `objekte.boden_cm`
+  (Unterkante ueber dem Boden, 0 bis 1000, Standard 0). Die Datenbank
+  rechnet sie ueberall mit, wo Hoehen bisher bei 0 anfingen
+  (objekt_fehler, kiste_basis, platz_fehler, kiste_lage, inhalt_suchen,
+  Ausloeser in objekte_vorher und objekte_nachher, grundriss_speichern);
+  geometrie.ts ebenso (objektBoden). Die Migration schreibt die Funktionen
+  nicht neu ab, sondern ersetzt genau die Stellen in der jetzigen Fassung
+  und bricht ab, wenn eine Stelle nicht genau einmal vorkommt. In den
+  Eigenschaften "Hoehe ueber dem Boden" fuer jedes Objekt; im Katalog
+  Haengeschrank (Kueche), Wandregal und Wandschrank. Im Plan gestrichelt
+  und etwas blasser, in 3D in ihrer Hoehe. Kisten auf oder in einem
+  haengenden Objekt stehen nach dem naechsten Laden richtig hoch.
+- **E63 Begehen:** Knopf "Begehen" in der 3D-Leiste. Kamera in 1,60 m
+  Augenhoehe im groessten Innenraum (oder im gezeigten Raum), Blick wie
+  vorher. W A S D oder Pfeiltasten gehen (1,4 m/s, Umschalt 2,8 m/s),
+  ziehen schaut umher, Pfeilknoepfe unten links fuer Handy und Maus.
+  Ein Strahl in Kniehoehe haelt an Waenden, Bruestungen, Fenstern und
+  Zargen 25 cm Abstand und laesst an der Wand entlang gleiten; Tueren
+  und Durchgaenge sind offen, Moebel halten nicht auf. Beim Begehen sind
+  alle Waende voll sichtbar. Esc oder "Begehen beenden" bringt die Kamera
+  zurueck, wo sie vorher war.

@@ -57,14 +57,33 @@ export interface Motor {
   /** Moebel ziehen erlauben (Zeichner), null schaltet es aus. traeger:
    *  Kiste -> Objekt, auf oder in dem ihr Stapel steht; sie gehen mit. */
   ziehen(fn: ((id: string, dxCm: number, dyCm: number) => void) | null, traeger: Map<string, string>): void
+  /** Begehen: in Augenhoehe durch die Wohnung. start: Punkt im Plan (cm);
+   *  null nimmt den Punkt, auf den die Kamera gerade schaut. Aus: die
+   *  Kamera kehrt dorthin zurueck, wo sie vorher war. */
+  begehen(an: boolean, start: [number, number] | null): void
+  /** Gehen per Knopf (Handy): Richtung halten, loslassen stoppt. */
+  gehenKnopf(richtung: GehRichtung, an: boolean): void
   dispose(): void
 }
+
+export type GehRichtung = 'vor' | 'zurueck' | 'links' | 'rechts'
 
 /** Ab so vielen Pixeln wird aus einem Druck auf ein Moebel ein Ziehen. */
 const ZIEH_PX = 4
 
 /** Wie durchsichtig eine Wand ist, deren Aussenseite zur Kamera zeigt. */
 const WAND_HALB = 0.16
+
+/* Begehen: Augenhoehe, Schritt und Abstand zur Wand in Metern. Gegen
+ * Waende, Bruestungen und Fenster stoesst man; Tueren und Durchgaenge
+ * sind offen (der Pruefstrahl laeuft in Kniehoehe unter dem Sturz durch).
+ * Moebel halten nicht auf, damit man nirgends haengen bleibt. */
+const AUGE_M = 1.6
+const KNIE_M = 0.45
+const GEHEN_M_S = 1.4
+const RENNEN_M_S = 2.8
+const WAND_ABSTAND_M = 0.25
+const HINDERNIS = new Set(['wand', 'bruestung', 'scheibe', 'rahmen', 'zarge'])
 
 /** Alles mit Innenseite (Wand, Sturz, Tuer, Fenster) wird im Weg halbdurchsichtig. */
 interface WandInfo {
@@ -179,7 +198,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
   }
 
   const ziehRunter = (e: PointerEvent) => {
-    if (!ziehFn || !handAn || e.button !== 0 || e.pointerType === 'touch') return
+    if (!ziehFn || !handAn || gehen || e.button !== 0 || e.pointerType === 'touch') return
     const id = objektUnter(e)
     if (!id) return
     const start = bodenPunkt(e)
@@ -208,7 +227,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const z = zug
     if (!z) {
       // Ohne Druck zeigen, dass sich ein Moebel greifen laesst.
-      if (ziehFn && handAn && e.pointerType === 'mouse' && e.buttons === 0) {
+      if (ziehFn && handAn && !gehen && e.pointerType === 'mouse' && e.buttons === 0) {
         renderer.domElement.style.cursor = objektUnter(e) ? 'grab' : ''
       }
       return
@@ -266,11 +285,15 @@ export function motorStarten(host: HTMLElement): Motor | null {
   controls.screenSpacePanning = false
 
   let waende: WandInfo[] = []
+  /** Woran man beim Begehen stoesst (Rollen in HINDERNIS). */
+  let hindernisse: Mesh[] = []
   let halb = true
   let koerperJetzt: Koerper[] = []
   let geplant = 0
   let weg = false
   let bewegt = false
+  /** Begehen: Kamera in Augenhoehe, OrbitControls ruhen (siehe gehenAn). */
+  let gehen = false
 
   /** Waehrend der Bewegung mit weniger Bildpunkten rechnen. */
   function bewegungAn(an: boolean) {
@@ -285,7 +308,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const cz = camera.position.z
     for (const w of waende) {
       // Zeigt die Aussenseite zur Kamera, steht die Wand im Weg.
-      const vorne = halb && (cx - w.x) * w.innen[0] + (cz - w.z) * w.innen[1] < -0.05
+      // Beim Begehen steht man im Raum: dann bleibt jede Wand ganz sichtbar.
+      const vorne = halb && !gehen && (cx - w.x) * w.innen[0] + (cz - w.z) * w.innen[1] < -0.05
       const mat = w.mesh.material as MeshLambertMaterial
       mat.opacity = vorne ? Math.min(w.basis, WAND_HALB) : w.basis
       mat.depthWrite = !vorne && w.basis >= 1
@@ -299,8 +323,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
       geplant = 0
       if (weg) return
       // Daempfung: solange die Kamera noch auslaeuft, meldet update()
-      // 'change', und das plant das naechste Bild.
-      controls.update()
+      // 'change', und das plant das naechste Bild. Beim Begehen fuehrt
+      // gehenAn die Kamera; update() wuerde sie zum Ziel zurueckdrehen.
+      if (!gehen) controls.update()
       waendePruefen()
       renderer.render(scene, camera)
     })
@@ -366,6 +391,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     flaechenMat.clear()
     linienMat.clear()
     waende = []
+    hindernisse = []
   }
 
   function bauen(liste: Koerper[]) {
@@ -393,6 +419,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       const mesh = new Mesh(einheit, mat)
       if (k.id && (k.rolle === 'moebel' || k.rolle === 'regal' || k.rolle === 'brett')) mesh.userData = { objektId: k.id }
       else if (k.id && k.rolle === 'kiste') mesh.userData = { kisteId: k.id }
+      if (HINDERNIS.has(k.rolle)) hindernisse.push(mesh)
       mesh.position.set(k.mitte[0], k.mitte[1], k.mitte[2])
       mesh.scale.set(k.masse[0], k.masse[1], k.masse[2])
       mesh.rotation.y = k.drehY
@@ -423,7 +450,165 @@ export function motorStarten(host: HTMLElement): Motor | null {
     rendern()
   }
 
+  /* ---------------------------------------------------------- Begehen */
+
+  let gier = 0 // Drehung um die Hochachse (Blickrichtung)
+  let neigung = 0 // hoch und runter schauen
+  let vorher: { pos: Vector3; ziel: Vector3; fov: number } | null = null
+  const halten = new Set<GehRichtung>()
+  let rennen = false
+  let schritt = 0
+  let zuletzt = 0
+  let schauen: { x: number; y: number; id: number } | null = null
+
+  function kameraAusrichten() {
+    camera.rotation.set(neigung, gier, 0, 'YXZ')
+    rendern()
+  }
+
+  /** Ist der Weg von (x, z) um (dx, dz) frei? Strahl in Kniehoehe. */
+  function frei(x: number, z: number, dx: number, dz: number): boolean {
+    const l = Math.hypot(dx, dz)
+    if (l < 1e-6) return true
+    strahl.set(new Vector3(x, KNIE_M, z), new Vector3(dx / l, 0, dz / l))
+    strahl.far = l + WAND_ABSTAND_M
+    const stoss = strahl.intersectObjects(hindernisse, false).length > 0
+    strahl.far = Infinity
+    return !stoss
+  }
+
+  function gehSchritt(zeit: number) {
+    schritt = 0
+    if (!gehen || weg) return
+    const dt = zuletzt ? Math.min(0.05, (zeit - zuletzt) / 1000) : 0.016
+    zuletzt = zeit
+    const vor = (halten.has('vor') ? 1 : 0) - (halten.has('zurueck') ? 1 : 0)
+    const seit = (halten.has('rechts') ? 1 : 0) - (halten.has('links') ? 1 : 0)
+    if (!vor && !seit) {
+      zuletzt = 0
+      bewegungAn(false)
+      return
+    }
+    // Vorwaerts ist die Blickrichtung am Boden, rechts quer dazu.
+    let dx = -Math.sin(gier) * vor + Math.cos(gier) * seit
+    let dz = -Math.cos(gier) * vor - Math.sin(gier) * seit
+    const l = Math.hypot(dx, dz)
+    const weit = (rennen ? RENNEN_M_S : GEHEN_M_S) * dt
+    dx = (dx / l) * weit
+    dz = (dz / l) * weit
+    const p = camera.position
+    // An der Wand entlang gleiten: erst ganz, sonst nur laengs oder quer.
+    if (frei(p.x, p.z, dx, dz)) {
+      p.x += dx
+      p.z += dz
+    } else if (frei(p.x, p.z, dx, 0)) p.x += dx
+    else if (frei(p.x, p.z, 0, dz)) p.z += dz
+    rendern()
+    schritt = requestAnimationFrame(gehSchritt)
+  }
+
+  function losgehen() {
+    if (schritt || !gehen) return
+    bewegungAn(true)
+    zuletzt = 0
+    schritt = requestAnimationFrame(gehSchritt)
+  }
+
+  const TASTEN: Record<string, GehRichtung> = {
+    KeyW: 'vor',
+    ArrowUp: 'vor',
+    KeyS: 'zurueck',
+    ArrowDown: 'zurueck',
+    KeyA: 'links',
+    ArrowLeft: 'links',
+    KeyD: 'rechts',
+    ArrowRight: 'rechts',
+  }
+  const tasteRunter = (e: KeyboardEvent) => {
+    if (!gehen) return
+    const ziel = e.target as HTMLElement | null
+    if (ziel && (ziel.tagName === 'INPUT' || ziel.tagName === 'TEXTAREA' || ziel.isContentEditable)) return
+    rennen = e.shiftKey
+    const r = TASTEN[e.code]
+    if (!r) return
+    e.preventDefault()
+    halten.add(r)
+    losgehen()
+  }
+  const tasteHoch = (e: KeyboardEvent) => {
+    rennen = e.shiftKey
+    const r = TASTEN[e.code]
+    if (r) halten.delete(r)
+  }
+  // Fenster verliert den Fokus: sonst liefe man mit "gedrueckter" Taste weiter.
+  const fokusWeg = () => halten.clear()
+  window.addEventListener('keydown', tasteRunter)
+  window.addEventListener('keyup', tasteHoch)
+  window.addEventListener('blur', fokusWeg)
+
+  // Umschauen: gedrueckt ziehen, wie bei einem Rundblick-Foto.
+  const schauRunter = (e: PointerEvent) => {
+    if (!gehen || schauen) return
+    schauen = { x: e.clientX, y: e.clientY, id: e.pointerId }
+    renderer.domElement.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+  const schauBewegen = (e: PointerEvent) => {
+    if (!gehen || !schauen || e.pointerId !== schauen.id) return
+    const dx = e.clientX - schauen.x
+    const dy = e.clientY - schauen.y
+    schauen.x = e.clientX
+    schauen.y = e.clientY
+    gier += dx * 0.0045
+    neigung = Math.max(-1.2, Math.min(1.2, neigung + dy * 0.0045))
+    kameraAusrichten()
+  }
+  const schauHoch = (e: PointerEvent) => {
+    if (!schauen || e.pointerId !== schauen.id) return
+    schauen = null
+    if (renderer.domElement.hasPointerCapture(e.pointerId)) renderer.domElement.releasePointerCapture(e.pointerId)
+  }
+  renderer.domElement.addEventListener('pointerdown', schauRunter)
+  renderer.domElement.addEventListener('pointermove', schauBewegen)
+  renderer.domElement.addEventListener('pointerup', schauHoch)
+  renderer.domElement.addEventListener('pointercancel', schauHoch)
+
+  function gehenAn(an: boolean, start: [number, number] | null) {
+    if (an === gehen) return
+    if (an) {
+      vorher = { pos: camera.position.clone(), ziel: controls.target.clone(), fov: camera.fov }
+      // In die Richtung schauen, in die die Kamera eben geschaut hat.
+      const dx = controls.target.x - camera.position.x
+      const dz = controls.target.z - camera.position.z
+      gier = Math.hypot(dx, dz) > 0.01 ? Math.atan2(-dx, -dz) : 0
+      neigung = 0
+      gehen = true
+      controls.enabled = false
+      camera.position.set(start ? start[0] / 100 : controls.target.x, AUGE_M, start ? start[1] / 100 : controls.target.z)
+      camera.fov = 70
+      camera.updateProjectionMatrix()
+      kameraAusrichten()
+      return
+    }
+    gehen = false
+    halten.clear()
+    schauen = null
+    if (schritt) cancelAnimationFrame(schritt)
+    schritt = 0
+    controls.enabled = true
+    if (vorher) {
+      camera.position.copy(vorher.pos)
+      controls.target.copy(vorher.ziel)
+      camera.fov = vorher.fov
+      camera.updateProjectionMatrix()
+    }
+    controls.update()
+    bewegungAn(false)
+    rendern()
+  }
+
   function blick(b: Blick) {
+    if (gehen) gehenAn(false, null)
     const r = szeneRahmen(koerperJetzt)
     if (!r) return
     const mitte: Vec3 = [(r.x0 + r.x1) / 2, 0, (r.z0 + r.z1) / 2]
@@ -473,9 +658,25 @@ export function motorStarten(host: HTMLElement): Motor | null {
       traeger = t
       if (!fn) renderer.domElement.style.cursor = ''
     },
+    begehen: gehenAn,
+    gehenKnopf(richtung, an) {
+      if (!gehen) return
+      if (an) {
+        halten.add(richtung)
+        losgehen()
+      } else halten.delete(richtung)
+    },
     dispose() {
       weg = true
       if (geplant) cancelAnimationFrame(geplant)
+      if (schritt) cancelAnimationFrame(schritt)
+      window.removeEventListener('keydown', tasteRunter)
+      window.removeEventListener('keyup', tasteHoch)
+      window.removeEventListener('blur', fokusWeg)
+      renderer.domElement.removeEventListener('pointerdown', schauRunter)
+      renderer.domElement.removeEventListener('pointermove', schauBewegen)
+      renderer.domElement.removeEventListener('pointerup', schauHoch)
+      renderer.domElement.removeEventListener('pointercancel', schauHoch)
       window.clearTimeout(ruheUhr)
       host.removeEventListener('pointerdown', ziehRunter, { capture: true })
       host.removeEventListener('pointermove', ziehBewegen, { capture: true })
