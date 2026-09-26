@@ -414,8 +414,17 @@ export interface Grundriss {
   name: string
   sort: number
   version: number
+  /** Gestrichelte Hilfslinien (0034), reine Anzeige. Fehlt bei alten Staenden. */
+  linien?: PlanLinie[]
   created_at: string
   updated_at: string
+}
+
+/** Eine gestrichelte Hilfslinie in cm (Treppe, Stufe, Bereich). */
+export interface PlanLinie {
+  id: string
+  a: [number, number]
+  b: [number, number]
 }
 
 export interface Raum {

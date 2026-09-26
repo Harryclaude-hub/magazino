@@ -25,6 +25,7 @@ import type {
   Message,
   Objekt,
   PlanKiste,
+  PlanLinie,
   MessageLink,
   MessageReaction,
   NotificationPrefs,
@@ -746,7 +747,7 @@ type RohDaten = Omit<GrundrissDaten, 'raeume'> & {
  *  Punkte, fehlende Listen leer. */
 function datenLesen(d: RohDaten): GrundrissDaten {
   return {
-    grundriss: d.grundriss,
+    grundriss: { ...d.grundriss, linien: d.grundriss.linien ?? [] },
     raeume: (d.raeume ?? []).map((r) => ({ ...r, punkte: zuPunkten(r.punkte ?? []) })),
     oeffnungen: d.oeffnungen ?? [],
     objekte: d.objekte ?? [],
@@ -762,6 +763,14 @@ export async function ladeGrundriss(id: string, raumId?: string): Promise<Grundr
   const d = res.data as RohDaten | null
   if (!d) return null
   return datenLesen(d)
+}
+
+/** Die gestrichelten Hilfslinien eines Grundrisses speichern (0034). Ein
+ *  normales update, die Version des Grundrisses bleibt dabei stehen. */
+export async function speichereLinien(grundrissId: string, linien: PlanLinie[]): Promise<PlanLinie[]> {
+  const res = await supabase.from('grundrisse').update({ linien }).eq('id', grundrissId).select('linien').single()
+  const z = unwrap(res, 'fehler.linien_speichern') as { linien: PlanLinie[] | null }
+  return z.linien ?? []
 }
 
 /** Eine Ablehnung beim Speichern des Grundrisses. Die Nachricht ist der

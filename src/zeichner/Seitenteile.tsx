@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Circle, Package } from 'lucide-react'
+import { Check, Circle, CircleHelp, Package, X } from 'lucide-react'
 import { FachAnsicht } from '../components/plan/FachAnsicht'
 import { objektName } from '../components/plan/lage'
 import { Button, CodeChip, ErrorBox, Input, Spinner } from '../components/ui'
@@ -28,6 +28,27 @@ export function Kopf({ titel, hilfe }: { titel: string; hilfe?: string }) {
 
 /* ------------------------------------------------------------ Assistent */
 
+/** "So geht es" weggeklickt? Nur eine Bequemlichkeit je Geraet: ohne
+ *  Speicher ist der Kasten einfach wieder offen. */
+const ASSISTENT_ZU = 'kistly.zeichner.assistent_zu'
+
+function assistentZuGemerkt(): boolean {
+  try {
+    return localStorage.getItem(ASSISTENT_ZU) === '1'
+  } catch {
+    return false
+  }
+}
+
+function assistentZuMerken(zu: boolean) {
+  try {
+    if (zu) localStorage.setItem(ASSISTENT_ZU, '1')
+    else localStorage.removeItem(ASSISTENT_ZU)
+  } catch {
+    /* ohne Speicher gilt es nur bis zum Neuladen */
+  }
+}
+
 export function Assistent({
   dok,
   onWerkzeug,
@@ -36,6 +57,11 @@ export function Assistent({
   onWerkzeug: (name: WerkzeugName, rechteck?: boolean) => void
 }) {
   const { t } = useSprache()
+  const [zu, setZu] = useState(assistentZuGemerkt)
+  const umschalten = (neu: boolean) => {
+    setZu(neu)
+    assistentZuMerken(neu)
+  }
   const zuHoch =
     dok.objekte.some((o) => o.hoehe_cm > (dok.raeume.find((r) => r.id === o.raum_id)?.hoehe_cm ?? Infinity)) ||
     dok.kisten.some((k) => k.oben_cm > k.grenze_cm)
@@ -72,9 +98,30 @@ export function Assistent({
       fertig: dok.raeume.length > 0 && !zuHoch,
     },
   ]
+  if (zu) {
+    return (
+      <Button size="sm" variant="soft" onClick={() => umschalten(false)}>
+        <CircleHelp size={16} />
+        {t('zeichner.assistent.zeigen')}
+      </Button>
+    )
+  }
   return (
     <div>
-      <Kopf titel={t('zeichner.assistent.titel')} hilfe={t('zeichner.assistent.einleitung')} />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <Kopf titel={t('zeichner.assistent.titel')} hilfe={t('zeichner.assistent.einleitung')} />
+        </div>
+        <button
+          type="button"
+          onClick={() => umschalten(true)}
+          aria-label={t('zeichner.assistent.ausblenden')}
+          title={t('zeichner.assistent.ausblenden')}
+          className="-me-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-raised hover:text-ink"
+        >
+          <X size={18} />
+        </button>
+      </div>
       <ol className="space-y-3">
         {schritte.map((s, i) => (
           <li key={i} className="flex gap-2.5">

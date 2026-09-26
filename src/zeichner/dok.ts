@@ -26,7 +26,7 @@ import {
   type Punkt,
 } from '../lib/geometrie.ts'
 import { oeffnungPunkte, stapelWurzel } from '../components/plan/hilfe.ts'
-import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, Raum } from '../lib/types'
+import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, PlanLinie, Raum } from '../lib/types'
 
 export type Dok = GrundrissDaten
 
@@ -37,6 +37,7 @@ export type Auswahl =
   | { art: 'oeffnung'; id: string }
   | { art: 'objekt'; id: string }
   | { art: 'kiste'; id: string }
+  | { art: 'linie'; id: string }
   | null
 
 /* ------------------------------------------------------------ Kleinkram */
@@ -322,6 +323,119 @@ export function eckeEinfuegen(dok: Dok, raumId: string, kante: number, p: Punkt)
   if (gleichPunkt(q, r.punkte[kante]) || gleichPunkt(q, r.punkte[(kante + 1) % n])) return null
   const punkte = [...r.punkte.slice(0, kante + 1), q, ...r.punkte.slice(kante + 1)]
   return umrissErsetzen(dok, raumId, punkte)
+}
+
+/** Nische oder Vorsprung (Werkzeug Nische): das Stueck der Kante k von t0
+ *  bis t1 cm (ab ihrer ersten Ecke) wandert um d cm nach innen (positiv,
+ *  schneidet eine Nische oder eine Ecke heraus) oder nach aussen (negativ,
+ *  ein Vorsprung). Liegt t0 oder t1 auf einer Ecke, wird daraus eine
+ *  L-Form. Tueren, Fenster und Wandfarben ziehen mit, soweit ihre Wand
+ *  bleibt. */
+export function nischeFormen(
+  dok: Dok,
+  raumId: string,
+  kante: number,
+  t0: number,
+  t1: number,
+  d: number,
+): { dok: Dok; fehler: null } | { dok: null; fehler: PolygonFehler | 'leer' } {
+  const r = raumVon(dok, raumId)
+  if (!r) return { dok: null, fehler: 'leer' }
+  const n = r.punkte.length
+  const a = r.punkte[kante]
+  const b = r.punkte[(kante + 1) % n]
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+  const von = Math.max(0, Math.min(t0, t1))
+  const bis = Math.min(l, Math.max(t0, t1))
+  const tief = Math.round(d)
+  if (l === 0 || bis - von < 1 || tief === 0) return { dok: null, fehler: 'leer' }
+  const rx = (b[0] - a[0]) / l
+  const ry = (b[1] - a[1]) / l
+  // Nach innen wie bei kanteVerschieben (Raeume laufen im Uhrzeigersinn).
+  const nx = -ry
+  const ny = rx
+  const p1: Punkt = rund([a[0] + rx * von, a[1] + ry * von])
+  const p2: Punkt = rund([a[0] + rx * bis, a[1] + ry * bis])
+  const q1: Punkt = rund([p1[0] + nx * tief, p1[1] + ny * tief])
+  const q2: Punkt = rund([p2[0] + nx * tief, p2[1] + ny * tief])
+  let punkte = ohneDoppelte([...r.punkte.slice(0, kante + 1), p1, q1, q2, p2, ...r.punkte.slice(kante + 1)])
+  punkte = ohneSpitzen(punkte)
+  const f = polygonFehler(zuUmriss(punkte))
+  if (f) return { dok: null, fehler: f }
+  return { dok: umrissErsetzen(dok, raumId, punkte), fehler: null }
+}
+
+/** Wie ohneGeradeEcken, entfernt aber auch Ecken, an denen der Umriss auf
+ *  derselben Geraden umkehrt (entsteht, wenn eine Nische an einer Ecke
+ *  beginnt). */
+function ohneSpitzen(p: Punkt[]): Punkt[] {
+  let out = p.slice()
+  let geaendert = true
+  while (geaendert && out.length > 3) {
+    geaendert = false
+    for (let i = 0; i < out.length; i++) {
+      const a = out[(i + out.length - 1) % out.length]
+      const b = out[i]
+      const c = out[(i + 1) % out.length]
+      const kreuz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+      if (kreuz === 0) {
+        out = ohneDoppelte(out.filter((_, j) => j !== i))
+        geaendert = true
+        break
+      }
+    }
+  }
+  return out
+}
+
+/* ------------------------------------------------------------- Linien */
+
+export function linienVon(dok: Dok): PlanLinie[] {
+  return dok.grundriss.linien ?? []
+}
+
+/** Haben zwei Staende dieselben Hilfslinien? (Sie werden getrennt von den
+ *  Raeumen gespeichert.) */
+export function gleicheLinien(a: Dok, b: Dok): boolean {
+  const x = linienVon(a)
+  const y = linienVon(b)
+  return x === y || JSON.stringify(x) === JSON.stringify(y)
+}
+
+function mitLinien(dok: Dok, linien: PlanLinie[]): Dok {
+  return { ...dok, grundriss: { ...dok.grundriss, linien } }
+}
+
+export function linieHinzufuegen(dok: Dok, l: PlanLinie): Dok {
+  return mitLinien(dok, [...linienVon(dok), { id: l.id, a: rund(l.a), b: rund(l.b) }])
+}
+
+export function linieVerschieben(dok: Dok, id: string, dx: number, dy: number): Dok {
+  if (dx === 0 && dy === 0) return dok
+  return mitLinien(
+    dok,
+    linienVon(dok).map((l) =>
+      l.id === id ? { ...l, a: rund([l.a[0] + dx, l.a[1] + dy]), b: rund([l.b[0] + dx, l.b[1] + dy]) } : l,
+    ),
+  )
+}
+
+/** Die Hilfslinie unter p (Abstand hoechstens tol cm), sonst null. */
+export function linieAn(dok: Dok, p: Punkt, tol: number): PlanLinie | null {
+  let beste: PlanLinie | null = null
+  let bestAbstand = tol
+  for (const l of linienVon(dok)) {
+    const vx = l.b[0] - l.a[0]
+    const vy = l.b[1] - l.a[1]
+    const ll = vx * vx + vy * vy
+    const t = ll === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - l.a[0]) * vx + (p[1] - l.a[1]) * vy) / ll))
+    const d = Math.hypot(l.a[0] + vx * t - p[0], l.a[1] + vy * t - p[1])
+    if (d <= bestAbstand) {
+      beste = l
+      bestAbstand = d
+    }
+  }
+  return beste
 }
 
 /** Eine Ecke entfernen (Doppelklick auf die Ecke). Mindestens drei Ecken
@@ -654,6 +768,8 @@ export function loeschen(dok: Dok, a: NonNullable<Auswahl>): Dok {
     case 'ecke': {
       return eckeEntfernen(dok, a.raumId, a.ecke) ?? dok
     }
+    case 'linie':
+      return mitLinien(dok, linienVon(dok).filter((l) => l.id !== a.id))
     default:
       return dok
   }
@@ -677,6 +793,8 @@ export function auswahlPruefen(dok: Dok, a: Auswahl): Auswahl {
       return dok.objekte.some((o) => o.id === a.id) ? a : null
     case 'kiste':
       return dok.kisten.some((k) => k.id === a.id) ? a : null
+    case 'linie':
+      return linienVon(dok).some((l) => l.id === a.id) ? a : null
   }
 }
 

@@ -8,7 +8,7 @@ import { listItems } from '../lib/api'
 import { BODEN_STANDARD, BODENFARBEN, kontrast, OBJEKTFARBEN, WANDFARBEN, type DatenFarbe } from '../lib/farben'
 import { cmText, laengeLesen } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
-import type { Item, Objekt, Oeffnung, PlanKiste, Raum, Tag } from '../lib/types'
+import type { Item, Objekt, Oeffnung, PlanKiste, PlanLinie, Raum, Tag } from '../lib/types'
 import { cx } from '../lib/util'
 import {
   eckeEinfuegen,
@@ -361,6 +361,32 @@ function EckeTeil({ p, raum, ecke }: { p: EigenschaftenProps; raum: Raum; ecke: 
   )
 }
 
+/** Gestrichelte Hilfslinie: Laenge (der Anfang bleibt) und Loeschen. */
+function LinieTeil({ p, l }: { p: EigenschaftenProps; l: PlanLinie }) {
+  const { t } = useSprache()
+  const laenge = Math.round(Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1]))
+  const setzeLaenge = (v: number) => {
+    const alt = laenge || 1
+    const b: [number, number] = [
+      Math.round(l.a[0] + ((l.b[0] - l.a[0]) * v) / alt),
+      Math.round(l.a[1] + ((l.b[1] - l.a[1]) * v) / alt),
+    ]
+    p.aendern(
+      { ...p.dok, grundriss: { ...p.dok.grundriss, linien: (p.dok.grundriss.linien ?? []).map((x) => (x.id === l.id ? { ...x, b } : x)) } },
+      p.auswahl,
+    )
+  }
+  return (
+    <Abschnitt titel={t('zeichner.werkzeug.linie')}>
+      <p className="t-sub">{t('zeichner.eig.linie_hinweis')}</p>
+      <MassFeld label={t('zeichner.eig.laenge')} wert={laenge} min={1} onSetzen={setzeLaenge} />
+      <LoeschKnopf onClick={() => p.aendern(loeschen(p.dok, { art: 'linie', id: l.id }), null)}>
+        {t('zeichner.eig.linie_loeschen')}
+      </LoeschKnopf>
+    </Abschnitt>
+  )
+}
+
 function OeffnungTeil({ p, o }: { p: EigenschaftenProps; o: Oeffnung }) {
   const { t } = useSprache()
   const raum = raumVon(p.dok, o.raum_id)
@@ -682,6 +708,10 @@ export function Eigenschaften(p: EigenschaftenProps) {
     case 'kiste': {
       const k = p.dok.kisten.find((x) => x.id === a.id)
       return k ? <KisteTeil key={k.id} p={p} k={k} /> : null
+    }
+    case 'linie': {
+      const l = (p.dok.grundriss.linien ?? []).find((x) => x.id === a.id)
+      return l ? <LinieTeil key={l.id} p={p} l={l} /> : null
     }
   }
 }

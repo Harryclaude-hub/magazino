@@ -18,6 +18,7 @@ export type WerkzeugName =
   | 'auswahl'
   | 'raum'
   | 'teilen'
+  | 'nische'
   | 'tuer'
   | 'fenster'
   | 'moebel'
@@ -25,6 +26,7 @@ export type WerkzeugName =
   | 'schrank'
   | 'kiste'
   | 'messen'
+  | 'linie'
 
 /** Die Kiste, die "Kiste setzen" gerade in der Hand hat. */
 export interface KisteInHand {

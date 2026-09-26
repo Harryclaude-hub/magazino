@@ -20,12 +20,14 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  Slash,
+  SquareDashedBottom,
 } from 'lucide-react'
 import { BereichDialog } from '../components/BereichDialog'
 import { neuerBereich, type BereichEntwurf } from '../lib/bereich'
 import { Button, CodeChip, Modal, useToast } from '../components/ui'
 import { datenBox, kisteRechteck, raumTitel } from '../components/plan/hilfe'
-import { GrundrissFehler, ladeGrundriss, listItems, platzRaeumen, platzSetzen, speichereGrundriss } from '../lib/api'
+import { GrundrissFehler, ladeGrundriss, listItems, platzRaeumen, platzSetzen, speichereGrundriss, speichereLinien } from '../lib/api'
 import {
   cmText,
   einrasten,
@@ -43,7 +45,7 @@ import type { GrundrissAenderung, GrundrissDaten, Item, PlanKiste } from '../lib
 import { cx } from '../lib/util'
 import { useProject } from '../pages/ProjectLayout'
 import { geloeschteMitKisten, istLeer, unterschied } from './diff'
-import { kanteLaengeSetzen, kistenDraussen, loeschen, objektBox, objektSetzen, raumAendern, raumAn, umrissGeaendert, type Vorlage } from './dok'
+import { gleicheLinien, kanteLaengeSetzen, kistenDraussen, loeschen, objektBox, objektSetzen, raumAendern, raumAn, umrissGeaendert, type Vorlage } from './dok'
 import { Eigenschaften } from './Eigenschaften'
 import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
@@ -99,6 +101,7 @@ const SYMBOL: Record<WerkzeugName, ReactNode> = {
   auswahl: <MousePointer2 size={19} />,
   raum: <PenLine size={19} />,
   teilen: <Scissors size={19} />,
+  nische: <SquareDashedBottom size={19} />,
   tuer: <DoorOpen size={19} />,
   fenster: <AppWindow size={19} />,
   moebel: <Sofa size={19} />,
@@ -106,6 +109,7 @@ const SYMBOL: Record<WerkzeugName, ReactNode> = {
   schrank: <Archive size={19} />,
   kiste: <Package size={19} />,
   messen: <Ruler size={19} />,
+  linie: <Slash size={19} strokeDasharray="4 3" />,
 }
 
 /** Pfeiltasten ohne Auswahl: so viele Pixel verschiebt die Ansicht. */
@@ -579,10 +583,33 @@ export default function Zeichner({
     [z.dok, z.basis, z.version, t],
   )
 
+  /** Hilfslinien getrennt speichern (0034): ein update am Grundriss, die
+   *  Version bleibt. Fehler kommen in die Leiste, Nochmal versucht es neu. */
+  const sendenLinien = useCallback(() => {
+    laeuft.current = true
+    setStatus('speichert')
+    speichereLinien(z.basis.grundriss.id, z.dok.grundriss.linien ?? [])
+      .then((linien) => {
+        dispatch({ typ: 'linien_gespeichert', linien })
+        setStatus('gespeichert')
+      })
+      .catch((err: unknown) => {
+        setLeiste({ text: err instanceof Error ? err.message : String(err), kennung: null, werte: {} })
+        setStatus('fehler')
+      })
+      .finally(() => {
+        laeuft.current = false
+        setTick((n) => n + 1)
+      })
+  }, [z.basis.grundriss.id, z.dok.grundriss.linien])
+
   useEffect(() => {
     if (laeuft.current || status === 'veraltet' || status === 'fehler' || frage) return
     const a = unterschied(z.basis, z.dok)
-    if (istLeer(a)) return
+    if (istLeer(a)) {
+      if (!gleicheLinien(z.basis, z.dok)) sendenLinien()
+      return
+    }
     // Vorab: Kisten, die nach einer Raum-Aenderung draussen stuenden. Nur
     // Raeume mit neuem Umriss; reines Verschieben nimmt die Kisten mit.
     const draussen = kistenDraussen(z.dok, umrissGeaendert(z.basis, z.dok))
@@ -600,11 +627,11 @@ export default function Zeichner({
     }
     for (const id of a.raeume_loeschen ?? []) loeschenBestaetigt.current.delete(id)
     senden(a)
-  }, [z.dok, z.basis, status, frage, tick, senden, t])
+  }, [z.dok, z.basis, status, frage, tick, senden, sendenLinien, t])
 
   // Der Seite sagen, ob etwas nicht gespeichert ist.
   const ungespeichert = useMemo(
-    () => status !== 'gespeichert' || !istLeer(unterschied(z.basis, z.dok)),
+    () => status !== 'gespeichert' || !istLeer(unterschied(z.basis, z.dok)) || !gleicheLinien(z.basis, z.dok),
     [status, z.basis, z.dok],
   )
   useEffect(() => {

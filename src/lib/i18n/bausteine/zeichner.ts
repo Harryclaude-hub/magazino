@@ -16,6 +16,8 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.werkzeug.raum': { de: 'Raum', ar: 'غرفة' },
   'zeichner.werkzeug.rechteck': { de: 'Raum als Rechteck', ar: 'غرفة مستطيلة' },
   'zeichner.werkzeug.teilen': { de: 'Raum teilen', ar: 'تقسيم غرفة' },
+  'zeichner.werkzeug.nische': { de: 'Nische / Ecke', ar: 'تجويف / زاوية' },
+  'zeichner.werkzeug.linie': { de: 'Linie gestrichelt', ar: 'خط متقطع' },
   'zeichner.werkzeug.tuer': { de: 'Tür', ar: 'باب' },
   'zeichner.werkzeug.fenster': { de: 'Fenster', ar: 'نافذة' },
   'zeichner.werkzeug.moebel': { de: 'Möbel', ar: 'أثاث' },
@@ -38,6 +40,31 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.hilfe.teilen': {
     de: 'Eine Linie quer durch den Raum ziehen: zwei Klicks von Wand zu Wand. Mit Umschalt schräg.',
     ar: 'ارسم خطًا عبر الغرفة: نقرتان من جدار إلى جدار. مع Shift بشكل مائل.',
+  },
+  'zeichner.hilfe.nische': {
+    de: 'Zwei Punkte auf eine Wand klicken, dann mit der Maus rein (Nische, Ecke weg) oder raus (Vorsprung) ziehen und klicken. Oder Tiefe tippen, Enter.',
+    ar: 'انقر نقطتين على جدار، ثم اسحب بالفأرة للداخل (تجويف، قص زاوية) أو للخارج (بروز) وانقر. أو اكتب العمق ثم Enter.',
+  },
+  'zeichner.hilfe.linie': {
+    de: 'Zwei Klicks: eine gestrichelte Linie, nur zum Anzeigen (Treppe, Stufe, Bereich). Länge tippen und Enter geht auch.',
+    ar: 'نقرتان: خط متقطع للعرض فقط (درج، عتبة، منطقة). يمكن أيضاً كتابة الطول ثم Enter.',
+  },
+  'zeichner.eig.linie_hinweis': {
+    de: 'Nur zum Anzeigen: markiert zum Beispiel eine Treppe oder einen Bereich. Ziehen verschiebt sie.',
+    ar: 'للعرض فقط: يحدد مثلاً درجاً أو منطقة. السحب ينقله.',
+  },
+  'zeichner.eig.linie_loeschen': { de: 'Linie löschen', ar: 'حذف الخط' },
+  'zeichner.nische_leer': {
+    de: 'Erst zwei verschiedene Punkte auf der Wand, dann die Maus rein oder raus bewegen.',
+    ar: 'أولاً نقطتان مختلفتان على الجدار، ثم حرّك الفأرة للداخل أو للخارج.',
+  },
+  'zeichner.nische_auf_wand': {
+    de: 'Bitte direkt auf eine Wand klicken.',
+    ar: 'يرجى النقر مباشرة على جدار.',
+  },
+  'zeichner.nische_selbe_wand': {
+    de: 'Beide Punkte müssen auf derselben geraden Wand liegen.',
+    ar: 'يجب أن تكون النقطتان على نفس الجدار المستقيم.',
   },
   'zeichner.hilfe.tuer': {
     de: 'Auf eine Wand zeigen und klicken. Eine getippte Zahl ist der Abstand zur nächsten Ecke. Türen sind immer orange.',
@@ -142,6 +169,8 @@ export const zeichnerWoerter: Woerterbuch = {
   },
 
   // Assistent
+  'zeichner.assistent.zeigen': { de: '"So geht es" anzeigen', ar: 'إظهار "هكذا يعمل"' },
+  'zeichner.assistent.ausblenden': { de: '"So geht es" ausblenden', ar: 'إخفاء "هكذا يعمل"' },
   'zeichner.assistent.titel': { de: 'So geht es', ar: 'الخطوات' },
   'zeichner.assistent.einleitung': {
     de: 'Fünf Schritte. Die Haken setzen sich selbst, sobald es gezeichnet ist.',

@@ -12,6 +12,10 @@ import type { Woerterbuch } from '../woerter'
  */
 export const fehler: Woerterbuch = {
   // --------------------------------------------------------- Allgemein
+  'fehler.linien_speichern': {
+    de: 'Die Hilfslinien wurden nicht gespeichert: {grund}',
+    ar: 'لم تُحفظ الخطوط المساعدة: {grund}',
+  },
   'fehler.keine_daten': { de: 'keine Daten erhalten', ar: 'لم تصل أي بيانات' },
   'fehler.nicht_angemeldet': { de: 'Nicht angemeldet', ar: 'لست مسجّل الدخول' },
 

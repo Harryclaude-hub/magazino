@@ -486,6 +486,76 @@ const vorab = (z) => dok.kistenDraussen(z.dok, dok.umrissGeaendert(z.basis, z.do
   wahr('Raster weit weg und klein: wenige Linien', fern.xs.length < 100 && fern.ys.length < 100)
 }
 
+/* ------------------------------------------------ Nische und Linie */
+
+{
+  const d = dok.raumAnlegen(leer(), 'r1', [[0, 0], [400, 0], [400, 300], [0, 300]]).dok
+  const r = d.raeume[0]
+  const k0 = r.punkte.findIndex((q, i) => {
+    const n = r.punkte[(i + 1) % r.punkte.length]
+    return q[1] === 0 && n[1] === 0
+  })
+  const start = r.punkte[k0]
+  const flaeche = (dd) => flaeche2(zuUmriss(dd.raeume[0].punkte)) / 2
+
+  // Nische in der Mitte der oberen Wand: 100 breit, 50 tief nach innen.
+  const n = dok.nischeFormen(d, 'r1', k0, 150, 250, 50)
+  wahr('Nische: angenommen', n.fehler === null)
+  gleich('Nische: acht Ecken', n.dok.raeume[0].punkte.length, 8)
+  gleich('Nische: Flaeche kleiner', flaeche(n.dok), 400 * 300 - 100 * 50)
+
+  // Ecke wegschneiden: ab der Ecke 100 breit, 80 tief -> L-Form mit sechs Ecken.
+  const e = dok.nischeFormen(d, 'r1', k0, 0, 100, 80)
+  wahr('Ecke weg: angenommen', e.fehler === null)
+  gleich('Ecke weg: sechs Ecken', e.dok.raeume[0].punkte.length, 6)
+  gleich('Ecke weg: Flaeche', flaeche(e.dok), 400 * 300 - 100 * 80)
+  wahr('Ecke weg: alte Ecke fehlt', !e.dok.raeume[0].punkte.some((q) => q[0] === start[0] && q[1] === start[1]))
+
+  // Vorsprung nach aussen braucht Platz ueber 0: Raum weiter unten.
+  const d2 = dok.raumAnlegen(leer(), 'r2', [[0, 100], [400, 100], [400, 400], [0, 400]]).dok
+  const r2 = d2.raeume[0]
+  const k2 = r2.punkte.findIndex((q, i) => q[1] === 100 && r2.punkte[(i + 1) % r2.punkte.length][1] === 100)
+  const v = dok.nischeFormen(d2, 'r2', k2, 100, 300, -60)
+  wahr('Vorsprung: angenommen', v.fehler === null)
+  gleich('Vorsprung: Flaeche groesser', flaeche2(zuUmriss(v.dok.raeume[0].punkte)) / 2, 400 * 300 + 200 * 60)
+
+  // Zu tief (durch den ganzen Raum): abgelehnt.
+  wahr('Nische zu tief: abgelehnt', dok.nischeFormen(d, 'r1', k0, 150, 250, 400).fehler !== null)
+  gleich('Nische ohne Tiefe: leer', dok.nischeFormen(d, 'r1', k0, 150, 250, 0).fehler, 'leer')
+
+  // Werkzeug: zwei Klicks auf die Wand, Maus nach innen, dritter Klick.
+  const innen = [start[0] === 0 ? 1 : -1, 1]
+  const p1 = [start[0] === 0 ? 150 : 250, 0]
+  const p2 = [start[0] === 0 ? 250 : 150, 0]
+  const w = spielen('nische', [{ runter: p1 }, { runter: p2 }, { bewegen: [200, 50] }, { runter: [200, 50] }], d)
+  gleich('Nische-Werkzeug: acht Ecken', w.d.raeume[0].punkte.length, 8)
+  gleich('Nische-Werkzeug: Flaeche', flaeche(w.d), 400 * 300 - 100 * 50)
+  wahr('Nische-Werkzeug: innen', innen.length === 2)
+  const wt = spielen('nische', [{ runter: p1 }, { runter: p2 }, { bewegen: [200, 20] }, { tippen: '40\n' }], d)
+  gleich('Nische-Werkzeug getippt: Flaeche', flaeche(wt.d), 400 * 300 - 100 * 40)
+  const daneben = spielen('nische', [{ runter: [200, 150] }], d)
+  gleich('Nische-Werkzeug: Klick in den Raum', daneben.hinweise, ['zeichner.nische_auf_wand'])
+
+  // Linie: zwei Klicks, danach gewaehlt; Auswahl verschiebt und loescht.
+  const li = spielen('linie', [{ runter: [50, 50] }, { runter: [250, 50] }], d)
+  gleich('Linie: eine', dok.linienVon(li.d).length, 1)
+  gleich('Linie: Punkte', [dok.linienVon(li.d)[0].a, dok.linienVon(li.d)[0].b], [[50, 50], [250, 50]])
+  gleich('Linie: gewaehlt', li.auswahl?.art, 'linie')
+  wahr('Linie: getroffen', dok.linieAn(li.d, [150, 52], 5) !== null)
+  const lz = spielen('auswahl', [{ runter: [150, 50] }, { bewegen: [150, 90] }, { hoch: [150, 90] }], li.d)
+  gleich('Linie gezogen', dok.linienVon(lz.d)[0].a, [50, 90])
+  const lw = dok.loeschen(lz.d, { art: 'linie', id: dok.linienVon(lz.d)[0].id })
+  gleich('Linie geloescht', dok.linienVon(lw).length, 0)
+  wahr('Linien vergleichen', !dok.gleicheLinien(d, li.d) && dok.gleicheLinien(li.d, li.d))
+  // Gespeichert: lokale Linien bleiben, auch wenn die Antwort sie noch nicht hat.
+  const z0 = zStart(d)
+  const z1 = zReducer(z0, { typ: 'aendern', dok: li.d })
+  const z2 = zReducer(z1, { typ: 'gespeichert', gesendet: z1.dok, antwort: d, version: 1 })
+  gleich('Linien bleiben nach Antwort', dok.linienVon(z2.dok).length, 1)
+  const z3 = zReducer(z2, { typ: 'linien_gespeichert', linien: dok.linienVon(z2.dok) })
+  wahr('Linien gespeichert: gleich', dok.gleicheLinien(z3.basis, z3.dok))
+}
+
 /* ------------------------------------------------------ Farben */
 
 for (const f of WANDFARBEN) {

@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { useSprache } from '../../lib/i18n'
 import { cmText, wandStuecke, type Punkt } from '../../lib/geometrie'
-import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, Raum } from '../../lib/types'
+import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, PlanLinie, Raum } from '../../lib/types'
 import { fuellFarbe } from '../../lib/fuellstand'
 import { cx } from '../../lib/util'
 import {
@@ -464,6 +464,28 @@ export interface PlanEbenenProps {
 }
 
 /** Alle Ebenen ohne eigenes svg, fuer PlanBild und den Zeichner. */
+/** Gestrichelte Hilfslinien (0034): Treppe, Stufe, Bereich. Nur Anzeige. */
+const LinienEbene = memo(function LinienEbene({ linien }: { linien: PlanLinie[] | undefined }) {
+  if (!linien?.length) return null
+  return (
+    <g style={{ stroke: 'var(--plan-wand)' }}>
+      {linien.map((l) => (
+        <line
+          key={l.id}
+          x1={l.a[0]}
+          y1={l.a[1]}
+          x2={l.b[0]}
+          y2={l.b[1]}
+          strokeWidth={2}
+          strokeDasharray="9 6"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+    </g>
+  )
+})
+
 export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, beschriftung = true }: PlanEbenenProps) {
   const hervorZiel = useMemo<PlanTreffer | null>(() => {
     if (!hervor) return null
@@ -479,6 +501,7 @@ export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, be
       {kisten ? <KistenEbene kisten={daten.kisten} massstab={massstab} /> : null}
       <WandEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       <OeffnungEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
+      <LinienEbene linien={daten.grundriss.linien} />
       {beschriftung ? <BeschriftungEbene raeume={daten.raeume} massstab={massstab} /> : null}
       {/* Die Klassen sind nur Haken fuer die Designschicht (design/plan.css):
           weiche Auswahl und pulsierender Ring. Ohne sie bleibt alles wie es ist. */}

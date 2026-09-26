@@ -90,6 +90,8 @@ function wandMasse(dok: Dok, s: number): WandMass[] {
 function alsTreffer(a: Auswahl): PlanTreffer | null {
   if (!a) return null
   if (a.art === 'kante' || a.art === 'ecke') return { art: 'raum', id: a.raumId }
+  // Eine Hilfslinie markiert die Leinwand selbst (siehe unten).
+  if (a.art === 'linie') return null
   return a
 }
 
@@ -119,6 +121,7 @@ export function Leinwand({
   const griffRaum =
     auswahl?.art === 'raum' ? auswahl.id : auswahl && 'raumId' in auswahl ? auswahl.raumId : null
   const raum = griffRaum ? dok.raeume.find((r) => r.id === griffRaum) : null
+  const linie = auswahl?.art === 'linie' ? (dok.grundriss.linien ?? []).find((l) => l.id === auswahl.id) : null
 
   return (
     <svg
@@ -185,6 +188,24 @@ export function Leinwand({
               />
             )
           })}
+        </g>
+      ) : null}
+
+      {linie ? (
+        <g className="plan-auswahl-ebene">
+          <line
+            x1={linie.a[0]}
+            y1={linie.a[1]}
+            x2={linie.b[0]}
+            y2={linie.b[1]}
+            style={{ stroke: 'var(--plan-auswahl)' }}
+            strokeWidth={5}
+            strokeOpacity={0.6}
+            vectorEffect={NS}
+          />
+          {[linie.a, linie.b].map((p, i) => (
+            <circle key={i} cx={p[0]} cy={p[1]} r={5 / s} style={{ fill: 'var(--surface)', stroke: 'var(--plan-auswahl)' }} strokeWidth={1.5} vectorEffect={NS} />
+          ))}
         </g>
       ) : null}
 

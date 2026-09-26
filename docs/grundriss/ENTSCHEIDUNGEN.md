@@ -204,3 +204,23 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Deutsch und Arabisch in `bausteine/fuehrung.ts`; auf Arabisch laeuft
   die Karte von rechts nach links, Pfeile und Pfeiltasten tauschen die
   Seiten. Esc beendet, Enter geht weiter.
+
+## Nachtrag 26.09.2026 nachts (Umriss genauer zeichnen)
+
+- **E45 Gestrichelte Hilfslinien (Werkzeug Linie, Taste L):** reine Anzeige
+  (Treppe, Stufe, Teppich, Bereich), gespeichert als `grundrisse.linien`
+  (jsonb, Migration 0034, Pruefung `hilfslinien_gueltig`, hoechstens 500).
+  Sie haengen am Grundriss, nicht an einem Raum, und pruefen nichts. Der
+  Zeichner speichert sie getrennt von den Raeumen mit einem normalen
+  update; die Version des Grundrisses bleibt dabei stehen. Waehlen, ziehen,
+  Laenge setzen und loeschen mit der Auswahl; Rueckgaengig gilt auch fuer
+  sie. Angezeigt im Zeichner und in jedem Plan (PlanEbenen), nicht in 3D.
+- **E46 Nische / Ecke (Werkzeug N):** zwei Punkte auf derselben Wand, dann
+  zeigt die Maus die Tiefe (nach innen: Nische, an einer Ecke eine
+  weggeschnittene Ecke als L-Form; nach aussen: Vorsprung). Dritter Klick
+  oder getippte Tiefe mit Enter. Punkte rasten auf das Raster und auf die
+  Ecken. Umriss wird bereinigt (gerade und umkehrende Ecken fallen weg),
+  Tueren, Fenster und Wandfarben ziehen mit. Die bisherigen Wege bleiben:
+  Ecke ziehen, Wand parallel ziehen, Doppelklick setzt oder entfernt eine
+  Ecke. Empfehlung in der Fuehrung: erst die ganze Wohnung als Umriss,
+  dann mit "Raum teilen" in Zimmer.

@@ -11,9 +11,9 @@
  * neue Version (BAUPLAN 7.1 E23). Die Kisten des Ziels rechnet
  * verlaufZiel aus den jetzigen Kisten (sie stehen nicht im Verlauf).
  */
-import { auswahlPruefen, dokRichten, verlaufZiel, type Auswahl, type Dok } from './dok.ts'
+import { auswahlPruefen, dokRichten, gleicheLinien, verlaufZiel, type Auswahl, type Dok } from './dok.ts'
 import { istLeer, unterschied } from './diff.ts'
-import type { PlanKiste } from '../lib/types'
+import type { PlanKiste, PlanLinie } from '../lib/types'
 
 export const VERLAUF_MAX = 200
 
@@ -35,6 +35,7 @@ export type ZAktion =
   | { typ: 'abgelehnt' }
   | { typ: 'neu_geladen'; daten: Dok }
   | { typ: 'kisten'; kisten: PlanKiste[] }
+  | { typ: 'linien_gespeichert'; linien: PlanLinie[] }
 
 export function zStart(daten: Dok): ZState {
   return { dok: daten, basis: daten, version: daten.grundriss.version, zurueck: [], vor: [], auswahl: null }
@@ -83,7 +84,14 @@ export function zReducer(z: ZState, a: ZAktion): ZState {
       // Kam in der Zwischenzeit nichts dazu, gilt die Antwort (sie bringt
       // fertige Hoehen und Namen mit). Sonst bleibt der lokale Stand, und
       // der Zeichner schickt den Rest hinterher.
-      const dok = z.dok === a.gesendet ? a.antwort : z.dok
+      // Die Hilfslinien speichert der Zeichner getrennt: die lokalen bleiben,
+      // auch wenn die Antwort noch die alten mitbringt.
+      const dok =
+        z.dok !== a.gesendet
+          ? z.dok
+          : gleicheLinien(a.antwort, z.dok)
+            ? a.antwort
+            : { ...a.antwort, grundriss: { ...a.antwort.grundriss, linien: z.dok.grundriss.linien ?? [] } }
       return { ...z, basis: a.antwort, version: a.version, dok, auswahl: auswahlPruefen(dok, z.auswahl) }
     }
     case 'abgelehnt': {
@@ -105,6 +113,8 @@ export function zReducer(z: ZState, a: ZAktion): ZState {
         vor: [],
         auswahl: auswahlPruefen(a.daten, z.auswahl),
       }
+    case 'linien_gespeichert':
+      return { ...z, basis: { ...z.basis, grundriss: { ...z.basis.grundriss, linien: a.linien } } }
     case 'kisten':
       return {
         ...z,

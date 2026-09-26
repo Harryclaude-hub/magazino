@@ -453,6 +453,21 @@ export const fuehrung: Woerterbuch = {
     de: 'Zeichnet eine Wand quer durch einen Raum und macht zwei Räume daraus.',
     ar: 'يرسم جداراً عبر الغرفة ويجعل منها غرفتين.',
   },
+  'fuehrung.zeichner.w_nische.titel': { de: 'Nische / Ecke (N)', ar: 'تجويف / زاوية (N)' },
+  'fuehrung.zeichner.w_nische.text': {
+    de: 'Für Räume, die nicht ganz eckig sind: zwei Punkte auf eine Wand klicken, dann das Stück dazwischen mit der Maus rein oder raus ziehen und klicken. Rein gibt eine Nische, an einer Ecke schneidet es die Ecke weg (L-Form), raus gibt einen Vorsprung. Du kannst die Tiefe auch tippen und Enter drücken.',
+    ar: 'للغرف غير المربعة تماماً: انقر نقطتين على جدار، ثم اسحب الجزء بينهما بالفأرة للداخل أو للخارج وانقر. للداخل يعطي تجويفاً، وعند زاوية يقص الزاوية (شكل L)، وللخارج يعطي بروزاً. يمكنك أيضاً كتابة العمق ثم Enter.',
+  },
+  'fuehrung.zeichner.formen.titel': { de: 'Umriss genau anpassen', ar: 'ضبط الحدود بدقة' },
+  'fuehrung.zeichner.formen.text': {
+    de: 'Mit der Auswahl: eine Ecke ziehen verschiebt sie, eine Wand ziehen schiebt sie parallel rein oder raus. Doppelklick auf eine Wand setzt eine neue Ecke, Doppelklick auf eine Ecke entfernt sie. Tipp: erst den Umriss der ganzen Wohnung zeichnen, dann mit "Raum teilen" in Zimmer aufteilen.',
+    ar: 'بأداة التحديد: سحب زاوية ينقلها، وسحب جدار يحركه موازياً للداخل أو للخارج. النقر المزدوج على جدار يضيف زاوية جديدة، وعلى زاوية يحذفها. نصيحة: ارسم أولاً حدود الشقة كاملة، ثم قسّمها إلى غرف بأداة "تقسيم الغرفة".',
+  },
+  'fuehrung.zeichner.w_linie.titel': { de: 'Linie gestrichelt (L)', ar: 'خط متقطع (L)' },
+  'fuehrung.zeichner.w_linie.text': {
+    de: 'Zeichnet eine gestrichelte Linie, nur zum Anzeigen, zum Beispiel für eine Treppe, eine Stufe oder einen Teppich. Mit der Auswahl kannst du sie anklicken, verschieben, ihre Länge ändern oder löschen.',
+    ar: 'يرسم خطاً متقطعاً للعرض فقط، مثلاً لدرج أو عتبة أو سجادة. بأداة التحديد يمكنك النقر عليه ونقله وتغيير طوله أو حذفه.',
+  },
   'fuehrung.zeichner.w_tuer.titel': { de: 'Tür (D)', ar: 'باب (D)' },
   'fuehrung.zeichner.w_tuer.text': {
     de: 'Klicke auf eine Wand: dort sitzt die Tür (orange). Rechts stellst du Breite und Aufschlag ein.',
@@ -530,8 +545,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.zeichner.seite.titel': { de: 'Die rechte Spalte', ar: 'العمود الجانبي' },
   'fuehrung.zeichner.seite.text': {
-    de: 'Zeigt, was zum Werkzeug oder zur Auswahl passt: Maße, Farbe, Katalog, Fächer, Kisten ohne Platz. Ohne Auswahl steht hier "So geht es".',
-    ar: 'يعرض ما يناسب الأداة أو التحديد: المقاسات، اللون، الكتالوج، الرفوف، الصناديق بدون مكان. بدون تحديد يظهر هنا "هكذا يعمل".',
+    de: 'Zeigt, was zum Werkzeug oder zur Auswahl passt: Maße, Farbe, Katalog, Fächer, Kisten ohne Platz. Ohne Auswahl steht hier "So geht es"; das X blendet es aus, der Knopf "So geht es anzeigen" holt es zurück.',
+    ar: 'يعرض ما يناسب الأداة أو التحديد: المقاسات، اللون، الكتالوج، الرفوف، الصناديق بدون مكان. بدون تحديد يظهر هنا "هكذا يعمل"؛ علامة X تخفيه، وزر "إظهار هكذا يعمل" يعيده.',
   },
   'fuehrung.zeichner.raster.titel': { de: 'Raster', ar: 'الشبكة' },
   'fuehrung.zeichner.raster.text': {

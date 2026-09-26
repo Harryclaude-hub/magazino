@@ -1,7 +1,8 @@
 /* Auswahl (V): Klick waehlt Raum, Kante, Ecke, Tuer/Fenster, Moebel oder
  * Kiste. Ziehen verschiebt: den Raum samt Inhalt, eine Kante parallel,
  * eine Ecke, ein Moebel, eine Tuer entlang ihrer Wand. Doppelklick auf
- * eine Kante fuegt eine Ecke ein, auf eine Ecke entfernt sie. Pfeile
+ * eine Kante fuegt eine Ecke ein, auf eine Ecke entfernt sie. Eine
+ * gestrichelte Hilfslinie laesst sich waehlen, ziehen und loeschen. Pfeile
  * schieben um 1 cm, mit Umschalt um 10 cm. Entf loescht.
  */
 import { einrasten, type Punkt } from '../../lib/geometrie.ts'
@@ -12,6 +13,8 @@ import {
   eckeVerschieben,
   kanteVerschieben,
   kistenImRaum,
+  linieAn,
+  linieVerschieben,
   loeschen,
   objektSetzen,
   raumVerschieben,
@@ -23,7 +26,7 @@ import { fangen } from '../fangen.ts'
 import type { Aktion, Kontext, Schritt, Werkzeug, Zeiger } from './typen.ts'
 
 interface Zug {
-  art: 'raum' | 'ecke' | 'kante' | 'objekt' | 'oeffnung'
+  art: 'raum' | 'ecke' | 'kante' | 'objekt' | 'oeffnung' | 'linie'
   start: Punkt
   basis: Dok
   auswahl: NonNullable<Auswahl>
@@ -107,6 +110,10 @@ function entwurfFuer(k: Kontext, zug: Zug, p: Punkt, frei: boolean): Dok {
       // Moebel werden frei gezogen, nur das Raster gilt.
       return objektSetzen(d, { ...o, x: o.x + einrasten(dx, r), y: o.y + einrasten(dy, r) })
     }
+    case 'linie': {
+      if (a.art !== 'linie') return d
+      return linieVerschieben(d, a.id, einrasten(dx, r), einrasten(dy, r))
+    }
     case 'oeffnung': {
       if (a.art !== 'oeffnung') return d
       const o = d.oeffnungen.find((x) => x.id === a.id)
@@ -134,6 +141,9 @@ function pfeil(k: Kontext, code: string, schritt: number): Aktion[] | null {
   switch (a.art) {
     case 'raum':
       neu = raumVerschieben(d, a.id, dx, dy)
+      break
+    case 'linie':
+      neu = linieVerschieben(d, a.id, dx, dy)
       break
     case 'objekt': {
       const o = d.objekte.find((x) => x.id === a.id)
@@ -196,6 +206,9 @@ export const auswahlWerkzeug: Werkzeug<AuswahlZustand> = {
     } else if (g?.art === 'kante') {
       auswahl = { art: 'kante', raumId: g.raumId, kante: g.kante }
       art = 'kante'
+    } else if (linieAn(k.dok, z.p, KANTE_PX / k.massstab)) {
+      auswahl = { art: 'linie', id: linieAn(k.dok, z.p, KANTE_PX / k.massstab)!.id }
+      art = 'linie'
     } else {
       const t = trefferAn(k.dok, z.p, 8 / k.massstab)
       if (t?.art === 'kiste') auswahl = { art: 'kiste', id: t.id }
