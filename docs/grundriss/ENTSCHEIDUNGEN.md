@@ -317,3 +317,9 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Bewegen und Loslassen am Dokument. Das stopPropagation der Ueberlagerung
   liess die Kamera nur ausserhalb der Flaeche folgen. Jetzt laufen die
   Ereignisse durch, und der Zeichner ignoriert Zeiger, solange 3D offen ist.
+- **E59 3D dreht standardmaessig:** Linke Maustaste gedrueckt und ziehen
+  dreht die Wohnung (Schluessel `kistly.3d.hand`, neu, damit alle mit
+  Drehen anfangen). Moebel greifen nur im Modus "Hand", damit ein Dreh-
+  Versuch nichts verschiebt. Nachlauf kuerzer (Daempfung 0.28), Verschieben
+  auf Bodenhoehe (screenSpacePanning aus), damit die Wohnung um einen Punkt
+  am Boden dreht und nicht wegschwebt.

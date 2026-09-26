@@ -72,19 +72,21 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
   const [geht, setGeht] = useState<'pruefen' | 'ja' | 'nein'>('pruefen')
   const [farben, setFarben] = useState<Farben3D>(farbenLesen)
   const [halb, setHalb] = useState(true)
-  // Hand (verschieben) oder Drehen fuer die linke Maustaste; das Geraet merkt es sich.
+  // Drehen (Standard) oder Hand (verschieben, Moebel greifen) fuer die linke
+  // Maustaste; das Geraet merkt es sich. Neuer Schluessel, damit alle mit
+  // Drehen anfangen.
   const [hand, setHand] = useState(() => {
     try {
-      return localStorage.getItem('kistly.3d.drehen') !== '1'
+      return localStorage.getItem('kistly.3d.hand') === '1'
     } catch {
-      return true
+      return false
     }
   })
   const handSetzen = (an: boolean) => {
     setHand(an)
     try {
-      if (an) localStorage.removeItem('kistly.3d.drehen')
-      else localStorage.setItem('kistly.3d.drehen', '1')
+      if (an) localStorage.setItem('kistly.3d.hand', '1')
+      else localStorage.removeItem('kistly.3d.hand')
     } catch {
       /* ohne Speicher gilt es bis zum Neuladen */
     }

@@ -136,6 +136,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
    * vor OrbitControls am Canvas: trifft der Druck ein Moebel, bekommt die
    * Kamera ihn nicht. */
   let ziehFn: ((id: string, dxCm: number, dyCm: number) => void) | null = null
+  // Moebel greifen nur im Modus Hand; beim Drehen dreht ein Druck immer die Ansicht.
+  let handAn = false
   let traeger = new Map<string, string>()
   const strahl = new Raycaster()
   const bodenEbene = new Plane(new Vector3(0, 1, 0), 0)
@@ -177,7 +179,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
   }
 
   const ziehRunter = (e: PointerEvent) => {
-    if (!ziehFn || e.button !== 0 || e.pointerType === 'touch') return
+    if (!ziehFn || !handAn || e.button !== 0 || e.pointerType === 'touch') return
     const id = objektUnter(e)
     if (!id) return
     const start = bodenPunkt(e)
@@ -206,7 +208,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const z = zug
     if (!z) {
       // Ohne Druck zeigen, dass sich ein Moebel greifen laesst.
-      if (ziehFn && e.pointerType === 'mouse' && e.buttons === 0) {
+      if (ziehFn && handAn && e.pointerType === 'mouse' && e.buttons === 0) {
         renderer.domElement.style.cursor = objektUnter(e) ? 'grab' : ''
       }
       return
@@ -250,15 +252,18 @@ export function motorStarten(host: HTMLElement): Motor | null {
   host.addEventListener('pointercancel', ziehHoch, { capture: true })
 
   const controls = new OrbitControls(camera, renderer.domElement)
-  // Weicher Nachlauf nach dem Loslassen: fuehlt sich fluessiger an.
+  // Kurzer, ruhiger Nachlauf nach dem Loslassen: weich, aber die Wohnung
+  // rollt nicht lange weiter.
   controls.enableDamping = true
-  controls.dampingFactor = 0.14
-  controls.rotateSpeed = 0.8
+  controls.dampingFactor = 0.28
+  controls.rotateSpeed = 0.7
   controls.zoomToCursor = true
   controls.maxPolarAngle = Math.PI * 0.49
   controls.minDistance = 0.4
   controls.maxDistance = 80
-  controls.screenSpacePanning = true
+  // Verschieben bleibt auf Bodenhoehe: so dreht sich die Wohnung immer um
+  // einen Punkt auf dem Boden und schwebt nicht weg.
+  controls.screenSpacePanning = false
 
   let waende: WandInfo[] = []
   let halb = true
@@ -456,6 +461,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       rendern()
     },
     hand(an) {
+      handAn = an
+      if (!an) renderer.domElement.style.cursor = ''
       controls.mouseButtons = an
         ? { LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }
         : { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }

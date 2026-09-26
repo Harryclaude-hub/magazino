@@ -28,8 +28,8 @@ export const plan3dWoerter: Woerterbuch = {
     ar: 'السحب يدوّر، الزر الأيمن للفأرة يحرّك، عجلة الفأرة تكبّر وتصغّر.',
   },
   'plan3d.bedienung_ziehen': {
-    de: 'Möbel ziehen verschiebt es. Sonst: Ziehen dreht, rechte Maustaste verschiebt, Mausrad zoomt.',
-    ar: 'سحب قطعة الأثاث ينقلها. غير ذلك: السحب يدوّر، الزر الأيمن يحرّك، العجلة تكبّر وتصغّر.',
+    de: 'Ziehen dreht die Wohnung, rechte Maustaste verschiebt, Mausrad zoomt. Möbel verschieben: "Hand" wählen.',
+    ar: 'السحب يدوّر الشقة، الزر الأيمن يحرّك، العجلة تكبّر وتصغّر. لنقل الأثاث: اختر "يد".',
   },
   'plan3d.bedienung_handy': {
     de: 'Ein Finger dreht, zwei Finger verschieben und zoomen.',
