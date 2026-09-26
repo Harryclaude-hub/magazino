@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Boxes, CheckSquare, Crosshair, Download, Filter, Plus, Ruler, Search, X } from 'lucide-react'
+import { Boxes, CheckSquare, Crosshair, Download, Filter, Lamp, Plus, Ruler, Search, X } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { ItemRow } from '../components/ItemRow'
+import { GegenstandDialog } from '../components/GegenstandDialog'
 import { Auswahlleiste } from '../components/Auswahlleiste'
 import {
   Button,
@@ -173,6 +174,7 @@ export default function Items() {
 
   /* -------------------------------------------------------- neue Kiste */
   const [open, setOpen] = useState(params.get('neu') === '1')
+  const [gegenstandOffen, setGegenstandOffen] = useState(false)
   /* Nach dem Anlegen: gleich im Zimmer hinstellen (BAUPLAN 5.3). Das Blatt
    * zeigt nur, was es anzeigt; es haelt keinen eigenen Zustand. */
   const [angelegt, setAngelegt] = useState<Item[] | null>(null)
@@ -430,6 +432,11 @@ export default function Items() {
                 }}
               >
                 <CheckSquare size={19} />
+              </IconButton>
+            ) : null}
+            {canEdit ? (
+              <IconButton label={t('gegenstand.anlegen')} title={t('gegenstand.anlegen')} size="sm" onClick={() => setGegenstandOffen(true)}>
+                <Lamp size={19} />
               </IconButton>
             ) : null}
             {canEdit ? (
@@ -713,6 +720,15 @@ export default function Items() {
         ) : null}
         </div>
       </Page>
+
+      <GegenstandDialog
+        offen={gegenstandOffen}
+        projectId={project.id}
+        zimmer={rooms}
+        vorZimmer={roomId !== 'all' && roomId !== 'none' && tagById(roomId) ? roomId : null}
+        onClose={() => setGegenstandOffen(false)}
+        onAngelegt={() => void load(0, false)}
+      />
 
       {/* Neue Kiste */}
       <Modal

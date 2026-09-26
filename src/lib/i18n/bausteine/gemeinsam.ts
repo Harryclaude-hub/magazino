@@ -90,7 +90,7 @@ export const gemeinsam: Woerterbuch = {
   'art.box': { de: 'Kiste', ar: 'صندوق' },
   'art.furniture': { de: 'Möbelstück', ar: 'قطعة أثاث' },
   'art.bag': { de: 'Tasche', ar: 'حقيبة' },
-  'art.other': { de: 'Sonstiges', ar: 'أخرى' },
+  'art.other': { de: 'Gegenstand', ar: 'غرض' },
 
   // ------------------------------------------------------------------ Rollen
   'rolle.owner': { de: 'Besitzer', ar: 'المالك' },

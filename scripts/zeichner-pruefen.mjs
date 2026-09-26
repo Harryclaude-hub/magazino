@@ -464,11 +464,12 @@ const vorab = (z) => dok.kistenDraussen(z.dok, dok.umrissGeaendert(z.basis, z.do
   const weit = ans.verschieben({ x: 0, y: 0, s: 0.02 }, -2000, -2000)
   gleich('Verschieben weit ueber 50000 hinaus', weit.x, 100000)
 
-  // Rad: Mausrad zoomt, Trackpad verschiebt, Strg zoomt.
+  // Rad: hoch/runter zoomt immer, seitliches Wischen verschiebt, Strg zoomt.
   const rad = (deltaX, deltaY, extra = {}) => ({ deltaX, deltaY, deltaMode: 0, ctrlKey: false, metaKey: false, ...extra })
   gleich('Mausrad zoomt', ans.radArt(rad(0, 100)), 'zoom')
   gleich('Mausrad in Zeilen zoomt', ans.radArt(rad(0, 3, { deltaMode: 1 })), 'zoom')
-  gleich('Trackpad fein verschiebt', ans.radArt(rad(0, 7.5)), 'schieben')
+  gleich('Feines Rad zoomt (Windows-Skalierung)', ans.radArt(rad(0, 83.33)), 'zoom')
+  gleich('Umschalt+Rad verschiebt', ans.radArt(rad(0, 100, { shiftKey: true })), 'schieben')
   gleich('Trackpad schraeg verschiebt', ans.radArt(rad(12, 60)), 'schieben')
   gleich('Trackpad-Folge bleibt verschieben', ans.radArt(rad(0, 120), true), 'schieben')
   gleich('Strg+Rad zoomt', ans.radArt(rad(0, 4, { ctrlKey: true })), 'zoom')

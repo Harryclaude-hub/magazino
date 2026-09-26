@@ -178,9 +178,13 @@ export default function Zeichner({
    *  Senden nicht noch einmal fragen. */
   const loeschenBestaetigt = useRef(new Set<string>())
   const leertaste = useRef(false)
-  /** Laufendes Verschieben der Ansicht. warten: Klick auf leere Flaeche,
-   *  wird erst ab ZIEHEN_PX Bewegung zum Verschieben. */
-  const schieben = useRef<{ x: number; y: number; a: Ansicht; warten?: boolean } | null>(null)
+  /** Laufendes Verschieben der Ansicht. warten: Klick, der erst ab
+   *  ZIEHEN_PX Bewegung zum Verschieben wird. klick: Zeichen-Werkzeuge
+   *  setzen ihren Punkt erst beim Loslassen, damit Ziehen auch mitten in
+   *  einer Linie die Ansicht verschiebt. */
+  const schieben = useRef<{ x: number; y: number; a: Ansicht; warten?: boolean; klick?: { p: Punkt; frei: boolean } } | null>(
+    null,
+  )
 
   const stufen = useKistenGroessen()
   const eigene = useEigeneGroessen(project.id)
@@ -366,6 +370,11 @@ export default function Zeichner({
     const p = cm(e)
     if (!p) return
     e.currentTarget.setPointerCapture(e.pointerId)
+    if (werkzeug.name !== 'auswahl') {
+      // Zeichnen: Klick setzt den Punkt beim Loslassen, Ziehen verschiebt.
+      schieben.current = { x: e.clientX, y: e.clientY, a: ansicht, warten: true, klick: { p, frei: e.shiftKey } }
+      return
+    }
     const w = WERKZEUGE[werkzeug.name]
     const r = w.runter(kontext, { p, frei: e.shiftKey }, werkzeug.s)
     ausfuehren(r, werkzeug.name)
@@ -402,6 +411,12 @@ export default function Zeichner({
     const p = cm(e)
     if (!p || e.button !== 0) return
     const w = WERKZEUGE[werkzeug.name]
+    if (sc?.klick) {
+      const r = w.runter(kontext, sc.klick, werkzeug.s)
+      ausfuehren(r, werkzeug.name)
+      ausfuehren(w.hoch(kontext, sc.klick, r.s), werkzeug.name)
+      return
+    }
     ausfuehren(w.hoch(kontext, { p, frei: e.shiftKey }, werkzeug.s), werkzeug.name)
   }
 

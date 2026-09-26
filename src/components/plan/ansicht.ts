@@ -69,23 +69,19 @@ export function verschieben(a: Ansicht, dxPx: number, dyPx: number): Ansicht {
   return { ...a, x: a.x - dxPx / a.s, y: a.y - dyPx / a.s }
 }
 
-/** Was ein Rad-Ereignis tun soll. Strg/Cmd oder Pinch (der Browser
- *  meldet ihn als Strg+Rad) zoomt. Ein Mausrad rastet in groben,
- *  ganzzahligen Schritten nur senkrecht und zoomt; ein Trackpad liefert
- *  feine oder schraege Schritte und verschiebt. War eben schon ein
- *  Trackpad am Werk, bleibt es dabei (schnelles Wischen macht grosse
- *  Schritte). */
+/** Was ein Rad-Ereignis tun soll. Rad hoch und runter zoomt immer (auch
+ *  feine Schritte, Windows mit Skalierung meldet z. B. 83,33). Nur
+ *  seitliches oder schraeges Wischen am Trackpad und Umschalt+Rad
+ *  verschieben; war eben schon so ein Wischen am Werk, bleibt es dabei. */
 export function radArt(
-  e: { deltaX: number; deltaY: number; deltaMode: number; ctrlKey: boolean; metaKey: boolean },
+  e: { deltaX: number; deltaY: number; deltaMode: number; ctrlKey: boolean; metaKey: boolean; shiftKey?: boolean },
   eben_trackpad = false,
 ): 'zoom' | 'schieben' {
   if (e.ctrlKey || e.metaKey) return 'zoom'
-  if (e.deltaMode !== 0) return 'zoom'
+  if (e.shiftKey) return 'schieben'
   if (e.deltaX !== 0) return 'schieben'
-  if (eben_trackpad) return 'schieben'
-  const d = Math.abs(e.deltaY)
-  if (d >= 40 && Number.isInteger(e.deltaY)) return 'zoom'
-  return 'schieben'
+  if (eben_trackpad && e.deltaMode === 0) return 'schieben'
+  return 'zoom'
 }
 
 /** Zoomfaktor fuer ein Rad-Ereignis (Zeilen in Pixel umgerechnet). Pinch

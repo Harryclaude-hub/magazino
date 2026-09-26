@@ -158,3 +158,26 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Leertaste oder mittlerer Taste, ohne Grenzen; beim Oeffnen und mit Taste 0
   eingepasst. Am Handy ein Finger verschiebt, zwei zoomen, ein Tipp bleibt
   ein Tipp (Schwelle 6 px).
+
+## Nachtrag 26.09.2026 abends (Bedienen am Laptop, Gegenstaende)
+
+- **E37 Mausrad zoomt:** Rad hoch und runter zoomt immer am Zeiger, im
+  Zeichner und in der Grundriss-Ansicht (auch feine Schritte, wie Windows
+  sie mit Skalierung meldet). Verschieben: Ziehen, Umschalt+Rad, seitliches
+  Wischen am Trackpad.
+- **E38 Ziehen beim Zeichnen verschiebt:** Bei allen Werkzeugen ausser
+  Auswahl setzt ein Klick seinen Punkt erst beim Loslassen. Bewegt sich die
+  Maus mit gedrueckter Taste mehr als 4 px, wird daraus Verschieben der
+  Ansicht, auch mitten in einer Linie; der Punkt wird dann nicht gesetzt.
+- **E39 Einzelne Gegenstaende:** Eintraege mit `kind = 'other'`, im
+  Woerterbuch jetzt "Gegenstand" statt "Sonstiges". Eigenes Fenster mit
+  Foto (Kamera), Name, Zimmer und ungefaehrer Groesse (Vorschlaege klein,
+  mittel, gross, lang oder drei Zahlen). Die Groesse wird eine eigene
+  Groesse (Art Kiste) mit genau diesen Massen; gleiche Masse benutzen
+  dieselbe Groesse wieder, der Name ist "L x B x H cm". Keine Migration:
+  Gegenstaende werden im Grundriss wie Kisten gesetzt und geprueft.
+- **E40 Zimmerzahlen:** Auf der Zimmerseite stehen Moebel (gezeichnete
+  Objekte plus Moebel-Eintraege, die mit keinem Objekt verknuepft sind;
+  Regale und Schraenke zaehlen mit), Regale und Schraenke, Kisten (Kisten
+  und Taschen) und Gegenstaende. Darunter jedes Regal und jeder Schrank mit
+  der Zahl der Kisten und Gegenstaende darin und darauf (auch gestapelt).

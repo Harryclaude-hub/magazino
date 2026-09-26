@@ -23,6 +23,8 @@ import type {
   KistenGroesse,
   MemberRole,
   Message,
+  Objekt,
+  PlanKiste,
   MessageLink,
   MessageReaction,
   NotificationPrefs,
@@ -611,6 +613,40 @@ export async function legeEigeneGroesseAn(
   return unwrap(res, 'fehler.eigene_groesse_speichern') as EigeneGroesse
 }
 
+/** Groesse fuer einen einzelnen Gegenstand: eine eigene Groesse (Art
+ *  Kiste) mit genau diesen Massen. Gibt es sie schon, wird sie wieder
+ *  benutzt, sonst entsteht eine, die nach ihren Massen heisst ("30 x 30 x
+ *  150 cm"). So waechst die Liste nicht mit jedem Gegenstand, und die
+ *  Datenbank prueft den Platz mit den echten Massen. */
+export async function groesseFuerMasse(
+  projectId: string,
+  laenge: number,
+  breite: number,
+  hoehe: number,
+): Promise<EigeneGroesse> {
+  const res = await supabase
+    .from('eigene_groessen')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('art', 'kiste')
+    .eq('laenge_cm', laenge)
+    .eq('breite_cm', breite)
+    .eq('hoehe_cm', hoehe)
+    .is('ausschnitt_breite_cm', null)
+    .limit(1)
+  const da = unwrap(res, 'fehler.eigene_groessen_laden') as EigeneGroesse[]
+  if (da.length > 0) return da[0]
+  const name = `${laenge} x ${breite} x ${hoehe} cm`
+  const werte = { art: 'kiste' as const, laenge_cm: laenge, breite_cm: breite, hoehe_cm: hoehe, ausschnitt_breite_cm: null, ausschnitt_tiefe_cm: null }
+  try {
+    return await legeEigeneGroesseAn(projectId, { name, ...werte })
+  } catch {
+    // Der Name ist schon vergeben (etwa eine Moebelgroesse mit denselben
+    // Massen): ein zweiter Versuch mit Zusatz, ein Fehler dann wird gemeldet.
+    return legeEigeneGroesseAn(projectId, { name: `${name} (${tg('art.other')})`, ...werte })
+  }
+}
+
 /** Aendern der Masse stuft alle Kisten mit dieser Groesse neu ein. Passt
  *  eine davon dann nicht mehr auf ihren Platz, lehnt die Datenbank ab
  *  (kistly:grundriss.zu_hoch u. a.); der Satz kommt ueber errText. */
@@ -806,6 +842,25 @@ export async function ladeRaeumeDesUmzugs(projectId: string): Promise<RaumEintra
     const g = Array.isArray(z.grundrisse) ? z.grundrisse[0] : z.grundrisse
     return { id: z.id, grundriss_id: z.grundriss_id, tag_id: z.tag_id, name: z.name, grundriss_name: g?.name ?? '' }
   })
+}
+
+/** Was im Grundriss in den Raeumen eines Zimmers steht: Moebel, Regale,
+ *  Schraenke und alle hingestellten Kisten und Gegenstaende. Ein Zimmer
+ *  kann in mehreren Grundrissen gezeichnet sein; alles wird zusammengelegt. */
+export async function ladeZimmerPlan(
+  projectId: string,
+  tagId: string,
+): Promise<{ raeume: number; objekte: Objekt[]; kisten: PlanKiste[] }> {
+  const raeume = (await ladeRaeumeDesUmzugs(projectId)).filter((r) => r.tag_id === tagId)
+  const teile = await Promise.all(raeume.map((r) => ladeGrundriss(r.grundriss_id, r.id)))
+  const objekte: Objekt[] = []
+  const kisten: PlanKiste[] = []
+  for (const d of teile) {
+    if (!d) continue
+    objekte.push(...d.objekte)
+    kisten.push(...d.kisten)
+  }
+  return { raeume: raeume.length, objekte, kisten }
 }
 
 /** Eine Kiste hinstellen. Ob der Platz gilt (im Raum, auf der Unterlage,

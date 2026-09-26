@@ -6,6 +6,7 @@ import {
   CheckSquare,
   Crosshair,
   DoorOpen,
+  Lamp,
   LayoutDashboard,
   Merge,
   Pencil,
@@ -16,6 +17,8 @@ import { AppHeader, Page } from '../components/AppShell'
 import { ItemRow } from '../components/ItemRow'
 import { Auswahlleiste } from '../components/Auswahlleiste'
 import { MarkIcon } from '../components/Mark'
+import { GegenstandDialog } from '../components/GegenstandDialog'
+import { ZimmerInhalt } from '../components/ZimmerInhalt'
 import {
   Badge,
   Button,
@@ -72,6 +75,9 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
   const { t, tn } = useSprache()
   const toast = useToast()
   const [zusammen, setZusammen] = useState(false)
+  const [gegenstandOffen, setGegenstandOffen] = useState(false)
+  /** Zaehlt hoch, wenn etwas angelegt wurde: die Zimmerzahlen laden neu. */
+  const [stand, setStand] = useState(0)
   const [waehlen, setWaehlen] = useState(false)
   const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set())
   /** Wie viele Zeilen geladen sind. Waechst auf Wunsch, statt still
@@ -122,9 +128,10 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
   const rows = alles.data?.rows ?? []
   const gesamt = alles.data?.total ?? 0
   const [offen, unterwegs, angekommen] = alles.data?.zahlen ?? [0, 0, 0]
-  const kisten = rows.filter((i) => i.kind !== 'furniture')
+  const kisten = rows.filter((i) => i.kind !== 'furniture' && i.kind !== 'other')
+  const dinge = rows.filter((i) => i.kind === 'other')
   const moebel = rows.filter((i) => i.kind === 'furniture')
-  const ohnePlatz = kisten.filter((i) => !i.platz_raum_id)
+  const ohnePlatz = rows.filter((i) => i.kind !== 'furniture' && !i.platz_raum_id)
 
   /** Kiste hinstellen, danach der Reihe nach alle anderen ohne Platz. */
   function hinstellen(start: Item) {
@@ -305,6 +312,8 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
           </>
         )}
 
+        {kind === 'room' ? <ZimmerInhalt projectId={project.id} tagId={tag.id} stand={stand} /> : null}
+
         <div className="mb-6 flex flex-wrap gap-2">
           <Link to={listenZiel}>
             <Button variant="outline" size="sm">
@@ -437,6 +446,47 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
               </Card>
             )}
 
+            {kind === 'room' ? (
+              <>
+                <div className="h-6" />
+                <SectionTitle
+                  action={
+                    canEdit ? (
+                      <Button size="sm" variant="outline" onClick={() => setGegenstandOffen(true)}>
+                        <Lamp size={16} />
+                        {t('gegenstand.anlegen')}
+                      </Button>
+                    ) : null
+                  }
+                >
+                  {t('gegenstand.gegenstaende_titel')}
+                </SectionTitle>
+                {dinge.length === 0 ? (
+                  <Empty icon={<Lamp size={30} />} title={t('gegenstand.keine')} hint={t('gegenstand.keine_hinweis')} />
+                ) : (
+                  <Card className="zebra divide-y divide-line overflow-hidden">
+                    {dinge.map((item) => (
+                      <ItemRow
+                        key={item.id}
+                        item={item}
+                        projectId={project.id}
+                        tagById={tagById}
+                        canEdit={canEdit}
+                        onStatus={statusWeiter}
+                        auswahl={{
+                          an: waehlen,
+                          gewaehlt: gewaehlt.has(item.id),
+                          umschalten: umschalten,
+                        }}
+                        zeigeZimmer={false}
+                        zeigePerson
+                      />
+                    ))}
+                  </Card>
+                )}
+              </>
+            ) : null}
+
             <div className="h-6" />
 
             <SectionTitle
@@ -511,6 +561,18 @@ export default function AreaDetail({ kind }: { kind: TagKind }) {
 
         <div className="h-6" />
       </Page>
+
+      <GegenstandDialog
+        offen={gegenstandOffen}
+        projectId={project.id}
+        zimmer={tags.filter((x) => x.kind === 'room')}
+        vorZimmer={kind === 'room' ? tag.id : null}
+        onClose={() => setGegenstandOffen(false)}
+        onAngelegt={() => {
+          alles.reload()
+          setStand((n) => n + 1)
+        }}
+      />
 
       <ZusammenDialog
         offen={zusammen}

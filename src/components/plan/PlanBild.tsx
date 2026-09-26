@@ -27,7 +27,7 @@ import {
   type PlanTreffer,
 } from './hilfe'
 import { objektName } from './lage'
-import { radFaktor } from './ansicht'
+import { radArt, radFaktor } from './ansicht'
 
 /* Die Draufsicht eines Grundrisses als SVG in Zentimetern.
  *
@@ -692,12 +692,12 @@ export function PlanBild({
     if (zeiger.current.size === 0) geste.current = null
   }
 
-  /* Strg/Cmd+Rad und Pinch am Trackpad zoomen am Zeiger. Ein Rad ohne
-   * Taste rollt weiter die Seite. */
+  /* Mausrad hoch und runter, Strg/Cmd+Rad und Pinch zoomen am Zeiger.
+   * Seitliches Wischen am Trackpad und Umschalt+Rad rollen die Seite. */
   const rad = useRef<(e: WheelEvent) => void>(() => {})
   useLayoutEffect(() => {
     rad.current = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return
+      if (radArt(e) !== 'zoom') return
       e.preventDefault()
       const a = jetzigeAnsicht()
       const { basis, sx, sy } = flaeche()
