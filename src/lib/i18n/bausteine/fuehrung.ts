@@ -445,8 +445,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.zeichner.w_auswahl.titel': { de: 'Auswahl (V)', ar: 'تحديد (V)' },
   'fuehrung.zeichner.w_auswahl.text': {
-    de: 'Klicke etwas an, um es zu wählen und rechts seine Maße zu ändern. Ziehen verschiebt Räume, Ecken, Wände, Möbel und Türen. Entf löscht.',
-    ar: 'انقر على شيء لتحديده وتغيير مقاساته على الجانب. السحب ينقل الغرف والزوايا والجدران والأثاث والأبواب. زر Entf يحذف.',
+    de: 'Ein Klick wählt nur aus, nichts rutscht aus Versehen. Zum Ändern: Rechtsklick auf Raum, Möbel, Tür oder Symbol. Im Menü stehen Verschieben / Größe ändern, Umbenennen, Drehen, Eigenschaften und Löschen. Nach "Verschieben" ziehst du mit der Maus; "Fertig" oder Esc sperrt wieder.',
+    ar: 'النقرة تحدد فقط، فلا يتحرك شيء بالخطأ. للتعديل: انقر بالزر الأيمن على غرفة أو قطعة أثاث أو باب أو رمز. في القائمة: نقل / تغيير الحجم، إعادة التسمية، تدوير، الخصائص والحذف. بعد "نقل" تسحب بالفأرة؛ "تم" أو Esc يقفل من جديد.',
   },
   'fuehrung.zeichner.w_raum.titel': { de: 'Raum (R)', ar: 'غرفة (R)' },
   'fuehrung.zeichner.w_raum.text': {

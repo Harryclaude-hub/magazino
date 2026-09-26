@@ -498,7 +498,7 @@ export interface Raum {
 export interface Oeffnung {
   id: string
   raum_id: string
-  art: 'tuer' | 'fenster'
+  art: 'tuer' | 'fenster' | 'durchgang'
   kante: number
   abstand_cm: number
   breite_cm: number

@@ -421,7 +421,19 @@ function OeffnungTeil({ p, o }: { p: EigenschaftenProps; o: Oeffnung }) {
     p.aendern({ ...p.dok, oeffnungen: p.dok.oeffnungen.map((x) => (x.id === o.id ? neu : x)) }, p.auswahl)
   }
   return (
-    <Abschnitt titel={t(o.art === 'tuer' ? 'plan.tuer' : 'plan.fenster')}>
+    <Abschnitt titel={t(`plan.${o.art}`)}>
+      {o.art !== 'fenster' ? (
+        <Zeile label={t('zeichner.eig.oeffnung_art')}>
+          <div className="flex gap-2">
+            <Chip active={o.art === 'tuer'} onClick={() => setze({ art: 'tuer' })}>
+              {t('plan.tuer')}
+            </Chip>
+            <Chip active={o.art === 'durchgang'} onClick={() => setze({ art: 'durchgang' })}>
+              {t('plan.durchgang')}
+            </Chip>
+          </div>
+        </Zeile>
+      ) : null}
       <MassFeld label={t('zeichner.eig.abstand')} wert={o.abstand_cm} min={0} onSetzen={(v) => setze({ abstand_cm: v })} />
       <MassFeld label={t('zeichner.eig.breite')} wert={o.breite_cm} min={20} max={600} onSetzen={(v) => setze({ breite_cm: v })} />
       <MassFeld label={t('zeichner.eig.hoehe')} wert={o.hoehe_cm} min={20} max={600} onSetzen={(v) => setze({ hoehe_cm: v })} />

@@ -598,6 +598,21 @@ const vorab = (z) => dok.kistenDraussen(z.dok, dok.umrissGeaendert(z.basis, z.do
   wahr('Strom: vergleicht mit', !dok.gleicheLinien(d, st.d))
 }
 
+/* ------------------------------------------------------ Sperre */
+
+{
+  const d = dok.raumAnlegen(leer(), 'r1', [[0, 0], [400, 0], [400, 300], [0, 300]]).dok
+  // Nichts freigegeben: Ziehen waehlt nur, der Raum bleibt stehen.
+  const zu = spielen('auswahl', [{ runter: [200, 150] }, { bewegen: [260, 150] }, { hoch: [260, 150] }], d, { entsperrt: null })
+  gleich('Sperre: gesperrt bleibt stehen', zu.d.raeume[0].punkte[0], [0, 0])
+  gleich('Sperre: trotzdem gewaehlt', zu.auswahl, { art: 'raum', id: 'r1' })
+  // Freigegeben: der Raum laesst sich ziehen, auch an seiner Wand.
+  const auf = spielen('auswahl', [{ runter: [200, 150] }, { bewegen: [260, 150] }, { hoch: [260, 150] }], d, { entsperrt: 'raum:r1' })
+  gleich('Sperre: freigegeben verschiebt', auf.d.raeume[0].punkte[0], [60, 0])
+  const doppelZu = spielen('auswahl', [{ doppel: [200, 0] }], d, { entsperrt: null })
+  gleich('Sperre: Doppelklick gesperrt fuegt keine Ecke ein', doppelZu.d.raeume[0].punkte.length, 4)
+}
+
 /* ------------------------------------------------------ Farben */
 
 for (const f of WANDFARBEN) {

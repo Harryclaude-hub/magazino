@@ -9,7 +9,7 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - Repo: https://github.com/Harryclaude-hub/kistly, Zweig `main` ist aktuell
   (der Cloud-Arbeitszweig `claude/vibrant-planck-jlsatf` ist identisch).
 - Datenbank: Supabase `vqpirkgvclfsduklnnzv` (nur dieses Projekt!).
-  Migrationen 0001 bis 0037 sind angewandt.
+  Migrationen 0001 bis 0038 sind angewandt.
 
 ## Was fertig ist
 
@@ -40,11 +40,11 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E53.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E56.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler
-  bekommen eine neue Nummer (naechste: 0038).
+  bekommen eine neue Nummer (naechste: 0039).
 - Regel-Spiegel: SQL-Geometrie und `src/lib/geometrie.ts` immer zusammen
   aendern (`scripts/geometrie-pruefen.mjs`).
 

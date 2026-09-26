@@ -52,6 +52,11 @@ export interface Kontext {
   kiste: KisteInHand | null
   /** Was das Werkzeug Strom setzt. */
   symbolArt?: SymbolArt
+  /** Welches Element gerade zum Verschieben freigegeben ist (Rechtsklick,
+   *  "Verschieben / Groesse aendern"), als sperrSchluessel. null: keines,
+   *  Ziehen verschiebt dann nur die Ansicht. Fehlt es (undefined), ist alles
+   *  frei (Pruefskripte). */
+  entsperrt?: string | null
 }
 
 export interface Zeiger {

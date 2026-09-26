@@ -58,8 +58,8 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.werkzeug.kiste': { de: 'Kiste setzen', ar: 'وضع صندوق' },
   'zeichner.werkzeug.messen': { de: 'Messen', ar: 'قياس' },
   'zeichner.hilfe.auswahl': {
-    de: 'Klicken wählt, Ziehen verschiebt. Räume rasten an Nachbarwänden ein, mit Umschalt nur waagrecht oder senkrecht. Doppelklick auf eine Wand fügt eine Ecke ein, auf eine Ecke entfernt sie. Pfeile 1 cm, mit Umschalt 10 cm. Entf löscht.',
-    ar: 'النقر يحدد والسحب ينقل. الغرف تلتصق بجدران الغرف المجاورة، ومع Shift أفقياً أو عمودياً فقط. النقر المزدوج على جدار يضيف زاوية، وعلى زاوية يحذفها. الأسهم 1 سم، ومع Shift عشرة. Delete يحذف.',
+    de: 'Klicken wählt aus, Ziehen verschiebt nur die Ansicht. Rechtsklick öffnet das Menü: Verschieben / Größe ändern, Umbenennen, Drehen, Löschen. Entf löscht.',
+    ar: 'النقر يحدد، والسحب يحرك العرض فقط. النقر بالزر الأيمن يفتح القائمة: نقل / تغيير الحجم، إعادة التسمية، تدوير، حذف. Delete يحذف.',
   },
   'zeichner.hilfe.raum': {
     de: 'Punkt für Punkt: Richtung zeigen, Länge tippen (3,45 oder 345), Enter. Klick auf den Start oder Enter schließt den Raum.',
@@ -172,6 +172,30 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.teilen_ungueltig': { de: 'So lässt sich der Raum nicht teilen.', ar: 'لا يمكن تقسيم الغرفة بهذا الشكل.' },
   'zeichner.geteilt': { de: 'Geteilt. Der neue Raum ist gewählt.', ar: 'تم التقسيم. الغرفة الجديدة محددة.' },
   'zeichner.auf_wand_zeigen': { de: 'Auf eine Wand zeigen.', ar: 'أشر إلى جدار.' },
+  'zeichner.menue.bearbeiten': { de: 'Verschieben / Größe ändern', ar: 'نقل / تغيير الحجم' },
+  'zeichner.menue.verschieben': { de: 'Verschieben', ar: 'نقل' },
+  'zeichner.menue.drehen': { de: 'Drehen', ar: 'تدوير' },
+  'zeichner.menue.umbenennen': { de: 'Umbenennen', ar: 'إعادة التسمية' },
+  'zeichner.menue.eigenschaften': { de: 'Eigenschaften', ar: 'الخصائص' },
+  'zeichner.menue.loeschen': { de: 'Löschen', ar: 'حذف' },
+  'zeichner.menue.raum_frei': {
+    de: 'Jetzt kannst du den Raum ziehen, seine Wände und Ecken verschieben.',
+    ar: 'الآن يمكنك سحب الغرفة وتحريك جدرانها وزواياها.',
+  },
+  'zeichner.menue.frei': { de: 'Jetzt kannst du es mit der Maus ziehen.', ar: 'الآن يمكنك سحبه بالفأرة.' },
+  'zeichner.menue.band': { de: 'Bearbeiten: ziehen zum Verschieben', ar: 'تعديل: اسحب للنقل' },
+  'zeichner.menue.fertig': { de: 'Fertig', ar: 'تم' },
+  'zeichner.menue.name': { de: 'Name', ar: 'الاسم' },
+  'zeichner.menue.name_hinweis': {
+    de: 'Bei einem Raum mit Zimmer wird das Zimmer im ganzen Umzug umbenannt.',
+    ar: 'في غرفة مرتبطة بغرفة من القائمة تتغير التسمية في الانتقال كله.',
+  },
+  'zeichner.menue.name_fehlt': { de: 'Bitte einen Namen eingeben.', ar: 'يرجى إدخال اسم.' },
+  'zeichner.eig.oeffnung_art': { de: 'Art', ar: 'النوع' },
+  'zeichner.durchgang_passt_nicht': {
+    de: 'So passt der Durchgang nicht in die Wand.',
+    ar: 'لا يتسع الممر في الجدار بهذا الشكل.',
+  },
   'zeichner.tuer_passt_nicht': {
     de: 'Die Tür passt hier nicht: Wand zu kurz, schon belegt oder höher als der Raum.',
     ar: 'الباب لا يتسع هنا: الجدار قصير أو مشغول أو الباب أعلى من الغرفة.',

@@ -70,6 +70,7 @@ export const grundriss: Woerterbuch = {
 
   // --------------------------------------------------------------- Plan
   'plan.tuer': { de: 'Tür', ar: 'باب' },
+  'plan.durchgang': { de: 'Durchgang', ar: 'ممر' },
   'plan.fenster': { de: 'Fenster', ar: 'نافذة' },
   'plan.moebel': { de: 'Möbel', ar: 'قطعة أثاث' },
   'plan.regal': { de: 'Regal', ar: 'رف' },

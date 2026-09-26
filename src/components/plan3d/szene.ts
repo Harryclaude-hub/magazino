@@ -250,7 +250,12 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
     const uy = (b[1] - a[1]) / l
     const bei = (t: number): Punkt => [a[0] + ux * t, a[1] + uy * t]
 
-    if (o.art === 'tuer') {
+    if (o.art === 'durchgang') {
+      // Offener Durchgang: nur der Sturz darueber, keine Zarge, kein Blatt.
+      const th = Math.min(o.hoehe_cm, H)
+      dazu(streifen('sturz', a, b, th, H - KOPF_CM, WAND_CM, wf, { kante: f.wand, innen }))
+      dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wand, { innen }))
+    } else if (o.art === 'tuer') {
       const th = Math.min(o.hoehe_cm, H)
       // Sturz ueber der Tuer, in der Wandfarbe.
       dazu(streifen('sturz', a, b, th, H - KOPF_CM, WAND_CM, wf, { kante: f.wand, innen }))

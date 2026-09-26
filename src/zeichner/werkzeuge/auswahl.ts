@@ -110,6 +110,30 @@ function kantenAchsen(p: Punkt[]): { achse: 'x' | 'y'; lage: number; von: number
   return out
 }
 
+/** Welches Element ein Klick an p trifft (Symbol, Ecke, Kante, Linie,
+ *  Kiste, Tuer/Fenster, Moebel, Raum), sonst null. */
+export function zielAn(k: Kontext, p: Punkt): NonNullable<Auswahl> | null {
+  const sym = symbolAn(k.dok, p, SYMBOL_PX / k.massstab)
+  if (sym) return { art: 'symbol', id: sym.id }
+  const g = griffAn(k, p)
+  if (g?.art === 'ecke') return { art: 'ecke', raumId: g.raumId, ecke: g.ecke }
+  if (g?.art === 'kante') return { art: 'kante', raumId: g.raumId, kante: g.kante }
+  const li = linieAn(k.dok, p, KANTE_PX / k.massstab)
+  if (li) return { art: 'linie', id: li.id }
+  const t = trefferAn(k.dok, p, 8 / k.massstab)
+  if (!t) return null
+  return { art: t.art, id: t.id }
+}
+
+/** Unter diesem Schluessel wird ein Element zum Ziehen freigegeben. Ecken
+ *  und Kanten gehoeren zu ihrem Raum. */
+export function sperrSchluessel(a: Auswahl): string | null {
+  if (!a) return null
+  if (a.art === 'kante' || a.art === 'ecke') return `raum:${a.raumId}`
+  if (a.art === 'kiste') return null
+  return `${a.art}:${a.id}`
+}
+
 function entwurfFuer(k: Kontext, zug: Zug, p: Punkt, frei: boolean): Dok {
   const d = zug.basis
   const r = k.raster
@@ -254,36 +278,10 @@ export const auswahlWerkzeug: Werkzeug<AuswahlZustand> = {
   start: () => ({ zug: null }),
 
   runter(k: Kontext, z: Zeiger): Schritt<AuswahlZustand> {
-    const g = griffAn(k, z.p)
-    let auswahl: NonNullable<Auswahl> | null = null
-    let art: Zug['art'] | null = null
-    const sym = symbolAn(k.dok, z.p, SYMBOL_PX / k.massstab)
-    if (sym) {
-      auswahl = { art: 'symbol', id: sym.id }
-      art = 'symbol'
-    } else if (g?.art === 'ecke') {
-      auswahl = { art: 'ecke', raumId: g.raumId, ecke: g.ecke }
-      art = 'ecke'
-    } else if (g?.art === 'kante') {
-      auswahl = { art: 'kante', raumId: g.raumId, kante: g.kante }
-      art = 'kante'
-    } else if (linieAn(k.dok, z.p, KANTE_PX / k.massstab)) {
-      auswahl = { art: 'linie', id: linieAn(k.dok, z.p, KANTE_PX / k.massstab)!.id }
-      art = 'linie'
-    } else {
-      const t = trefferAn(k.dok, z.p, 8 / k.massstab)
-      if (t?.art === 'kiste') auswahl = { art: 'kiste', id: t.id }
-      else if (t?.art === 'oeffnung') {
-        auswahl = { art: 'oeffnung', id: t.id }
-        art = 'oeffnung'
-      } else if (t?.art === 'objekt') {
-        auswahl = { art: 'objekt', id: t.id }
-        art = 'objekt'
-      } else if (t?.art === 'raum') {
-        auswahl = { art: 'raum', id: t.id }
-        art = 'raum'
-      }
-    }
+    const auswahl = zielAn(k, z.p)
+    let art: Zug['art'] | null = auswahl && auswahl.art !== 'kiste' ? auswahl.art : null
+    // Ziehen nur, wenn das Element vorher per Rechtsklick freigegeben wurde.
+    if (art && k.entsperrt !== undefined && k.entsperrt !== sperrSchluessel(auswahl)) art = null
     const zug: Zug | null =
       auswahl && art ? { art, start: z.p, basis: k.dok, auswahl, entwurf: null, bewegt: false } : null
     return { s: { zug }, aktionen: [{ typ: 'waehlen', auswahl }] }
@@ -304,6 +302,8 @@ export const auswahlWerkzeug: Werkzeug<AuswahlZustand> = {
 
   doppel(k: Kontext, z: Zeiger): Schritt<AuswahlZustand> {
     const g = griffAn(k, z.p)
+    // Ecken einfuegen und entfernen nur an einem freigegebenen Raum.
+    if (g && k.entsperrt !== undefined && k.entsperrt !== `raum:${g.raumId}`) return { s: { zug: null } }
     if (g?.art === 'ecke') {
       const neu = eckeEntfernen(k.dok, g.raumId, g.ecke)
       if (!neu) return { s: { zug: null }, aktionen: [{ typ: 'hinweis', schluessel: 'zeichner.ecke_bleibt' }] }

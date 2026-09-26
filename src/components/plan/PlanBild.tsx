@@ -27,6 +27,7 @@ import {
   type PlanTreffer,
 } from './hilfe'
 import { objektName } from './lage'
+import { MoebelSymbol } from './moebelSymbol'
 import { radArt, radFaktor } from './ansicht'
 
 /* Die Draufsicht eines Grundrisses als SVG in Zentimetern.
@@ -158,6 +159,10 @@ export function OeffnungForm({ raum, o, geist }: { raum: Pick<Raum, 'punkte'>; o
       style={{ fill: geist ? 'transparent' : 'var(--plan-boden)' }}
     />
   )
+  if (o.art === 'durchgang') {
+    // Offener Durchgang: die Wand ist offen, kein Blatt, kein Bogen.
+    return <g opacity={geist ? 0.85 : 1}>{deckel}</g>
+  }
   if (o.art === 'fenster') {
     const v = 3.5
     return (
@@ -232,6 +237,7 @@ const ObjektEbene = memo(function ObjektEbene({ objekte, massstab }: { objekte: 
             {teiler.map(([a, b], i) => (
               <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} style={{ stroke: 'var(--plan-objekt-rand)' }} strokeWidth={1} vectorEffect={NS} />
             ))}
+            <MoebelSymbol o={o} />
             {passt ? (
               <text
                 x={mitte[0]}

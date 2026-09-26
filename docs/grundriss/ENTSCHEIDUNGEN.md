@@ -289,3 +289,21 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Geschirrspueler, Kuehlschrank). In 3D waehlt ein Umschalter, was die
   linke Maustaste (und ein Finger) tut: Hand (verschieben, Standard) oder
   Drehen; die rechte Taste tut das andere. Das Geraet merkt es sich.
+- **E54 Durchgang:** dritte Art einer Oeffnung (`durchgang`, Migration
+  0038): offene Wand ohne Tuerblatt, in 2D nur die Luecke, in 3D nur der
+  Sturz. Eine Tuer laesst sich in den Eigenschaften zum Durchgang machen
+  und zurueck.
+- **E55 Moebel-Symbole:** Jedes Moebel mit bekanntem Namen (WC,
+  Waschbecken, Badewanne, Dusche, Waschmaschine, Trockner, Spuele, Herd,
+  Geschirrspueler, Kuehlschrank, Kuechenzeile, Bett, Sofa, Fernseher,
+  Kommode, Tisch; Deutsch und Arabisch) bekommt im Plan ein eigenes
+  Zeichen, gedreht mit dem Moebel (`components/plan/moebelSymbol.tsx`).
+  Erkannt am Namen, keine neue Spalte.
+- **E56 Nichts rutscht aus Versehen:** In der Auswahl waehlt ein
+  Linksklick nur; Ziehen verschiebt die Ansicht. Verschieben, Groesse
+  aendern (Ecken, Waende, Doppelklick fuer Ecken) nur fuer das Element,
+  das per Rechtsklick > "Verschieben / Groesse aendern" freigegeben ist;
+  ein Band zeigt das, "Fertig", Esc oder eine andere Auswahl sperrt
+  wieder. Das Rechtsklick-Menue hat ausserdem Umbenennen (ein Raum mit
+  Zimmer benennt das Zimmer um), Drehen, Eigenschaften und Loeschen.
+  Pfeiltasten bleiben wie bisher.

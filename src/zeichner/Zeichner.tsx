@@ -33,7 +33,7 @@ import { BereichDialog } from '../components/BereichDialog'
 import { neuerBereich, type BereichEntwurf } from '../lib/bereich'
 import { Button, CodeChip, Modal, useToast } from '../components/ui'
 import { datenBox, kisteRechteck, raumTitel } from '../components/plan/hilfe'
-import { GrundrissFehler, ladeGrundriss, listItems, platzRaeumen, platzSetzen, speichereGrundriss, speichereLinien } from '../lib/api'
+import { GrundrissFehler, ladeGrundriss, listItems, platzRaeumen, platzSetzen, speichereGrundriss, speichereLinien, updateTag } from '../lib/api'
 import {
   cmText,
   einrasten,
@@ -51,13 +51,15 @@ import type { GrundrissAenderung, GrundrissDaten, Item, PlanKiste, SymbolArt } f
 import { cx } from '../lib/util'
 import { useProject } from '../pages/ProjectLayout'
 import { geloeschteMitKisten, istLeer, unterschied } from './diff'
-import { gleicheLinien, kanteLaengeSetzen, kistenDraussen, loeschen, objektBox, objektSetzen, raumAendern, raumAn, umrissGeaendert, type Vorlage } from './dok'
+import { gleicheLinien, kanteLaengeSetzen, kistenDraussen, loeschen, objektGedreht, type Auswahl, objektBox, objektSetzen, raumAendern, raumAn, umrissGeaendert, type Vorlage } from './dok'
 import { Eigenschaften } from './Eigenschaften'
 import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
 import { einpassen, radArt, radFaktor, verschieben, zoomAm } from '../components/plan/ansicht'
 import { Assistent, KistenListe, MoebelKatalog, RegalVorlage, StromWahl, UnterlagenWahl } from './Seitenteile'
 import { REIHENFOLGE, TASTEN, tastenZeichen, WERKZEUGE } from './werkzeuge'
+import { sperrSchluessel, zielAn } from './werkzeuge/auswahl'
+import { KontextMenue, UmbenennenDialog, type MenueAktion } from './Menue'
 import { raumStart } from './werkzeuge/raum'
 import type { Aktion, KisteInHand, Kontext, Schritt, WerkzeugName } from './werkzeuge/typen'
 import { zReducer, zStart } from './zustand'
@@ -181,6 +183,11 @@ export default function Zeichner({
   const [inHand, setInHand] = useState<KisteInHand | null>(null)
   const [letztePlatzierung, setLetztePlatzierung] = useState<{ id: string; code: string; vorher: PlanKiste | null } | null>(null)
   const [symbolArt, setSymbolArt] = useState<SymbolArt>('steckdose')
+  /* Ziehen nur nach Freigabe (Rechtsklick > Verschieben / Groesse aendern):
+   * sonst verschiebt man Raeume und Moebel zu leicht aus Versehen. */
+  const [entsperrt, setEntsperrt] = useState<string | null>(null)
+  const [menue, setMenue] = useState<{ x: number; y: number; ziel: NonNullable<Auswahl> } | null>(null)
+  const [umbenennen, setUmbenennen] = useState<NonNullable<Auswahl> | null>(null)
   const [vorlagen, setVorlagen] = useState<{ moebel: Vorlage | null; regal: Vorlage; schrank: Vorlage }>(() => ({
     moebel: null,
     regal: { ...REGAL_STANDARD, name: '' },
@@ -233,6 +240,7 @@ export default function Zeichner({
     neueId: () => crypto.randomUUID(),
     vorlage: vorlageFuer(werkzeug.name),
     symbolArt,
+    entsperrt,
     kiste: inHand,
   }
 
@@ -367,6 +375,89 @@ export default function Zeichner({
     }
   }
 
+  // Die Freigabe zum Ziehen endet, sobald etwas anderes gewaehlt ist (oder Esc).
+  useEffect(() => {
+    if (entsperrt && sperrSchluessel(z.auswahl) !== entsperrt) setEntsperrt(null)
+  }, [z.auswahl, entsperrt])
+
+  /** Was das Rechtsklick-Menue anbietet. Ecke und Kante zaehlen als Raum. */
+  function menueAktionen(ziel: NonNullable<Auswahl>): MenueAktion[] {
+    switch (ziel.art) {
+      case 'raum':
+      case 'kante':
+      case 'ecke':
+        return ['bearbeiten', 'umbenennen', 'eigenschaften', 'loeschen']
+      case 'objekt':
+        return ['verschieben', 'drehen', 'umbenennen', 'eigenschaften', 'loeschen']
+      case 'oeffnung':
+        return ['verschieben', 'eigenschaften', 'loeschen']
+      case 'linie':
+      case 'symbol':
+        return ['verschieben', 'eigenschaften', 'loeschen']
+      case 'kiste':
+        return ['eigenschaften']
+    }
+  }
+
+  function menueWahl(aktion: MenueAktion, ziel: NonNullable<Auswahl>) {
+    setMenue(null)
+    const raumZiel: NonNullable<Auswahl> = ziel.art === 'kante' || ziel.art === 'ecke' ? { art: 'raum', id: ziel.raumId } : ziel
+    switch (aktion) {
+      case 'bearbeiten':
+      case 'verschieben':
+        dispatch({ typ: 'waehlen', auswahl: raumZiel })
+        setEntsperrt(sperrSchluessel(raumZiel))
+        hinweisZeigen(t(raumZiel.art === 'raum' ? 'zeichner.menue.raum_frei' : 'zeichner.menue.frei'))
+        return
+      case 'eigenschaften':
+        dispatch({ typ: 'waehlen', auswahl: raumZiel })
+        setRechtsZu(false)
+        return
+      case 'umbenennen':
+        setUmbenennen(raumZiel)
+        return
+      case 'drehen': {
+        if (raumZiel.art !== 'objekt') return
+        const o = z.dok.objekte.find((x) => x.id === raumZiel.id)
+        if (o) dispatch({ typ: 'aendern', dok: objektSetzen(z.dok, objektGedreht(o, 1)), auswahl: raumZiel })
+        return
+      }
+      case 'loeschen': {
+        const r = WERKZEUGE.auswahl.taste({ ...kontext, auswahl: raumZiel }, 'Delete', 'Delete', false, werkzeug.s)
+        if (r) ausfuehren(r, 'auswahl')
+        return
+      }
+    }
+  }
+
+  /** Neuer Name: ein Raum mit Zimmer benennt das Zimmer um (ueberall im
+   *  Umzug), sonst den Raum; ein Moebel seinen Namen. */
+  async function umbenennenSpeichern(ziel: NonNullable<Auswahl>, name: string) {
+    if (ziel.art === 'raum') {
+      const r = z.dok.raeume.find((x) => x.id === ziel.id)
+      if (!r) return
+      if (r.tag_id) {
+        await updateTag(r.tag_id, { name })
+        await reloadTags()
+        dispatch({ typ: 'aendern', dok: raumAendern(z.dok, r.id, { tag_name: name }), auswahl: ziel })
+      } else {
+        dispatch({ typ: 'aendern', dok: raumAendern(z.dok, r.id, { name }), auswahl: ziel })
+      }
+    } else if (ziel.art === 'objekt') {
+      const o = z.dok.objekte.find((x) => x.id === ziel.id)
+      if (o) dispatch({ typ: 'aendern', dok: objektSetzen(z.dok, { ...o, name }), auswahl: ziel })
+    }
+  }
+
+  function aktuellerName(ziel: NonNullable<Auswahl>): string {
+    if (ziel.art === 'raum') {
+      const r = z.dok.raeume.find((x) => x.id === ziel.id)
+      return r ? r.tag_name ?? r.name : ''
+    }
+    if (ziel.art === 'objekt') return z.dok.objekte.find((x) => x.id === ziel.id)?.name ?? ''
+    return ''
+  }
+
   /* ------------------------------------------------------------ Zeiger */
 
   function cm(e: { clientX: number; clientY: number }): Punkt | null {
@@ -386,10 +477,20 @@ export default function Zeichner({
       return
     }
     if (e.button === 2) {
+      if (werkzeug.name === 'auswahl') {
+        // Rechtsklick: waehlen und das Menue oeffnen.
+        const p = cm(e)
+        const ziel = p ? zielAn(kontext, p) : null
+        dispatch({ typ: 'waehlen', auswahl: ziel })
+        const r = e.currentTarget.getBoundingClientRect()
+        setMenue(ziel ? { x: e.clientX - r.left, y: e.clientY - r.top, ziel } : null)
+        return
+      }
       const w = WERKZEUGE[werkzeug.name]
       setWerkzeug((x) => ({ ...x, s: w.abbrechen(x.s).s }))
       return
     }
+    setMenue(null)
     if (e.button !== 0) return
     setMassEingabe(null)
     const p = cm(e)
@@ -1143,6 +1244,26 @@ export default function Zeichner({
             </form>
           ) : null}
 
+          {entsperrt ? (
+            <div className="absolute inset-x-0 top-3 z-10 flex justify-center" onPointerDown={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-2 rounded-xl bg-ink px-3 py-1.5 text-sm font-bold text-paper shadow-lg">
+                {t('zeichner.menue.band')}
+                <button type="button" onClick={() => setEntsperrt(null)} className="rounded-lg bg-paper px-2 py-0.5 text-ink">
+                  {t('zeichner.menue.fertig')}
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {menue ? (
+            <KontextMenue
+              x={menue.x}
+              y={menue.y}
+              aktionen={menueAktionen(menue.ziel)}
+              onWahl={(a) => menueWahl(a, menue.ziel)}
+              onClose={() => setMenue(null)}
+            />
+          ) : null}
+
           {drei ? (
             <Ueberlagerung3D
               daten={z.dok}
@@ -1239,6 +1360,15 @@ export default function Zeichner({
       </div>
 
       {/* Dialoge */}
+      <UmbenennenDialog
+        offen={umbenennen !== null}
+        start={umbenennen ? aktuellerName(umbenennen) : ''}
+        onClose={() => setUmbenennen(null)}
+        onSpeichern={async (name) => {
+          if (umbenennen) await umbenennenSpeichern(umbenennen, name)
+          setUmbenennen(null)
+        }}
+      />
       <Modal open={status === 'veraltet'} onClose={() => void neuLaden()} title={t('grundriss.veraltet_titel')}>
         <p className="text-base">{t('grundriss.veraltet')}</p>
         <div className="mt-4 flex justify-end">
