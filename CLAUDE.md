@@ -66,7 +66,8 @@ Jeder Push auf `main` geht sofort live (GitHub Pages).
 
 ## Wo der Stand steht
 
-- `docs/cloud/START.md`: Stand, naechste Schritte, Arbeitsweise, Budget.
+- `docs/UEBERGABE.md`: aktueller Stand und naechste Schritte (zuerst lesen).
+- `docs/cloud/START.md`: urspruenglicher Auftrag des Grundriss-Umbaus.
 - `docs/grundriss/entwurf-teile.json`: Material fuer den Grundriss-Umbau
   (Code-Karten, drei Entwuerfe, zwei Bewertungen).
 - `docs/grundriss/BAUPLAN.md`: der Bauplan, sobald er geschrieben ist.
