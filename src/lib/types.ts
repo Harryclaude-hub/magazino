@@ -431,6 +431,8 @@ export interface AdminNutzer {
   erstellt: string
   zuletzt: string | null
   admin: boolean
+  /** Freischaltung (0036). */
+  freigabe: 'wartet' | 'frei' | 'gesperrt'
   umzuege: AdminUmzug[]
 }
 

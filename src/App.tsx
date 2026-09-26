@@ -1,3 +1,4 @@
+import { FreigabeTor } from './components/Freigabe'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { lazy, Suspense, type ReactNode } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
@@ -53,7 +54,8 @@ function Gate({ children }: { children: ReactNode }) {
   const loc = useLocation()
   if (!ready) return <Loading label="Moment" />
   if (!session) return <Navigate to="/login" replace state={{ from: loc.pathname + loc.search }} />
-  return <>{children}</>
+  // Angemeldet heisst noch nicht freigeschaltet (0036).
+  return <FreigabeTor>{children}</FreigabeTor>
 }
 
 function SetupHint() {

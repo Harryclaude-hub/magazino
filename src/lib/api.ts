@@ -60,6 +60,36 @@ export async function istAdmin(): Promise<boolean> {
   return res.data === true
 }
 
+export type Freigabe = 'wartet' | 'frei' | 'gesperrt'
+
+/** Ist das eigene Konto freigeschaltet (0036)? Admins sind immer frei. */
+export async function meineFreigabe(): Promise<Freigabe> {
+  const res = await supabase.rpc('meine_freigabe')
+  if (res.error) throw new Error(errText(res.error))
+  const s = res.data as string | null
+  return s === 'frei' || s === 'gesperrt' ? s : 'wartet'
+}
+
+/** Admin: ein Konto freischalten, sperren oder zuruecksetzen. */
+export async function adminFreigabeSetzen(userId: string, status: Freigabe): Promise<void> {
+  const { error } = await supabase.rpc('admin_freigabe_setzen', { p_user: userId, p_status: status })
+  if (error) throw new Error(tg('fehler.admin_aendern', { grund: errText(error) }))
+}
+
+/** Admin: ein Konto endgueltig loeschen. Umzuege mit weiteren Mitgliedern
+ *  gehen an eines von ihnen, allein gehoerende verschwinden. */
+export async function adminKontoLoeschen(userId: string): Promise<{ uebergeben: number; geloescht: number }> {
+  const res = await supabase.rpc('admin_konto_loeschen', { p_user: userId })
+  return unwrap(res, 'fehler.admin_loeschen') as { uebergeben: number; geloescht: number }
+}
+
+/** Admin: wie viele Konten warten auf Freischaltung (0 fuer alle anderen). */
+export async function adminWartende(): Promise<number> {
+  const res = await supabase.rpc('admin_wartende')
+  if (res.error) throw new Error(tg('fehler.admin_laden', { grund: errText(res.error) }))
+  return Number(res.data ?? 0)
+}
+
 /** Alle Nutzer mit ihren Umzuegen. Nur fuer Admins; sonst lehnt die
  *  Datenbank ab (kistly:admin.kein_zugriff). */
 export async function ladeAdminUebersicht(): Promise<AdminUebersicht> {

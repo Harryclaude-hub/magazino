@@ -199,7 +199,13 @@ const SEITEN: Record<TourName, TourSchritt[]> = {
     k('profil.admin', 'profil-admin'),
     k('profil.abmelden', 'profil-abmelden'),
   ],
-  admin: [k('admin.start'), k('admin.zahlen', 'admin-zahlen'), k('admin.suche', 'admin-suche')],
+  admin: [
+    k('admin.start'),
+    k('admin.zahlen', 'admin-zahlen'),
+    k('admin.wartende', 'admin-wartende'),
+    k('admin.knoepfe', 'admin-knoepfe'),
+    k('admin.suche', 'admin-suche'),
+  ],
   allgemein: [k('allgemein.start')],
 }
 

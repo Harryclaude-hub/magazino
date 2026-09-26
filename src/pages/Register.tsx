@@ -105,6 +105,8 @@ export default function Register() {
           </div>
         ) : null}
 
+        <p className="t-sub">{t('freigabe.hinweis_registrieren')}</p>
+
         <Button type="submit" full size="lg" loading={busy}>
           {t('konto.konto_anlegen')}
         </Button>

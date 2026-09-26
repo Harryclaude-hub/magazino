@@ -4,7 +4,7 @@ import { Boxes, MessageCircle, ScanLine, Search, ShieldCheck, User, Warehouse } 
 import { BottomNav, NavTab } from '../components/AppShell'
 import { LeistenSymbole, Seitenleiste, SuchKopf } from '../components/Seitenleiste'
 import { useT } from '../lib/i18n'
-import { countUnread, istAdmin, listMembers } from '../lib/api'
+import { adminWartende, countUnread, istAdmin, listMembers } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { getLastProject, setLastProject } from '../lib/lastProject'
@@ -52,6 +52,19 @@ export default function AppLayout() {
       alive = false
     }
   }, [user?.id])
+  // Wie viele Konten warten auf Freischaltung: Zahl am Menuepunkt.
+  const [wartende, setWartende] = useState(0)
+  const pfad = loc.pathname
+  useEffect(() => {
+    if (!admin) return
+    let alive = true
+    adminWartende()
+      .then((n) => alive && setWartende(n))
+      .catch((err: unknown) => console.warn('[shell] Wartende nicht gezaehlt:', err instanceof Error ? err.message : err))
+    return () => {
+      alive = false
+    }
+  }, [admin, pfad])
 
   const rememberProject = useCallback((id: string) => {
     setLast((cur) => {
@@ -191,6 +204,7 @@ export default function AppLayout() {
                     icon: <ShieldCheck size={20} />,
                     label: t('admin.nav'),
                     active: path === '/app/admin',
+                    badge: wartende,
                     tour: 'nav-admin',
                   },
                 ]

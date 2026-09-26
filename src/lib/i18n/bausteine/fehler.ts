@@ -12,6 +12,30 @@ import type { Woerterbuch } from '../woerter'
  */
 export const fehler: Woerterbuch = {
   // --------------------------------------------------------- Allgemein
+  'fehler.admin_aendern': {
+    de: 'Freigabe nicht geändert: {grund}',
+    ar: 'لم يتم تغيير التفعيل: {grund}',
+  },
+  'fehler.admin_loeschen': {
+    de: 'Konto nicht gelöscht: {grund}',
+    ar: 'لم يُحذف الحساب: {grund}',
+  },
+  'fehler.db.admin.nicht_selbst': {
+    de: 'Das geht nicht bei deinem eigenen Konto.',
+    ar: 'لا يمكن ذلك مع حسابك أنت.',
+  },
+  'fehler.db.admin.nicht_admin': {
+    de: 'Ein Admin-Konto lässt sich nicht sperren oder löschen.',
+    ar: 'لا يمكن حظر حساب مسؤول أو حذفه.',
+  },
+  'fehler.db.admin.unbekannt': {
+    de: 'Dieses Konto gibt es nicht mehr.',
+    ar: 'هذا الحساب لم يعد موجوداً.',
+  },
+  'fehler.db.konto.nicht_frei': {
+    de: 'Dein Konto ist noch nicht freigeschaltet.',
+    ar: 'حسابك لم يُفعَّل بعد.',
+  },
   'fehler.admin_laden': {
     de: 'Admin-Übersicht nicht geladen: {grund}',
     ar: 'تعذّر تحميل لوحة الإدارة: {grund}',

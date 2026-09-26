@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Search, ShieldCheck, Users } from 'lucide-react'
+import { Check, Search, ShieldCheck, ShieldX, Trash2, Undo2, Users } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
-import { Badge, Card, Empty, ErrorBox, Input, Loading } from '../components/ui'
-import { ladeAdminUebersicht } from '../lib/api'
+import { Badge, Button, Card, ConfirmDialog, Empty, ErrorBox, Input, Loading, SectionTitle, useToast } from '../components/ui'
+import { adminFreigabeSetzen, adminKontoLoeschen, ladeAdminUebersicht, type Freigabe } from '../lib/api'
 import { useSprache } from '../lib/i18n'
 import type { AdminNutzer, AdminUmzug } from '../lib/types'
 import { useAsync } from '../lib/util'
@@ -52,7 +52,25 @@ function UmzugZeile({ u }: { u: AdminUmzug }) {
   )
 }
 
-function NutzerKarte({ n }: { n: AdminNutzer }) {
+const STATUS_FARBE: Record<Freigabe, string> = {
+  wartet: 'var(--warn)',
+  frei: 'var(--ok)',
+  gesperrt: 'var(--danger)',
+}
+
+type Frage = { art: 'sperren' | 'loeschen'; n: AdminNutzer } | null
+
+function NutzerKarte({
+  n,
+  busy,
+  onStatus,
+  onFrage,
+}: {
+  n: AdminNutzer
+  busy: boolean
+  onStatus: (n: AdminNutzer, s: Freigabe) => void
+  onFrage: (f: Frage) => void
+}) {
   const { t, lang } = useSprache()
   return (
     <Card className="overflow-hidden">
@@ -60,6 +78,13 @@ function NutzerKarte({ n }: { n: AdminNutzer }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="t-name break-words">{n.name?.trim() || t('admin.ohne_name')}</h2>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-sm font-bold"
+              style={{ color: STATUS_FARBE[n.freigabe] }}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: STATUS_FARBE[n.freigabe] }} />
+              {t(`admin.status_${n.freigabe}`)}
+            </span>
             {n.admin ? (
               <Badge>
                 <ShieldCheck size={14} /> {t('admin.ist_admin')}
@@ -77,6 +102,27 @@ function NutzerKarte({ n }: { n: AdminNutzer }) {
           <div>{n.zuletzt ? t('admin.zuletzt', { datum: datum(n.zuletzt, lang) }) : t('admin.nie')}</div>
         </div>
       </div>
+      {n.admin ? null : (
+        <div data-tour="admin-knoepfe" className="flex flex-wrap gap-2 border-b border-line px-4 py-3">
+          {n.freigabe === 'wartet' ? (
+            <Button size="sm" disabled={busy} onClick={() => onStatus(n, 'frei')}>
+              <Check size={16} /> {t('admin.freischalten')}
+            </Button>
+          ) : null}
+          {n.freigabe === 'gesperrt' ? (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => onStatus(n, 'frei')}>
+              <Undo2 size={16} className="spiegeln" /> {t('admin.entsperren')}
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => onFrage({ art: 'sperren', n })}>
+              <ShieldX size={16} /> {t('admin.sperren')}
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => onFrage({ art: 'loeschen', n })} className="text-danger">
+            <Trash2 size={16} /> {t('admin.loeschen')}
+          </Button>
+        </div>
+      )}
       {n.umzuege.length === 0 ? (
         <p className="t-sub px-4 py-3">{t('admin.keine_umzuege')}</p>
       ) : (
@@ -94,6 +140,39 @@ export default function Admin() {
   const { t } = useSprache()
   const daten = useAsync(() => ladeAdminUebersicht(), [])
   const [q, setQ] = useState('')
+  const [frage, setFrage] = useState<Frage>(null)
+  const [busy, setBusy] = useState(false)
+  const toast = useToast()
+  const name = (n: AdminNutzer) => n.name?.trim() || n.email || t('admin.ohne_name')
+
+  async function statusSetzen(n: AdminNutzer, s: Freigabe) {
+    setBusy(true)
+    try {
+      await adminFreigabeSetzen(n.id, s)
+      toast(
+        t(s === 'gesperrt' ? 'admin.gesperrt' : n.freigabe === 'gesperrt' ? 'admin.entsperrt' : 'admin.freigeschaltet', { name: name(n) }),
+        'ok',
+      )
+      daten.reload()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function loeschen(n: AdminNutzer) {
+    setBusy(true)
+    try {
+      const r = await adminKontoLoeschen(n.id)
+      toast(t('admin.geloescht', { uebergeben: r.uebergeben, geloescht: r.geloescht }), 'ok')
+      daten.reload()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const liste = useMemo(() => {
     const alle = daten.data?.nutzer ?? []
@@ -106,6 +185,11 @@ export default function Admin() {
         n.umzuege.some((u) => u.name.toLowerCase().includes(s)),
     )
   }, [daten.data, q])
+  const wartende = liste.filter((n) => n.freigabe === 'wartet' && !n.admin)
+  const andere = liste.filter((n) => !(n.freigabe === 'wartet' && !n.admin))
+  const karte = (n: AdminNutzer) => <NutzerKarte key={n.id} n={n} busy={busy} onStatus={(x, s) => void statusSetzen(x, s)} onFrage={setFrage} />
+  // Umzuege, die beim Loeschen mit verschwinden: allein gehoerende.
+  const alleinige = frage?.art === 'loeschen' ? frage.n.umzuege.filter((u) => u.eigentuemer && u.mitglieder <= 1).length : 0
 
   return (
     <>
@@ -140,15 +224,43 @@ export default function Admin() {
             ) : liste.length === 0 ? (
               <Empty icon={<Search size={30} />} title={t('admin.keine_treffer')} />
             ) : (
-              <div className="space-y-4">
-                {liste.map((n) => (
-                  <NutzerKarte key={n.id} n={n} />
-                ))}
-              </div>
+              <>
+                {wartende.length > 0 ? (
+                  <section data-tour="admin-wartende" className="mb-6">
+                    <SectionTitle>{t('admin.wartende_titel', { n: wartende.length })}</SectionTitle>
+                    <div className="space-y-4">{wartende.map(karte)}</div>
+                  </section>
+                ) : null}
+                {andere.length > 0 ? (
+                  <section>
+                    {wartende.length > 0 ? <SectionTitle>{t('admin.alle_titel')}</SectionTitle> : null}
+                    <div className="space-y-4">{andere.map(karte)}</div>
+                  </section>
+                ) : null}
+              </>
             )}
           </>
         ) : null}
       </Page>
+
+      <ConfirmDialog
+        open={frage !== null}
+        title={
+          frage
+            ? t(frage.art === 'sperren' ? 'admin.sperren_frage_titel' : 'admin.loeschen_frage_titel', { name: name(frage.n) })
+            : ''
+        }
+        body={frage ? (frage.art === 'sperren' ? t('admin.sperren_frage') : t('admin.loeschen_frage', { n: alleinige })) : ''}
+        confirmLabel={frage?.art === 'sperren' ? t('admin.sperren') : t('admin.loeschen')}
+        onClose={() => setFrage(null)}
+        onConfirm={async () => {
+          const f = frage
+          setFrage(null)
+          if (!f) return
+          if (f.art === 'sperren') await statusSetzen(f.n, 'gesperrt')
+          else await loeschen(f.n)
+        }}
+      />
     </>
   )
 }

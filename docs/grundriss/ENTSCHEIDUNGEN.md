@@ -242,3 +242,17 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Die grosse Kopfzeile und die Suchleiste fallen dort weg. Werkzeuge links
   lassen sich schmal schalten (nur Zeichen), die rechte Spalte ganz
   ausblenden; das Geraet merkt sich beides.
+- **E49 Freischalten, sperren, loeschen:** Neue Konten warten
+  (`konto_freigaben`, Migration 0036), bis ein Admin sie freischaltet;
+  gesperrte Konten kommen an nichts heran. Erzwungen in der Datenbank:
+  `is_member`, `is_editor`, `is_owner`, `shares_project`,
+  `create_project`, `join_project` und die Regel `projects_insert` fragen
+  `ist_freigegeben()`. Admins sind immer frei. Die App zeigt nach der
+  Anmeldung eine Warte-Seite (Sprache waehlbar, prueft alle 20 Sekunden
+  selbst nach); gesperrte Konten sehen einen eigenen Satz. Die vier Konten
+  von vor der Einfuehrung gelten als frei. Loeschen: Umzuege mit weiteren
+  Mitgliedern gehen an das dienstaelteste (Bearbeiter vor Lesern),
+  allein gehoerende Umzuege verschwinden mit allem Inhalt; Fotos im
+  Speicher bleiben liegen. Admins koennen sich selbst und andere Admins
+  weder sperren noch loeschen. Der Admin-Menuepunkt zeigt die Zahl der
+  Wartenden.
