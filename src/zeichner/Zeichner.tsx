@@ -28,6 +28,7 @@ import { datenBox, kisteRechteck, raumTitel } from '../components/plan/hilfe'
 import { GrundrissFehler, ladeGrundriss, listItems, platzRaeumen, platzSetzen, speichereGrundriss } from '../lib/api'
 import {
   cmText,
+  einrasten,
   kistenUeberlappen,
   laengeLesen,
   raeumeUeberlappen,
@@ -42,7 +43,7 @@ import type { GrundrissAenderung, GrundrissDaten, Item, PlanKiste } from '../lib
 import { cx } from '../lib/util'
 import { useProject } from '../pages/ProjectLayout'
 import { geloeschteMitKisten, istLeer, unterschied } from './diff'
-import { kanteLaengeSetzen, kistenDraussen, loeschen, objektBox, raumAendern, raumAn, umrissGeaendert, type Vorlage } from './dok'
+import { kanteLaengeSetzen, kistenDraussen, loeschen, objektBox, objektSetzen, raumAendern, raumAn, umrissGeaendert, type Vorlage } from './dok'
 import { Eigenschaften } from './Eigenschaften'
 import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
@@ -1069,6 +1070,17 @@ export default function Zeichner({
               daten={z.dok}
               hervor={z.auswahl?.art === 'kiste' ? z.auswahl.id : kisteId}
               onSchliessen={() => setDrei(false)}
+              onObjektZiehen={(id, dx, dy) => {
+                // Wie Ziehen in 2D: frei, nur das Raster gilt; die Datenbank prueft beim Speichern.
+                const o = z.dok.objekte.find((x) => x.id === id)
+                if (!o) return
+                setLeiste(null)
+                dispatch({
+                  typ: 'aendern',
+                  dok: objektSetzen(z.dok, { ...o, x: o.x + einrasten(dx, raster), y: o.y + einrasten(dy, raster) }),
+                  auswahl: { art: 'objekt', id },
+                })
+              }}
             />
           ) : null}
 

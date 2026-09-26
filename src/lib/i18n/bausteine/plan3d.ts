@@ -4,7 +4,7 @@ import type { Woerterbuch } from '../woerter'
  *
  * Wie der Zeichner-Baustein steht dieser NICHT in woerter.ts, sondern
  * laedt mit dem Knopf (components/plan3d/oeffnen.tsx ruft
- * woerterNachladen). Das Handy zeigt die 3D-Ansicht nie. Geprueft wird er
+ * woerterNachladen). Am Handy gibt es sie im Grundriss und im Lageplan. Geprueft wird er
  * wie alle anderen (scripts/woerter-pruefen.mjs). */
 export const plan3dWoerter: Woerterbuch = {
   'plan3d.oeffnen': { de: 'In 3D ansehen', ar: 'عرض ثلاثي الأبعاد' },
@@ -26,6 +26,14 @@ export const plan3dWoerter: Woerterbuch = {
   'plan3d.bedienung': {
     de: 'Ziehen dreht, rechte Maustaste verschiebt, Mausrad zoomt.',
     ar: 'السحب يدوّر، الزر الأيمن للفأرة يحرّك، عجلة الفأرة تكبّر وتصغّر.',
+  },
+  'plan3d.bedienung_ziehen': {
+    de: 'Möbel ziehen verschiebt es. Sonst: Ziehen dreht, rechte Maustaste verschiebt, Mausrad zoomt.',
+    ar: 'سحب قطعة الأثاث ينقلها. غير ذلك: السحب يدوّر، الزر الأيمن يحرّك، العجلة تكبّر وتصغّر.',
+  },
+  'plan3d.bedienung_handy': {
+    de: 'Ein Finger dreht, zwei Finger verschieben und zoomen.',
+    ar: 'إصبع واحد يدوّر، وإصبعان يحرّكان ويكبّران ويصغّران.',
   },
   'plan3d.leer': { de: 'Hier ist noch nichts gezeichnet.', ar: 'لم يُرسم شيء هنا بعد.' },
   'plan3d.umschalter': { de: 'Ansicht', ar: 'العرض' },

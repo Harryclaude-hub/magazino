@@ -31,6 +31,7 @@ import {
   loescheGrundriss,
 } from '../lib/api'
 import { useZeichnen } from '../lib/desktop'
+import { Knopf3D } from '../components/plan3d/oeffnen'
 import { useSprache } from '../lib/i18n'
 import type { Grundriss as GrundrissTyp, GrundrissDaten } from '../lib/types'
 import { cx, useAsync } from '../lib/util'
@@ -355,7 +356,10 @@ function Ansehen({ daten, raumId, kisteId }: { daten: GrundrissDaten; raumId: st
                 } else setTipp(treffer && treffer.art !== 'raum' ? treffer : null)
               }}
             />
-            <PlanLegende mitKiste={Boolean(kisteId)} />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <PlanLegende mitKiste={Boolean(kisteId)} />
+              <Knopf3D daten={daten} raumId={raum?.id ?? null} hervor={kisteId} className="justify-center" />
+            </div>
             {gewaehlt.kiste ? (
               <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-3">
                 <CodeChip code={gewaehlt.kiste.code} />

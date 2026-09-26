@@ -181,3 +181,15 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Regale und Schraenke zaehlen mit), Regale und Schraenke, Kisten (Kisten
   und Taschen) und Gegenstaende. Darunter jedes Regal und jeder Schrank mit
   der Zahl der Kisten und Gegenstaende darin und darauf (auch gestapelt).
+- **E41 3D fluessiger:** Materialien gleicher Farbe werden geteilt, der
+  Renderer rechnet im Stand mit hoechstens 1,5 und in Bewegung mit 1
+  Bildpunkt je Pixel, die Kamera laeuft nach dem Loslassen weich aus
+  (Daempfung), Zoom zum Zeiger. Die Unschaerfe hinter dem 3D-Fenster ist
+  weg (kostete bei jedem Bild Rechenzeit).
+- **E42 Moebel in 3D ziehen:** Nur im Zeichner. Linke Maustaste auf einem
+  Moebel, Regal oder Schrank zieht es am Boden entlang, Kisten darauf und
+  darin gehen mit; beim Loslassen wird es wie in 2D verschoben (Raster,
+  Pruefung beim Speichern). Druck auf leere Flaeche dreht wie bisher.
+- **E43 3D am Handy:** Der Knopf "In 3D ansehen" steht jetzt auf jedem
+  Geraet (Lageplan, Grundriss-Ansicht). Am Handy fuellt das Fenster den
+  Bildschirm; ein Finger dreht, zwei Finger verschieben und zoomen.

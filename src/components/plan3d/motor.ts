@@ -3,7 +3,17 @@
  * das hier, beide liegen im selben Code-Teil, den nur der Computer laedt.
  *
  * Keine Texturen, keine Schatten. Gerendert wird nur, wenn sich etwas
- * aendert (Kamera, Groesse, Daten, Farben), nicht in einer Schleife.
+ * aendert (Kamera, Groesse, Daten, Farben), nicht in einer Schleife; nach
+ * dem Loslassen laeuft die Kamera kurz weich aus (Daempfung).
+ *
+ * Fluessig auch auf schwachen Laptops: Materialien gleicher Farbe werden
+ * geteilt, und waehrend der Bewegung rechnet der Renderer mit hoechstens
+ * einem Bildpunkt je Pixel.
+ *
+ * Mit Maus: linke Taste dreht, rechte verschiebt, Rad zoomt. Im Zeichner
+ * laesst sich ein Moebel, Regal oder Schrank mit der linken Taste am Boden
+ * entlang ziehen (ziehen()). Am Handy: ein Finger dreht, zwei Finger
+ * verschieben und zoomen.
  */
 import {
   AmbientLight,
@@ -17,10 +27,13 @@ import {
   Mesh,
   MeshLambertMaterial,
   PerspectiveCamera,
+  Plane,
+  Raycaster,
   Scene,
   Shape,
   ShapeGeometry,
   Vector2,
+  Vector3,
   WebGLRenderer,
   type BufferGeometry,
   type Material,
@@ -36,8 +49,14 @@ export interface Motor {
   setzen(koerper: Koerper[], hintergrund: string, ausrichten: boolean): void
   blick(b: Blick): void
   waendeHalb(an: boolean): void
+  /** Moebel ziehen erlauben (Zeichner), null schaltet es aus. traeger:
+   *  Kiste -> Objekt, auf oder in dem ihr Stapel steht; sie gehen mit. */
+  ziehen(fn: ((id: string, dxCm: number, dyCm: number) => void) | null, traeger: Map<string, string>): void
   dispose(): void
 }
+
+/** Ab so vielen Pixeln wird aus einem Druck auf ein Moebel ein Ziehen. */
+const ZIEH_PX = 4
 
 /** Wie durchsichtig eine Wand ist, deren Aussenseite zur Kamera zeigt. */
 const WAND_HALB = 0.16
@@ -72,11 +91,14 @@ export function motorStarten(host: HTMLElement): Motor | null {
   if (!webglDa()) return null
   let renderer: WebGLRenderer
   try {
-    renderer = new WebGLRenderer({ antialias: true })
+    renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
   } catch {
     return null
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  // Scharf im Stand, schnell in Bewegung (siehe bewegungAn).
+  const ratioStand = Math.min(window.devicePixelRatio || 1, 1.5)
+  const ratioBewegt = Math.min(ratioStand, 1)
+  renderer.setPixelRatio(ratioStand)
   renderer.domElement.style.display = 'block'
   renderer.domElement.style.width = '100%'
   renderer.domElement.style.height = '100%'
@@ -105,8 +127,129 @@ export function motorStarten(host: HTMLElement): Motor | null {
   const einheit = new BoxGeometry(1, 1, 1)
   const kanten = new EdgesGeometry(einheit)
 
+  /* Moebel ziehen. Die Zuhoerer sitzen am host in der Einfang-Phase, also
+   * vor OrbitControls am Canvas: trifft der Druck ein Moebel, bekommt die
+   * Kamera ihn nicht. */
+  let ziehFn: ((id: string, dxCm: number, dyCm: number) => void) | null = null
+  let traeger = new Map<string, string>()
+  const strahl = new Raycaster()
+  const bodenEbene = new Plane(new Vector3(0, 1, 0), 0)
+  let zug: {
+    id: string
+    px: number
+    py: number
+    start: Vector3
+    meshes: Object3D[]
+    basis: Vector3[]
+    bewegt: boolean
+    dx: number
+    dz: number
+    pointerId: number
+  } | null = null
+
+  function zeigerNdc(e: { clientX: number; clientY: number }): Vector2 {
+    const r = renderer.domElement.getBoundingClientRect()
+    return new Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
+  }
+
+  /** Das Objekt (Moebel, Regal, Schrank) unter dem Zeiger, sonst null. */
+  function objektUnter(e: { clientX: number; clientY: number }): string | null {
+    strahl.setFromCamera(zeigerNdc(e), camera)
+    for (const t of strahl.intersectObjects(gruppe.children, false)) {
+      const id = (t.object.userData as { objektId?: string }).objektId
+      if (id) return id
+      // Was davor steht und nicht halbdurchsichtig ist, verdeckt.
+      const mat = (t.object as Mesh).material as MeshLambertMaterial | undefined
+      if (mat && mat.opacity >= 0.5) return null
+    }
+    return null
+  }
+
+  function bodenPunkt(e: { clientX: number; clientY: number }): Vector3 | null {
+    strahl.setFromCamera(zeigerNdc(e), camera)
+    const p = new Vector3()
+    return strahl.ray.intersectPlane(bodenEbene, p) ? p : null
+  }
+
+  const ziehRunter = (e: PointerEvent) => {
+    if (!ziehFn || e.button !== 0 || e.pointerType === 'touch') return
+    const id = objektUnter(e)
+    if (!id) return
+    const start = bodenPunkt(e)
+    if (!start) return
+    const meshes = gruppe.children.filter((o) => {
+      const u = o.userData as { objektId?: string; kisteId?: string }
+      return u.objektId === id || (!!u.kisteId && traeger.get(u.kisteId) === id)
+    })
+    e.stopPropagation()
+    e.preventDefault()
+    host.setPointerCapture(e.pointerId)
+    zug = {
+      id,
+      px: e.clientX,
+      py: e.clientY,
+      start,
+      meshes,
+      basis: meshes.map((m) => m.position.clone()),
+      bewegt: false,
+      dx: 0,
+      dz: 0,
+      pointerId: e.pointerId,
+    }
+  }
+  const ziehBewegen = (e: PointerEvent) => {
+    const z = zug
+    if (!z) {
+      // Ohne Druck zeigen, dass sich ein Moebel greifen laesst.
+      if (ziehFn && e.pointerType === 'mouse' && e.buttons === 0) {
+        renderer.domElement.style.cursor = objektUnter(e) ? 'grab' : ''
+      }
+      return
+    }
+    e.stopPropagation()
+    if (!z.bewegt && Math.hypot(e.clientX - z.px, e.clientY - z.py) < ZIEH_PX) return
+    if (!z.bewegt) {
+      z.bewegt = true
+      bewegungAn(true)
+      renderer.domElement.style.cursor = 'grabbing'
+    }
+    const p = bodenPunkt(e)
+    if (!p) return
+    // Auf ganze cm, damit Vorschau und Ergebnis gleich aussehen.
+    z.dx = Math.round((p.x - z.start.x) * 100) / 100
+    z.dz = Math.round((p.z - z.start.z) * 100) / 100
+    z.meshes.forEach((m, i) => m.position.set(z.basis[i].x + z.dx, z.basis[i].y, z.basis[i].z + z.dz))
+    rendern()
+  }
+  const ziehHoch = (e: PointerEvent) => {
+    const z = zug
+    if (!z || e.pointerId !== z.pointerId) return
+    e.stopPropagation()
+    zug = null
+    if (host.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId)
+    renderer.domElement.style.cursor = ''
+    if (!z.bewegt) return
+    bewegungAn(false)
+    const dx = Math.round(z.dx * 100)
+    const dy = Math.round(z.dz * 100)
+    if ((dx !== 0 || dy !== 0) && ziehFn) {
+      ziehFn(z.id, dx, dy)
+    } else {
+      z.meshes.forEach((m, i) => m.position.copy(z.basis[i]))
+      rendern()
+    }
+  }
+  host.addEventListener('pointerdown', ziehRunter, { capture: true })
+  host.addEventListener('pointermove', ziehBewegen, { capture: true })
+  host.addEventListener('pointerup', ziehHoch, { capture: true })
+  host.addEventListener('pointercancel', ziehHoch, { capture: true })
+
   const controls = new OrbitControls(camera, renderer.domElement)
-  controls.enableDamping = false
+  // Weicher Nachlauf nach dem Loslassen: fuehlt sich fluessiger an.
+  controls.enableDamping = true
+  controls.dampingFactor = 0.14
+  controls.rotateSpeed = 0.8
+  controls.zoomToCursor = true
   controls.maxPolarAngle = Math.PI * 0.49
   controls.minDistance = 0.4
   controls.maxDistance = 80
@@ -117,6 +260,15 @@ export function motorStarten(host: HTMLElement): Motor | null {
   let koerperJetzt: Koerper[] = []
   let geplant = 0
   let weg = false
+  let bewegt = false
+
+  /** Waehrend der Bewegung mit weniger Bildpunkten rechnen. */
+  function bewegungAn(an: boolean) {
+    if (bewegt === an) return
+    bewegt = an
+    renderer.setPixelRatio(an ? ratioBewegt : ratioStand)
+    rendern()
+  }
 
   function waendePruefen() {
     const cx = camera.position.x
@@ -136,6 +288,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
     geplant = requestAnimationFrame(() => {
       geplant = 0
       if (weg) return
+      // Daempfung: solange die Kamera noch auslaeuft, meldet update()
+      // 'change', und das plant das naechste Bild.
+      controls.update()
       waendePruefen()
       renderer.render(scene, camera)
     })
@@ -154,14 +309,52 @@ export function motorStarten(host: HTMLElement): Motor | null {
   groesse()
 
   controls.addEventListener('change', rendern)
+  const anfang = () => {
+    window.clearTimeout(ruheUhr)
+    bewegungAn(true)
+  }
+  let ruheUhr = 0
+  const ende = () => {
+    // Nach dem Auslaufen wieder scharf.
+    window.clearTimeout(ruheUhr)
+    ruheUhr = window.setTimeout(() => bewegungAn(false), 400)
+  }
+  controls.addEventListener('start', anfang)
+  controls.addEventListener('end', ende)
   // Das Mausrad gehoert hier der Kamera, nicht der Seite oder dem Zeichner darunter.
   const radStopp = (e: WheelEvent) => e.stopPropagation()
   host.addEventListener('wheel', radStopp)
 
+  /* Gleiche Farbe und Deckkraft: ein Material fuer alle. Waende bekommen je
+   * ein eigenes, weil ihre Deckkraft einzeln wechselt. */
+  const flaechenMat = new Map<string, MeshLambertMaterial>()
+  const linienMat = new Map<string, LineBasicMaterial>()
+  function flaecheMaterial(farbe: string, deckkraft: number, durch: boolean): MeshLambertMaterial {
+    const key = `${farbe}|${deckkraft}|${durch}`
+    let m = flaechenMat.get(key)
+    if (!m) {
+      m = new MeshLambertMaterial({ color: new Color(farbe), transparent: durch, opacity: deckkraft, depthWrite: deckkraft >= 1 })
+      flaechenMat.set(key, m)
+    }
+    return m
+  }
+  function linieMaterial(farbe: string, deckkraft: number, durch: boolean): LineBasicMaterial {
+    const key = `${farbe}|${deckkraft}|${durch}`
+    let m = linienMat.get(key)
+    if (!m) {
+      m = new LineBasicMaterial({ color: new Color(farbe), transparent: durch, opacity: deckkraft })
+      linienMat.set(key, m)
+    }
+    return m
+  }
+
   function leeren() {
     const alt = [...gruppe.children]
     gruppe.clear()
+    // Geteilte Materialien werden dabei mehrfach freigegeben; das ist in three harmlos.
     for (const o of alt) wegwerfen(o, einheit, kanten)
+    flaechenMat.clear()
+    linienMat.clear()
     waende = []
   }
 
@@ -179,21 +372,28 @@ export function motorStarten(host: HTMLElement): Motor | null {
       }
       const wand = k.innen !== null
       const durch = k.deckkraft < 1 || wand
-      const mat = new MeshLambertMaterial({
-        color: new Color(k.farbe),
-        transparent: durch,
-        opacity: k.deckkraft,
-        depthWrite: k.deckkraft >= 1,
-      })
+      const mat = wand
+        ? new MeshLambertMaterial({
+            color: new Color(k.farbe),
+            transparent: durch,
+            opacity: k.deckkraft,
+            depthWrite: k.deckkraft >= 1,
+          })
+        : flaecheMaterial(k.farbe, k.deckkraft, durch)
       const mesh = new Mesh(einheit, mat)
+      if (k.id && (k.rolle === 'moebel' || k.rolle === 'regal' || k.rolle === 'brett')) mesh.userData = { objektId: k.id }
+      else if (k.id && k.rolle === 'kiste') mesh.userData = { kisteId: k.id }
       mesh.position.set(k.mitte[0], k.mitte[1], k.mitte[2])
       mesh.scale.set(k.masse[0], k.masse[1], k.masse[2])
       mesh.rotation.y = k.drehY
       let linien: LineSegments | null = null
       if (k.kante) {
+        const deck = k.hervor ? 1 : k.deckkraft
         linien = new LineSegments(
           kanten,
-          new LineBasicMaterial({ color: new Color(k.kante), transparent: durch, opacity: k.hervor ? 1 : k.deckkraft }),
+          wand
+            ? new LineBasicMaterial({ color: new Color(k.kante), transparent: durch, opacity: deck })
+            : linieMaterial(k.kante, deck, durch),
         )
         mesh.add(linien)
       }
@@ -250,9 +450,21 @@ export function motorStarten(host: HTMLElement): Motor | null {
       halb = an
       rendern()
     },
+    ziehen(fn, t) {
+      ziehFn = fn
+      traeger = t
+      if (!fn) renderer.domElement.style.cursor = ''
+    },
     dispose() {
       weg = true
       if (geplant) cancelAnimationFrame(geplant)
+      window.clearTimeout(ruheUhr)
+      host.removeEventListener('pointerdown', ziehRunter, { capture: true })
+      host.removeEventListener('pointermove', ziehBewegen, { capture: true })
+      host.removeEventListener('pointerup', ziehHoch, { capture: true })
+      host.removeEventListener('pointercancel', ziehHoch, { capture: true })
+      controls.removeEventListener('start', anfang)
+      controls.removeEventListener('end', ende)
       ro.disconnect()
       host.removeEventListener('wheel', radStopp)
       controls.removeEventListener('change', rendern)

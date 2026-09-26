@@ -1,7 +1,6 @@
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Box } from 'lucide-react'
-import { useZeichnen } from '../../lib/desktop'
 import { useSprache } from '../../lib/i18n'
 import { plan3dWoerter } from '../../lib/i18n/bausteine/plan3d'
 import { woerterNachladen } from '../../lib/i18n/woerter'
@@ -14,8 +13,7 @@ woerterNachladen(plan3dWoerter)
 
 /* Die Wege in die 3D-Ansicht, ohne three: diese Datei ist klein und darf in
  * Lageplan und Zeichner stecken. three selbst (Raum3D.tsx, motor.ts) laedt
- * erst per import(), wenn jemand am Computer "3D" oeffnet. Am Handy
- * (useZeichnen() falsch) gibt es keinen Knopf, also auch keine Anfrage.
+ * erst per import(), wenn jemand "3D" oeffnet, am Computer wie am Handy.
  *
  *  Knopf3D         Knopf "In 3D ansehen" plus grosses Fenster (Kistenseite, Suche)
  *  Ueberlagerung3D 3D ueber der Zeichenflaeche (Umschalter im Zeichner)
@@ -67,8 +65,8 @@ export function Ansicht3D(props: Props) {
   )
 }
 
-/** Knopf "In 3D ansehen" und das Fenster dazu. Nur am Computer (ab 1024 px
- *  und mit Maus), sonst nichts. */
+/** Knopf "In 3D ansehen" und das Fenster dazu, auf jedem Geraet. Am Handy
+ *  fuellt das Fenster den ganzen Bildschirm. */
 export function Knopf3D({
   daten,
   raumId,
@@ -81,9 +79,7 @@ export function Knopf3D({
   className?: string
 }) {
   const { t } = useSprache()
-  const zeichnen = useZeichnen()
   const [offen, setOffen] = useState(false)
-  if (!zeichnen) return null
   return (
     <>
       <Button variant="outline" className={className ?? 'w-full justify-center'} onClick={() => setOffen(true)}>
@@ -115,13 +111,14 @@ function Fenster3D({ titel, onClose, children }: { titel: string; onClose: () =>
   }, [onClose])
   // Portal an body: sonst liegt das Fenster in einer sticky-Spalte unter der Kopfzeile.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8">
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4 lg:p-8">
+      {/* Ohne Unschaerfe dahinter: die kostete bei jedem 3D-Bild Rechenzeit. */}
+      <div className="absolute inset-0 bg-black/55" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={titel}
-        className="relative flex h-full max-h-[900px] w-full max-w-[1400px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
+        className="relative flex h-full w-full flex-col overflow-hidden bg-surface shadow-2xl sm:max-h-[900px] sm:max-w-[1400px] sm:rounded-2xl sm:border sm:border-line"
       >
         {children}
       </div>

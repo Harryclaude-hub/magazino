@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, Eye, Layers, Map as KarteIcon, X } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
 import type { GrundrissDaten } from '../../lib/types'
@@ -10,8 +10,8 @@ import { baueSzene, FARB_TOKENS, hervorMitte, type Farben3D } from './szene'
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
  *
  * Eigener Code-Teil samt three: geladen nur ueber oeffnen.tsx mit
- * lazy(), nur wenn useZeichnen() gilt und jemand "3D" oeffnet. Das Handy
- * laedt nichts davon.
+ * lazy(), erst wenn jemand "3D" oeffnet. Am Handy dreht ein Finger, zwei
+ * Finger verschieben und zoomen (OrbitControls).
  *
  * Massstab 1 = 1 m. Boden, Waende in Raumhoehe (Wandfarbe je Kante,
  * sonst --plan-wand-3d, Kopf in --plan-wand), Tueren orange, Fenster
@@ -32,6 +32,9 @@ export interface Raum3DProps {
   hervor?: string | null
   /** Knopf "3D schliessen" in der Leiste. */
   onSchliessen?: () => void
+  /** Moebel, Regal oder Schrank wurde um dx, dy cm gezogen (nur im
+   *  Zeichner). Ohne diese Angabe laesst sich nichts ziehen. */
+  onObjektZiehen?: (id: string, dxCm: number, dyCm: number) => void
   className?: string
 }
 
@@ -44,7 +47,25 @@ function farbenLesen(): Farben3D {
   return out
 }
 
-export default function Raum3D({ daten, raumId = null, hervor = null, onSchliessen, className }: Raum3DProps) {
+/** Kiste -> Objekt, auf oder in dem ihr Stapel steht (ueber Kisten hinweg). */
+function traegerKarte(daten: GrundrissDaten): Map<string, string> {
+  const nachId = new Map(daten.kisten.map((k) => [k.id, k]))
+  const out = new Map<string, string>()
+  for (const k of daten.kisten) {
+    let jetzt = nachId.get(k.id)
+    for (let i = 0; jetzt && i < 50; i++) {
+      if ((jetzt.unterlage_art === 'objekt' || jetzt.unterlage_art === 'fach') && jetzt.unterlage_objekt_id) {
+        out.set(k.id, jetzt.unterlage_objekt_id)
+        break
+      }
+      if (jetzt.unterlage_art !== 'kiste' || !jetzt.unterlage_item_id) break
+      jetzt = nachId.get(jetzt.unterlage_item_id)
+    }
+  }
+  return out
+}
+
+export default function Raum3D({ daten, raumId = null, hervor = null, onSchliessen, onObjektZiehen, className }: Raum3DProps) {
   const { t } = useSprache()
   const host = useRef<HTMLDivElement>(null)
   const motor = useRef<Motor | null>(null)
@@ -92,6 +113,19 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
     motor.current?.waendeHalb(halb)
   }, [halb, geht])
 
+  // Der Rueckruf liegt in einer Ref, damit ein neuer Wert den Motor nicht neu anmeldet.
+  const ziehRueck = useRef(onObjektZiehen)
+  useLayoutEffect(() => {
+    ziehRueck.current = onObjektZiehen
+  })
+  const kannZiehen = Boolean(onObjektZiehen)
+  /** Bedienung mit Fingern (Handy, Tablet): anderer Hinweis. */
+  const beruehren = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
+  const traeger = useMemo(() => traegerKarte(daten), [daten])
+  useEffect(() => {
+    motor.current?.ziehen(kannZiehen ? (id, dx, dy) => ziehRueck.current?.(id, dx, dy) : null, traeger)
+  }, [kannZiehen, traeger, geht])
+
   const blick = (b: Blick) => motor.current?.blick(b)
 
   return (
@@ -117,7 +151,9 @@ export default function Raum3D({ daten, raumId = null, hervor = null, onSchliess
         >
           <Layers size={16} /> {t('plan3d.waende_halb')}
         </Button>
-        <p className="t-sub min-w-0 flex-1 truncate px-1">{geht === 'ja' ? t('plan3d.bedienung') : null}</p>
+        <p className="t-sub min-w-0 flex-1 truncate px-1">
+          {geht === 'ja' ? t(beruehren ? 'plan3d.bedienung_handy' : kannZiehen ? 'plan3d.bedienung_ziehen' : 'plan3d.bedienung') : null}
+        </p>
         {onSchliessen ? (
           <Button size="sm" variant="outline" onClick={onSchliessen}>
             <X size={16} /> {t('plan3d.schliessen')}
