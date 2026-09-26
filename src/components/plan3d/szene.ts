@@ -29,6 +29,7 @@ export interface Farben3D {
   kisteRand: string
   hervor: string
   strom: string
+  steckdose: string
 }
 
 /** Welches Token hinter welcher Farbe steht (src/index.css). */
@@ -46,6 +47,7 @@ export const FARB_TOKENS: Record<keyof Farben3D, string> = {
   kisteRand: '--plan-kiste-rand',
   hervor: '--plan-hervor',
   strom: '--plan-strom',
+  steckdose: '--plan-steckdose',
 }
 
 export type Rolle =
@@ -422,7 +424,7 @@ function symbole(daten: GrundrissDaten, raeume: Raum[], f: Farben3D): Koerper[] 
       out.push(quader('moebel', [m(s.x), m(r.hoehe_cm - 2), m(s.y)], [m(30), m(4), m(30)], f.strom))
     } else {
       const h = s.art === 'schalter' ? 105 : 30
-      out.push(quader('moebel', [m(s.x), m(h), m(s.y)], [m(9), m(9), m(9)], f.strom, { kante: f.objektRand }))
+      out.push(quader('moebel', [m(s.x), m(h), m(s.y)], [m(9), m(9), m(9)], s.art === 'steckdose' ? f.steckdose : f.strom, { kante: f.objektRand }))
     }
   }
   return out

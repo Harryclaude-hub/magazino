@@ -323,3 +323,13 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Versuch nichts verschiebt. Nachlauf kuerzer (Daempfung 0.28), Verschieben
   auf Bodenhoehe (screenSpacePanning aus), damit die Wohnung um einen Punkt
   am Boden dreht und nicht wegschwebt.
+- **E60 Steckdosen rot:** Eigenes Token `--plan-steckdose` (hell #dc2626,
+  dunkel #f87171) fuer Steckdosen in 2D und 3D. Licht und Schalter
+  bleiben in `--plan-strom`.
+- **E61 Groesserer Moebelkatalog mit Vorschau:** 18 neue Moebel (Sessel,
+  Couchtisch, Sideboard, runder Esstisch, Stuhl, Teppich, Stehlampe,
+  Pflanze, Klavier, Nachttisch, Kinderbett, Schreibtisch, Buerostuhl,
+  Schuhschrank, Garderobe, Gefrierschrank, Fahrrad), neu gegliedert in
+  Wohnen, Schlafen und Arbeiten, Bad, Kueche, Flur und mehr. Jeder
+  Eintrag zeigt links ein kleines Bild aus Umriss und Planzeichen
+  (`MoebelVorschau`), dasselbe Zeichen steht im Plan am Moebel.

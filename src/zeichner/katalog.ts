@@ -36,12 +36,37 @@ export const KATALOG: Vorlage[] = [
     ausschnitt_tiefe_cm: 70,
     ausschnitt_ecke: 'ro',
   }),
+  v({ schluessel: 'sessel', art: 'moebel', breite_cm: 80, tiefe_cm: 85, hoehe_cm: 90 }),
+  v({ schluessel: 'couchtisch', art: 'moebel', breite_cm: 110, tiefe_cm: 60, hoehe_cm: 45 }),
+  v({ schluessel: 'fernseher', art: 'moebel', breite_cm: 160, tiefe_cm: 40, hoehe_cm: 50 }),
+  v({ schluessel: 'sideboard', art: 'moebel', breite_cm: 180, tiefe_cm: 45, hoehe_cm: 80 }),
+  v({ schluessel: 'kommode', art: 'moebel', breite_cm: 100, tiefe_cm: 45, hoehe_cm: 80 }),
+  v({ schluessel: 'tisch', art: 'moebel', breite_cm: 160, tiefe_cm: 90, hoehe_cm: 75 }),
+  v({ schluessel: 'esstisch_rund', art: 'moebel', breite_cm: 110, tiefe_cm: 110, hoehe_cm: 75 }),
+  v({ schluessel: 'stuhl', art: 'moebel', breite_cm: 45, tiefe_cm: 50, hoehe_cm: 90 }),
+  v({ schluessel: 'teppich', art: 'moebel', breite_cm: 200, tiefe_cm: 140, hoehe_cm: 1 }),
+  v({ schluessel: 'stehlampe', art: 'moebel', breite_cm: 35, tiefe_cm: 35, hoehe_cm: 170 }),
+  v({ schluessel: 'pflanze', art: 'moebel', breite_cm: 45, tiefe_cm: 45, hoehe_cm: 120 }),
+  v({ schluessel: 'klavier', art: 'moebel', breite_cm: 150, tiefe_cm: 60, hoehe_cm: 125 }),
+]
+
+/** Schlafen und Arbeiten. */
+export const KATALOG_SCHLAFEN: Vorlage[] = [
   v({ schluessel: 'bett_90', art: 'moebel', breite_cm: 90, tiefe_cm: 200, hoehe_cm: 45 }),
   v({ schluessel: 'bett_140', art: 'moebel', breite_cm: 140, tiefe_cm: 200, hoehe_cm: 45 }),
   v({ schluessel: 'bett_180', art: 'moebel', breite_cm: 180, tiefe_cm: 200, hoehe_cm: 45 }),
-  v({ schluessel: 'tisch', art: 'moebel', breite_cm: 160, tiefe_cm: 90, hoehe_cm: 75 }),
-  v({ schluessel: 'kommode', art: 'moebel', breite_cm: 100, tiefe_cm: 45, hoehe_cm: 80 }),
-  v({ schluessel: 'fernseher', art: 'moebel', breite_cm: 160, tiefe_cm: 40, hoehe_cm: 50 }),
+  v({ schluessel: 'nachttisch', art: 'moebel', breite_cm: 45, tiefe_cm: 40, hoehe_cm: 55 }),
+  v({ schluessel: 'kinderbett', art: 'moebel', breite_cm: 70, tiefe_cm: 140, hoehe_cm: 90 }),
+  v({ schluessel: 'schreibtisch', art: 'moebel', breite_cm: 140, tiefe_cm: 70, hoehe_cm: 75 }),
+  v({ schluessel: 'buerostuhl', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 110 }),
+]
+
+/** Flur, Abstellraum und Sonstiges. */
+export const KATALOG_SONST: Vorlage[] = [
+  v({ schluessel: 'schuhschrank', art: 'moebel', breite_cm: 80, tiefe_cm: 35, hoehe_cm: 100 }),
+  v({ schluessel: 'garderobe', art: 'moebel', breite_cm: 100, tiefe_cm: 35, hoehe_cm: 180 }),
+  v({ schluessel: 'gefrierschrank', art: 'moebel', breite_cm: 60, tiefe_cm: 65, hoehe_cm: 145 }),
+  v({ schluessel: 'fahrrad', art: 'moebel', breite_cm: 180, tiefe_cm: 60, hoehe_cm: 100 }),
 ]
 
 /** Bad und WC: Sanitaer in ueblichen Groessen. */

@@ -528,9 +528,10 @@ const SymbolEbene = memo(function SymbolEbene({ symbole, massstab }: { symbole: 
             </g>
           )
         }
+        // Steckdosen rot, damit man sie sofort findet.
         const l = r * 0.35
         return (
-          <g key={s.id}>
+          <g key={s.id} style={{ stroke: 'var(--plan-steckdose)' }}>
             <circle cx={s.x} cy={s.y} r={r} style={{ fill: 'var(--plan-boden)' }} />
             <line x1={s.x - l} y1={s.y - l} x2={s.x - l} y2={s.y + l} />
             <line x1={s.x + l} y1={s.y - l} x2={s.x + l} y2={s.y + l} />

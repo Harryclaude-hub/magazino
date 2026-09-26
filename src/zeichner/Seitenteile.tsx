@@ -9,7 +9,8 @@ import type { EigeneGroesse, Item, SymbolArt } from '../lib/types'
 import { cx } from '../lib/util'
 import { MassFeld } from './Eigenschaften'
 import { FaecherEditor } from './FaecherEditor'
-import { ausEigenerGroesse, KATALOG, KATALOG_BAD, KATALOG_KUECHE } from './katalog'
+import { ausEigenerGroesse, KATALOG, KATALOG_BAD, KATALOG_KUECHE, KATALOG_SCHLAFEN, KATALOG_SONST } from './katalog'
+import { MoebelVorschau } from '../components/plan/moebelSymbol'
 import { SYMBOL_ARTEN } from './werkzeuge/strom'
 import type { Dok, Vorlage } from './dok'
 import type { KisteInHand, WerkzeugName } from './werkzeuge/typen'
@@ -174,7 +175,8 @@ export function MoebelKatalog({
         wahl?.schluessel === v.schluessel ? 'border-ink bg-ink text-paper' : 'border-line bg-surface hover:border-ink/35',
       )}
     >
-      <span className="min-w-0 truncate font-bold">{name}</span>
+      <MoebelVorschau v={v} name={name} />
+      <span className="min-w-0 flex-1 truncate font-bold">{name}</span>
       <span className="t-serial shrink-0 text-sm opacity-80">
         {v.breite_cm} x {v.tiefe_cm}
       </span>
@@ -188,12 +190,20 @@ export function MoebelKatalog({
         <div className="space-y-1.5">{KATALOG.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
       </div>
       <div>
+        <Kopf titel={t('zeichner.katalog.schlafen_titel')} />
+        <div className="space-y-1.5">{KATALOG_SCHLAFEN.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
+      </div>
+      <div>
         <Kopf titel={t('zeichner.katalog.bad_titel')} />
         <div className="space-y-1.5">{KATALOG_BAD.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
       </div>
       <div>
         <Kopf titel={t('zeichner.katalog.kueche_titel')} hilfe={t('zeichner.katalog.kueche_hilfe')} />
         <div className="space-y-1.5">{KATALOG_KUECHE.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
+      </div>
+      <div>
+        <Kopf titel={t('zeichner.katalog.sonst_titel')} />
+        <div className="space-y-1.5">{KATALOG_SONST.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
       </div>
       <div>
         <Kopf titel={t('zeichner.katalog.eigene')} />

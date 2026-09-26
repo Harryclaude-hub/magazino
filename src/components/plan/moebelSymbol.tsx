@@ -1,5 +1,6 @@
 import { objektGlobal, type Punkt } from '../../lib/geometrie'
 import type { Objekt } from '../../lib/types'
+import { objektUmriss } from './hilfe'
 
 /* Ein eigenes Zeichen je Moebelart im Plan (WC, Waschbecken, Kuehlschrank,
  * Herd, Bett ...), damit man ohne Anklicken sieht, was wo steht. Die Art
@@ -25,10 +26,44 @@ export type MoebelArt =
   | 'fernseher'
   | 'kommode'
   | 'tisch'
+  | 'sessel'
+  | 'couchtisch'
+  | 'sideboard'
+  | 'esstisch_rund'
+  | 'buerostuhl'
+  | 'stuhl'
+  | 'teppich'
+  | 'stehlampe'
+  | 'pflanze'
+  | 'klavier'
+  | 'nachttisch'
+  | 'kinderbett'
+  | 'schreibtisch'
+  | 'schuhschrank'
+  | 'garderobe'
+  | 'gefrierschrank'
+  | 'fahrrad'
 
 /** Reihenfolge zaehlt: das Genauere zuerst (Geschirrspueler vor Spuele,
- *  Waschtisch vor Tisch, Spuelmaschine vor Waschmaschine). */
+ *  Waschtisch vor Tisch, Couchtisch vor Couch, Buerostuhl vor Stuhl,
+ *  Kinderbett und Nachttisch vor Bett). */
 const WOERTER: [MoebelArt, string[]][] = [
+  ['couchtisch', ['couchtisch', 'wohnzimmertisch', 'طاولة قهوة']],
+  ['nachttisch', ['nachttisch', 'nachtkästchen', 'nachtkaestchen', 'طاولة جانبية']],
+  ['schreibtisch', ['schreibtisch', 'طاولة مكتب']],
+  ['esstisch_rund', ['runder', 'مستديرة']],
+  ['buerostuhl', ['bürostuhl', 'buerostuhl', 'drehstuhl', 'كرسي مكتب']],
+  ['sessel', ['sessel', 'كرسي بذراعين']],
+  ['kinderbett', ['kinderbett', 'babybett', 'سرير أطفال']],
+  ['gefrierschrank', ['gefrierschrank', 'gefriertruhe', 'tiefkühl', 'مجمد']],
+  ['schuhschrank', ['schuhschrank', 'schuhregal', 'خزانة أحذية']],
+  ['garderobe', ['garderobe', 'علاقة ملابس']],
+  ['sideboard', ['sideboard', 'anrichte', 'خزانة جانبية']],
+  ['stehlampe', ['stehlampe', 'lampe', 'مصباح']],
+  ['pflanze', ['pflanze', 'blume', 'نبتة']],
+  ['teppich', ['teppich', 'سجادة']],
+  ['klavier', ['klavier', 'piano', 'بيانو']],
+  ['fahrrad', ['fahrrad', 'دراجة']],
   ['geschirrspueler', ['geschirrspüler', 'geschirrspueler', 'spülmaschine', 'spuelmaschine', 'غسالة صحون']],
   ['wc', ['wc', 'toilette', 'klo', 'مرحاض']],
   ['waschbecken', ['waschbecken', 'waschtisch', 'مغسلة']],
@@ -45,6 +80,7 @@ const WOERTER: [MoebelArt, string[]][] = [
   ['fernseher', ['fernseher', 'tv', 'تلفاز']],
   ['kommode', ['kommode', 'خزانة أدراج']],
   ['tisch', ['tisch', 'طاولة']],
+  ['stuhl', ['stuhl', 'كرسي']],
 ]
 
 export function moebelArt(name: string): MoebelArt | null {
@@ -182,7 +218,136 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
       return [{ art: 'linie', a: [B / 3, T * 0.1], b: [B / 3, T * 0.9] }, { art: 'linie', a: [(2 * B) / 3, T * 0.1], b: [(2 * B) / 3, T * 0.9] }]
     case 'tisch':
       return [rechteck(B * 0.1, T * 0.12, B * 0.9, T * 0.88)]
+    case 'sessel':
+      return [rechteck(0, 0, B, T * 0.25), rechteck(0, T * 0.25, B * 0.18, T), rechteck(B * 0.82, T * 0.25, B, T)]
+    case 'couchtisch':
+      return [rechteck(B * 0.12, T * 0.15, B * 0.88, T * 0.85), { art: 'linie', a: [B * 0.12, T * 0.5], b: [B * 0.88, T * 0.5] }]
+    case 'sideboard':
+      return [0.25, 0.5, 0.75].map((f): Form => ({ art: 'linie', a: [B * f, T * 0.1], b: [B * f, T * 0.9] }))
+    case 'esstisch_rund':
+      return [ellipse(B / 2, T / 2, B * 0.4, T * 0.4)]
+    case 'stuhl':
+      return [rechteck(B * 0.12, T * 0.25, B * 0.88, T * 0.95), { art: 'linie', a: [B * 0.1, T * 0.1], b: [B * 0.9, T * 0.1] }]
+    case 'buerostuhl':
+      return [
+        { art: 'kreis', m: [B / 2, T * 0.55], r: k * 0.32 },
+        { art: 'zug', p: [[B * 0.15, T * 0.25], [B * 0.5, T * 0.08], [B * 0.85, T * 0.25]], zu: false },
+      ]
+    case 'teppich': {
+      const r = Math.min(8, k * 0.08)
+      const fransen = [0.2, 0.4, 0.6, 0.8].flatMap((f): Form[] => [
+        { art: 'linie', a: [0, T * f], b: [r, T * f] },
+        { art: 'linie', a: [B - r, T * f], b: [B, T * f] },
+      ])
+      return [rechteck(r, r, B - r, T - r), ...fransen]
+    }
+    case 'stehlampe': {
+      const d = k * 0.25
+      return [
+        { art: 'kreis', m: [B / 2, T / 2], r: k * 0.38 },
+        { art: 'linie', a: [B / 2 - d, T / 2 - d], b: [B / 2 + d, T / 2 + d] },
+        { art: 'linie', a: [B / 2 - d, T / 2 + d], b: [B / 2 + d, T / 2 - d] },
+      ]
+    }
+    case 'pflanze':
+      return [
+        { art: 'kreis', m: [B / 2, T / 2], r: k * 0.42 },
+        { art: 'kreis', m: [B * 0.4, T * 0.42], r: k * 0.14 },
+        { art: 'kreis', m: [B * 0.62, T * 0.45], r: k * 0.12 },
+        { art: 'kreis', m: [B * 0.5, T * 0.64], r: k * 0.13 },
+      ]
+    case 'klavier': {
+      const tasten: Form[] = []
+      for (let i = 1; i < 12; i++) tasten.push({ art: 'linie', a: [(B * i) / 12, T * 0.62], b: [(B * i) / 12, T * 0.95] })
+      return [rechteck(B * 0.02, T * 0.62, B * 0.98, T * 0.95), ...tasten]
+    }
+    case 'nachttisch':
+      return [rechteck(B * 0.12, T * 0.12, B * 0.88, T * 0.88), { art: 'kreis', m: [B / 2, T / 2], r: k * 0.18 }]
+    case 'kinderbett': {
+      const staebe: Form[] = []
+      for (let i = 1; i < 6; i++) {
+        staebe.push({ art: 'linie', a: [(B * i) / 6, 0], b: [(B * i) / 6, T * 0.06] })
+        staebe.push({ art: 'linie', a: [(B * i) / 6, T * 0.94], b: [(B * i) / 6, T] })
+      }
+      return [rechteck(B * 0.08, T * 0.06, B * 0.92, T * 0.94), rechteck(B * 0.2, T * 0.1, B * 0.8, T * 0.22), ...staebe]
+    }
+    case 'schreibtisch':
+      return [rechteck(B * 0.3, T * 0.08, B * 0.7, T * 0.18), rechteck(B * 0.35, T * 0.45, B * 0.65, T * 0.65)]
+    case 'schuhschrank':
+      return [
+        { art: 'linie', a: [B * 0.05, T * 0.35], b: [B * 0.95, T * 0.35] },
+        { art: 'linie', a: [B * 0.05, T * 0.7], b: [B * 0.95, T * 0.7] },
+        { art: 'linie', a: [B / 2, T * 0.1], b: [B / 2, T * 0.9] },
+      ]
+    case 'garderobe': {
+      const haken = [0.2, 0.4, 0.6, 0.8].map((f): Form => ({ art: 'kreis', m: [B * f, T * 0.35], r: k * 0.08 }))
+      return [{ art: 'linie', a: [B * 0.05, T * 0.15], b: [B * 0.95, T * 0.15] }, ...haken]
+    }
+    case 'gefrierschrank': {
+      const mx = B / 2
+      const my = T * 0.45
+      const d = k * 0.25
+      return [
+        rechteck(B * 0.1, T * 0.08, B * 0.9, T * 0.85),
+        { art: 'linie', a: [mx - d, my], b: [mx + d, my] },
+        { art: 'linie', a: [mx, my - d], b: [mx, my + d] },
+        { art: 'linie', a: [mx - d * 0.7, my - d * 0.7], b: [mx + d * 0.7, my + d * 0.7] },
+        { art: 'linie', a: [mx - d * 0.7, my + d * 0.7], b: [mx + d * 0.7, my - d * 0.7] },
+      ]
+    }
+    case 'fahrrad': {
+      const r = Math.min(T * 0.4, B * 0.18)
+      return [
+        { art: 'kreis', m: [r + 2, T / 2], r },
+        { art: 'kreis', m: [B - r - 2, T / 2], r },
+        { art: 'zug', p: [[r + 2, T / 2], [B / 2, T * 0.2], [B - r - 2, T / 2]], zu: false },
+      ]
+    }
   }
+}
+
+/** Kleines Vorschaubild fuer die Auswahl im Katalog: Umriss und Zeichen
+ *  des Moebels, in ein Kaestchen eingepasst. Regale zeigen Faecher,
+ *  Schraenke eine Kleiderstange. */
+export function MoebelVorschau({
+  v,
+  name,
+  groesse = 34,
+}: {
+  v: Pick<Objekt, 'art' | 'breite_cm' | 'tiefe_cm' | 'hoehe_cm' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke' | 'brett_cm' | 'spalten'>
+  name: string
+  groesse?: number
+}) {
+  const B = v.breite_cm
+  const T = v.tiefe_cm
+  const m = Math.max(B, T)
+  const rand = m * 0.06
+  const umriss = objektUmriss({ ...v, x: 0, y: 0, drehung: 0 })
+  const art = v.art === 'moebel' ? moebelArt(name) : null
+  const formen: Form[] = art
+    ? moebelFormen(art, v)
+    : v.art === 'regal'
+      ? [0.33, 0.66].map((f): Form => ({ art: 'linie', a: [B * f, 0], b: [B * f, T] }))
+      : v.art === 'schrank'
+        ? [{ art: 'linie', a: [B * 0.05, T / 2], b: [B * 0.95, T / 2] }]
+        : []
+  return (
+    <svg width={groesse} height={groesse} viewBox={`${-rand} ${-rand} ${m + 2 * rand} ${m + 2 * rand}`} className="shrink-0" aria-hidden="true">
+      <g transform={`translate(${(m - B) / 2} ${(m - T) / 2})`} fill="none" stroke="currentColor" strokeWidth={1.3}>
+        <polygon points={umriss.map((p) => p.join(',')).join(' ')} vectorEffect="non-scaling-stroke" />
+        {formen.map((f, i) => {
+          if (f.art === 'kreis') return <circle key={i} cx={f.m[0]} cy={f.m[1]} r={f.r} vectorEffect="non-scaling-stroke" />
+          if (f.art === 'linie') return <line key={i} x1={f.a[0]} y1={f.a[1]} x2={f.b[0]} y2={f.b[1]} vectorEffect="non-scaling-stroke" />
+          const pts = f.p.map((p) => p.join(',')).join(' ')
+          return f.zu ? (
+            <polygon key={i} points={pts} vectorEffect="non-scaling-stroke" />
+          ) : (
+            <polyline key={i} points={pts} vectorEffect="non-scaling-stroke" />
+          )
+        })}
+      </g>
+    </svg>
+  )
 }
 
 /** Das Zeichen eines Moebels im Plan, oder nichts. */
