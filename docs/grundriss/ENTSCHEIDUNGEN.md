@@ -437,3 +437,16 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   eine Kiste; rechts stehen seine Eigenschaften, in 3D leuchtet es auf.
   Neue Moebelarten: Sitzbank mit Stauraum (Kasten mit Klappen, Sitz- und
   Rueckenpolster) und Haengelampe (Kabel, runder Schirm).
+- **E72 Zweite Einrichtungsrunde (Daten):** Karams eigenes Bett (ohne
+  Link) links an der Fensterwand, Kopf zu einem guten Drittel vor dem
+  Fenster, Fussende zur Tuer; Schreibtisch an die rechte Wand. Eltern:
+  eigenes Queen-Bett (160x200, hohes Kopfteil) mit dem Kopf an der
+  linken Wand, damit das Fenster frei bleibt; PAX 75 mit Schubladen links
+  und PAX 100 rechts der Tuer; Kommode unter der Fensterbank. Bad:
+  Waschmaschine und Trockner nebeneinander neben der Wanne auf zwei
+  ENHET-Sockeln mit Auszug (Stauraum fuer Handtuecher, Waschmittel).
+  Abstellraum bis zur Decke: zweite Reihe EKET, BILLY-Aufsaetze, drittes
+  BILLY an der rechten Wand, LACK-Brett ueber der Tuer. Essplatz:
+  Sitzbank aus BESTA mit KUDDARNA-Polstern unter dem Fenster, STOCKHOLM
+  2025 Tisch 230x90 in Eiche, 4 STOCKHOLM-Stuehle (Eiche/Rattan), zwei
+  SINNERLIG-Haengeleuchten. Namen hoechstens 60 Zeichen (DB-Regel).
