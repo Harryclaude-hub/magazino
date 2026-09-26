@@ -132,7 +132,7 @@ export function KistenTabelle({
               {kopf('zimmer', t('begriff.zimmer'))}
               {kopf('groesse', t('begriff.groesse'))}
               {kopf('status', t('begriff.status'))}
-              {kopf('fuellstand', t('fuellstand.titel'))}
+              {kopf('fuellstand', t('fuellstand.spalte'))}
               {kopf('platz', t('kisten.spalte_platz'), 'pe-3')}
             </tr>
           </thead>
@@ -181,7 +181,7 @@ export function KistenTabelle({
                         >
                           <CodeChip code={item.code} size="md" />
                         </button>
-                        <span className="mt-1 flex max-w-[11rem] items-center gap-1.5 truncate text-[0.9375rem] font-semibold 2xl:max-w-[20rem]">
+                        <span className="mt-1 flex max-w-[9rem] items-center gap-1.5 truncate text-[0.9375rem] font-semibold xl:max-w-[11rem] 2xl:max-w-[20rem]">
                           {item.mark_symbol ? <MarkIcon symbol={item.mark_symbol} size={14} /> : null}
                           <span className="truncate">{item.title || t(`art.${item.kind}`)}</span>
                           {item.fragile ? (
@@ -193,18 +193,18 @@ export function KistenTabelle({
                       </span>
                     </span>
                   </td>
-                  <td className="px-2 align-middle">
+                  <td className="px-1.5 align-middle">
                     <span className="flex flex-col items-start gap-1">
                       {room ? <TagTile tag={room} icon={<DoorOpen size={14} />} /> : null}
                       {person ? <TagTile tag={person} icon={<User size={14} />} /> : null}
                       {!room && !person ? <span className="t-sub">{t('kisten.ohne_zimmer')}</span> : null}
                     </span>
                   </td>
-                  <td className="px-2 align-middle">
+                  <td className="px-1.5 align-middle">
                     <span className="t-serial block text-xl leading-none">{item.size}</span>
-                    <span className="t-sub mt-1 block whitespace-nowrap text-sm">{t(`groesse.${item.size}`)}</span>
+                    <span className="t-sub mt-1 hidden whitespace-nowrap text-sm 2xl:block">{t(`groesse.${item.size}`)}</span>
                   </td>
-                  <td className="px-2 align-middle">
+                  <td className="px-1.5 align-middle">
                     <StatusPill
                       status={item.status}
                       size="sm"
@@ -217,8 +217,15 @@ export function KistenTabelle({
                       }
                     />
                   </td>
-                  <td className="px-2 align-middle">
-                    <FuellBalken wert={item.fuellstand} groesse="klein" className="whitespace-nowrap" />
+                  <td className="px-1.5 align-middle">
+                    {item.fuellstand != null ? (
+                      <FuellBalken wert={item.fuellstand} groesse="klein" className="whitespace-nowrap" />
+                    ) : (
+                      <span className="t-sub" title={t('fuellstand.nicht_angegeben')}>
+                        <span aria-hidden="true">–</span>
+                        <span className="sr-only">{t('fuellstand.nicht_angegeben')}</span>
+                      </span>
+                    )}
                   </td>
                   <td className="px-2 pe-3 align-middle">
                     {platz ? (

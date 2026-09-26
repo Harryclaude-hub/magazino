@@ -1,6 +1,6 @@
 # Grundriss-Umbau: Stand
 
-Stand: 26.09.2026, alle Etappen gebaut.
+Stand: 26.09.2026, alle Etappen gebaut, dazu Ueberstand im Regal, Fuellstand und freies Verschieben im Grundriss (0033 angewandt).
 
 ## Fertig und live (Zweig `main`)
 

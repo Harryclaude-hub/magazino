@@ -127,6 +127,8 @@ export const gemeinsam: Woerterbuch = {
 
   // -------------------------------------------------------------- Fuellstand
   'fuellstand.titel': { de: 'Füllstand', ar: 'مستوى الامتلاء' },
+  // Kurz fuer die Spalte der Kistentabelle, damit alle Spalten passen.
+  'fuellstand.spalte': { de: 'Voll', ar: 'الامتلاء' },
   'fuellstand.frage': { de: 'Wie voll ist es?', ar: 'ما مدى امتلائه؟' },
   'fuellstand.prozent': { de: '{n} %', ar: '{n}٪' },
   'fuellstand.aria': { de: 'Füllstand {n} Prozent', ar: 'مستوى الامتلاء {n} بالمئة' },

@@ -136,3 +136,25 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Rand (Gelb und Gruen als Schrift erreichten 4,5:1 nicht).
 - **E33 Kistenliste am Computer:** sortiert wird im Browser ueber die schon
   geladenen Kisten; ein Hinweis sagt es, wenn noch nicht alle geladen sind.
+
+## Nachtrag 26.09.2026 (Karams Wuensche nach dem Umbau)
+
+- **E34 Ueberstand im Regal:** Eine Kiste im Fach darf in der Tiefe
+  hoechstens 40 cm ueber das Regal oder den Schrank hinausragen (je Seite,
+  der groessere Wert zaehlt), ihr Mittelpunkt bleibt ueber dem Fach. Der
+  Ueberstand wird abgeleitet, nie gespeichert, und steht im Lagesatz
+  ("ragt 25 cm heraus"), in der Vorderansicht (gestrichelter Rand) und in
+  Draufsicht und 3D in echter Groesse. Mehr als 40 cm lehnt die Datenbank
+  ab (`ueberstand_zu_gross`). Gilt nur fuer Kisten direkt im Fach
+  (Migration 0033).
+- **E35 Fuellstand:** `items.fuellstand` 0 bis 100 % oder leer (nicht
+  angegeben), fuer Kisten, Taschen und Moebel. Eingabe auf Kisten- und
+  Moebelseite (Knoepfe 0/25/50/75/100, Regler in 5er-Schritten, speichert
+  beim Loslassen). Anzeige als Balken von Gruen bis Rot, die Zahl steht in
+  Tinte daneben; im Plan nur ein kleiner Balken, damit "voll" nicht mit der
+  roten Markierung "hier ist es" verwechselt wird.
+- **E36 Grundriss frei bewegen:** Das Raster fuellt immer die ganze
+  Flaeche; Verschieben mit Ziehen auf leerer Flaeche, Trackpad, Pfeiltasten,
+  Leertaste oder mittlerer Taste, ohne Grenzen; beim Oeffnen und mit Taste 0
+  eingepasst. Am Handy ein Finger verschiebt, zwei zoomen, ein Tipp bleibt
+  ein Tipp (Schwelle 6 px).
