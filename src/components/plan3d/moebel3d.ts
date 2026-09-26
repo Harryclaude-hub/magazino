@@ -44,7 +44,15 @@ export interface Teil {
   deckkraft?: number
   /** Eigener Glanz (Metall, Keramik, Kochfeld); sonst der des Materials. */
   glanz?: number
+  /** Laesst sich oeffnen (E68). Beschrieben relativ zur langen und kurzen
+   *  Seite des Teils, damit Spiegeln und Achsentausch es nicht aendern:
+   *  Tuer: Angel am Anfang ('min') oder Ende ('max') der langen Seite,
+   *  oeffnet nach auf (+1/-1 entlang der kurzen Seite). Schublade: faehrt
+   *  weit cm nach auf; alle Teile derselben gruppe fahren mit. */
+  front?: Front
 }
+
+export type Front = { art: 'tuer'; angel: 'min' | 'max'; auf: 1 | -1 } | { art: 'schub'; auf: 1 | -1; weit: number; gruppe: number }
 
 /** Farbe heller (faktor > 1) oder dunkler (< 1). */
 export function ton(hex: string, faktor: number): string {
@@ -71,13 +79,46 @@ function spiegler(o: O) {
   const e = o.ausschnitt_ecke ?? 'ro'
   const sx = e === 'lo' || e === 'lu'
   const sy = e === 'ru' || e === 'lu'
-  return (t: Teil): Teil => ({
-    ...t,
-    x0: sx ? B - t.x1 : t.x0,
-    x1: sx ? B - t.x0 : t.x1,
-    y0: sy ? T - t.y1 : t.y0,
-    y1: sy ? T - t.y0 : t.y1,
-  })
+  return (t: Teil): Teil => {
+    let front = t.front
+    if (front) {
+      // Lange Seite entlang x: sx dreht die Angel, sy die Richtung; sonst umgekehrt.
+      const breitX = t.x1 - t.x0 >= t.y1 - t.y0
+      const lang = breitX ? sx : sy
+      const kurz = breitX ? sy : sx
+      const auf = (kurz ? -front.auf : front.auf) as 1 | -1
+      front = front.art === 'tuer' ? { ...front, auf, angel: lang ? (front.angel === 'min' ? 'max' : 'min') : front.angel } : { ...front, auf }
+    }
+    return {
+      ...t,
+      x0: sx ? B - t.x1 : t.x0,
+      x1: sx ? B - t.x0 : t.x1,
+      y0: sy ? T - t.y1 : t.y0,
+      y1: sy ? T - t.y0 : t.y1,
+      front,
+    }
+  }
+}
+
+/** Fortlaufende Nummer der Schubladen in einem Moebel. */
+let schubNr = 0
+
+/** Tuer als Teil: Angel links (min) oder rechts (max), oeffnet nach auf. */
+function tuer(x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, farbe: string, angel: 'min' | 'max', auf: 1 | -1): Teil {
+  return { ...t(x0, y0, x1, y1, z0, z1, farbe), front: { art: 'tuer', angel, auf } }
+}
+
+/** Schublade: Front und Schubkasten dahinter, beide fahren um weit heraus.
+ *  Front bei y0..y1 (duenn), Kasten reicht tief in den Korpus. */
+function schublade(x0: number, x1: number, frontY0: number, frontY1: number, z0: number, z1: number, tief: number, auf: 1 | -1, front: string, kasten: string): Teil[] {
+  const gruppe = ++schubNr
+  const f: Front = { art: 'schub', auf, weit: tief * 0.8, gruppe }
+  const k0 = auf > 0 ? frontY0 - tief + 2 : frontY1
+  const k1 = auf > 0 ? frontY0 : frontY1 + tief - 2
+  return [
+    { ...t(x0, frontY0, x1, frontY1, z0, z1, front), front: f },
+    { ...t(x0 + 2, k0, x1 - 2, k1, z0 + 2, z1 - 4, kasten), front: f },
+  ]
 }
 
 const t = (x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, farbe: string, deckkraft?: number): Teil => ({
@@ -190,9 +231,15 @@ function kasten(B: number, T: number, H: number, korpus: string, reihen: number,
   const out: Teil[] = [t(3, 0, B - 3, T - 3, 0, sockel, f.holzDunkel), t(0, 0, B, T - 1, sockel, H, korpus)]
   const hoch = (H - sockel - 2) / reihen
   const breit = (B - 2) / spalten
+  const front = ton(korpus, 1.04)
   for (let r = 0; r < reihen; r++) {
     for (let s = 0; s < spalten; s++) {
-      out.push(t(1 + s * breit + 0.4, T - 1, 1 + (s + 1) * breit - 0.4, T, sockel + 1 + r * hoch + 0.4, sockel + 1 + (r + 1) * hoch - 0.4, ton(korpus, 1.04)))
+      const x0 = 1 + s * breit + 0.4
+      const x1 = 1 + (s + 1) * breit - 0.4
+      const z0 = sockel + 1 + r * hoch + 0.4
+      const z1 = sockel + 1 + (r + 1) * hoch - 0.4
+      if (reihen > 1) out.push(...schublade(x0, x1, T - 1, T, z0, z1, T - 4, 1, front, ton(korpus, 0.9)))
+      else out.push(tuer(x0, T - 1, x1, T, z0, z1, front, s % 2 === 0 ? 'min' : 'max', 1))
     }
   }
   return out
@@ -201,8 +248,19 @@ function kasten(B: number, T: number, H: number, korpus: string, reihen: number,
 /** Eine gerade Kuechenzeile von x0 bis x1, Wand bei y = wandY, Front zur
  *  anderen Seite. Mit Sockel, Fronten (Fugen alle 60 cm), Arbeitsplatte,
  *  Rueckwand und Oberschraenken bis unter die Decke. */
-function zeile(x0: number, x1: number, y0: number, y1: number, wandBeiY0: boolean, H: number, decke: number, f: MoebelFarben): Teil[] {
+function zeile(
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+  wandBeiY0: boolean,
+  H: number,
+  decke: number,
+  f: MoebelFarben,
+  kochfeldX: [number, number] | null = null,
+): Teil[] {
   const out: Teil[] = []
+  const auf: 1 | -1 = wandBeiY0 ? 1 : -1
   const tief = y1 - y0
   const frontY0 = wandBeiY0 ? y1 - 1 : y0
   const frontY1 = wandBeiY0 ? y1 : y0 + 1
@@ -212,8 +270,19 @@ function zeile(x0: number, x1: number, y0: number, y1: number, wandBeiY0: boolea
   out.push(t(x0, wandBeiY0 ? y0 : y0 + 1, x1, wandBeiY0 ? y1 - 1 : y1, 10, H - 4, ton(f.front, 0.95)))
   const n = Math.max(1, Math.round((x1 - x0) / 60))
   const w = (x1 - x0) / n
-  for (let i = 0; i < n; i++) out.push(t(x0 + i * w + 0.3, frontY0, x0 + (i + 1) * w - 0.3, frontY1, 10.5, H - 4.5, f.front))
-  out.push(t(x0, y0, x1, y1, H - 4, H, f.platte))
+  for (let i = 0; i < n; i++) {
+    const a = x0 + i * w + 0.3
+    const b = x0 + (i + 1) * w - 0.3
+    const mitte = (a + b) / 2
+    if (kochfeldX && mitte > kochfeldX[0] && mitte < kochfeldX[1]) {
+      // Unter dem Kochfeld drei Schubladen (unten hoch, oben flach), wie bei IKEA.
+      const h = H - 4.5 - 10.5
+      const stufen = [10.5, 10.5 + h * 0.42, 10.5 + h * 0.74, H - 4.5]
+      for (let k = 0; k < 3; k++) out.push(...schublade(a, b, frontY0, frontY1, stufen[k] + 0.3, stufen[k + 1] - 0.3, tief - 6, auf, f.front, ton(f.front, 0.85)))
+    } else out.push(tuer(a, frontY0, b, frontY1, 10.5, H - 4.5, f.front, i % 2 === 0 ? 'min' : 'max', auf))
+  }
+  // Arbeitsplatte mit 2 cm Ueberstand vorne.
+  out.push(t(x0, wandBeiY0 ? y0 : y0 - 2, x1, wandBeiY0 ? y1 + 2 : y1, H - 4, H, f.platte))
   // Rueckwand und Oberschraenke an der Wand.
   const wy0 = wandBeiY0 ? y0 : y1 - 1.5
   const wy1 = wandBeiY0 ? y0 + 1.5 : y1
@@ -225,7 +294,16 @@ function zeile(x0: number, x1: number, y0: number, y1: number, wandBeiY0: boolea
     out.push(t(x0, ob0, x1, ob1, H + 55, oben, ton(f.front, 0.95)))
     const fy0 = wandBeiY0 ? ob1 - 1 : ob0
     const fy1 = wandBeiY0 ? ob1 : ob0 + 1
-    for (let i = 0; i < n; i++) out.push(t(x0 + i * w + 0.3, fy0, x0 + (i + 1) * w - 0.3, fy1, H + 55.5, oben - 0.5, f.front))
+    for (let i = 0; i < n; i++) {
+      const a = x0 + i * w + 0.3
+      const b = x0 + (i + 1) * w - 0.3
+      const mitte = (a + b) / 2
+      if (kochfeldX && mitte > kochfeldX[0] && mitte < kochfeldX[1]) {
+        // Ueber dem Kochfeld: Dunstabzug unter einem flachen Oberschrank.
+        out.push({ ...t(a, ob0, b, ob1, H + 55, H + 61, ton(f.metall, 1.2)), glanz: 0.6 })
+        out.push(tuer(a, fy0, b, fy1, H + 61.5, oben - 0.5, f.front, 'min', auf))
+      } else out.push(tuer(a, fy0, b, fy1, H + 55.5, oben - 0.5, f.front, i % 2 === 0 ? 'min' : 'max', auf))
+    }
   }
   return out
 }
@@ -249,7 +327,7 @@ function kueche(o: O, decke: number, f: MoebelFarben): Teil[] {
   if (o.form !== 'l' || !o.ausschnitt_breite_cm || !o.ausschnitt_tiefe_cm) {
     const kf = Math.min(60, B * 0.3)
     return [
-      ...zeile(0, B, 0, T, true, H, decke, f),
+      ...zeile(0, B, 0, T, true, H, decke, f, [B - kf - 10, B - 10]),
       kochfeld(B - kf - 10, 6, B - 10, T - 8, H, f),
       ...becken(12, 12, 12 + Math.min(60, B * 0.25), T - 10, H, f),
     ]
@@ -265,7 +343,7 @@ function kueche(o: O, decke: number, f: MoebelFarben): Teil[] {
   const quer = zeile(0, aT, 0, schenkel, true, H, decke, f).map((q) => ({ ...q, x0: q.y0, x1: q.y1, y0: q.x0, y1: q.x1 }))
   const bw = Math.min(50, aT * 0.4)
   const teile: Teil[] = [
-    ...zeile(0, B, aT, T, false, H, decke, f),
+    ...zeile(0, B, aT, T, false, H, decke, f, [B - kf - 10, B - 10]),
     ...quer,
     kochfeld(B - kf - 10, aT + 8, B - 10, T - 8, H, f),
     ...becken(10, aT / 2 - bw / 2, schenkel - 10, aT / 2 + bw / 2, H, f, true),
@@ -275,6 +353,7 @@ function kueche(o: O, decke: number, f: MoebelFarben): Teil[] {
 
 /** Die Teile eines Moebels; null = unbekannte Art, dann bleibt es ein Klotz. */
 export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke: number): Teil[] | null {
+  schubNr = 0
   const B = o.breite_cm
   const T = o.tiefe_cm
   const H = o.hoehe_cm
@@ -363,8 +442,8 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       const k = eigen ?? f.weiss
       const out: Teil[] = [t(0, 0, B, T - 1, 0, H, ton(k, 0.96))]
       if (art === 'kuehlschrank' && H > 120) {
-        out.push(t(0.5, T - 1, B - 0.5, T, 0.5, H * 0.35 - 0.5, k), t(0.5, T - 1, B - 0.5, T, H * 0.35 + 0.5, H - 0.5, k))
-      } else out.push(t(0.5, T - 1, B - 0.5, T, 0.5, H - 0.5, k))
+        out.push(tuer(0.5, T - 1, B - 0.5, T, 0.5, H * 0.35 - 0.5, k, 'max', 1), tuer(0.5, T - 1, B - 0.5, T, H * 0.35 + 0.5, H - 0.5, k, 'max', 1))
+      } else out.push(tuer(0.5, T - 1, B - 0.5, T, 0.5, H - 0.5, k, 'max', 1))
       out.push(t(B - 6, T, B - 4, T + 2, H * 0.4, H * 0.6, f.metall))
       return out
     }
@@ -385,10 +464,10 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       return kueche(o, decke, f)
     case 'backofen': {
       const out: Teil[] = [t(0, 0, B, T - 1, 0, H, ton(f.front, 0.95)), t(3, 0, B - 3, T - 7, 0, 10, ton(f.platte, 1.2))]
-      out.push(t(0.3, T - 1, B - 0.3, T, 10.5, 80, f.front))
+      out.push(tuer(0.3, T - 1, B - 0.3, T, 10.5, 80, f.front, 'min', 1))
       out.push(t(1, T - 1, B - 1, T + 0.5, 82, 142, f.schwarz))
       out.push(t(1, T - 1, B - 1, T + 0.5, 144, 182, f.schwarz))
-      if (H > 186) out.push(t(0.3, T - 1, B - 0.3, T, 184, H - 0.5, f.front))
+      if (H > 186) out.push(tuer(0.3, T - 1, B - 0.3, T, 184, H - 0.5, f.front, 'min', 1))
       return out
     }
     case 'wc':

@@ -14,7 +14,7 @@ import { flaeche2, objektGlobal, objektRechtecke, punktImPolygon, wandStuecke, z
 import { innenNormale, kisteAusdehnung, oeffnungPunkte, spaltenBereich, streckenAbstand } from '../plan/hilfe.ts'
 import type { GrundrissDaten, Objekt, Raum } from '../../lib/types'
 import { moebelArt } from '../plan/moebelArt.ts'
-import { moebelTeile, ton } from './moebel3d.ts'
+import { moebelTeile, ton, type Teil } from './moebel3d.ts'
 
 /** Die Farben, die die Szene braucht. Raum3D liest sie aus den Tokens. */
 export interface Farben3D {
@@ -109,6 +109,7 @@ export type Rolle =
   | 'regal'
   | 'brett'
   | 'kiste'
+  | 'front'
 
 export type Vec3 = [number, number, number]
 
@@ -137,6 +138,9 @@ export interface Quader {
    *  Metern (x, z), Laenge in Metern, Winkel als drehY fuer zu und ganz
    *  offen (90 Grad). */
   tuer?: TuerDreh
+  /** Schublade: faehrt um weg (Meter, x und z) heraus; alle Teile mit
+   *  derselben id fahren zusammen. E68. */
+  schub?: { id: string; weg: [number, number] }
 }
 
 export interface TuerDreh {
@@ -462,12 +466,14 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
         const qf = ist ? f.hervor : q.farbe
         // Kanten nur an groesseren Teilen: sauberer und schneller.
         const gross = Math.max(q.x1 - q.x0, q.y1 - q.y0) >= 25 && q.z1 - q.z0 >= 4
-        const k = lokalQuader(o, 'moebel', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, qf, {
-          kante: ist ? f.kisteRand : gross ? ton(qf, 0.72) : undefined,
-          id: o.id,
-          hervor: ist,
-        })
-        if (k) out.push({ ...k, glanz: q.glanz ?? glanz, ...(q.deckkraft !== undefined ? { deckkraft: q.deckkraft } : {}) })
+        const kante = ist ? f.kisteRand : gross ? ton(qf, 0.72) : undefined
+        const k =
+          q.front?.art === 'tuer'
+            ? drehTuer(o, `${o.id}:t${form.indexOf(q)}`, q, unten, qf, kante ?? ton(qf, 0.8))
+            : lokalQuader(o, 'moebel', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, qf, { kante, id: o.id, hervor: ist })
+        if (!k) continue
+        if (q.front?.art === 'schub') k.schub = { id: `${o.id}:s${q.front.gruppe}`, weg: schubWeg(o, q) }
+        out.push({ ...k, glanz: q.glanz ?? glanz, ...(q.deckkraft !== undefined ? { deckkraft: q.deckkraft } : {}) })
       }
       continue
     }
@@ -498,8 +504,71 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
       teile.push(lokalQuader(o, 'brett', 0, 0, B, T, b - BRETT_CM, b, f.fach, { kante: f.objektRand, id: o.id }))
     }
     for (const q of teile) if (q) out.push(unten ? { ...q, mitte: [q.mitte[0], q.mitte[1] + m(unten), q.mitte[2]] } : q)
+    if (o.art === 'schrank') {
+      // Tueren vor jeder Spalte (E68): breite Spalten zwei Fluegel, sonst einer.
+      const front = ist ? f.hervor : ton(farbe, 1.05)
+      for (let s = 1; s <= Math.max(1, o.spalten); s++) {
+        const [a, b] = spaltenBereich(o, s)
+        const fluegel: Teil[] =
+          b - a > 65
+            ? [
+                { ...teilBox(a - 1, T, (a + b) / 2 - 0.3, T + 2, 0.5, H - 0.5, front), front: { art: 'tuer', angel: 'min', auf: 1 } },
+                { ...teilBox((a + b) / 2 + 0.3, T, b + 1, T + 2, 0.5, H - 0.5, front), front: { art: 'tuer', angel: 'max', auf: 1 } },
+              ]
+            : [{ ...teilBox(a - 1, T, b + 1, T + 2, 0.5, H - 0.5, front), front: { art: 'tuer', angel: s % 2 === 1 ? 'min' : 'max', auf: 1 } }]
+        fluegel.forEach((q, i) => {
+          const k = drehTuer(o, `${o.id}:t${s}-${i}`, q, unten, front, ton(front, 0.75))
+          if (k) out.push(k)
+        })
+      }
+    }
   }
   return out
+}
+
+function teilBox(x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, farbe: string): Teil {
+  return { x0, y0, x1, y1, z0, z1, farbe }
+}
+
+/** Richtung eines lokalen Vektors im Grundriss (cm). */
+function globalRichtung(o: Objekt, dx: number, dy: number): [number, number] {
+  const a = objektGlobal(o, 0, 0)
+  const b = objektGlobal(o, dx, dy)
+  return [b[0] - a[0], b[1] - a[1]]
+}
+
+/** Tuer eines Moebels als Quader, der sich um seine Angel dreht (E68). */
+function drehTuer(o: Objekt, id: string, q: Teil, unten: number, farbe: string, kante: string): Quader | null {
+  if (q.front?.art !== 'tuer') return null
+  const breitX = q.x1 - q.x0 >= q.y1 - q.y0
+  const auf = q.front.auf
+  const vorne = q.front.angel === 'min' ? 1 : -1
+  // Angel an der Kante der langen Seite, mitten in der Dicke.
+  const angelL: Punkt = breitX
+    ? [q.front.angel === 'min' ? q.x0 : q.x1, (q.y0 + q.y1) / 2]
+    : [(q.x0 + q.x1) / 2, q.front.angel === 'min' ? q.y0 : q.y1]
+  const laenge = breitX ? q.x1 - q.x0 : q.y1 - q.y0
+  const dicke = breitX ? q.y1 - q.y0 : q.x1 - q.x0
+  const zuL: Punkt = breitX ? [vorne, 0] : [0, vorne]
+  const aufL: Punkt = breitX ? [0, auf] : [auf, 0]
+  const a = objektGlobal(o, angelL[0], angelL[1])
+  const zu = globalRichtung(o, zuL[0], zuL[1])
+  const offen = globalRichtung(o, aufL[0], aufL[1])
+  const b: Punkt = [a[0] + zu[0] * laenge, a[1] + zu[1] * laenge]
+  const k = streifen('front', a, b, unten + q.z0, unten + q.z1, dicke, farbe, { kante })
+  if (!k) return null
+  k.id = o.id
+  k.tuer = { id, angel: [m(a[0]), m(a[1])], laenge: m(laenge), zu: -Math.atan2(zu[1], zu[0]), auf: -Math.atan2(offen[1], offen[0]) }
+  return k
+}
+
+/** Weg einer Schublade in Metern (x, z). */
+function schubWeg(o: Objekt, q: Teil): [number, number] {
+  if (q.front?.art !== 'schub') return [0, 0]
+  const breitX = q.x1 - q.x0 >= q.y1 - q.y0
+  const w = q.front.auf * q.front.weit
+  const [dx, dy] = globalRichtung(o, breitX ? 0 : w, breitX ? w : 0)
+  return [m(dx), m(dy)]
 }
 
 function kisten(daten: GrundrissDaten, f: Farben3D, raumId: string | null, hervor: string | null): Koerper[] {

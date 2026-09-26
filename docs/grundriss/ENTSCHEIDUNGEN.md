@@ -399,3 +399,16 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Zahl aller Moebel und die Gesamtsumme. Rechts oben im Zeichner eine
   Suche nach Moebeln (Name) und Kisten (Nummer, Name); ein Treffer wird
   gewaehlt und gezeigt.
+- **E68 Schraenke, Schubladen und Kuechenfronten zum Oeffnen:** Ein
+  kurzer Klick in 3D auf eine Front oeffnet oder schliesst sie. Tueren
+  drehen um ihre Angel wie die Zimmertueren (90 Grad nach vorn),
+  Schubladen fahren samt Schubkasten 80 % ihrer Tiefe heraus. Schraenke
+  (Kleider-, Haenge-, Wand-, Hochschrank) bekommen vor jeder Spalte eine
+  Tuer, breite Spalten zwei Fluegel; Regale bleiben offen. Kueche: Tueren
+  unten und oben (Angel abwechselnd), unter dem Kochfeld drei Schubladen,
+  darueber ein Dunstabzug unter einem flachen Oberschrank, Arbeitsplatte
+  mit 2 cm Ueberstand. Kommode und Nachttisch: Schubladen; Sideboard und
+  TV-Board: Tueren; Kuehlschrank und Backofen-Hochschrank: Tueren. Die
+  Fronten sind in moebel3d relativ zur langen und kurzen Seite
+  beschrieben, damit Spiegeln (L-Form) und Achsentausch sie mitnehmen.
+  Der Stand bleibt, solange 3D offen ist; er wird nicht gespeichert.

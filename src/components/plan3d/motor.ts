@@ -309,6 +309,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
   let tueren: Mesh[] = []
   /** Winkel je Tuer, damit ein Neubau der Szene ihn nicht zuruecksetzt. */
   const tuerStand = new Map<string, number>()
+  /** Schubladen (E68) und wie weit sie offen sind (0 bis 1). */
+  let schuebe: Mesh[] = []
+  const schubStand = new Map<string, number>()
   let halb = true
   let koerperJetzt: Koerper[] = []
   let geplant = 0
@@ -427,6 +430,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     waende = []
     hindernisse = []
     tueren = []
+    schuebe = []
   }
 
   function bauen(liste: Koerper[]) {
@@ -462,6 +466,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
         mesh.userData = { tuer }
         tuerSetzen(mesh, tuer.winkel)
         tueren.push(mesh)
+      }
+      if (k.art === 'quader' && k.schub) {
+        // Schublade (E68): Grundlage ist die geschlossene Lage.
+        mesh.userData = { schub: { id: k.schub.id, weg: k.schub.weg, basis: [mesh.position.x, mesh.position.z] } }
+        schuebe.push(mesh)
+        schubSetzen(mesh, schubStand.get(k.schub.id) ?? 0)
       }
       mesh.position.set(k.mitte[0], k.mitte[1], k.mitte[2])
       mesh.scale.set(k.masse[0], k.masse[1], k.masse[2])
@@ -632,18 +642,39 @@ export function motorStarten(host: HTMLElement): Motor | null {
     mesh.position.z = d.angel[1] - (Math.sin(w) * d.laenge) / 2
   }
 
+  /** Schublade auf Anteil a (0 zu, 1 ganz offen) setzen. */
+  function schubSetzen(mesh: Mesh, a: number) {
+    const d = mesh.userData.schub as { id: string; weg: [number, number]; basis: [number, number] }
+    mesh.position.x = d.basis[0] + d.weg[0] * a
+    mesh.position.z = d.basis[1] + d.weg[1] * a
+  }
+
   let tuerLauf = 0
   const tuerZiele = new Map<Mesh, { von: number; nach: number; start: number }>()
+  const schubZiele = new Map<string, { von: number; nach: number; start: number }>()
   function tuerSchritt(zeit: number) {
     tuerLauf = 0
+    const glatt = (p: number) => (p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2)
     for (const [mesh, z] of tuerZiele) {
       const p = Math.min(1, (zeit - z.start) / 350)
-      const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2
-      tuerSetzen(mesh, z.von + winkelDiff(z.nach, z.von) * e)
+      tuerSetzen(mesh, z.von + winkelDiff(z.nach, z.von) * glatt(p))
       if (p >= 1) tuerZiele.delete(mesh)
     }
+    for (const [id, z] of schubZiele) {
+      const p = Math.min(1, (zeit - z.start) / 300)
+      const a = z.von + (z.nach - z.von) * glatt(p)
+      schubStand.set(id, a)
+      for (const mesh of schuebe) if ((mesh.userData.schub as { id: string }).id === id) schubSetzen(mesh, a)
+      if (p >= 1) schubZiele.delete(id)
+    }
     rendern()
-    if (tuerZiele.size) tuerLauf = requestAnimationFrame(tuerSchritt)
+    if (tuerZiele.size || schubZiele.size) tuerLauf = requestAnimationFrame(tuerSchritt)
+  }
+
+  function schubUmschalten(id: string) {
+    const jetzt = schubStand.get(id) ?? 0
+    schubZiele.set(id, { von: jetzt, nach: jetzt > 0.5 ? 0 : 1, start: performance.now() })
+    if (!tuerLauf) tuerLauf = requestAnimationFrame(tuerSchritt)
   }
 
   /** Offen -> zu, zu -> ganz offen. */
@@ -668,6 +699,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
     for (const hit of strahl.intersectObjects(gruppe.children, false)) {
       if (hit.object.userData.tuer) {
         tuerUmschalten(hit.object as Mesh)
+        return
+      }
+      if (hit.object.userData.schub) {
+        schubUmschalten((hit.object.userData.schub as { id: string }).id)
         return
       }
       const mat = (hit.object as Mesh).material as MeshLambertMaterial | undefined
