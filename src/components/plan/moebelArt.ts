@@ -83,7 +83,10 @@ const WOERTER: [MoebelArt, string[]][] = [
   ['essgruppe', ['essgruppe', 'essbereich', 'مجموعة طعام']],
   ['haengelampe', ['hängeleuchte', 'haengeleuchte', 'hängelampe', 'haengelampe', 'pendelleuchte', 'pendellampe', 'مصباح معلق']],
   // E82: Deko und Spielzeug, vor Bank, Sofa, Bett, Kueche, Pflanze und Tisch.
-  ['kissen', ['zierkissen', 'sofakissen', 'kissen', 'وسادة']],
+  // Kissen fuer Bank und Stuhl bleiben Kissen, "Sitzbank mit Kissen" eine Bank (E82, Pruefung).
+  ['kissen', ['bankkissen', 'sitzkissen', 'stuhlkissen', 'zierkissen', 'sofakissen']],
+  ['bank', ['sitzbank', 'eckbank', 'wandbank', 'مقعد طويل']],
+  ['kissen', ['kissen', 'وسادة']],
   ['wolldecke', ['wolldecke', 'plaid', 'kuscheldecke', 'بطانية']],
   ['spielzeugkiste', ['spielzeugkiste', 'spielzeugtruhe', 'spielzeugkorb', 'صندوق ألعاب']],
   ['spielkueche', ['spielküche', 'spielkueche', 'kinderküche', 'kinderkueche', 'مطبخ ألعاب']],
@@ -93,7 +96,6 @@ const WOERTER: [MoebelArt, string[]][] = [
   ['blumenkasten', ['blumenkasten', 'balkonkasten', 'kräuterkasten', 'kraeuterkasten', 'صندوق زهور']],
   ['vorhang', ['vorhang', 'vorhänge', 'vorhaenge', 'gardine', 'ستارة']],
   ['bild', ['wandbild', 'bilderrahmen', 'poster', 'kunstdruck', 'لوحة']],
-  ['bank', ['sitzbank', 'eckbank', 'wandbank', 'مقعد طويل']],
   ['backofen', ['backofen', 'ofenschrank', 'فرن']],
   ['hochschrank', ['hochschrank', 'einbaukühlschrank', 'خزانة عالية']],
   ['couchtisch', ['couchtisch', 'wohnzimmertisch', 'طاولة قهوة']],
@@ -101,7 +103,7 @@ const WOERTER: [MoebelArt, string[]][] = [
   ['schreibtisch', ['schreibtisch', 'طاولة مكتب']],
   ['esstisch_rund', ['runder', 'مستديرة']],
   ['buerostuhl', ['bürostuhl', 'buerostuhl', 'drehstuhl', 'كرسي مكتب']],
-  ['buecher', ['bücherstapel', 'buecherstapel', 'bücher', 'buecher', 'كتب']],
+  ['buecher', ['bücherstapel', 'buecherstapel', 'buchstapel', 'bilderbücher', 'bilderbuecher', 'كومة كتب']],
   ['sessel', ['sessel', 'كرسي بذراعين']],
   ['kinderbett', ['kinderbett', 'babybett', 'juniorbett', 'سرير أطفال']],
   ['gefrierschrank', ['gefrierschrank', 'gefriertruhe', 'tiefkühl', 'مجمد']],
@@ -150,10 +152,18 @@ export const DEKO_ARTEN: ReadonlySet<MoebelArt> = new Set<MoebelArt>([
   'blumenkasten',
 ])
 
+/** Woerter, die nur als ganzes Wort Buecher heissen (E82, Pruefung): als
+ *  Teilwort stecken sie in Buecherregal, Buecherschrank, arabisch مكتب
+ *  (Schreibtisch) und مكتبة (Buecherregal). */
+const BUECHER_WORTE = new Set(['bücher', 'buecher', 'كتب'])
+const REGAL_WORT = /regal|schrank|خزانة|رف|مكتبة/
+
 export function moebelArt(name: string): MoebelArt | null {
   const n = name.toLowerCase()
   for (const [art, woerter] of WOERTER) {
     if (woerter.some((w) => n.includes(w))) return art
+    // Nach Schreibtisch und Buerostuhl (dort steht مكتب), vor Sessel und Bett.
+    if (art === 'buerostuhl' && !REGAL_WORT.test(n) && n.split(/[\s,.;:/()+-]+/).some((w) => BUECHER_WORTE.has(w))) return 'buecher'
   }
   return null
 }

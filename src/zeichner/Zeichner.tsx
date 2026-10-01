@@ -248,6 +248,7 @@ export default function Zeichner({
     symbolArt,
     entsperrt,
     kiste: inHand,
+    ohneDeko: !deko,
   }
 
   /* ---------------------------------------------------------- Ansicht */
@@ -1448,7 +1449,15 @@ export default function Zeichner({
         </button>
         <button
           type="button"
-          onClick={() => setDeko((v) => !v)}
+          onClick={() => {
+            // Beim Ausblenden eine gewaehlte Deko abwaehlen, sonst loeschte Entf sie unsichtbar.
+            const gewaehlt = z.auswahl
+            if (deko && gewaehlt?.art === 'objekt') {
+              const o = z.dok.objekte.find((x) => x.id === gewaehlt.id)
+              if (o && istDeko(o)) dispatch({ typ: 'waehlen', auswahl: null })
+            }
+            setDeko((v) => !v)
+          }}
           aria-pressed={deko}
           className={cx('rounded-md px-2 py-0.5 font-bold', deko ? 'bg-ink text-paper' : 'hover:bg-raised')}
         >

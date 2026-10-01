@@ -1993,13 +1993,18 @@ export function motorStarten(host: HTMLElement): Motor | null {
   /** Die eigene Figur an die Stelle der Kamera (nur im Spiegel zu sehen). */
   let ichFigur: Figur3D | null = null
   const aufEbeneEins = (o: Object3D) => o.layers.set(1)
+  /** Kamerahoehe ueber Boden, Sitz- oder Liegeflaeche je Haltung. Figuren
+   *  stehen mit den Fuessen (sitzen, liegen) dort, wo die Kamera des
+   *  Senders steht minus diese Hoehe, nicht minus ihre eigene Augenhoehe:
+   *  sonst schwebt eine kleine Figur und eine grosse steckt im Boden (E82,
+   *  Pruefung). Der Kopf liegt dafuer je nach Groesse etwas hoeher oder tiefer. */
+  const KAMERA_AUGE: Record<Haltung, number> = { stehen: AUGE_M, sitz: SITZ_AUGE_M, liegen: LIEGE_AUGE_M }
   function ichSchritt(zeit: number) {
     const f = ichFigur
     if (!f || !gehen) return
     const p = camera.position
-    // Stehend mit den Fuessen auf dem Boden, sitzend und liegend so, dass
-    // die Augen der Figur bei der Kamera sind.
-    const y = haltungJetzt === 'stehen' ? 0 : p.y - f.auge(haltungJetzt)
+    // Fuesse auf dem Boden, Gesaess auf dem Sitz, Ruecken auf der Liegeflaeche.
+    const y = p.y - KAMERA_AUGE[haltungJetzt]
     f.gruppe.position.set(p.x, y, p.z)
     f.gruppe.rotation.y = gier
     f.pose(haltungJetzt, tempoJetzt(), zeit / 1000)
@@ -2029,7 +2034,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       m.haltung = z.haltung
       if (Math.abs(z.x - m.x) > 0.001 || Math.abs(z.y - m.y) > 0.001 || Math.abs(z.z - m.z) > 0.001 || Math.abs(dg) > 0.002 || m.tempo > 0.02) unruhig = true
       const f = m.figur
-      f.gruppe.position.set(m.x, m.y - f.auge(m.haltung), m.z)
+      f.gruppe.position.set(m.x, m.y - KAMERA_AUGE[m.haltung], m.z)
       f.gruppe.rotation.y = m.gier
       f.pose(m.haltung, m.tempo, zeit / 1000)
     }

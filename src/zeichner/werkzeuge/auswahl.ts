@@ -25,6 +25,7 @@ import {
   type Dok,
 } from '../dok.ts'
 import { fangen } from '../fangen.ts'
+import { istDeko } from '../../components/plan/moebelArt.ts'
 import type { Aktion, Kontext, Schritt, Werkzeug, Zeiger } from './typen.ts'
 
 interface Zug {
@@ -120,7 +121,9 @@ export function zielAn(k: Kontext, p: Punkt): NonNullable<Auswahl> | null {
   if (g?.art === 'kante') return { art: 'kante', raumId: g.raumId, kante: g.kante }
   const li = linieAn(k.dok, p, KANTE_PX / k.massstab)
   if (li) return { art: 'linie', id: li.id }
-  const t = trefferAn(k.dok, p, 8 / k.massstab)
+  // Ausgeblendete Deko laesst sich nicht greifen, ziehen oder loeschen (E82).
+  const dok = k.ohneDeko ? { ...k.dok, objekte: k.dok.objekte.filter((o) => !istDeko(o)) } : k.dok
+  const t = trefferAn(dok, p, 8 / k.massstab)
   if (!t) return null
   return { art: t.art, id: t.id }
 }

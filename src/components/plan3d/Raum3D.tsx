@@ -381,6 +381,9 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   })
   const [leuteDa, setLeuteDa] = useState<string[]>([])
   const [sprech, setSprech] = useState<SprechZustand | null>(null)
+  // Fehler der Live-Verbindung auch in der Ansicht: im echten Vollbild sind
+  // Toasts (an body) nicht zu sehen (E82, Pruefung).
+  const [wohnungFehler, setWohnungFehler] = useState<string | null>(null)
   const sprechenRef = useRef<Sprechen | null>(null)
   const figuren = useRef(new Map<string, Figur3D>())
   useEffect(() => {
@@ -425,7 +428,11 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
         if (eigene.p) sprechen.lautstaerke(u, abstand(eigene.p, p))
       },
       onSignal: (von, d) => sprechen.empfangen(von, d),
-      onFehler: (text) => toast(text, 'error'),
+      onFehler: (text) => {
+        setWohnungFehler(text)
+        toast(text, 'error')
+      },
+      onVerbunden: () => setWohnungFehler(null),
     })
     m.eigenePose((p) => {
       eigene.p = p
@@ -441,6 +448,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
       m.leute([])
       setSprech(null)
       setLeuteDa([])
+      setWohnungFehler(null)
     }
     // toast ist stabil genug; ein neuer Wert soll die Verbindung nicht neu aufbauen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -576,7 +584,9 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
           <div
             dir="auto"
             className={cx(
-              'absolute end-3 z-30 w-64 max-w-[calc(100%-1.5rem)] rounded-2xl border border-line bg-surface/95 p-2 shadow-lg',
+              // right statt end: der Behaelter hat dir=auto, die Liste soll im
+              // Arabischen nicht nach links springen (3D wird nie gespiegelt).
+              'absolute right-3 z-30 w-64 max-w-[calc(100%-1.5rem)] rounded-2xl border border-line bg-surface/95 p-2 shadow-lg',
               vollbild && !leisteZu ? 'top-28 md:top-16' : 'top-3',
             )}
           >
@@ -623,21 +633,26 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
               <Knueppel name={t('plan3d.knueppel')} onLage={(x, y) => motor.current?.gehenStick(x, y)} />
             </div>
             {/* Rechts unten (E82): aufstehen, ablegen, Mikrofon, wer da ist. */}
-            <div dir="auto" className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] end-[calc(env(safe-area-inset-right,0px)+1rem)] flex max-w-[60%] flex-col items-end gap-2">
+            {/* Der Behaelter erbt ltr (end- bleibt rechts, nicht auf dem Knueppel);
+                nur die Texte richten sich nach ihrer Sprache (E82, Pruefung). */}
+            <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] end-[calc(env(safe-area-inset-right,0px)+1rem)] flex max-w-[60%] flex-col items-end gap-2">
               {sprech?.tonGesperrt && leuteDa.length > 0 ? (
-                <p className="rounded-xl border border-line bg-surface/95 px-3 py-2 text-sm font-bold text-ink shadow">{t('plan3d.ton_tippen')}</p>
+                <p dir="auto" className="rounded-xl border border-line bg-surface/95 px-3 py-2 text-sm font-bold text-ink shadow">{t('plan3d.ton_tippen')}</p>
               ) : null}
               {sprech?.fehler ? (
-                <p className="rounded-xl border border-danger bg-surface/95 px-3 py-2 text-sm font-bold text-danger shadow" role="alert">{sprech.fehler}</p>
+                <p dir="auto" className="rounded-xl border border-danger bg-surface/95 px-3 py-2 text-sm font-bold text-danger shadow" role="alert">{sprech.fehler}</p>
+              ) : null}
+              {live && wohnungFehler ? (
+                <p dir="auto" className="rounded-xl border border-danger bg-surface/95 px-3 py-2 text-sm font-bold text-danger shadow" role="alert">{wohnungFehler}</p>
               ) : null}
               {haltung !== 'stehen' ? (
                 <Button size="sm" onClick={() => motor.current?.aufstehen()}>
-                  <ArrowUpFromLine size={17} /> {t('plan3d.aufstehen')}
+                  <ArrowUpFromLine size={17} /> <span dir="auto">{t('plan3d.aufstehen')}</span>
                 </Button>
               ) : null}
               {inHand ? (
                 <Button size="sm" onClick={() => motor.current?.ablegen()}>
-                  <ArrowDownToLine size={17} /> {t('plan3d.ablegen')}
+                  <ArrowDownToLine size={17} /> <span dir="auto">{t('plan3d.ablegen')}</span>
                 </Button>
               ) : null}
               {live ? (

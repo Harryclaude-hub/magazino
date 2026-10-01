@@ -44,6 +44,10 @@ export interface SprechZustand {
 
 /** Hoechstens so viele direkte Verbindungen (Rechenzeit und Datenmenge). */
 const MAX_PARTNER = 10
+/** Neubeginn einer Verbindung je Absender hoechstens so oft (E82, Pruefung). */
+const NEUSTART_MS = 2000
+/** So viele alte Sitzungskennungen je Absender werden gemerkt. */
+const ALT_MAX = 16
 const SITZUNG = /^[A-Za-z0-9-]{8,64}$/
 const SDP_MAX = 30_000
 const VORGEMERKT_MS = 5000
@@ -151,6 +155,13 @@ export class Sprechen {
   private partner = new Map<string, Partner>()
   /** Sitzungen der Gegenseite, die vorbei sind (Neuladen, Tschuess). */
   private alt = new Map<string, Set<string>>()
+  /** Neubeginn je Absender hoechstens alle NEUSTART_MS (E82, Pruefung):
+   *  sonst koennte ein Mitglied mit immer neuen Sitzungskennungen bei
+   *  anderen hundert Verbindungen je Sekunde erzwingen. Was in der Sperre
+   *  ankommt, wird gemerkt (nur das Letzte) und danach verarbeitet, damit
+   *  ein echtes Neuladen nicht verloren geht. */
+  private neustartZeit = new Map<string, number>()
+  private neustartWarte = new Map<string, { n: Nachricht; uhr: ReturnType<typeof setTimeout> }>()
   private gewuenscht = new Set<string>()
   private vorgemerkt = new Map<string, { zeit: number; n: Nachricht }[]>()
   private ziele = new Map<string, number>()
@@ -200,6 +211,8 @@ export class Sprechen {
     }
     this.gewuenscht = soll
     for (const uid of [...this.partner.keys()]) if (!soll.has(uid)) this.trennen(uid, true)
+    for (const uid of [...this.alt.keys()]) if (!soll.has(uid)) this.alt.delete(uid)
+    for (const uid of [...this.neustartZeit.keys(), ...this.neustartWarte.keys()]) if (!soll.has(uid)) this.neustartVergessen(uid)
     for (const uid of soll) if (!this.partner.has(uid)) this.verbinden(uid)
     // Was vorher schon ankam, jetzt der Reihe nach verarbeiten.
     const jetzt = performance.now()
@@ -316,6 +329,9 @@ export class Sprechen {
     ctx?.close().catch((err: unknown) => console.warn('[sprechen] Ton schliessen:', err instanceof Error ? err.message : err))
     this.vorgemerkt.clear()
     this.gewuenscht.clear()
+    for (const uid of [...this.neustartWarte.keys()]) this.neustartVergessen(uid)
+    this.neustartZeit.clear()
+    this.alt.clear()
     this.melden()
   }
 
@@ -356,7 +372,20 @@ export class Sprechen {
       s = new Set()
       this.alt.set(uid, s)
     }
+    // Hoechstens die letzten ALT_MAX Kennungen merken (Set behaelt die Reihenfolge).
+    while (s.size >= ALT_MAX) {
+      const erste = s.values().next().value
+      if (erste === undefined) break
+      s.delete(erste)
+    }
     return s
+  }
+
+  private neustartVergessen(uid: string) {
+    const w = this.neustartWarte.get(uid)
+    if (w) clearTimeout(w.uhr)
+    this.neustartWarte.delete(uid)
+    this.neustartZeit.delete(uid)
   }
 
   private audioKontext(): AudioContext | null {
@@ -491,6 +520,23 @@ export class Sprechen {
     if (p && p.ihre !== null && p.ihre !== n.s) {
       // Die Gegenseite hat neu begonnen (etwa neu geladen): von vorn, mit
       // unserer bisherigen Sitzung, damit sie uns nicht ebenfalls neu beginnt.
+      // Hoechstens einmal je NEUSTART_MS und Absender.
+      const jetzt = performance.now()
+      const seit = jetzt - (this.neustartZeit.get(uid) ?? -Infinity)
+      if (seit < NEUSTART_MS) {
+        const vorher = this.neustartWarte.get(uid)
+        if (vorher) vorher.n = n
+        else {
+          const uhr = setTimeout(() => {
+            const w = this.neustartWarte.get(uid)
+            this.neustartWarte.delete(uid)
+            if (w && !this.beendet && this.gewuenscht.has(uid)) this.verarbeiten(uid, w.n)
+          }, NEUSTART_MS - seit)
+          this.neustartWarte.set(uid, { n, uhr })
+        }
+        return
+      }
+      this.neustartZeit.set(uid, jetzt)
       this.altVon(uid).add(p.ihre)
       const meine = p.meine
       this.trennen(uid, false)

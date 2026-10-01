@@ -53,6 +53,8 @@ export interface WohnungOptionen {
   onSignal(von: string, daten: unknown): void
   /** Ein Satz fuer den Nutzer, schon uebersetzt. */
   onFehler(text: string): void
+  /** Die Verbindung steht (wieder): eine gezeigte Fehlermeldung kann weg. */
+  onVerbunden?(): void
 }
 
 /** Hoechstens 10 Stellungen je Sekunde hinaus. */
@@ -299,6 +301,7 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
       if (status === 'SUBSCRIBED') {
         verbunden = true
         gemeldet = null
+        o.onVerbunden?.()
         k.track({ g: grundriss })
           .then((r) => {
             if (r !== 'ok') melden(tg('fehler.wohnung_kanal'))

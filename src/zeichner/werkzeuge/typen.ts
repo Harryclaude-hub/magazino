@@ -57,6 +57,8 @@ export interface Kontext {
    *  Ziehen verschiebt dann nur die Ansicht. Fehlt es (undefined), ist alles
    *  frei (Pruefskripte). */
   entsperrt?: string | null
+  /** Deko ist ausgeblendet und darum nicht anklickbar (E82). */
+  ohneDeko?: boolean
 }
 
 export interface Zeiger {

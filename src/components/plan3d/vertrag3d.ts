@@ -32,8 +32,9 @@ export interface Figur3D {
   /** Glieder setzen: Haltung, Gehtempo (0..2) und Zeit in Sekunden fuer
    *  das Schwingen der Beine. */
   pose(haltung: Haltung, tempo: number, zeit: number): void
-  /** Augenhoehe ueber dem Ursprung in dieser Haltung (Meter). Damit setzt
-   *  der Motor die Figur so, dass ihre Augen bei Pose3D.y liegen. */
+  /** Augenhoehe ueber dem Ursprung in dieser Haltung (Meter). Der Motor
+   *  setzt die Figur nach der festen Kamerahoehe der Haltung (Fuesse auf
+   *  den Boden), nicht nach diesem Wert; er dient Namensschild und Tests. */
   auge(haltung: Haltung): number
   dispose(): void
 }
