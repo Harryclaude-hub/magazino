@@ -657,3 +657,15 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Spielplatz, Tiefgarage, Baeume. Motor: begehbare Ebenen je Stockwerk mit
   eigener Kollision, der Aufzug faehrt die Kamera mit. Die anderen
   Wohnungen innen folgen in einem eigenen Schritt.
+- **E84 Siedlung innen:** Haeuser mit oeffentlichen Plaenen sind innen
+  begehbar: jede Wohnung mit Raeumen, Tueren, Fenstern, Boeden, Kueche und
+  Bad wie im Plan, sonst leer; Stiegenhaus, Gang oder Laubengang und je
+  Haus ein Aufzug mit Knoepfen. Daten nur in der Datenbank (Migration
+  0045, Spalte siedlungen.innen, geprueft wie 0044); geladen erst beim
+  Oeffnen einer Siedlung. Innen wird ein Haus erst gebaut, wenn man es
+  betritt, und nur dieses Haus zeigt sich innen; von aussen bleiben es
+  einfache Haeuser. Garten und Erdgeschosse sind eine Ebene, man geht
+  durch die Haustuer hinein. Der Aufzug haelt im richtigen Haus (Ziel als
+  Ebene, nicht als Hoehe). Liste Wohnungen: antippen springt vor die
+  Wohnungstuer. Die eigene Wohnung ersetzt die gleiche Wohnung aus dem
+  Plan.
