@@ -52,6 +52,8 @@ export const plan3dWoerter: Woerterbuch = {
   'plan3d.licht_an': { de: 'an', ar: 'مضاءة' },
   'plan3d.licht_aus': { de: 'aus', ar: 'مطفأة' },
   'plan3d.teppiche': { de: 'Teppiche', ar: 'السجاد' },
+  'plan3d.vollbild': { de: 'Vollbild', ar: 'ملء الشاشة' },
+  'plan3d.vollbild_ende': { de: 'Vollbild beenden', ar: 'إنهاء ملء الشاشة' },
   'plan3d.begehen_ende': { de: 'Begehen beenden', ar: 'إنهاء التجوّل' },
   'plan3d.begehen_hilfe': {
     de: 'Durch die Wohnung gehen, als wärst du drin.',

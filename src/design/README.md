@@ -26,6 +26,7 @@ Ordner fehlt:
 | `Buehne.tsx` | haengt die Hintergrundebenen der Startseite ein und schreibt die Scrollhoehe nach `--sy` |
 | `motion.tsx` | nur der kleine Bewegungs-Schalter der Startseite |
 | `lesen.css` | Farben und Bewegung der Ladeanzeige beim Bilderlesen |
+| `themen.css` | die fuenf weiteren Designs (Kontrast, Salbei, Ozean, Nacht, Graphit) als Farbwerte je `data-theme` |
 | `LeseBuehne.tsx` | die Zeichnung dazu: Kiste im Sucher, Lichtstreifen, Funken |
 
 ## Bewegungsstufen

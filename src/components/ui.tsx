@@ -88,10 +88,12 @@ const VARIANT: Record<ButtonVariant, string> = {
   danger: 'bg-danger text-paper hover:brightness-110',
 }
 
+/* Mindesthoehe statt fester Hoehe: ein langer Name (Arabisch ist oft
+ * laenger) bricht um und schiebt den Knopf hoeher, statt herauszuragen. */
 const SIZES = {
-  sm: 'h-10 px-3.5 text-[0.9375rem] gap-1.5',
-  md: 'h-12 px-5 text-base gap-2',
-  lg: 'h-14 px-7 text-lg gap-2.5',
+  sm: 'min-h-10 py-1.5 px-3.5 text-[0.9375rem] gap-1.5',
+  md: 'min-h-12 py-2 px-5 text-base gap-2',
+  lg: 'min-h-14 py-2.5 px-7 text-lg gap-2.5',
   icon: 'h-12 w-12 justify-center',
 }
 
@@ -110,7 +112,9 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       className={cx(
-        'knopf inline-flex items-center rounded-knopf font-bold leading-none transition select-none',
+        // leading-tight statt leading-none: sonst stossen Umlaute und arabische
+        // Zeichen oben und unten an (E76). Langer Text darf umbrechen.
+        'knopf inline-flex max-w-full items-center rounded-knopf text-center font-bold leading-tight transition select-none',
         'disabled:opacity-45 disabled:cursor-not-allowed',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
         VARIANT[variant],
@@ -891,8 +895,14 @@ export function Chip({
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-2 flex items-center justify-between gap-3">
-      <h2 className="text-[0.9375rem] font-black uppercase tracking-wider text-muted">{children}</h2>
+    // Klare Trennung der Abschnitte (E76): Linie darunter, Akzentstrich,
+    // Schrift in Tinte statt grau. Ohne Grossbuchstaben und Sperrung, die im
+    // Arabischen die Buchstaben auseinanderreissen.
+    <div className="mb-3 flex items-center justify-between gap-3 border-b-2 border-line pb-2">
+      <h2 className="flex min-w-0 items-center gap-2 text-[1.0625rem] font-black leading-tight text-ink">
+        <span className="h-4 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+        <span className="min-w-0">{children}</span>
+      </h2>
       {action}
     </div>
   )

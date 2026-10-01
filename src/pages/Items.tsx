@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Boxes, CheckSquare, Crosshair, Download, Filter, Lamp, Plus, Ruler, Search, X } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
@@ -645,7 +645,19 @@ export default function Items() {
             ) : (
             /* Handy: volle Breite, von Rand zu Rand. */
             <Card data-tour="kisten-liste" className="zebra -mx-3 divide-y divide-line overflow-hidden rounded-none border-x-0 sm:mx-0 sm:rounded-karte sm:border-x">
-              {rows.map((item) => (
+              {rows.map((item, i) => (
+                <Fragment key={item.id}>
+                  {/* Nach Nummer sortiert stehen die Kisten eines Zimmers
+                      beisammen (die Vorsilbe ist das Zimmer). Dann bekommt
+                      jedes Zimmer eine eigene Kopfzeile mit Farbe und Zahl
+                      (E76), damit die Liste klar in Abschnitte zerfaellt. */}
+                  {sort === 'code' && (i === 0 || rows[i - 1].room_id !== item.room_id) ? (
+                    <ZimmerKopf
+                      name={tagById(item.room_id)?.name ?? t('kisten.ohne_zimmer')}
+                      farbe={tagById(item.room_id)?.color ?? null}
+                      anzahl={rows.filter((r) => r.room_id === item.room_id).length}
+                    />
+                  ) : null}
                 <ItemRow
                   key={item.id}
                   item={item}
@@ -665,6 +677,7 @@ export default function Items() {
                       }),
                   }}
                 />
+                </Fragment>
               ))}
             </Card>
             )}
@@ -956,5 +969,16 @@ export default function Items() {
         ) : null}
       </Modal>
     </>
+  )
+}
+
+/** Kopfzeile eines Zimmers in der Kistenliste am Handy (E76). */
+function ZimmerKopf({ name, farbe, anzahl }: { name: string; farbe: string | null; anzahl: number }) {
+  return (
+    <div className="flex items-center gap-2.5 border-t-2 border-line bg-raised px-4 py-2.5">
+      <span className="h-4 w-1.5 shrink-0 rounded-full" style={{ background: farbe ?? 'var(--line)' }} aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate text-base font-black">{name}</span>
+      <span className="t-serial shrink-0 text-sm font-bold text-muted">{anzahl}</span>
+    </div>
   )
 }

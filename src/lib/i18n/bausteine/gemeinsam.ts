@@ -144,6 +144,7 @@ export const gemeinsam: Woerterbuch = {
 
   // ------------------------------------------------------------ Kopfzeile
   'kopf.profil': { de: 'Profil und Einstellungen', ar: 'الحساب والإعدادات' },
+  'kopf.mehr': { de: 'Mehr', ar: 'المزيد' },
   'kopf.darstellung': { de: 'Darstellung umschalten, aktuell {wert}', ar: 'تبديل المظهر، الحالي {wert}' },
   'kopf.sprache': { de: 'Sprache umschalten, aktuell {wert}', ar: 'تغيير اللغة، الحالية {wert}' },
   'kopf.bewegung': { de: 'Bewegung umschalten, aktuell {wert}', ar: 'تبديل الحركة، الحالي {wert}' },

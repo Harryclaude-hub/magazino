@@ -422,3 +422,43 @@ input[type='color']::-webkit-color-swatch {
 .print-only {
   display: none;
 }
+
+/* Menue "Mehr" in der Kopfzeile am Handy (E76): jeder Knopf ueber die
+   ganze Breite, links das Zeichen, daneben sein Name aus aria-label.
+   Knoepfe mit sichtbarem Text zeigen ihren Text, nicht zweimal. */
+.kopf-menue > *,
+.kopf-menue > a > * {
+  display: flex;
+  width: 100%;
+}
+.kopf-menue .knopf {
+  width: 100%;
+  height: auto;
+  min-height: 2.75rem;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-color: transparent;
+  background: transparent;
+}
+.kopf-menue .knopf:hover {
+  background: var(--raised);
+}
+.kopf-menue .knopf:not(:has(> :not(svg)))[aria-label]::after {
+  content: attr(aria-label);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: start;
+}
+.kopf-menue .knopf span.hidden {
+  display: inline;
+}
+
+/* Arabische Schrift ist verbunden: Sperrung (letter-spacing) reisst die
+   Buchstaben auseinander, Grossbuchstaben gibt es nicht. Darum im
+   Arabischen ueberall ohne (E76). */
+[dir='rtl'] *,
+[lang='ar'] * {
+  letter-spacing: normal !important;
+}

@@ -12,10 +12,14 @@ import.meta.glob(['./design/*.css', '!./design/buehne.css'], { eager: true })
 try {
   const stored = localStorage.getItem('kistly.theme')
   const mode = stored ? (JSON.parse(stored) as string) : 'system'
+  // Dunkle Designs (E76) wie in ThemeToggle.tsx; hier nur das Setzen.
   const dark =
     mode === 'dark' ||
+    mode === 'nacht' ||
+    mode === 'graphit' ||
     (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
   document.documentElement.classList.toggle('dark', dark)
+  if (['kontrast', 'salbei', 'ozean', 'nacht', 'graphit'].includes(mode)) document.documentElement.dataset.theme = mode
 } catch {
   /* kein Zugriff auf localStorage, dann eben helles Theme */
 }

@@ -1,6 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { Children, Fragment, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, MoreHorizontal } from 'lucide-react'
 import { cx } from '../lib/util'
 import { Avatar } from './ui'
 import { displayNameOf, useAuth } from '../lib/auth'
@@ -60,9 +60,15 @@ export function AppHeader({
           {subtitle ? <div className="truncate text-sm text-muted">{subtitle}</div> : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        {/* Am Computer alle Knoepfe nebeneinander. Am Handy (E76) nur der
+            erste, der Rest samt Erklaerung im Menue "Mehr": so bleibt die
+            Kopfzeile ruhig und gleichmaessig. */}
+        <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
           {actions}
           <ErklaerKnopf />
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
+          <KopfHandy actions={actions} />
           {showProfile ? (
             <Link
               data-tour="profil"
@@ -77,6 +83,78 @@ export function AppHeader({
         </div>
       </div>
     </header>
+  )
+}
+
+/** Knoepfe einer Kopfzeile einzeln, auch wenn sie in einem Fragment stehen. */
+function einzeln(knoten: ReactNode): ReactNode[] {
+  const out: ReactNode[] = []
+  for (const k of Children.toArray(knoten)) {
+    if (isValidElement<{ children?: ReactNode }>(k) && k.type === Fragment) out.push(...einzeln(k.props.children))
+    else out.push(k)
+  }
+  return out
+}
+
+/** Kopfzeile am Handy: hoechstens ein Knopf sichtbar, der Rest und die
+ *  Erklaerung im Menue. Im Menue steht neben jedem Zeichen sein Name
+ *  (aus aria-label, siehe .kopf-menue in index.css). */
+function KopfHandy({ actions }: { actions: ReactNode }) {
+  const t = useT()
+  const knoepfe = einzeln(actions)
+  const [offen, setOffen] = useState(false)
+  const huelle = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!offen) return
+    const weg = (e: Event) => {
+      if (huelle.current && !huelle.current.contains(e.target as Node)) setOffen(false)
+    }
+    const taste = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOffen(false)
+    }
+    document.addEventListener('pointerdown', weg)
+    document.addEventListener('keydown', taste)
+    return () => {
+      document.removeEventListener('pointerdown', weg)
+      document.removeEventListener('keydown', taste)
+    }
+  }, [offen])
+  if (knoepfe.length <= 1) {
+    return (
+      <>
+        {knoepfe}
+        <ErklaerKnopf />
+      </>
+    )
+  }
+  return (
+    <>
+      {knoepfe[0]}
+      <div ref={huelle} className="relative">
+        <button
+          type="button"
+          aria-label={t('kopf.mehr')}
+          title={t('kopf.mehr')}
+          aria-expanded={offen}
+          onClick={() => setOffen((v) => !v)}
+          className="knopf flex h-10 w-10 items-center justify-center rounded-knopf border-2 border-ink/12 bg-surface text-ink transition hover:bg-raised"
+        >
+          <MoreHorizontal size={20} />
+        </button>
+        {offen ? (
+          <div
+            role="menu"
+            // Nach dem Tippen auf einen Eintrag schliessen; der Eintrag selbst
+            // hat dann schon gehandelt.
+            onClickCapture={() => window.setTimeout(() => setOffen(false), 0)}
+            className="kopf-menue absolute end-0 top-full z-40 mt-2 flex w-64 max-w-[calc(100vw-1.5rem)] flex-col gap-1 rounded-karte border border-line bg-surface p-2 shadow-dialog"
+          >
+            {knoepfe.slice(1)}
+            <ErklaerKnopf />
+          </div>
+        ) : null}
+      </div>
+    </>
   )
 }
 

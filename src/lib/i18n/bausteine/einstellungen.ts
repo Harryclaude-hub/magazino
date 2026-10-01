@@ -84,6 +84,11 @@ export const einstellungen: Woerterbuch = {
   'einstellungen.theme_system': { de: 'System', ar: 'النظام' },
   'einstellungen.theme_hell': { de: 'Hell', ar: 'فاتح' },
   'einstellungen.theme_dunkel': { de: 'Dunkel', ar: 'داكن' },
+  'einstellungen.theme_kontrast': { de: 'Kontrast', ar: 'تباين عالٍ' },
+  'einstellungen.theme_salbei': { de: 'Salbei', ar: 'أخضر هادئ' },
+  'einstellungen.theme_ozean': { de: 'Ozean', ar: 'أزرق المحيط' },
+  'einstellungen.theme_nacht': { de: 'Nacht', ar: 'ليلي' },
+  'einstellungen.theme_graphit': { de: 'Graphit', ar: 'رمادي داكن' },
   'einstellungen.theme_titel': { de: 'Darstellung: {wert}', ar: 'المظهر: {wert}' },
 
   // --------------------------------------------------------------- Bewegung

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Bell, BellOff, LogOut, ShieldCheck } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { InstallCard } from '../components/InstallCard'
-import { MODE_KEY, useTheme } from '../components/ThemeToggle'
+import { ALLE_DESIGNS, MODE_KEY, useTheme } from '../components/ThemeToggle'
 import { SpracheWahl } from '../components/SpracheToggle'
 import {
   Avatar,
@@ -48,6 +48,20 @@ const BEWEGUNG_KEY: Record<Stufe, string> = {
  * Ueberschrift nicht kleiner sein als das, was darunter steht. */
 function Abschnitt({ children }: { children: ReactNode }) {
   return <h2 className="mb-3 text-xl font-black tracking-tight">{children}</h2>
+}
+
+/** Farbprobe je Design: Grund, Karte, Schrift, Hauptknopf (Werte aus
+ *  src/index.css und src/design/themen.css). Nur Anzeige. System zeigt
+ *  hell und dunkel. */
+const DESIGN_PROBE: Record<(typeof ALLE_DESIGNS)[number], string[]> = {
+  system: ['#f4eee3', '#1c1814', '#ad560c'],
+  light: ['#f4eee3', '#fcf9f3', '#1f1b15', '#ad560c'],
+  dark: ['#1c1814', '#262119', '#f1ebe0', '#f6a860'],
+  kontrast: ['#ffffff', '#ececec', '#000000', '#8a3200'],
+  salbei: ['#eef1ea', '#f9fbf6', '#18201a', '#36623f'],
+  ozean: ['#ecf1f6', '#f8fafd', '#121b26', '#1f5b8f'],
+  nacht: ['#0f1622', '#172131', '#e8eef7', '#7fb6f0'],
+  graphit: ['#161718', '#202223', '#eceeef', '#5fd0c0'],
 }
 
 export default function Settings() {
@@ -296,18 +310,25 @@ export default function Settings() {
         {/* Darstellung */}
         <Abschnitt>{t('einstellungen.darstellung')}</Abschnitt>
         <Card data-tour="profil-aussehen" className="mb-8 p-4">
-          <div className="flex gap-2">
-            {(['system', 'light', 'dark'] as const).map((m) => (
+          {/* Acht Designs (E76) in einem gleichmaessigen Raster, je mit
+              kleiner Farbprobe: Grund, Karte, Schrift, Hauptknopf. */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {ALLE_DESIGNS.map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setMode(m)}
                 aria-pressed={mode === m}
-                className={`min-w-0 flex-1 rounded-xl border-2 px-2 py-3 text-base font-bold transition ${
+                className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-base font-bold leading-tight transition ${
                   mode === m ? 'border-ink bg-ink text-paper' : 'border-line hover:bg-raised'
                 }`}
               >
-                {t(MODE_KEY[m])}
+                <span className="flex gap-1" aria-hidden="true">
+                  {DESIGN_PROBE[m].map((farbe, i) => (
+                    <span key={i} className="h-3.5 w-3.5 rounded-full border border-black/20" style={{ background: farbe }} />
+                  ))}
+                </span>
+                <span className="max-w-full truncate">{t(MODE_KEY[m])}</span>
               </button>
             ))}
           </div>

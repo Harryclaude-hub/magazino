@@ -97,7 +97,7 @@ export function FuellstandWahl({
               aria-pressed={an}
               onClick={() => onWert(s)}
               className={cx(
-                'knopf flex min-h-14 flex-col items-center justify-center gap-1 rounded-knopf border-2 px-1 py-1.5 font-bold leading-none transition',
+                'knopf flex min-h-14 flex-col items-center justify-center gap-1 rounded-knopf border-2 px-1 py-1.5 font-bold leading-tight transition',
                 'disabled:cursor-not-allowed disabled:opacity-45',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
                 an ? 'border-ink bg-ink text-paper' : 'border-line bg-raised text-ink hover:border-ink/25',

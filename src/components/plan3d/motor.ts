@@ -851,10 +851,15 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const halbFov = (camera.fov * Math.PI) / 360
     // Abstand, bei dem die ganze Flaeche ins Bild passt (Hoehe und Breite des Bilds).
     const passt = Math.max(tiefe / 2 / Math.tan(halbFov), breite / 2 / (Math.tan(halbFov) * camera.aspect))
+    /* Hochformat (Handy, E76): die Wohnung um 90 Grad gedreht zeigen, damit
+     * ihre lange Seite die Hoehe des Bildschirms nutzt statt winzig quer zu
+     * liegen. Dafuer tauschen Breite und Tiefe ihre Rolle. */
+    const hoch = camera.aspect < 0.85 && breite > tiefe
+    const passtHoch = Math.max(breite / 2 / Math.tan(halbFov), tiefe / 2 / (Math.tan(halbFov) * camera.aspect))
     if (b === 'oben') {
-      zielen(mitte, passt * 1.12 + r.hoehe, 0.0001, 0)
+      zielen(mitte, (hoch ? passtHoch : passt) * 1.12 + r.hoehe, 0.0001, hoch ? -Math.PI / 2 : 0)
     } else if (b === 'schraeg') {
-      zielen([mitte[0], r.hoehe * 0.2, mitte[2]], passt * 1.25 + r.hoehe, 0.95, -0.55)
+      zielen([mitte[0], r.hoehe * 0.2, mitte[2]], (hoch ? passtHoch * 1.45 : passt * 1.25) + r.hoehe, 0.95, hoch ? -0.55 - Math.PI / 2 : -0.55)
     } else {
       const k = hervorMitte(koerperJetzt)
       if (!k) return

@@ -516,3 +516,19 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Zeilen loescht man in der Liste. Dienst und Modelle bleiben ueber
   Geheimnisse tauschbar, neu auch BILD_SCHLUESSEL fuer einen anderen
   Anbieter mit derselben Schnittstelle.
+- **E76 Designs, Handy, Knoepfe, Kistenliste:** Fuenf weitere Designs im
+  Profil (Kontrast, Salbei, Ozean hell; Nacht, Graphit dunkel), als
+  eigene Datei der Designschicht (`src/design/themen.css`, `data-theme`
+  am html); nur Grundfarben, Zimmer- und Kistenfarben bleiben. Alle
+  nachgerechnet: Text mindestens 14:1, Nebentext mindestens 5,7:1.
+  Kopfzeile am Handy: hoechstens ein Knopf sichtbar, der Rest samt
+  Erklaerung im Menue "Mehr" (mit Namen neben dem Zeichen). 3D am Handy:
+  Leiste nur mit Zeichen, gleich gross und mittig; neuer Knopf Vollbild
+  (Fullscreen-Schnittstelle, sonst feste Ebene ueber der Seite, quer und
+  hoch); im Hochformat wird die Wohnung gedreht, damit sie den Schirm
+  fuellt. Knoepfe: Zeilenhoehe statt 1 (Umlaute und arabische Zeichen
+  stossen nicht mehr an), Mindesthoehe statt fester Hoehe, langer Text
+  bricht um. Im Arabischen nirgends Sperrung (reisst die Schrift
+  auseinander). Abschnittstitel kraeftiger mit Linie und Akzentstrich;
+  die Kistenliste am Handy bekommt je Zimmer eine Kopfzeile mit Farbe
+  und Anzahl.

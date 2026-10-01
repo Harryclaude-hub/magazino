@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clock, Crosshair, Eye, Footprints, Hand, Layers, Lightbulb, LightbulbOff, Map as KarteIcon, Moon, Rotate3d, Square, Sun, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clock, Crosshair, Eye, Footprints, Hand, Layers, Lightbulb, LightbulbOff, Map as KarteIcon, Maximize2, Minimize2, Moon, Rotate3d, Square, Sun, X } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
 import type { GrundrissDaten } from '../../lib/types'
 import { cx } from '../../lib/util'
@@ -112,6 +112,39 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   }
   const ausgerichtet = useRef<string | null>(null)
   const [gehen, setGehen] = useState(false)
+  // Vollbild (E76): die Ansicht fuellt den ganzen Bildschirm, am Handy auch
+  // quer. Mit der Fullscreen-Schnittstelle, wo es sie gibt (Android, Computer);
+  // sonst (iPhone) deckt sie die Seite als feste Ebene ab.
+  const wurzel = useRef<HTMLDivElement>(null)
+  const [vollbild, setVollbild] = useState(false)
+  const vollbildUmschalten = () => {
+    if (!vollbild) {
+      setVollbild(true)
+      const el = wurzel.current
+      if (el && typeof el.requestFullscreen === 'function') void el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+    } else {
+      setVollbild(false)
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
+    }
+  }
+  useEffect(() => {
+    // Mit der Zurueck-Geste oder Esc beendet: dann auch hier aus.
+    const weg = () => {
+      if (!document.fullscreenElement) setVollbild(false)
+    }
+    document.addEventListener('fullscreenchange', weg)
+    return () => document.removeEventListener('fullscreenchange', weg)
+  }, [])
+  useEffect(() => {
+    if (!vollbild || gehen) return
+    const taste = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      setVollbild(false)
+    }
+    window.addEventListener('keydown', taste, true)
+    return () => window.removeEventListener('keydown', taste, true)
+  }, [vollbild, gehen])
   // Licht (E71): Automatisch nach Uhrzeit (7 bis 19 Uhr Tag), oder fest.
   const [licht, setLicht] = useState<'auto' | 'tag' | 'abend'>('auto')
   const [stunde, setStunde] = useState(() => new Date().getHours())
@@ -246,48 +279,38 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   }, [gehen])
 
   return (
-    <div className={cx('relative flex h-full min-h-0 flex-col overflow-hidden bg-paper', className)}>
-      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2">
-        <Button size="sm" variant="outline" onClick={() => blick('oben')} disabled={geht !== 'ja' || leer}>
-          <KarteIcon size={16} /> {t('plan3d.ansicht_oben')}
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => blick('schraeg')} disabled={geht !== 'ja' || leer}>
-          <Eye size={16} /> {t('plan3d.ansicht_schraeg')}
-        </Button>
+    <div
+      ref={wurzel}
+      className={cx(
+        'flex min-h-0 flex-col overflow-hidden bg-paper',
+        vollbild ? 'fixed inset-0 z-[70]' : 'relative h-full',
+        className && !vollbild ? className : null,
+      )}
+    >
+      {/* Knopfleiste. Am Handy nur Zeichen, alle gleich gross und mittig;
+          ab sm mit Namen. Im Vollbild liegt sie halbdurchsichtig ueber dem Bild. */}
+      <div
+        className={cx(
+          'flex flex-wrap items-center justify-center gap-1.5 px-2 py-2 sm:justify-start sm:gap-2 sm:px-3',
+          vollbild ? 'absolute inset-x-0 top-0 z-20 bg-surface/80 backdrop-blur' : 'border-b border-line bg-surface',
+        )}
+      >
+        <Knopf zeichen={KarteIcon} name={t('plan3d.ansicht_oben')} onClick={() => blick('oben')} disabled={geht !== 'ja' || leer} />
+        <Knopf zeichen={Eye} name={t('plan3d.ansicht_schraeg')} onClick={() => blick('schraeg')} disabled={geht !== 'ja' || leer} />
         {hatKiste ? (
-          <Button size="sm" variant="outline" onClick={() => blick('kiste')} disabled={geht !== 'ja'}>
-            <Crosshair size={16} style={{ color: 'var(--plan-hervor)' }} /> {t('plan3d.zur_kiste')}
-          </Button>
+          <Knopf zeichen={Crosshair} farbe="var(--plan-hervor)" name={t('plan3d.zur_kiste')} onClick={() => blick('kiste')} disabled={geht !== 'ja'} />
         ) : null}
-        <Button
-          size="sm"
-          variant={gehen ? 'aktiv' : 'outline'}
-          aria-pressed={gehen}
+        <Knopf
+          zeichen={Footprints}
+          name={t(gehen ? 'plan3d.begehen_ende' : 'plan3d.begehen')}
+          hilfe={t('plan3d.begehen_hilfe')}
+          an={gehen}
           onClick={() => setGehen((v) => !v)}
           disabled={geht !== 'ja' || leer}
-          title={t('plan3d.begehen_hilfe')}
-        >
-          <Footprints size={16} /> {t(gehen ? 'plan3d.begehen_ende' : 'plan3d.begehen')}
-        </Button>
+        />
         <div className={cx('flex rounded-xl border-2 border-line p-0.5', gehen && 'pointer-events-none opacity-40')} role="group" aria-label={t('plan3d.modus')}>
-          <button
-            type="button"
-            aria-pressed={hand}
-            onClick={() => handSetzen(true)}
-            title={t('plan3d.hand_hilfe')}
-            className={cx('flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-bold', hand ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
-          >
-            <Hand size={15} /> {t('plan3d.hand')}
-          </button>
-          <button
-            type="button"
-            aria-pressed={!hand}
-            onClick={() => handSetzen(false)}
-            title={t('plan3d.drehen_hilfe')}
-            className={cx('flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-bold', !hand ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
-          >
-            <Rotate3d size={15} /> {t('plan3d.drehen')}
-          </button>
+          <Teil zeichen={Hand} name={t('plan3d.hand')} hilfe={t('plan3d.hand_hilfe')} an={hand} onClick={() => handSetzen(true)} />
+          <Teil zeichen={Rotate3d} name={t('plan3d.drehen')} hilfe={t('plan3d.drehen_hilfe')} an={!hand} onClick={() => handSetzen(false)} />
         </div>
         <div className="flex rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('plan3d.licht')}>
           {(
@@ -297,57 +320,44 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
               ['auto', Clock, 'plan3d.licht_auto'],
             ] as const
           ).map(([wert, Zeichen, schluessel]) => (
-            <button
+            <Teil
               key={wert}
-              type="button"
-              aria-pressed={licht === wert}
+              zeichen={Zeichen}
+              name={t(schluessel)}
+              an={licht === wert}
               onClick={() => {
                 // Tag, Abend oder Automatisch gilt wieder fuer alle Raeume.
                 setLicht(wert)
                 setRaumLicht({})
               }}
-              title={t(schluessel)}
-              className={cx('flex h-8 items-center gap-1 rounded-lg px-2 text-sm font-bold', licht === wert ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
-            >
-              <Zeichen size={15} /> <span className="hidden sm:inline">{t(schluessel)}</span>
-            </button>
+            />
           ))}
         </div>
-        <Button
-          size="sm"
-          variant={lichtListeAuf ? 'aktiv' : 'outline'}
-          aria-pressed={lichtListeAuf}
-          aria-expanded={lichtListeAuf}
+        <Knopf
+          zeichen={Lightbulb}
+          name={t('plan3d.licht_raeume')}
+          hilfe={t('plan3d.licht_schalter_hilfe')}
+          an={lichtListeAuf}
+          aufklapp
           onClick={() => setLichtListeAuf((v) => !v)}
           disabled={geht !== 'ja' || leer}
-          title={t('plan3d.licht_schalter_hilfe')}
-        >
-          <Lightbulb size={16} /> {t('plan3d.licht_raeume')}
-        </Button>
-        <Button
-          size="sm"
-          variant={halb ? 'aktiv' : 'outline'}
-          aria-pressed={halb}
-          onClick={() => setHalb((v) => !v)}
-          disabled={geht !== 'ja'}
-        >
-          <Layers size={16} /> {t('plan3d.waende_halb')}
-        </Button>
-        <Button size="sm" variant={teppiche ? 'aktiv' : 'outline'} aria-pressed={teppiche} onClick={() => setTeppiche((v) => !v)} disabled={geht !== 'ja'}>
-          <Square size={16} /> {t('plan3d.teppiche')}
-        </Button>
-        <p className="t-sub min-w-0 flex-1 truncate px-1">
+        />
+        <Knopf zeichen={Layers} name={t('plan3d.waende_halb')} an={halb} onClick={() => setHalb((v) => !v)} disabled={geht !== 'ja'} />
+        <Knopf zeichen={Square} name={t('plan3d.teppiche')} an={teppiche} onClick={() => setTeppiche((v) => !v)} disabled={geht !== 'ja'} />
+        <Knopf
+          zeichen={vollbild ? Minimize2 : Maximize2}
+          name={t(vollbild ? 'plan3d.vollbild_ende' : 'plan3d.vollbild')}
+          an={vollbild}
+          onClick={vollbildUmschalten}
+        />
+        <p className="t-sub hidden min-w-0 flex-1 truncate px-1 sm:block">
           {geht !== 'ja'
             ? null
             : gehen
               ? t(beruehren ? 'plan3d.begehen_bedienung_handy' : 'plan3d.begehen_bedienung')
               : t(`${beruehren ? 'plan3d.bedienung_handy' : kannZiehen ? 'plan3d.bedienung_ziehen' : 'plan3d.bedienung'}${hand ? '_hand' : ''}`)}
         </p>
-        {onSchliessen ? (
-          <Button size="sm" variant="outline" onClick={onSchliessen}>
-            <X size={16} /> {t('plan3d.schliessen')}
-          </Button>
-        ) : null}
+        {onSchliessen && !vollbild ? <Knopf zeichen={X} name={t('plan3d.schliessen')} onClick={onSchliessen} /> : null}
       </div>
       {/* Plaene werden nie gespiegelt, auch nicht im Arabischen. */}
       <div dir="ltr" className="relative min-h-0 flex-1" style={{ background: 'var(--plan-grund)' }}>
@@ -359,7 +369,13 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
         />
         {geht === 'ja' && lichtListeAuf && !leer ? (
           // Licht je Raum: an, aus, alle. Auch ein Klick auf einen Schalter an der Wand schaltet.
-          <div dir="auto" className="absolute end-3 top-3 z-10 w-64 max-w-[calc(100%-1.5rem)] rounded-2xl border border-line bg-surface/95 p-2 shadow-lg">
+          <div
+            dir="auto"
+            className={cx(
+              'absolute end-3 z-30 w-64 max-w-[calc(100%-1.5rem)] rounded-2xl border border-line bg-surface/95 p-2 shadow-lg',
+              vollbild ? 'top-28 sm:top-16' : 'top-3',
+            )}
+          >
             <p className="t-sub px-1 pb-1">{t('plan3d.licht_schalter_hilfe')}</p>
             <div className="flex flex-wrap gap-1 pb-1">
               <Button size="sm" variant="outline" onClick={() => setRaumLicht(Object.fromEntries(lichtRaeumeListe.map((r) => [r.id, true])))}>
@@ -425,5 +441,75 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
         ) : null}
       </div>
     </div>
+  )
+}
+
+/** Ein Knopf der 3D-Leiste: am Handy nur das Zeichen (Name als Hilfe und
+ *  fuer Vorleser), ab sm mit Namen. an: gedrueckt (dunkel). */
+function Knopf({
+  zeichen: Zeichen,
+  name,
+  hilfe,
+  an,
+  aufklapp,
+  farbe,
+  onClick,
+  disabled,
+}: {
+  zeichen: typeof Sun
+  name: string
+  hilfe?: string
+  an?: boolean
+  aufklapp?: boolean
+  farbe?: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <Button
+      size="sm"
+      variant={an ? 'aktiv' : 'outline'}
+      aria-pressed={an === undefined ? undefined : an}
+      aria-expanded={aufklapp ? an : undefined}
+      aria-label={name}
+      title={hilfe ?? name}
+      onClick={onClick}
+      disabled={disabled}
+      className="h-10 min-w-10 justify-center px-2.5 sm:px-3.5"
+    >
+      <Zeichen size={17} style={farbe ? { color: farbe } : undefined} />
+      <span className="hidden sm:inline">{name}</span>
+    </Button>
+  )
+}
+
+/** Ein Teil einer Gruppe (Hand oder Drehen, Tag, Abend, Automatisch). */
+function Teil({
+  zeichen: Zeichen,
+  name,
+  hilfe,
+  an,
+  onClick,
+}: {
+  zeichen: typeof Sun
+  name: string
+  hilfe?: string
+  an: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={an}
+      aria-label={name}
+      onClick={onClick}
+      title={hilfe ?? name}
+      className={cx(
+        'flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-2 text-sm font-bold leading-tight',
+        an ? 'bg-ink text-paper' : 'text-ink hover:bg-raised',
+      )}
+    >
+      <Zeichen size={15} /> <span className="hidden sm:inline">{name}</span>
+    </button>
   )
 }
