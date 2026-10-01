@@ -840,3 +840,21 @@ export interface SiedlungInnenHaus {
   drehung: 0 | 90 | 180 | 270
   geschosse: SiedlungInnenGeschoss[]
 }
+
+/* --------------------------------------------- Siedlung gemeinsam (E86)
+ * Der Besitzer laedt registrierte Leute in seine Siedlung ein (E-Mail oder
+ * eindeutiger Anzeigename). Gaeste sehen die Siedlung mit allen Haeusern
+ * und Wohnungen und gehen gleichzeitig mit hinein (Figuren, Sprechen).
+ * Die eingerichtete eigene Wohnung sieht nur, wer im Umzug ist (wie bisher). */
+
+export interface SiedlungMitglied {
+  user_id: string
+  name: string
+  avatar3d: Avatar3D | null
+  rolle: 'besitzer' | 'gast'
+}
+
+/** Antwort beim Einladen. */
+export type SiedlungEinladung =
+  | { status: 'ok'; name: string }
+  | { status: 'nicht_gefunden' | 'mehrdeutig' | 'schon_drin' | 'selbst' | 'zu_viele' }

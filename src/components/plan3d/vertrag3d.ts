@@ -81,6 +81,8 @@ export interface Welt3D {
   interaktiv: Interaktiv3D | null
   /** Wohnungen und Orte zum Hinspringen (E84), sonst leer oder fehlt. */
   sprungziele?: Sprungziel3D[]
+  /** Fuer die Minikarte (E86): Umrisse in Weltmetern (x, z), sonst fehlt. */
+  karte?: Karte3D
   /** Jedes Bild (beim Begehen): Aufzugtueren, Kabine. true = es bewegt sich noch. */
   schritt?(dt: number, kameraY: number): boolean
   dispose(): void
@@ -97,4 +99,14 @@ export interface Sprungziel3D {
   z: number
   /** Blickrichtung (0 = nach -z). */
   gier: number
+}
+
+/* ------------------------------------------------------------ E86 */
+
+/** Was die Minikarte zeigt: Haeuser und Flaechen als Umrisse in
+ *  Weltmetern (x, z; z wie der Plan nach unten), dazu der Rahmen. */
+export interface Karte3D {
+  rahmen: [number, number, number, number]
+  haeuser: { name: string; punkte: [number, number][] }[]
+  flaechen: { art: 'weg' | 'spielplatz' | 'strasse' | 'garten'; punkte: [number, number][] }[]
 }
