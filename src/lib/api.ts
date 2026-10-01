@@ -1778,3 +1778,58 @@ export async function siedlungImportieren(
     return { siedlung, deko: { fehler: err instanceof Error ? err.message : String(err) } }
   }
 }
+
+/* ------------------------------------------------ Siedlung gemeinsam (E86) */
+
+/* Der Besitzer laedt registrierte Konten in seine Siedlung ein (0046).
+ * Alles laeuft ueber Funktionen der Datenbank: sie prueft, wer einladen,
+ * sehen und herausnehmen darf, und gibt nie E-Mails oder Kennungen fremder
+ * Konten heraus. Ablehnungen tragen eine Kennung (kistly:siedlung.*), den
+ * Satz dazu macht errText. Die Typen kommen wie oben ohne Eintrag in der
+ * Importliste aus. */
+type SiedlungMitgliedZeile = import('./types').SiedlungMitglied
+type SiedlungEinladungAntwort = import('./types').SiedlungEinladung
+
+/** Alle Antworten von siedlung_einladen ausser 'ok' (0046). */
+const EINLADUNG_ANDERE: readonly string[] = ['nicht_gefunden', 'mehrdeutig', 'schon_drin', 'selbst', 'zu_viele']
+
+/** Laedt per E-Mail (enthaelt '@') oder per eindeutigem Anzeigenamen ein.
+ *  Die Antwort sagt, wie es ausging (ok mit dem Anzeigenamen, sonst der
+ *  Grund). Ein Fehler kommt, wenn man nicht der Besitzer ist, das Konto
+ *  nicht freigeschaltet ist oder zu oft eingeladen wurde (30 Versuche je
+ *  Stunde). */
+export async function siedlungEinladen(siedlungId: string, wer: string): Promise<SiedlungEinladungAntwort> {
+  const res = await supabase.rpc('siedlung_einladen', { p_siedlung: siedlungId, p_wer: wer })
+  if (res.error) throw new Error(errText(res.error))
+  const d = (res.data ?? null) as { status?: unknown; name?: unknown } | null
+  const status = d?.status
+  if (status === 'ok') return { status, name: typeof d?.name === 'string' ? d.name : '' }
+  if (typeof status === 'string' && EINLADUNG_ANDERE.includes(status)) {
+    return { status: status as Exclude<SiedlungEinladungAntwort['status'], 'ok'> }
+  }
+  // Eine Antwort, die es nicht geben duerfte: sichtbar, nicht still.
+  throw new Error(tg('zustand.unbekannter_fehler'))
+}
+
+/** Wer zur Siedlung gehoert: der Besitzer zuerst, dann die Gaeste in der
+ *  Reihenfolge der Einladung, mit Anzeigenamen (sonst 'Gast') und Figur.
+ *  Nur fuer Besitzer und Gaeste; alle anderen bekommen einen Fehler, keine
+ *  leere Liste. Die Figur prueft die Datenbank beim Speichern (0043). */
+export async function siedlungMitglieder(siedlungId: string): Promise<SiedlungMitgliedZeile[]> {
+  const res = await supabase.rpc('siedlung_mitglieder_liste', { p_siedlung: siedlungId })
+  if (res.error) throw new Error(errText(res.error))
+  return ((res.data ?? []) as SiedlungMitgliedZeile[]).map((m) => ({
+    user_id: m.user_id,
+    name: m.name,
+    avatar3d: m.avatar3d ?? null,
+    rolle: m.rolle === 'besitzer' ? 'besitzer' : 'gast',
+  }))
+}
+
+/** Nimmt einen Gast heraus (nur der Besitzer) oder verlaesst die Siedlung
+ *  (userId = das eigene Konto). War die Person nicht drin, ist das ein
+ *  Fehler und kein stilles Nichts. */
+export async function siedlungEntfernen(siedlungId: string, userId: string): Promise<void> {
+  const res = await supabase.rpc('siedlung_entfernen', { p_siedlung: siedlungId, p_user: userId })
+  if (res.error) throw new Error(errText(res.error))
+}
