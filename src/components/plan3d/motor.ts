@@ -892,7 +892,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (b === 'oben') {
       zielen(mitte, (hoch ? passtHoch : passt) * 1.12 + r.hoehe, 0.0001, hoch ? -Math.PI / 2 : 0)
     } else if (b === 'schraeg') {
-      zielen([mitte[0], r.hoehe * 0.2, mitte[2]], (hoch ? passtHoch * 1.45 : passt * 1.25) + r.hoehe, 0.95, hoch ? -0.55 - Math.PI / 2 : -0.55)
+      zielen([mitte[0], r.hoehe * 0.2, mitte[2]], (hoch ? passtHoch * 1.75 : passt * 1.25) + r.hoehe, 0.95, hoch ? -0.55 - Math.PI / 2 : -0.55)
     } else {
       const k = hervorMitte(koerperJetzt)
       if (!k) return

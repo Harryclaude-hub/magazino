@@ -12,7 +12,6 @@ import {
   LayoutGrid,
   Plus,
   Printer,
-  ScanLine,
   Users,
 } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
@@ -237,8 +236,19 @@ export default function ProjectHome() {
           </>
         )}
 
-        {/* Schnellzugriff */}
-        <div data-tour="umzug-schnell" className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {/* Am Handy (E78): nur der wichtigste Knopf. Zimmer, Grundriss,
+            Moebel, Etiketten, Ausgabe und Team liegen im Drei-Striche-Menue
+            oben links, Scannen unten in der Leiste. */}
+        {canEdit ? (
+          <div className="mb-6 sm:hidden">
+            <Button full size="lg" onClick={() => nav(`${base}/kisten?neu=1`)}>
+              <Plus size={20} /> {t('umzuege.kiste_anlegen')}
+            </Button>
+          </div>
+        ) : null}
+
+        {/* Schnellzugriff (ab sm) */}
+        <div data-tour="umzug-schnell" className="mb-6 hidden grid-cols-4 gap-2.5 sm:grid">
           {canEdit ? (
             <Quick
               icon={<Plus size={26} />}
@@ -246,11 +256,6 @@ export default function ProjectHome() {
               onClick={() => nav(`${base}/kisten?neu=1`)}
             />
           ) : null}
-          <Quick
-            icon={<ScanLine size={26} />}
-            label={t('nav.scannen')}
-            onClick={() => nav(`${base}/scan`)}
-          />
           <Quick
             icon={<LayoutGrid size={26} />}
             label={t('begriff.bereiche')}
@@ -385,7 +390,7 @@ export default function ProjectHome() {
           )}
         </Card>
 
-        <div data-tour="umzug-fuss" className="mt-6 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+        <div data-tour="umzug-fuss" className="mt-6 hidden gap-2.5 sm:grid sm:grid-cols-2 lg:grid-cols-4">
           <Link to={`${base}/kisten`} className="block">
             <Button variant="soft" full>
               <Boxes size={18} /> {t('umzuege.alle_kisten')}

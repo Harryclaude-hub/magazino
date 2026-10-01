@@ -6,6 +6,7 @@ import { Avatar } from './ui'
 import { displayNameOf, useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 import { ErklaerKnopf } from './Fuehrung'
+import { ProjektMenue } from './ProjektMenue'
 
 /** Kopfzeile. Rechts steht immer das eigene Profil, so wie bei den grossen
  *  Messengern. Zusaetzliche Knoepfe kommen links daneben. */
@@ -43,6 +44,7 @@ export function AppHeader({
           wide ? 'max-w-6xl lg:max-w-[1600px]' : 'max-w-5xl lg:max-w-6xl 2xl:max-w-7xl',
         )}
       >
+        <ProjektMenue />
         {back ? (
           <button
             data-tour="zurueck"

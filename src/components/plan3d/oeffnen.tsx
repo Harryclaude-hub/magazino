@@ -121,7 +121,7 @@ function Fenster3D({ titel, onClose, children }: { titel: string; onClose: () =>
         role="dialog"
         aria-modal="true"
         aria-label={titel}
-        className="relative flex h-full w-full flex-col overflow-hidden bg-surface shadow-2xl sm:max-h-[900px] sm:max-w-[1400px] sm:rounded-2xl sm:border sm:border-line"
+        className="relative flex h-full w-full flex-col overflow-hidden bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-2xl sm:max-h-[900px] sm:max-w-[1400px] sm:rounded-2xl sm:border sm:border-line sm:pb-0"
       >
         {children}
       </div>

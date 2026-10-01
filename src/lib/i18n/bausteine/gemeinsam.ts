@@ -10,6 +10,8 @@ export const gemeinsam: Woerterbuch = {
   'nav.scannen': { de: 'Scannen', ar: 'مسح' },
   'nav.chat': { de: 'Chat', ar: 'المحادثة' },
   'nav.profil': { de: 'Profil', ar: 'حسابي' },
+  'nav.uebersicht': { de: 'Übersicht', ar: 'نظرة عامة' },
+  'menue.umzug': { de: 'Menü des Umzugs', ar: 'قائمة النقلة' },
   'leiste.zimmer': { de: 'Zimmer', ar: 'الغرف' },
   'leiste.grundriss': { de: 'Grundriss', ar: 'المخطط' },
   'leiste.umzug': { de: 'Umzug', ar: 'النقلة' },

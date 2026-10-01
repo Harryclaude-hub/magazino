@@ -34,6 +34,11 @@ export function useProject(): ProjectCtxValue {
   return v
 }
 
+/** Wie useProject, aber null ausserhalb eines Umzugs (Kopfzeile, E78). */
+export function useProjektOptional(): ProjectCtxValue | null {
+  return useContext(Ctx)
+}
+
 export default function ProjectLayout() {
   const { pid = '' } = useParams()
   const { user } = useAuth()

@@ -552,3 +552,16 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Rueckenpolster bis Tischkante 43 cm, Sitzvorderkante bis Tisch 7 cm,
   Platz fuer die Beine unter dem Tisch 29 cm; das ist bequem, enger als
   ein Stuhl ist nur das seitliche Hineinrutschen, wie bei jeder Eckbank.
+- **E78 Handy: fuenf Knoepfe unten, Drei-Striche-Menue, 3D-Leiste
+  einklappbar:** Die untere Leiste hat ueberall genau fuenf Knoepfe
+  (Umzuege, Kisten, Scannen, Suchen, Chat); das Profil steht nur noch
+  oben rechts. In jedem Umzug oben links ein Drei-Striche-Menue
+  (`ProjektMenue`) mit Uebersicht, Kiste anlegen, Kisten, Bereiche,
+  Grundriss, Moebel, Etiketten, Ausgabe, Team, Umzug einstellen und
+  Andere Umzuege. Die Umzug-Startseite zeigt am Handy darum keine
+  Kachelwand und keine Knopfreihe mehr, nur "Kiste anlegen" (Scannen ist
+  unten in der Leiste). 3D am Handy: Die Leiste beginnt unter der
+  Statusleiste (safe-area, die Kamera-Aussparung verdeckte sie), hat genau
+  zwei Reihen (oben Ansicht und Bewegen samt Vollbild, unten Licht und
+  Anzeige) und laesst sich einklappen; dann bleibt oben links ein kleiner
+  Knopf zum Aufklappen.

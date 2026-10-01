@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { Boxes, MessageCircle, ScanLine, Search, ShieldCheck, User, Warehouse } from 'lucide-react'
+import { Boxes, MessageCircle, ScanLine, Search, ShieldCheck, Warehouse } from 'lucide-react'
 import { BottomNav, NavTab } from '../components/AppShell'
 import { LeistenSymbole, Seitenleiste, SuchKopf } from '../components/Seitenleiste'
 import { useT } from '../lib/i18n'
@@ -10,8 +10,11 @@ import { useAuth } from '../lib/auth'
 import { getLastProject, setLastProject } from '../lib/lastProject'
 
 /* Rahmen um alles, was hinter der Anmeldung liegt.
- * Die untere Leiste ist immer da, wie bei WhatsApp. Sie kennt den zuletzt
- * geoeffneten Umzug und springt direkt dorthin.
+ * Die untere Leiste ist immer da, wie bei WhatsApp, mit genau fuenf
+ * Knoepfen (E78): Umzuege, Kisten, Scannen, Suchen, Chat. Das Profil steht
+ * oben rechts in jeder Kopfzeile, alles Weitere eines Umzugs im
+ * Drei-Striche-Menue (ProjektMenue). Sie kennt den zuletzt geoeffneten
+ * Umzug und springt direkt dorthin.
  */
 
 interface AppShellValue {
@@ -256,13 +259,6 @@ export default function AppLayout() {
             tour="nav-chat"
             active={inChat}
             badge={unread}
-          />
-          <NavTab
-            to="/app/einstellungen"
-            icon={<User size={21} />}
-            label={t('nav.profil')}
-            tour="nav-profil"
-            active={path === '/app/einstellungen'}
           />
         </BottomNav>
         </div>
