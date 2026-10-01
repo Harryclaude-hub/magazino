@@ -118,4 +118,15 @@ export const umzuege: Woerterbuch = {
   // ------------------------------------------------------------- Der Rahmen
   'umzuege.umzug_laden': { de: 'Umzug wird geladen', ar: 'جارٍ تحميل النقلة' },
   'umzuege.zur_uebersicht': { de: 'Zur Übersicht', ar: 'إلى القائمة' },
+
+  // ---------------------------------------------- Siedlung, schon beim Start
+  // Der Knopf oben und sein Schalter in den Einstellungen sind zu sehen,
+  // bevor die Siedlung geladen ist. Alle anderen Saetze der Siedlung laden
+  // erst mit ihr (bausteine/siedlung.ts).
+  'nav.siedlung': { de: 'Siedlung', ar: 'المجمّع السكني' },
+  'einstellungen.siedlung_knopf': { de: 'Siedlung-Knopf zeigen', ar: 'إظهار زر المجمّع السكني' },
+  'einstellungen.siedlung_knopf_hinweis': {
+    de: 'Oben rechts neben dem Profil. Ausgeschaltet bleibt alles andere gleich.',
+    ar: 'في أعلى الشاشة بجانب الحساب. عند إيقافه يبقى كل شيء آخر كما هو.',
+  },
 }

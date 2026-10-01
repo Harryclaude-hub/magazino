@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowDownToLine, ArrowUpFromLine, Clock, Crosshair, Eye, Flower2, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, Map as KarteIcon, Maximize2, Mic, MicOff, Minimize2, Moon, Rotate3d, SlidersHorizontal, Square, Sun, Users, X } from 'lucide-react'
 import { displayNameOf, useAuth } from '../../lib/auth'
@@ -19,6 +19,7 @@ import { Knueppel } from './Knueppel'
 import { farbenLesen } from './farben3d'
 import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
 import { umgebungAus } from './umgebungRahmen'
+import type { Ebene3D, Welt3D } from './vertrag3d'
 
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
  *
@@ -44,9 +45,46 @@ import { umgebungAus } from './umgebungRahmen'
  * Figur, und mit Mikrofon hoert man sich, lauter, je naeher man steht.
  * Draussen gibt es eine ruhige Umgebung (aussen3d.ts).
  *
+ * E83: Die Siedlung gibt statt dieser Umgebung ihre eigene Welt mit
+ * (welt): Haeuser rundherum, Gaenge, Treppenhaus, Aufzug. Beim Begehen
+ * steht dann oben, auf welchem Stockwerk man ist. Ohne welt bleibt alles
+ * wie zuvor.
+ *
  * Die Farben kommen aus den Tokens (getComputedStyle) und werden bei
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
  */
+
+/** Was die Seite der Siedlung von aussen ausloesen kann (E83). */
+export interface Raum3DSteuer {
+  /** Begehen in der eigenen Wohnung beginnen (im groessten Raum), auch
+   *  wenn man gerade woanders in der Siedlung geht. */
+  zurWohnung(): void
+  /** Alles von oben zeigen. */
+  vonOben(): void
+}
+
+/** Was der Motor fuer eine eigene Welt kann (E83, Paket motor). Hier nur
+ *  als freiwillige Angabe und ueber unknown gegriffen, damit es nach dem
+ *  Zusammenfuehren nicht mit motor.ts kollidiert: fehlt welt(), kommt die
+ *  Welt ueber umgebung() und es gibt keine Stockwerke. */
+interface MotorMitWelt {
+  welt?: (w: Welt3D | null) => void
+  ebeneJetzt?: (fn: ((ebene: unknown) => void) | null) => void
+  ebeneWechseln?: (i: number) => void
+}
+
+function mitWelt(m: Motor): MotorMitWelt {
+  return m as unknown as MotorMitWelt
+}
+
+/** Name der Ebene aus dem, was der Motor meldet: ihre Nummer in
+ *  welt.ebenen, die Ebene selbst oder ihre Kennung. */
+function ebenenName(e: unknown, ebenen: Ebene3D[]): string | null {
+  if (typeof e === 'number') return ebenen[e]?.name ?? null
+  if (typeof e === 'string') return ebenen.find((x) => x.id === e)?.name ?? e
+  if (e && typeof e === 'object' && 'name' in e && typeof e.name === 'string') return e.name
+  return null
+}
 
 export interface Raum3DProps {
   daten: GrundrissDaten
@@ -64,6 +102,17 @@ export interface Raum3DProps {
   onTippen?: (xCm: number, yCm: number, treffer: Treffer3D | null) => void
   /** Gewaehltes Moebel (Objekt-Id): leuchtet in 3D auf. */
   markiert?: string | null
+  /** Eigene Aussenwelt statt der ruhigen Umgebung (E83, Siedlung). Raum3D
+   *  baut sie mit den aktuellen Farben, gibt sie dem Motor und gibt sie bei
+   *  einem Wechsel und beim Schliessen frei. Soll stabil sein (useCallback
+   *  oder useMemo), sonst wird sie bei jedem Neuzeichnen neu gebaut. Ohne
+   *  welt bleibt alles wie bisher (aussen3d.ts). */
+  welt?: (farben: Farben3D) => Welt3D
+  /** Meldet das Stockwerk, auf dem man gerade geht (Name der Ebene der
+   *  welt), oder null, wenn man nicht geht. */
+  onEbene?: (name: string | null) => void
+  /** Griff fuer Knoepfe ausserhalb (Kopfzeile der Siedlung). */
+  steuer?: Ref<Raum3DSteuer>
   className?: string
 }
 
@@ -103,7 +152,7 @@ function traegerKarte(daten: GrundrissDaten): Map<string, string> {
   return out
 }
 
-export default function Raum3D({ daten, raumId = null, hervor = null, markiert = null, onSchliessen, onObjektZiehen, onTippen, className }: Raum3DProps) {
+export default function Raum3D({ daten, raumId = null, hervor = null, markiert = null, onSchliessen, onObjektZiehen, onTippen, welt, onEbene, steuer, className }: Raum3DProps) {
   const { t } = useSprache()
   const nav = useNavigate()
   const toast = useToast()
@@ -305,10 +354,12 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   }, [gehen, geht])
 
   // Draussen (E82): Himmel, Wiese, Weg, Baeume, Nachbarhaeuser. Nur fuer die
-  // ganze Wohnung, nicht beim Blick in einen einzelnen Raum.
+  // ganze Wohnung, nicht beim Blick in einen einzelnen Raum. Mit eigener
+  // Welt (E83, Siedlung) entfaellt sie.
+  const eigeneWelt = Boolean(welt)
   const umgebung = useMemo(
-    () => (raumId ? null : umgebungAus({ raeume: daten.raeume, oeffnungen: daten.oeffnungen })),
-    [daten.raeume, daten.oeffnungen, raumId],
+    () => (raumId || eigeneWelt ? null : umgebungAus({ raeume: daten.raeume, oeffnungen: daten.oeffnungen })),
+    [daten.raeume, daten.oeffnungen, raumId, eigeneWelt],
   )
   useEffect(() => {
     const m = motor.current
@@ -327,6 +378,50 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
       welt.dispose()
     }
   }, [umgebung, farben, geht])
+
+  // Eigene Welt (E83): bei jedem Anbringen frisch gebaut (auch im
+  // StrictMode, der Effekte doppelt laufen laesst), beim Abnehmen
+  // freigegeben. Ein Fehler beim Bauen wird gezeigt; die Wohnung bleibt.
+  const [weltFehler, setWeltFehler] = useState<{ fuer: (farben: Farben3D) => Welt3D; text: string } | null>(null)
+  const weltFehlerText = weltFehler && weltFehler.fuer === welt ? weltFehler.text : null
+  // Stockwerk beim Begehen: Name und alle Ebenen der Welt (fuer den Aufzug,
+  // oben das hoechste wie an der Tafel im Aufzug; i ist die Nummer in welt.ebenen).
+  const [ebeneLage, setEbeneLage] = useState<{ name: string | null; liste: { i: number; name: string; y: number }[] } | null>(null)
+  const [aufzugAuf, setAufzugAuf] = useState(false)
+  useEffect(() => {
+    const m = motor.current
+    if (!m || geht !== 'ja' || !welt) return
+    let w: Welt3D
+    try {
+      w = welt(farben)
+    } catch (err) {
+      console.warn('[3d] Welt:', err)
+      setWeltFehler({ fuer: welt, text: err instanceof Error ? err.message : String(err) })
+      return
+    }
+    const mw = mitWelt(m)
+    if (mw.welt) mw.welt(w)
+    else m.umgebung({ gruppe: w.gruppe, nebel: w.nebel, himmel: w.himmel })
+    const liste = w.ebenen.map((x, i) => ({ i, name: x.name, y: x.y })).sort((a, b) => b.y - a.y)
+    mw.ebeneJetzt?.((e) => setEbeneLage({ name: ebenenName(e, w.ebenen), liste }))
+    return () => {
+      mw.ebeneJetzt?.(null)
+      if (mw.welt) mw.welt(null)
+      else m.umgebung(null)
+      w.dispose()
+      setEbeneLage(null)
+    }
+  }, [welt, farben, geht])
+  const ebeneJetzt = gehen ? (ebeneLage?.name ?? null) : null
+  const kannWechseln = Boolean(welt) && geht === 'ja' && !!motor.current && typeof mitWelt(motor.current).ebeneWechseln === 'function'
+  // Das Stockwerk geht auch an die Seite (Kopfzeile der Siedlung).
+  const ebeneRueck = useRef(onEbene)
+  useLayoutEffect(() => {
+    ebeneRueck.current = onEbene
+  })
+  useEffect(() => {
+    ebeneRueck.current?.(ebeneJetzt)
+  }, [ebeneJetzt])
   /** Bedienung mit Fingern (Handy, Tablet): anderer Hinweis. */
   const beruehren = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
   const traeger = useMemo(() => traegerKarte(daten), [daten])
@@ -338,6 +433,30 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     setGehen(false)
     motor.current?.blick(b)
   }
+
+  // Knoepfe der Siedlung (E83). Zur Wohnung: neu anfangen, auch mitten im
+  // Gehen; der Motor setzt dabei die Ebene der Wohnung (Boden bei 0).
+  useImperativeHandle(
+    steuer,
+    () => ({
+      zurWohnung() {
+        const m = motor.current
+        if (!m || geht !== 'ja') return
+        setKarte(null)
+        setAufzugAuf(false)
+        if (gehenRef.current) m.begehen(false, null)
+        m.begehen(true, startPunkt(daten, raumId))
+        setGehen(true)
+      },
+      vonOben() {
+        setKarte(null)
+        setAufzugAuf(false)
+        setGehen(false)
+        motor.current?.blick('oben')
+      },
+    }),
+    [geht, daten, raumId],
+  )
 
   // Begehen an und aus; der Motor merkt sich die Kamera von vorher.
   useEffect(() => {
@@ -506,7 +625,8 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
             hilfe={t('plan3d.begehen_hilfe')}
             an={gehen}
             onClick={() => setGehen((v) => !v)}
-            disabled={geht !== 'ja' || leer}
+            // Mit eigener Welt (Siedlung ohne Wohnung) geht man auch ohne Raeume.
+            disabled={geht !== 'ja' || (leer && !eigeneWelt)}
           />
           <div className={cx('flex rounded-xl border-2 border-line p-0.5', gehen && 'pointer-events-none opacity-40')} role="group" aria-label={t('plan3d.modus')}>
             <Teil zeichen={Hand} name={t('plan3d.hand')} hilfe={t('plan3d.hand_hilfe')} an={hand} onClick={() => handSetzen(true)} />
@@ -680,9 +800,75 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
               ) : null}
             </div>
           </>
-        ) : geht === 'ja' && leer ? (
+        ) : geht === 'ja' && leer && !eigeneWelt ? (
           <div dir="auto" className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
             <p className="rounded-xl border border-line bg-surface px-3 py-2 text-muted">{t('plan3d.leer')}</p>
+          </div>
+        ) : null}
+        {/* Eigene Welt (E83): Fehler beim Bauen, und beim Begehen das
+            Stockwerk oben in der Mitte; mit Aufzug als Liste zum Wechseln.
+            Die Saetze stehen in bausteine/siedlung.ts, das mit der Seite der
+            Siedlung laedt (nur sie gibt eine Welt mit). */}
+        {weltFehlerText ? (
+          <div dir="auto" className="absolute inset-x-3 bottom-3 z-30 flex justify-center">
+            <p className="max-w-md rounded-xl border border-danger bg-surface/95 px-3 py-2 text-sm font-bold text-danger shadow" role="alert">
+              {t('siedlung.welt_fehler', { fehler: weltFehlerText })}
+            </p>
+          </div>
+        ) : null}
+        {geht === 'ja' && ebeneJetzt && !karte ? (
+          <div
+            className={cx(
+              'absolute inset-x-0 z-20 flex flex-col items-center gap-1 px-3',
+              vollbild && !leisteZu ? 'top-28 md:top-16' : 'top-3',
+            )}
+          >
+            {kannWechseln && (ebeneLage?.liste.length ?? 0) > 1 ? (
+              <button
+                type="button"
+                aria-expanded={aufzugAuf}
+                aria-label={`${t('siedlung.ebene_jetzt', { name: ebeneJetzt })}. ${t('siedlung.aufzug')}`}
+                title={t('siedlung.aufzug')}
+                onClick={() => setAufzugAuf((v) => !v)}
+                className="flex h-9 items-center gap-1.5 rounded-full border-2 border-line bg-surface/95 px-3 text-sm font-bold text-ink shadow"
+              >
+                <Layers size={15} /> <span dir="auto">{ebeneJetzt}</span>
+              </button>
+            ) : (
+              <span
+                role="status"
+                aria-label={t('siedlung.ebene_jetzt', { name: ebeneJetzt })}
+                className="flex h-9 items-center gap-1.5 rounded-full border border-line bg-surface/95 px-3 text-sm font-bold text-ink shadow"
+              >
+                <Layers size={15} /> <span dir="auto">{ebeneJetzt}</span>
+              </span>
+            )}
+            {aufzugAuf && kannWechseln && ebeneLage ? (
+              <div dir="auto" className="w-56 max-w-full rounded-2xl border border-line bg-surface/95 p-2 shadow-lg">
+                <p className="t-sub px-1 pb-1">{t('siedlung.aufzug')}</p>
+                <ul className="max-h-64 overflow-y-auto">
+                  {ebeneLage.liste.map((e) => (
+                    <li key={e.i}>
+                      <button
+                        type="button"
+                        aria-pressed={e.name === ebeneJetzt}
+                        onClick={() => {
+                          const m = motor.current
+                          if (m) mitWelt(m).ebeneWechseln?.(e.i)
+                          setAufzugAuf(false)
+                        }}
+                        className={cx(
+                          'flex w-full items-center rounded-lg px-2 py-1.5 text-start text-sm font-bold hover:bg-raised',
+                          e.name === ebeneJetzt ? 'bg-ink text-paper hover:bg-ink' : 'text-ink',
+                        )}
+                      >
+                        {e.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         ) : null}
         {karteKiste ? (

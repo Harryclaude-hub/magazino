@@ -1653,3 +1653,82 @@ export async function ladeKistenKarte(
     : undefined
   return { item, contents, coverPath: deck?.path ?? null }
 }
+
+/* ----------------------------------------------------------- Siedlung (E83) */
+
+/* Eine Siedlung gehoert einem Konto (0044). Lesen darf auch, wer Mitglied
+ * im Umzug des Grundrisses der eigenen Wohnung ist; schreiben nur der
+ * Besitzer. Die Datenbank prueft den Inhalt selbst. Die Typen kommen hier
+ * ohne Eintrag oben in der Importliste aus, damit dieser Teil fuer sich
+ * steht. */
+type SiedlungZeile = import('./types').Siedlung
+type SiedlungAussenWerte = import('./types').SiedlungAussen
+
+const SIEDLUNG_SPALTEN = 'id, owner_id, name, lat, lon, gebaeude, wohnung, aussen, created_at, updated_at'
+
+/** Zeile der Datenbank in die Form der Oberflaeche: fehlende Listen leer,
+ *  lat und lon als Zahl. */
+function siedlungLesen(z: SiedlungZeile): SiedlungZeile {
+  const a = (z.aussen ?? {}) as Partial<SiedlungAussenWerte>
+  return {
+    ...z,
+    lat: Number(z.lat),
+    lon: Number(z.lon),
+    gebaeude: Array.isArray(z.gebaeude) ? z.gebaeude : [],
+    wohnung: z.wohnung ?? null,
+    aussen: { spielplatz: a.spielplatz ?? null, tiefgarage: a.tiefgarage ?? null, wege: a.wege ?? [] },
+  }
+}
+
+/** Alle Siedlungen, die man sehen darf: die eigenen und die aus einem
+ *  gemeinsamen Umzug (owner_id sagt, wem sie gehoeren). Aelteste zuerst. */
+export async function listSiedlungen(): Promise<SiedlungZeile[]> {
+  const res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN).order('created_at')
+  if (res.error) throw new Error(errText(res.error))
+  return ((res.data ?? []) as SiedlungZeile[]).map(siedlungLesen)
+}
+
+/** Eine Siedlung. null heisst: gibt es nicht (mehr) oder nicht sichtbar. */
+export async function ladeSiedlung(id: string): Promise<SiedlungZeile | null> {
+  const res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN).eq('id', id).maybeSingle()
+  if (res.error) throw new Error(errText(res.error))
+  return res.data ? siedlungLesen(res.data as SiedlungZeile) : null
+}
+
+/** Legt an (ohne id) oder aendert (mit id). Beim Aendern gehen nur die
+ *  Felder hinaus, die mitkommen; Besitzer und Zeiten setzt die Datenbank.
+ *  Gibt die gespeicherte Zeile zurueck. */
+export async function speichereSiedlung(
+  s: Partial<SiedlungZeile> & { name: string; lat: number; lon: number },
+): Promise<SiedlungZeile> {
+  const werte: Record<string, unknown> = { name: s.name.trim(), lat: s.lat, lon: s.lon }
+  if (s.gebaeude !== undefined) werte.gebaeude = s.gebaeude
+  if (s.wohnung !== undefined) werte.wohnung = s.wohnung
+  if (s.aussen !== undefined) werte.aussen = s.aussen
+
+  if (!s.id) {
+    const neu = {
+      gebaeude: [],
+      wohnung: null,
+      aussen: { spielplatz: null, tiefgarage: null, wege: [] } satisfies SiedlungAussenWerte,
+      ...werte,
+    }
+    const res = await supabase.from('siedlungen').insert(neu).select(SIEDLUNG_SPALTEN).single()
+    if (res.error) throw new Error(errText(res.error))
+    return siedlungLesen(res.data as SiedlungZeile)
+  }
+
+  const res = await supabase.from('siedlungen').update(werte).eq('id', s.id).select(SIEDLUNG_SPALTEN).maybeSingle()
+  if (res.error) throw new Error(errText(res.error))
+  // Keine Zeile: gibt es nicht mehr oder gehoert einem anderen Konto.
+  if (!res.data) throw new Error(tg('zustand.nichts_gefunden'))
+  return siedlungLesen(res.data as SiedlungZeile)
+}
+
+/** Loescht eine eigene Siedlung. Traf es keine Zeile (fremd oder schon
+ *  weg), ist das ein Fehler und kein stilles Nichts. */
+export async function loescheSiedlung(id: string): Promise<void> {
+  const res = await supabase.from('siedlungen').delete({ count: 'exact' }).eq('id', id)
+  if (res.error) throw new Error(errText(res.error))
+  if (!res.count) throw new Error(tg('zustand.nichts_gefunden'))
+}

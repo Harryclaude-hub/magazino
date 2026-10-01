@@ -41,6 +41,11 @@ const AlterPlanLink = lazy(() => import('./pages/Grundriss').then((m) => ({ defa
 /* Kiste platzieren am Handy: eigener Teil, erst beim Oeffnen geladen. */
 const PlatzWahl = lazy(() => import('./pages/PlatzWahl'))
 const Admin = lazy(() => import('./pages/Admin'))
+/* Die Siedlung (E83): eigener Bereich neben den Umzuegen. Beim Start der
+ * App laedt davon nichts, weder Seite noch Daten noch three; erst der
+ * Knopf oben rechts oeffnet sie. */
+const Siedlungen = lazy(() => import('./pages/Siedlungen'))
+const SiedlungAnsicht = lazy(() => import('./pages/SiedlungAnsicht'))
 
 function Nachladen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<Loading />}>{children}</Suspense>
@@ -108,6 +113,8 @@ export default function App() {
               <Route index element={<Dashboard />} />
               <Route path="einstellungen" element={<Settings />} />
               <Route path="admin" element={<Nachladen><Admin /></Nachladen>} />
+              <Route path="siedlung" element={<Nachladen><Siedlungen /></Nachladen>} />
+              <Route path="siedlung/:sid" element={<Nachladen><SiedlungAnsicht /></Nachladen>} />
               <Route path="scan" element={<ScanHub />} />
               <Route path="suche" element={<Suche />} />
               <Route path="p/:pid" element={<ProjectLayout />}>

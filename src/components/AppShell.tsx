@@ -1,13 +1,92 @@
-import { Children, Fragment, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Children, Fragment, isValidElement, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, CircleHelp, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, Building2, CircleHelp, MoreHorizontal } from 'lucide-react'
 import { cx } from '../lib/util'
 import { Avatar } from './ui'
 import { displayNameOf, useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 import { ErklaerKnopf, Fuehrung } from './Fuehrung'
 import { ProjektMenue } from './ProjektMenue'
+
+/* ------------------------------------------------ Knopf Siedlung (E83)
+ * Die Siedlung ist ein eigener Bereich neben den Umzuegen. Ihr Knopf steht
+ * oben rechts neben dem Profil und laesst sich in den Einstellungen
+ * abschalten; sonst aendert der Schalter nichts. Der Knopf ist nur ein
+ * Link: Seiten, Daten und three laden erst nach dem Druecken (App.tsx). */
+
+const SIEDLUNG_KNOPF = 'kistly.siedlung.knopf'
+const SIEDLUNG_EREIGNIS = 'kistly:siedlung-knopf'
+/** Gilt, wenn der Browser keinen Speicher erlaubt: dann bis zum Neuladen. */
+let siedlungOhneSpeicher: boolean | null = null
+
+/** Ist der Knopf Siedlung an? Ohne eigene Wahl: an. */
+export function siedlungKnopfAn(): boolean {
+  try {
+    const v = localStorage.getItem(SIEDLUNG_KNOPF)
+    if (v !== null) return v !== '0'
+  } catch {
+    /* Speicher gesperrt: dann zaehlt die Wahl dieser Sitzung */
+  }
+  return siedlungOhneSpeicher ?? true
+}
+
+/** Schalter in den Einstellungen. Jede offene Kopfzeile folgt sofort. */
+export function siedlungKnopfSetzen(an: boolean): void {
+  siedlungOhneSpeicher = an
+  try {
+    localStorage.setItem(SIEDLUNG_KNOPF, an ? '1' : '0')
+  } catch {
+    // Ohne Speicher gilt die Wahl bis zum Neuladen; ein alter Wert darf
+    // sie nicht ueberstimmen.
+    try {
+      localStorage.removeItem(SIEDLUNG_KNOPF)
+    } catch {
+      /* ganz gesperrt: siedlungOhneSpeicher traegt die Wahl */
+    }
+  }
+  window.dispatchEvent(new Event(SIEDLUNG_EREIGNIS))
+}
+
+function siedlungKnopfBeobachten(melden: () => void): () => void {
+  window.addEventListener(SIEDLUNG_EREIGNIS, melden)
+  // Gleicher Schalter in einem anderen Tab.
+  window.addEventListener('storage', melden)
+  return () => {
+    window.removeEventListener(SIEDLUNG_EREIGNIS, melden)
+    window.removeEventListener('storage', melden)
+  }
+}
+
+export function useSiedlungKnopf(): boolean {
+  return useSyncExternalStore(siedlungKnopfBeobachten, siedlungKnopfAn)
+}
+
+/** Knopf Siedlung: am Handy nur das Zeichen, ab sm mit Namen. Am Handy
+ *  fehlt er in der Siedlung selbst: dort fuehrt Zurueck zur Liste, und der
+ *  schmale Platz gehoert dem Namen der Siedlung. */
+function SiedlungKnopf({ handy }: { handy?: boolean }) {
+  const t = useT()
+  const { pathname } = useLocation()
+  const hier = pathname === '/app/siedlung' || pathname.startsWith('/app/siedlung/')
+  if (handy && hier) return null
+  return (
+    <Link
+      to="/app/siedlung"
+      data-tour="siedlung"
+      aria-label={t('nav.siedlung')}
+      title={t('nav.siedlung')}
+      aria-current={hier ? 'page' : undefined}
+      className={cx(
+        'knopf flex h-10 w-10 shrink-0 items-center justify-center gap-1.5 rounded-knopf border-2 text-sm font-bold transition active:scale-95 sm:w-auto sm:px-2.5',
+        hier ? 'border-ink bg-ink text-paper' : 'border-line bg-surface text-ink hover:border-ink/35',
+      )}
+    >
+      <Building2 size={18} />
+      <span className="hidden sm:inline">{t('nav.siedlung')}</span>
+    </Link>
+  )
+}
 
 /** Kopfzeile. Rechts steht immer das eigene Profil, so wie bei den grossen
  *  Messengern. Zusaetzliche Knoepfe kommen links daneben. */
@@ -32,6 +111,8 @@ export function AppHeader({
   const nav = useNavigate()
   const { profile, user } = useAuth()
   const t = useT()
+  // Die Siedlung sitzt in der Ecke des Profils; ohne Profil auch ohne sie.
+  const siedlung = useSiedlungKnopf() && showProfile
   return (
     <header
       className={cx(
@@ -70,9 +151,13 @@ export function AppHeader({
         <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
           {actions}
           <ErklaerKnopf />
+          {/* Ganz rechts, wo am Handy das Profil sitzt (E83). */}
+          {siedlung ? <SiedlungKnopf /> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
           <KopfHandy actions={actions} />
+          {/* Am Handy nur das Zeichen, direkt vor dem Profil (E83). */}
+          {siedlung ? <SiedlungKnopf handy /> : null}
           {showProfile ? (
             <Link
               data-tour="profil"

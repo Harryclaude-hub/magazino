@@ -3,9 +3,22 @@
 // gedreht und mit der Mitte darin), an einer schraegen Wand entlang
 // gleiten ohne stehenzubleiben, rennend nicht durch eine 12-cm-Wand,
 // Ecken, enge Stellen, Tueren (an, aus, gedreht) und das Raster.
+// E83: Ebenen mit eigenem Raster (was auf einer Ebene steht, haelt auf
+// keiner anderen auf; die Ebene der Wohnung hat die Wohnung dazu, auch
+// nach einem Neubau und nach neuen Ebenen), die naechste Ebene nach der
+// Hoehe, kaputte Zahlen und das Mitfahren im Aufzug.
 // Aufruf im Projektordner: node scripts/kollision-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
-import { Hindernisse, KOERPER_RADIUS_M, TEILSCHRITT_M } from '../src/components/plan3d/kollision.ts'
+import {
+  AUFZUG_BODEN_M,
+  AUFZUG_NAH_M,
+  Ebenen,
+  Hindernisse,
+  KOERPER_RADIUS_M,
+  Mitfahrt,
+  TEILSCHRITT_M,
+  wohnungsEbene,
+} from '../src/components/plan3d/kollision.ts'
 
 let fehler = 0
 function nahe(name, ist, soll, tol = 1e-6) {
@@ -284,6 +297,289 @@ function gehen(h, p, vx, vz, dt, bilder) {
   h.bewegen(p, 0, 0, R)
   h.herausdruecken(p, R)
   wahr('Nullfall ohne NaN', Number.isFinite(p.x) && Number.isFinite(p.z))
+}
+
+/* ================================================== Ebenen (E83) */
+
+/* Eine erfundene Wohnung wie im Motor gebaut: Nordwand bei z = 0 von x 0
+ * bis 6 mit einer Tuer bei x 1 bis 2, Suedwand bei z = 5. Gibt den Index
+ * des Tuerblatts zurueck. */
+function wohnungBauen(h) {
+  h.leeren()
+  h.dazu(0.5, 0, 1, 0.2, 0)
+  h.dazu(4, 0, 4, 0.2, 0)
+  const tuer = h.dazu(1.5, 0, 1, 0.04, 0, true)
+  h.bereich(tuer, 0.97, -1.03, 2.03, 1.03)
+  h.dazu(3, 5, 6, 0.2, 0)
+  return tuer
+}
+/** Wand des Gangs vor der Wohnung (Ebene der Wohnung, Boden 0). */
+const GANG = { x: 3, z: -2, laenge: 10, tiefe: 0.2, drehY: 0 }
+/** Mauer im Hof (Erdgeschoss, neun Meter tiefer), quer unter dem Gang. */
+const HOF = { x: 3, z: -1, laenge: 10, tiefe: 0.3, drehY: 0 }
+/** Ein gedrehter Klotz im Geschoss darueber. */
+const OBEN = { x: 1, z: 2, laenge: 2, tiefe: 2, drehY: 0.5 }
+function ebenenDaten(gang = GANG) {
+  return [
+    { id: 'eg', name: 'EG', y: -9, hindernisse: [HOF] },
+    { id: 'wohnung', name: '3', y: 0, hindernisse: [gang] },
+    { id: 'og', name: '4', y: 3, hindernisse: [OBEN] },
+  ]
+}
+
+/* Welche Ebene ist die der Wohnung? */
+{
+  wahr('Wohnungsebene: Kennung wohnung zuerst', wohnungsEbene([{ id: 'eg', y: -9 }, { id: 'gang', y: 0 }, { id: 'wohnung', y: 0.01 }]) === 2)
+  wahr('Wohnungsebene: sonst die erste bei 0', wohnungsEbene([{ id: 'eg', y: -9 }, { id: 'gang', y: 0.03 }, { id: 'b', y: 0 }]) === 1)
+  wahr('Wohnungsebene: keine bei 0', wohnungsEbene([{ id: 'eg', y: -9 }, { id: 'x', y: 0.2 }]) === -1)
+  wahr('Wohnungsebene: leer', wohnungsEbene([]) === -1)
+  wahr('Wohnungsebene: kaputtes y zaehlt nicht', wohnungsEbene([{ id: 'wohnung', y: NaN }]) === -1)
+}
+
+/* Viele auf einmal, kaputte Zahlen, kuerzen. */
+{
+  const h = new Hindernisse()
+  h.dazu(0, 0, 1, 1, 0)
+  const verworfen = h.alle([
+    { x: 5, z: 0, laenge: 1, tiefe: 1, drehY: 0 },
+    { x: NaN, z: 0, laenge: 1, tiefe: 1, drehY: 0 },
+    { x: 0, z: 0, laenge: Infinity, tiefe: 1, drehY: 0 },
+    { x: 9, z: 0, laenge: 1, tiefe: 1, drehY: 0.3 },
+  ])
+  wahr('alle: zwei kaputte verworfen', verworfen === 2)
+  wahr('alle: drei Rechtecke', h.groesse === 3)
+  h.rastern()
+  wahr('alle: das neue haelt auf', !h.frei(5, 0, R))
+  h.kuerzen(1)
+  h.rastern()
+  wahr('kuerzen: eins bleibt', h.groesse === 1)
+  wahr('kuerzen: das weggenommene haelt nicht mehr auf', h.frei(5, 0, R) && h.frei(9, 0, R))
+  wahr('kuerzen: das erste haelt noch auf', !h.frei(0, 0, R))
+  h.kuerzen(10)
+  wahr('kuerzen ueber die Laenge: nichts', h.groesse === 1)
+  h.kuerzen(-1)
+  h.rastern()
+  wahr('kuerzen unter 0: leer', h.groesse === 0 && h.frei(0, 0, R))
+}
+
+/* Ein Raster je Ebene: was auf einer steht, haelt auf keiner anderen auf. */
+{
+  const wohnung = new Hindernisse(1)
+  const tuer = wohnungBauen(wohnung)
+  const eb = new Ebenen(wohnung, 1)
+  eb.wohnungFertig()
+  wahr('ohne Ebenen: die Wohnung allein', eb.index === -1 && eb.aktiv === wohnung && eb.aufWohnung && eb.boden() === 0)
+  wahr('ohne Ebenen: Wand der Wohnung haelt auf', !eb.aktiv.frei(4, 0.1, R))
+
+  eb.setzen(ebenenDaten())
+  const eigene = 4
+  wahr('setzen: aktiv ist die Ebene der Wohnung', eb.index === 1 && eb.wohnIndex === 1 && eb.aufWohnung)
+  wahr('setzen: Ebene der Wohnung benutzt ihr Raster', eb.aktiv === wohnung && eb.liste[1].raster === wohnung)
+  wahr('setzen: Wohnung plus Gang', wohnung.groesse === eigene + 1)
+  wahr('setzen: andere Ebenen eigenes Raster', eb.liste[0].raster !== wohnung && eb.liste[2].raster !== wohnung && eb.liste[0].raster !== eb.liste[2].raster)
+  wahr('setzen: nichts verworfen', eb.verworfen === 0)
+  nahe('setzen: Boden der Wohnung', eb.boden(), 0)
+
+  // Ebene der Wohnung: Wand der Wohnung und Gang halten auf, der Hof nicht.
+  wahr('Wohnungsebene: Wand der Wohnung haelt auf', !eb.aktiv.frei(4, 0.1, R))
+  wahr('Wohnungsebene: Gang haelt auf', !eb.aktiv.frei(3, -2, R))
+  wahr('Wohnungsebene: Hof haelt nicht auf', eb.aktiv.frei(3, -1, R))
+  wahr('Wohnungsebene: Klotz von oben haelt nicht auf', eb.aktiv.frei(1, 2, R))
+  {
+    const p = { x: 3, z: -0.6 }
+    gehen(eb.aktiv, p, 0, -1.4, 1 / 60, 120)
+    nahe('Wohnungsebene: steht am Gang', p.z, -2 + 0.1 + R, 2e-3)
+    gehen(eb.aktiv, p, 0, 1.4, 1 / 60, 180)
+    nahe('Wohnungsebene: steht an der Wohnung', p.z, -0.1 - R, 2e-3)
+  }
+
+  // Ins Erdgeschoss: nur der Hof haelt auf.
+  wahr('wechseln ins EG', eb.wechseln(0) && eb.index === 0 && !eb.aufWohnung)
+  nahe('EG: Boden', eb.boden(), -9)
+  wahr('EG: eigenes Raster', eb.aktiv === eb.liste[0].raster && eb.aktiv !== wohnung)
+  wahr('EG: Gang haelt nicht auf', eb.aktiv.frei(3, -2, R))
+  wahr('EG: Wand der Wohnung haelt nicht auf', eb.aktiv.frei(4, 0.1, R))
+  wahr('EG: Hof haelt auf', !eb.aktiv.frei(3, -1, R))
+  {
+    const p = { x: 3, z: -0.4 }
+    gehen(eb.aktiv, p, 0, -1.4, 1 / 60, 120)
+    nahe('EG: steht an der Hofmauer', p.z, -1 + 0.15 + R, 2e-3)
+    const q = { x: 3, z: -0.4 }
+    gehen(eb.aktiv, q, 0, 1.4, 1 / 60, 120)
+    wahr('EG: geht unter der Wohnung durch', q.z > 2)
+  }
+
+  // Ins Geschoss darueber: nur der Klotz.
+  wahr('wechseln nach oben', eb.wechseln(2) && eb.index === 2)
+  wahr('oben: Klotz haelt auf', !eb.aktiv.frei(1, 2, R))
+  wahr('oben: Gang und Hof nicht', eb.aktiv.frei(3, -2, R) && eb.aktiv.frei(3, -1, R))
+
+  // Unbekannte Ebenen: nichts aendert sich.
+  wahr('wechseln -1 mit Wohnungsebene: nein', !eb.wechseln(-1) && eb.index === 2)
+  wahr('wechseln 3: nein', !eb.wechseln(3) && eb.index === 2)
+  wahr('wechseln 0,5: nein', !eb.wechseln(0.5) && eb.index === 2)
+
+  // Tuer der Wohnung: gilt nur auf ihrer Ebene.
+  eb.wechseln(1)
+  wahr('Tuer zu haelt auf der Wohnungsebene auf', !eb.aktiv.frei(1.5, 0, R))
+  wohnung.aktiv(tuer, false)
+  {
+    const p = { x: 1.5, z: -0.8 }
+    gehen(eb.aktiv, p, 0, 1.4, 1 / 60, 120)
+    wahr('Tuer offen: durch in die Wohnung', p.z > 1)
+  }
+  wohnung.aktiv(tuer, true)
+  eb.wechseln(0)
+  wahr('Tuer zu haelt im EG nicht auf', eb.aktiv.frei(1.5, 0, R))
+  eb.wechseln(1)
+
+  // Neubau der Wohnung (Motor: bauen()): der Gang kommt wieder dazu.
+  wohnungBauen(wohnung)
+  eb.wohnungFertig()
+  wahr('Neubau: Wohnung plus Gang', wohnung.groesse === eigene + 1)
+  wahr('Neubau: Gang haelt auf', !wohnung.frei(3, -2, R))
+  wahr('Neubau: Hof bleibt im EG', !eb.liste[0].raster.frei(3, -1, R) && wohnung.frei(3, -1, R))
+
+  // Neue Ebenen (neue Welt): der alte Gang ist weg, der neue da, die Tuer bleibt.
+  eb.wechseln(2)
+  eb.setzen(ebenenDaten({ x: 3, z: -3, laenge: 10, tiefe: 0.2, drehY: 0 }))
+  wahr('neue Ebenen: zurueck auf die Wohnungsebene', eb.index === 1 && eb.aktiv === wohnung)
+  wahr('neue Ebenen: Wohnung plus neuer Gang', wohnung.groesse === eigene + 1)
+  wahr('neue Ebenen: alter Gang weg', wohnung.frei(3, -2, R))
+  wahr('neue Ebenen: neuer Gang da', !wohnung.frei(3, -3, R))
+  nahe('neue Ebenen: Tuer an ihrem Platz', wohnung.mx[tuer], 1.5)
+  wohnung.aktiv(tuer, false)
+  wahr('neue Ebenen: Tuer schaltet noch', wohnung.frei(1.5, 0, 0.1))
+  wohnung.aktiv(tuer, true)
+
+  // Die naechste Ebene nach der Hoehe (nach einer Aufzugfahrt).
+  wahr('naechste: -8 ist EG', eb.naechste(-8) === 0)
+  wahr('naechste: -4,4 ist die Wohnung', eb.naechste(-4.4) === 1)
+  wahr('naechste: -4,6 ist EG', eb.naechste(-4.6) === 0)
+  wahr('naechste: 1,6 ist oben', eb.naechste(1.6) === 2)
+  wahr('naechste: Gleichstand nimmt die erste', eb.naechste(1.5) === 1)
+  wahr('naechste: kaputtes y bleibt', eb.naechste(NaN) === eb.index)
+
+  // Leer (Welt weg): die Wohnung allein, ohne Gang.
+  eb.setzen([])
+  wahr('leer: Wohnung allein', eb.index === -1 && eb.wohnIndex === -1 && eb.aktiv === wohnung && eb.liste.length === 0)
+  wahr('leer: nur die Wohnung im Raster', wohnung.groesse === eigene && wohnung.frei(3, -3, R))
+  wahr('leer: naechste ist die Wohnung', eb.naechste(-9) === -1)
+}
+
+/* Keine Ebene bei 0: die Wohnung allein zaehlt als -1 mit Boden 0. */
+{
+  const wohnung = new Hindernisse(1)
+  wohnungBauen(wohnung)
+  const eb = new Ebenen(wohnung, 2)
+  eb.wohnungFertig()
+  eb.setzen([
+    { id: 'eg', name: 'EG', y: -9, hindernisse: [HOF] },
+    { id: 'og', name: '4', y: 3, hindernisse: [OBEN] },
+  ])
+  wahr('ohne 0: Wohnung allein aktiv', eb.wohnIndex === -1 && eb.index === -1 && eb.aktiv === wohnung && eb.aufWohnung)
+  wahr('ohne 0: kein fremdes Rechteck in der Wohnung', wohnung.groesse === 4 && wohnung.frei(3, -1, R))
+  wahr('ohne 0: Zellgroesse der Ebenen', eb.liste[0].raster.zelle === 2)
+  wahr('ohne 0: naechste 0,4 ist die Wohnung', eb.naechste(0.4) === -1)
+  wahr('ohne 0: naechste -8 ist EG', eb.naechste(-8) === 0)
+  wahr('ohne 0: ins EG und zurueck', eb.wechseln(0) && !eb.aufWohnung && eb.wechseln(-1) && eb.aufWohnung && eb.boden() === 0)
+}
+
+/* Kaputte Ebenen behalten ihren Platz, lassen sich aber nicht betreten. */
+{
+  const wohnung = new Hindernisse(1)
+  wohnungBauen(wohnung)
+  const eb = new Ebenen(wohnung)
+  eb.wohnungFertig()
+  eb.setzen([
+    { id: 'kaputt', name: '?', y: NaN, hindernisse: [] },
+    { id: 'wohnung', name: '3', y: 0, hindernisse: [GANG, { x: 1, z: Infinity, laenge: 1, tiefe: 1, drehY: 0 }] },
+    { id: 'eg', name: 'EG', y: -9, hindernisse: [HOF, { x: 0, z: 0, laenge: NaN, tiefe: 1, drehY: 0 }] },
+  ])
+  wahr('kaputt: Indizes wie in der Welt', eb.liste.length === 3 && eb.wohnIndex === 1 && eb.liste[2].id === 'eg')
+  wahr('kaputt: nicht betretbar', !eb.gibt(0) && !eb.wechseln(0) && eb.index === 1)
+  wahr('kaputt: naechste ueberspringt sie', eb.naechste(-100) === 2)
+  wahr('kaputt: zwei Rechtecke verworfen', eb.verworfen === 2)
+  wahr('kaputt: die guten zaehlen', !eb.aktiv.frei(3, -2, R) && !eb.liste[2].raster.frei(3, -1, R))
+}
+
+/* ------------------------------------------- Mitfahren im Aufzug */
+{
+  const m = new Mitfahrt()
+  wahr('Aufzug: ohne Fahrt nichts', m.schritt(null, 0, 0, 0, true) === 0 && !m.an)
+  // Ich stehe in der Kabine auf meinem Boden, sie faehrt 9 m hinunter.
+  wahr('Aufzug: Fahrt beginnt', m.schritt(0, 5, 5, 0, true) === 1 && m.an && m.mit)
+  let boden = 0
+  let mitAllen = true
+  for (let i = 1; i <= 90; i++) {
+    const y = -0.1 * i
+    // Etwas in der Kabine herumgehen (bis 0,4 m).
+    const r = m.schritt(y, 5 + 0.4 * Math.sin(i), 5, boden, true)
+    if (r !== 1 || !m.mit) mitAllen = false
+    else boden = y
+  }
+  wahr('Aufzug: faehrt die ganze Fahrt mit', mitAllen)
+  nahe('Aufzug: unten angekommen', boden, -9, 1e-9)
+  wahr('Aufzug: Ende nach Mitfahren', m.schritt(null, 5, 5, boden, true) === 2 && !m.an && !m.mit)
+  wahr('Aufzug: danach Ruhe', m.schritt(null, 5, 5, boden, true) === 0)
+
+  // Gerufen von einem anderen Geschoss: die Kabine kommt von unten, ich warte oben.
+  wahr('gerufen: Fahrt laeuft', m.schritt(-9, 5, 6.5, 0, true) === 1 && !m.mit)
+  m.schritt(-4.5, 5, 6.5, 0, true)
+  m.schritt(0, 5, 6.5, 0, true)
+  wahr('gerufen: Ende ohne Mitfahren', m.schritt(null, 5, 6.5, 0, true) === 0)
+
+  // Grenze beim Abfahren: 0,5 m ueber oder unter dem eigenen Boden.
+  m.schritt(AUFZUG_BODEN_M - 0.01, 0, 0, 0, true)
+  wahr('knapp auf dem Boden: faehrt mit', m.mit)
+  m.ruhe()
+  m.schritt(AUFZUG_BODEN_M + 0.01, 0, 0, 0, true)
+  wahr('knapp daneben: faehrt nicht mit', !m.mit)
+  m.ruhe()
+
+  // Aussteigen: weiter als 1,2 m weg, danach nie wieder mit in dieser Fahrt.
+  m.schritt(0, 0, 0, 0, true)
+  m.schritt(-0.5, AUFZUG_NAH_M - 0.01, 0, 0, true)
+  wahr('nahe 1,2 m: noch mit', m.mit)
+  m.schritt(-1, AUFZUG_NAH_M + 0.01, 0, -0.5, true)
+  wahr('weiter weg: ausgestiegen', !m.mit && m.an)
+  m.schritt(-1.5, 0, 0, -0.5, true)
+  wahr('zurueck in der Naehe: bleibt ausgestiegen', !m.mit)
+  wahr('ausgestiegen: Ende zaehlt (gefahren)', m.schritt(null, 0, 0, -0.5, true) === 2)
+
+  // Wer sitzt (oder sich gerade setzt), faehrt nicht mit.
+  m.schritt(0, 0, 0, 0, false)
+  wahr('sitzend: nicht mit', !m.mit)
+  wahr('sitzend: Ende ohne Mitfahren', m.schritt(null, 0, 0, 0, false) === 0)
+  m.schritt(0, 0, 0, 0, true)
+  m.schritt(-0.2, 0, 0, 0, false)
+  wahr('hinsetzen in der Fahrt: ausgestiegen', !m.mit)
+  m.ruhe()
+
+  // Kaputte Hoehe zaehlt wie keine Fahrt.
+  wahr('NaN: keine Fahrt', m.schritt(NaN, 0, 0, 0, true) === 0 && !m.an)
+}
+
+/* Zusammen wie im Motor: im Aufzug von der Wohnung ins EG, danach gilt das
+ * Raster des EG (der Gang haelt nicht mehr auf, der Hof schon). */
+{
+  const wohnung = new Hindernisse(1)
+  wohnungBauen(wohnung)
+  const eb = new Ebenen(wohnung)
+  eb.wohnungFertig()
+  eb.setzen(ebenenDaten())
+  const m = new Mitfahrt()
+  let boden = eb.boden()
+  for (let i = 0; i <= 45; i++) {
+    const y = -0.2 * i
+    if (m.schritt(y, 7, -1, boden, true) === 1 && m.mit) boden = y
+  }
+  const r = m.schritt(null, 7, -1, boden, true)
+  wahr('Motor: Fahrt zu Ende', r === 2)
+  eb.wechseln(eb.naechste(boden))
+  wahr('Motor: jetzt im EG', eb.index === 0 && eb.boden() === -9)
+  wahr('Motor: Gang haelt im EG nicht auf', eb.aktiv.frei(3, -2, R))
+  wahr('Motor: Hof haelt im EG auf', !eb.aktiv.frei(3, -1, R))
 }
 
 if (fehler) {

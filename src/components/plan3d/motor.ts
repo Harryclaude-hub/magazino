@@ -28,6 +28,16 @@
  * Wasserhahn, Spiegel, die eigene Figur (nur im Spiegel zu sehen) und die
  * anderen Leute im Umzug. Gespeichert wird davon nichts, alles gilt nur
  * fuer diese Sitzung.
+ *
+ * Ebenen und Aufzug (E83): eine Welt (welt()) kann mehrere begehbare
+ * Boeden mitbringen, etwa die Geschosse einer Siedlung und das Gelaende.
+ * Beim Begehen steht man immer auf genau einer Ebene: die Augen auf ihrem
+ * Boden plus Augenhoehe, und es halten nur ihre Hindernisse auf (auf der
+ * Ebene der Wohnung dazu die der Wohnung). Zu Fuss verlaesst man die Ebene
+ * nicht; man wechselt per Knopf (ebeneWechseln) oder faehrt im Aufzug mit
+ * (fahrt() der Welt). Sitzen und Liegen gibt es nur auf der Ebene der
+ * Wohnung; ein Ding in der Hand geht mit und landet beim Ablegen nie
+ * unter dem Boden, auf dem man steht.
  */
 import {
   AmbientLight,
@@ -75,10 +85,31 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js'
 import { hervorMitte, szeneRahmen, TUER_OFFEN_GRAD, type Koerper, type Licht3D, type Quader, type Vec3 } from './szene'
-import { Hindernisse, KOERPER_RADIUS_M, type Stelle } from './kollision'
-import type { Figur3D, Haltung, Pose3D } from './vertrag3d'
+import { Ebenen, Hindernisse, KOERPER_RADIUS_M, Mitfahrt, type Stelle } from './kollision'
+import type { Figur3D, Haltung, Interaktiv3D, Pose3D, Welt3D } from './vertrag3d'
 
-export type { Haltung, Pose3D, Figur3D } from './vertrag3d'
+export type { Haltung, Pose3D, Figur3D, Welt3D, Ebene3D, Interaktiv3D } from './vertrag3d'
+
+/** Die Ebene, auf der man beim Begehen steht (E83): Index in welt().ebenen,
+ *  Kennung und Name. */
+export interface EbeneJetzt {
+  index: number
+  id: string
+  name: string
+}
+
+/** Eine laufende Aufzugfahrt (E83), gemeldet von fahrt() der Welt: ziel
+ *  ist der Index der Ebene, zu der die Kabine faehrt, y die Hoehe ihres
+ *  Bodens gerade jetzt (Meter, wie Ebene3D.y). Der Motor folgt y; nach der
+ *  Fahrt gilt die Ebene mit dem naechsten Boden (ziel dient der Welt). */
+export interface Fahrt3D {
+  ziel: number
+  y: number
+}
+
+/** Eine Welt mit Aufzug: fahrt() gibt waehrend der Fahrt die Lage der
+ *  Kabine, sonst null. Nicht Teil von Welt3D; der Motor fragt danach. */
+type WeltMitFahrt = Welt3D & { fahrt?: () => Fahrt3D | null }
 
 /** Augenhoehe ueber der Sitzflaeche beim Sitzen (Meter). */
 export const SITZ_AUGE_M = 0.78
@@ -154,6 +185,25 @@ export interface Motor {
   eigenePose(fn: ((p: Pose3D) => void) | null): void
   /** Spiegel echt spiegeln lassen (beim Begehen). Aus: matt glaenzend. */
   spiegel(an: boolean): void
+  /* ------------------------------------------------------------ E83 */
+  /** Aussenwelt mit Ebenen (Siedlung). Wie umgebung(): die Gruppe steht
+   *  neben der Wohnung, zaehlt nicht fuer den Bildausschnitt, nebel und
+   *  himmel gelten (vor denen aus umgebung()). Dazu: begehbare Ebenen mit
+   *  eigenen Hindernissen, antippbare Dinge (vor allem anderen geprueft,
+   *  beim Begehen und in der Rundumsicht) und schritt() in jedem Bild beim
+   *  Begehen und solange es true gibt. Hat die Welt eine Methode fahrt()
+   *  (Fahrt3D | null), faehrt man im Aufzug mit. null nimmt die Welt weg.
+   *  Sie gehoert dem Aufrufer, er ruft ihr dispose(). */
+  welt(w: Welt3D | null): void
+  /** Meldet beim Begehen die Ebene, auf der man steht (beim Start, bei
+   *  jedem Wechsel, nach jeder Aufzugfahrt); null ohne Ebenen und wenn das
+   *  Begehen endet. Gleich beim Setzen einmal. */
+  ebeneJetzt(fn: ((e: EbeneJetzt | null) => void) | null): void
+  /** Beim Begehen auf Ebene index (aus welt().ebenen) wechseln: gleiche
+   *  Stelle in x und z, die Hoehe gleitet in 0,8 s hinueber. Wer sitzt
+   *  oder liegt, steht dafuer sofort auf. Ohne Begehen, waehrend man im
+   *  Aufzug mitfaehrt oder fuer eine unbekannte Ebene: nichts. */
+  ebeneWechseln(index: number): void
   dispose(): void
 }
 
@@ -223,6 +273,8 @@ const TV_LICHTER_MAX = 2
 const POSE_MS = 100
 const POSE_PULS_MS = 2000
 const POSE_DREH_RAD = (1.5 * Math.PI) / 180
+/** Ebene wechseln (E83): so lange gleitet die Hoehe hinueber (ms). */
+const EBENE_MS = 800
 
 /** Kleinster Unterschied zweier Winkel (-Pi bis Pi). */
 function winkelDiff(a: number, b: number): number {
@@ -702,8 +754,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
   controls.screenSpacePanning = false
 
   let waende: WandInfo[] = []
-  /** Woran man beim Begehen stoesst (E82: Rechtecke in der Ebene). */
+  /** Woran man in der Wohnung stoesst (E82: Rechtecke in der Ebene). */
   const kollision = new Hindernisse(1)
+  /** Begehbare Ebenen der Welt (E83), je eine mit eigenem Raster; auf der
+   *  Ebene der Wohnung gilt kollision samt den Rechtecken dieser Ebene.
+   *  Beim Gehen zaehlt immer ebenen.aktiv. */
+  const ebenen = new Ebenen(kollision, 1)
   /** Tueren (E65, E82) und wie weit sie offen sind (0 zu, 1 ganz offen) je
    *  id, damit ein Neubau es behaelt, auch wenn sich Angel oder Richtung
    *  aendern. */
@@ -1455,7 +1511,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
     }
     geraeteAktualisieren()
 
-    kollision.rastern()
+    // Rastern, mit den Rechtecken der Ebene der Wohnung dahinter (E83).
+    ebenen.wohnungFertig()
 
     // Ein Ding in der Hand bleibt in der Hand, auch nach dem Neubau.
     if (halt.id) {
@@ -1805,13 +1862,13 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (platzJetzt) {
       const tx = platzJetzt.punkt[0] - Math.sin(platzJetzt.blick) * AUFSTEH_M
       const tz = platzJetzt.punkt[2] - Math.cos(platzJetzt.blick) * AUFSTEH_M
-      if (kollision.frei(tx, tz, KOERPER_RADIUS_M)) {
+      if (ebenen.aktiv.frei(tx, tz, KOERPER_RADIUS_M)) {
         x = tx
         z = tz
       }
     }
     platzJetzt = null
-    wechselStarten(x, AUGE_M, z, gier, 0)
+    wechselStarten(x, bodenY + AUGE_M, z, gier, 0)
     haltungSetzen('stehen')
   }
 
@@ -1886,11 +1943,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const unten = kasten.isEmpty() ? halt.y : kasten.min.y
     hilf.set(halt.x, halt.y, halt.z)
     strahl.set(hilf, RUNTER)
-    let boden = 0
+    // Nie unter den Boden, auf dem man steht (E83: auch auf anderen Ebenen).
+    let boden = bodenY
     for (const hit of strahl.intersectObjects(gruppe.children, false)) {
       const u = daten(hit.object)
       if (!hit.object.visible || u.ding === d.id || u.glas) continue
-      boden = Math.max(0, hit.point.y)
+      boden = Math.max(bodenY, hit.point.y)
       break
     }
     halt.y += boden - unten
@@ -1901,6 +1959,226 @@ export function motorStarten(host: HTMLElement): Motor | null {
     halt.laeuft = false
     inHandFn?.(null)
     anstossen()
+  }
+
+  /* ------------------------------------------- Welt, Ebenen, Aufzug (E83) */
+
+  /** Die Welt aus welt(); gehoert dem Aufrufer. */
+  let weltJetzt: Welt3D | null = null
+  /** schritt() der Welt hat zuletzt true gegeben (oder ein Tipp hat sie
+   *  eben geweckt): die Schleife ruft sie weiter, auch ohne Begehen. */
+  let weltLaeuft = false
+  /** schritt() oder fahrt() hat einen Fehler geworfen: beide ruhen. */
+  let weltKaputt = false
+  /** Boden unter den Fuessen beim Begehen (Meter, Welt): der der aktiven
+   *  Ebene, waehrend eines Wechsels oder einer Fahrt dazwischen. */
+  let bodenY = 0
+  /** Weiches Gleiten der Hoehe zu einer neuen Ebene. */
+  const uebergang = { an: false, start: 0, von: 0, nach: 0 }
+  /** Mitfahren im Aufzug (Regeln in kollision.ts). */
+  const aufzug = new Mitfahrt()
+  let ebeneFn: ((e: EbeneJetzt | null) => void) | null = null
+  /** Zuletzt gemeldete Ebene (Index, Kennung, Name), '' noch keine. */
+  let ebeneZuletzt = ''
+
+  /** Fehler in schritt() oder fahrt() der Welt: einmal in die Konsole,
+   *  danach ruhen beide fuer diese Welt, damit Wohnung und Gehen
+   *  weiterlaufen. */
+  function weltFehler(was: string, err: unknown) {
+    console.error(`[3d] Welt.${was}:`, err)
+    weltKaputt = true
+    weltLaeuft = false
+  }
+
+  /** schritt() der Welt fuer dieses Bild: beim Begehen immer, sonst nur,
+   *  solange sie zuletzt true gab. true, solange sich dort etwas bewegt. */
+  function weltSchritt(dt: number): boolean {
+    const w = weltJetzt
+    if (!w || weltKaputt || typeof w.schritt !== 'function' || !(gehen || weltLaeuft)) {
+      weltLaeuft = false
+      return false
+    }
+    try {
+      weltLaeuft = w.schritt(dt, camera.position.y) === true
+    } catch (err) {
+      weltFehler('schritt', err)
+    }
+    return weltLaeuft
+  }
+
+  /** Lage der Kabine, solange der Aufzug der Welt faehrt, sonst null. */
+  function fahrtLesen(): Fahrt3D | null {
+    const w = weltJetzt as WeltMitFahrt | null
+    if (!w || weltKaputt || typeof w.fahrt !== 'function') return null
+    try {
+      const f = w.fahrt()
+      return f && Number.isFinite(f.y) ? f : null
+    } catch (err) {
+      weltFehler('fahrt', err)
+      return null
+    }
+  }
+
+  /** Die Ebene, auf der man beim Begehen steht, melden (nur Aenderungen,
+   *  ausser erzwingen). Ohne Begehen oder ohne Ebenen: null. */
+  function ebeneMelden(erzwingen: boolean) {
+    if (!ebeneFn) return
+    const i = ebenen.index
+    const e = gehen && i >= 0 ? ebenen.liste[i] : null
+    const key = e ? `${i}|${e.id}|${e.name}` : '-'
+    if (!erzwingen && key === ebeneZuletzt) return
+    ebeneZuletzt = key
+    ebeneFn(e ? { index: i, id: e.id, name: e.name } : null)
+  }
+
+  /** Auf Ebene i umschalten (Raster) und dort aus allem heraus, worin man
+   *  an derselben Stelle steht. Wer sitzt oder liegt, bleibt auf seinem
+   *  Platz (der steckt im Moebel). Die Hoehe macht der Aufrufer. */
+  function ebeneAktivieren(i: number) {
+    ebenen.wechseln(i)
+    if (haltungJetzt !== 'stehen' || wechsel.an) return
+    const p = camera.position
+    stelle.x = p.x
+    stelle.z = p.z
+    ebenen.aktiv.herausdruecken(stelle, KOERPER_RADIUS_M)
+    p.x = stelle.x
+    p.z = stelle.z
+  }
+
+  /** Die Hoehe gleitet in EBENE_MS zum Boden der aktiven Ebene. */
+  function hoeheGleiten() {
+    const ziel = ebenen.boden()
+    if (Math.abs(ziel - bodenY) <= 1e-4) {
+      bodenY = ziel
+      uebergang.an = false
+      return
+    }
+    uebergang.an = true
+    uebergang.start = performance.now()
+    uebergang.von = bodenY
+    uebergang.nach = ziel
+  }
+
+  /** Sofort stehen (fuer einen Ebenenwechsel): wer sitzt oder liegt, steht
+   *  dort, wo er vorher stand; wer gerade aufsteht, steht am Ziel. */
+  function sofortStehen() {
+    if (haltungJetzt === 'stehen' && !wechsel.an) return
+    const p = camera.position
+    if (haltungJetzt === 'stehen') {
+      p.x = wechsel.nx
+      p.z = wechsel.nz
+    } else {
+      p.x = stehX
+      p.z = stehZ
+      neigungZiel = 0
+    }
+    wechsel.an = false
+    platzJetzt = null
+    vx = 0
+    vz = 0
+    haltungSetzen('stehen')
+  }
+
+  function ebeneWechseln(index: number) {
+    if (!gehen || (aufzug.an && aufzug.mit)) return
+    if (!ebenen.gibt(index) || index === ebenen.index) return
+    sofortStehen()
+    ebeneAktivieren(index)
+    hoeheGleiten()
+    ebeneMelden(false)
+    anstossen()
+  }
+
+  /** Aufzug: faehrt man mit, ist der eigene Boden der der Kabine (Regeln
+   *  in Mitfahrt). Ist die Fahrt vorbei, gilt die Ebene, deren Boden am
+   *  naechsten liegt. true, solange gefahren wird. */
+  function aufzugSchritt(): boolean {
+    const f = fahrtLesen()
+    const p = camera.position
+    const r = aufzug.schritt(f ? f.y : null, p.x, p.z, bodenY, haltungJetzt === 'stehen' && !wechsel.an)
+    if (r === 1) {
+      if (f && aufzug.mit) {
+        bodenY = f.y
+        uebergang.an = false
+      }
+      return true
+    }
+    if (r === 0) return false
+    // Angekommen: auf die Ebene, deren Boden am naechsten liegt.
+    const i = ebenen.naechste(bodenY)
+    if (i !== ebenen.index) ebeneAktivieren(i)
+    hoeheGleiten()
+    ebeneMelden(false)
+    return true
+  }
+
+  /** Boden fuer dieses Bild: Wechsel und Aufzug. true, solange er sich bewegt. */
+  function bodenSchritt(zeit: number): boolean {
+    let unruhig = false
+    if (uebergang.an) {
+      const a = anteil(zeit, uebergang.start, EBENE_MS)
+      bodenY = uebergang.von + (uebergang.nach - uebergang.von) * glatt(a)
+      if (a >= 1) {
+        uebergang.an = false
+        bodenY = uebergang.nach
+      }
+      unruhig = true
+    }
+    if (aufzugSchritt()) unruhig = true
+    return unruhig
+  }
+
+  /** Ist o samt allen Eltern sichtbar? (Strahlen in three fragen nicht danach.) */
+  function sichtbar(o: Object3D | null): boolean {
+    for (let x = o; x; x = x.parent) if (!x.visible) return false
+    return true
+  }
+
+  /** Das antippbare Ding der Welt unter dem Strahl (strahl ist gesetzt):
+   *  das eingetragene Objekt (der getroffene Teil oder sein Vorfahr in
+   *  objekte) und der Abstand. Sonst null. */
+  function interaktivTreffer(i: Interaktiv3D): { objekt: Object3D; abstand: number } | null {
+    if (!i.objekte.length) return null
+    const eingetragen = new Set(i.objekte)
+    for (const hit of strahl.intersectObjects(i.objekte, true)) {
+      if (!sichtbar(hit.object)) continue
+      let o: Object3D | null = hit.object
+      while (o && !eingetragen.has(o)) o = o.parent
+      if (o) return { objekt: o, abstand: hit.distance }
+    }
+    return null
+  }
+
+  /** Steht ein deckendes Teil der Wohnung naeher als abstand im Strahl?
+   *  Glas, halbdurchsichtige Waende und das Ding in der Hand zaehlen nicht. */
+  function wohnungDavor(abstand: number): boolean {
+    for (const hit of strahl.intersectObjects(gruppe.children, false)) {
+      if (hit.distance >= abstand) return false
+      if (!hit.object.visible) continue
+      const u = daten(hit.object)
+      if (u.glas || (halt.id !== null && u.ding === halt.id)) continue
+      const mat = (hit.object as Mesh).material as MeshLambertMaterial | undefined
+      if (mat && mat.opacity >= 0.5) return true
+    }
+    return false
+  }
+
+  /** Tipp zuerst auf die antippbaren Dinge der Welt (Aufzugknoepfe), beim
+   *  Begehen und in der Rundumsicht. true, wenn eins getroffen war. */
+  function weltTippen(): boolean {
+    const i = weltJetzt?.interaktiv
+    if (!i) return false
+    const t = interaktivTreffer(i)
+    if (!t || wohnungDavor(t.abstand)) return false
+    // Die Welt bekommt in den naechsten Bildern schritt(), auch ohne Begehen.
+    weltLaeuft = true
+    anstossen()
+    try {
+      i.tippen(t.objekt)
+    } catch (err) {
+      console.error('[3d] Welt.tippen:', err)
+    }
+    return true
   }
 
   /** Ein Bild Gehen: Eingabe lesen, weich beschleunigen, gleiten, umschauen.
@@ -1956,7 +2234,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       } else if (dt > 0) {
         stelle.x = p.x
         stelle.z = p.z
-        kollision.bewegen(stelle, vx * dt, vz * dt, KOERPER_RADIUS_M)
+        // Es halten nur die Hindernisse der Ebene auf, auf der man steht (E83).
+        ebenen.aktiv.bewegen(stelle, vx * dt, vz * dt, KOERPER_RADIUS_M)
         // Was an der Wand verloren ging, ist auch aus der Geschwindigkeit
         // weg: so springt man nach einer Ecke nicht mit altem Schwung los.
         const ax = (stelle.x - p.x) / dt
@@ -1971,6 +2250,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
         if (echt) tempoMessen(dt)
       }
     }
+    // Boden (E83): Wechsel der Ebene und Aufzug. Stehend sind die Augen
+    // immer Boden plus Augenhoehe; Sitzen und Liegen fuehrt der Wechsel.
+    if (bodenSchritt(zeit)) unruhig = true
+    if (haltungJetzt === 'stehen' && !wechsel.an) p.y = bodenY + AUGE_M
     if (!wechsel.an) {
       const kb = 1 - Math.exp(-dt / BLICK_S)
       const dg = gierZiel - gier
@@ -2055,6 +2338,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const dt = echt ? Math.min(DT_MAX, Math.max(0, (zeit - letzteZeit) / 1000)) : 1 / 60
     letzteZeit = zeit
     let weiter = false
+    // Die Welt (E83) zuerst: so ist die Kabine schon weiter, wenn gehSchritt
+    // fahrt() liest, und die Kamera hinkt ihr kein Bild hinterher.
+    if (weltSchritt(dt)) weiter = true
     if (gehen) {
       if (gehSchritt(dt, zeit, echt)) weiter = true
     } else {
@@ -2064,11 +2350,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
     }
     if (tuerenSchritt(zeit)) weiter = true
     if (tuerBewegt) {
-      // Geht eine Tuer zu, wo man steht, schiebt sie einen hinaus.
-      if (gehen && haltungJetzt === 'stehen' && !wechsel.an) {
+      // Geht eine Tuer zu, wo man steht, schiebt sie einen hinaus (nur auf
+      // der Ebene der Wohnung; anderswo stehen ihre Tueren nicht im Weg).
+      if (gehen && haltungJetzt === 'stehen' && !wechsel.an && ebenen.aufWohnung) {
         stelle.x = camera.position.x
         stelle.z = camera.position.z
-        kollision.herausdruecken(stelle, KOERPER_RADIUS_M)
+        ebenen.aktiv.herausdruecken(stelle, KOERPER_RADIUS_M)
         camera.position.x = stelle.x
         camera.position.z = stelle.z
       }
@@ -2176,12 +2463,17 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const t = tipp
     tipp = null
     if (!t || !eingabeAn || Math.hypot(e.clientX - t.x, e.clientY - t.y) > 5 || performance.now() - t.zeit > 500) return
-    // Mit einem Ding in der Hand legt jeder Tipp es ab.
+    strahl.setFromCamera(zeigerNdc(e), camera)
+    // Antippbares der Welt (Aufzugknoepfe, E83) zuerst, auch mit einem Ding
+    // in der Hand.
+    if (weltTippen()) return
+    // Mit einem Ding in der Hand legt jeder andere Tipp es ab.
     if (gehen && halt.ding) {
       ablegen()
       return
     }
-    strahl.setFromCamera(zeigerNdc(e), camera)
+    // Sitzen und Liegen nur auf der Ebene der Wohnung (E83).
+    const wohnen = ebenen.aufWohnung
     for (const hit of strahl.intersectObjects(gruppe.children, false)) {
       const o = hit.object
       if (!o.visible) continue
@@ -2208,7 +2500,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
           aufheben(d)
           return
         }
-        const pl = u.platz ?? (u.objektId ? naechsterPlatz(u.objektId, hit.point.x, hit.point.z) : null)
+        const pl = wohnen ? (u.platz ?? (u.objektId ? naechsterPlatz(u.objektId, hit.point.x, hit.point.z) : null)) : null
         if (pl) {
           platzNehmen(pl)
           return
@@ -2263,11 +2555,16 @@ export function motorStarten(host: HTMLElement): Motor | null {
       ratioSetzen(ratioGehen)
       messZeit = 0
       messBilder = 0
+      // Begehen beginnt immer in der Wohnung, also auf ihrer Ebene (E83).
+      ebenen.wechseln(ebenen.wohnIndex)
+      bodenY = ebenen.boden()
+      uebergang.an = false
+      aufzug.ruhe()
       stelle.x = start ? start[0] / 100 : controls.target.x
       stelle.z = start ? start[1] / 100 : controls.target.z
       // Start mitten in einem Moebel: zur naechsten freien Stelle.
-      kollision.herausdruecken(stelle, KOERPER_RADIUS_M)
-      camera.position.set(stelle.x, AUGE_M, stelle.z)
+      ebenen.aktiv.herausdruecken(stelle, KOERPER_RADIUS_M)
+      camera.position.set(stelle.x, bodenY + AUGE_M, stelle.z)
       stehX = stelle.x
       stehZ = stelle.z
       camera.fov = 70
@@ -2275,6 +2572,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       camera.rotation.set(neigung, gier, 0, 'YXZ')
       ichGruppe.visible = true
       poseMelden(performance.now(), true)
+      ebeneMelden(false)
       pulsPruefen()
       anstossen()
       return
@@ -2282,6 +2580,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
     // Was in der Hand ist, wird abgelegt; wer sitzt, steht auf.
     if (halt.ding) ablegen()
     gehen = false
+    uebergang.an = false
+    aufzug.ruhe()
+    ebeneMelden(false)
     halten.clear()
     stick.x = 0
     stick.y = 0
@@ -2343,12 +2644,41 @@ export function motorStarten(host: HTMLElement): Motor | null {
   const hintergrundFarbe = new Color()
   let hintergrund: string | null = null
   let himmel: string | null = null
-  let umgebungJetzt: Object3D | null = null
+  /** Aussenwelt aus umgebung() (E82). Die aus welt() (E83) steht daneben in
+   *  weltJetzt; jede Art nimmt nur ihre eigene wieder weg. */
+  let umgebungJetzt: { gruppe: Object3D; nebel: Fog | null; himmel: string | null } | null = null
   function hintergrundSetzen() {
     const f = himmel ?? hintergrund
     if (!f) return
     hintergrundFarbe.set(f)
     scene.background = hintergrundFarbe
+  }
+  /** Nebel und Himmel: die der Welt, sonst die der Umgebung, sonst keine. */
+  function aussenSetzen() {
+    const a = weltJetzt ?? umgebungJetzt
+    scene.fog = a?.nebel ?? null
+    himmel = a?.himmel ?? null
+    hintergrundSetzen()
+  }
+
+  function weltSetzen(w: Welt3D | null) {
+    if (weltJetzt) scene.remove(weltJetzt.gruppe)
+    weltJetzt = w
+    weltKaputt = false
+    weltLaeuft = false
+    aufzug.ruhe()
+    if (w) scene.add(w.gruppe)
+    aussenSetzen()
+    ebenen.setzen(w ? w.ebenen : [])
+    if (ebenen.verworfen) console.warn(`[3d] Welt: ${ebenen.verworfen} Hindernisse mit ungueltigen Zahlen uebergangen`)
+    if (gehen) {
+      // Auf der Ebene bleiben, deren Boden am naechsten liegt (beim
+      // Gleiten: der des Ziels), und aus neuen Hindernissen heraus.
+      ebeneAktivieren(ebenen.naechste(uebergang.an ? uebergang.nach : bodenY))
+      hoeheGleiten()
+    }
+    ebeneMelden(false)
+    anstossen()
   }
 
   const ro = new ResizeObserver(groesse)
@@ -2429,19 +2759,18 @@ export function motorStarten(host: HTMLElement): Motor | null {
     },
     ablegen,
     umgebung(u) {
-      if (umgebungJetzt) scene.remove(umgebungJetzt)
-      umgebungJetzt = u ? u.gruppe : null
-      if (u) {
-        scene.add(u.gruppe)
-        scene.fog = u.nebel ?? null
-        himmel = u.himmel ?? null
-      } else {
-        scene.fog = null
-        himmel = null
-      }
-      hintergrundSetzen()
+      if (umgebungJetzt) scene.remove(umgebungJetzt.gruppe)
+      umgebungJetzt = u ? { gruppe: u.gruppe, nebel: u.nebel ?? null, himmel: u.himmel ?? null } : null
+      if (u) scene.add(u.gruppe)
+      aussenSetzen()
       anstossen()
     },
+    welt: weltSetzen,
+    ebeneJetzt(fn) {
+      ebeneFn = fn
+      ebeneMelden(true)
+    },
+    ebeneWechseln,
     leute(liste) {
       const neu = new Map<string, Figur3D>()
       for (const l of liste) neu.set(l.uid, l.figur)
@@ -2561,8 +2890,11 @@ export function motorStarten(host: HTMLElement): Motor | null {
       leuteListe = []
       if (ichFigur) ichGruppe.remove(ichFigur.gruppe)
       ichFigur = null
-      if (umgebungJetzt) scene.remove(umgebungJetzt)
+      if (umgebungJetzt) scene.remove(umgebungJetzt.gruppe)
       umgebungJetzt = null
+      if (weltJetzt) scene.remove(weltJetzt.gruppe)
+      weltJetzt = null
+      ebeneFn = null
       scene.fog = null
       tvTextur?.dispose()
       wasserTextur?.dispose()

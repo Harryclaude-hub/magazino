@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Bell, BellOff, LogOut, ShieldCheck } from 'lucide-react'
-import { AppHeader, Page } from '../components/AppShell'
+import { AppHeader, Page, siedlungKnopfSetzen, useSiedlungKnopf } from '../components/AppShell'
 import { AvatarEditor } from '../components/AvatarEditor'
 import { InstallCard } from '../components/InstallCard'
 import { ALLE_DESIGNS, MODE_KEY, useTheme } from '../components/ThemeToggle'
@@ -72,6 +72,8 @@ export default function Settings() {
   const toast = useToast()
   const nav = useNavigate()
   const t = useT()
+  // Knopf Siedlung oben rechts (E83): nur dieses Geraet, sofort wirksam.
+  const siedlungKnopf = useSiedlungKnopf()
   const [admin, setAdmin] = useState(false)
   useEffect(() => {
     let alive = true
@@ -365,6 +367,15 @@ export default function Settings() {
 
         {/* App */}
         <Abschnitt>{t('einstellungen.app')}</Abschnitt>
+        {/* Knopf Siedlung (E83). Aus blendet nur den Knopf aus. */}
+        <Card data-tour="profil-siedlung" className="mb-4 px-4 py-1.5">
+          <Switch
+            checked={siedlungKnopf}
+            onChange={siedlungKnopfSetzen}
+            label={t('einstellungen.siedlung_knopf')}
+            hint={t('einstellungen.siedlung_knopf_hinweis')}
+          />
+        </Card>
         <div className="mb-8">
           <InstallCard />
         </div>

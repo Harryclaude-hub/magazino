@@ -18,6 +18,10 @@ woerterNachladen(plan3dWoerter)
  *  Knopf3D         Knopf "In 3D ansehen" plus grosses Fenster (Kistenseite, Suche)
  *  Ueberlagerung3D 3D ueber der Zeichenflaeche (Umschalter im Zeichner)
  *  Ansicht3D       Laden, Fehler, dann Raum3D
+ *
+ * Ansicht3D reicht alle Angaben an Raum3D weiter, auch die der Siedlung
+ * (E83): welt (eigene Aussenwelt), onEbene (Stockwerk beim Begehen) und
+ * steuer (Zur Wohnung, Von oben). Ohne sie bleibt alles wie bisher.
  */
 
 type Props = Omit<Raum3DProps, 'className'>
@@ -35,7 +39,8 @@ class Fang extends Component<{ children: ReactNode; fallback: (fehler: Error) =>
 }
 
 /** Laedt Raum3D als eigenen Code-Teil. Laden, Fehler (mit Nochmal) und
- *  die Ansicht sind drei Zustaende. */
+ *  die Ansicht sind drei Zustaende. Alle Angaben gehen unveraendert an
+ *  Raum3D, die der Siedlung (welt, onEbene, steuer) eingeschlossen. */
 export function Ansicht3D(props: Props) {
   const { t } = useSprache()
   const [versuch, setVersuch] = useState(0)

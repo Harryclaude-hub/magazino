@@ -17,7 +17,12 @@
  *
  * Gesucht wird in einem gleichmaessigen Raster (Zellen von 1 m), das beim
  * Bauen einmal entsteht. Waehrend des Gehens entsteht kein neues Objekt:
- * alle Zahlen liegen in Feldern, die Treffer in einem festen Puffer. */
+ * alle Zahlen liegen in Feldern, die Treffer in einem festen Puffer.
+ *
+ * Ebenen (E83): in einer Siedlung gibt es mehrere begehbare Boeden
+ * (Geschosse, Gelaende). Jede Ebene hat ihr eigenes Raster, und es gilt
+ * immer nur das der Ebene, auf der man steht (Ebenen). Die Ebene der
+ * Wohnung (Boden bei 0) teilt sich das Raster mit der Wohnung selbst. */
 
 /** Halbe Schulterbreite eines Mannes mit 1,75 m (wie seit E77). */
 export const KOERPER_RADIUS_M = 0.23
@@ -35,6 +40,34 @@ export interface Stelle {
   x: number
   z: number
 }
+
+/** Ein Rechteck von aussen (wie Hindernis3D in vertrag3d.ts): Mitte,
+ *  Laenge entlang x vor der Drehung, Tiefe entlang z, Drehung wie three. */
+export interface Rechteck {
+  x: number
+  z: number
+  laenge: number
+  tiefe: number
+  drehY: number
+}
+
+/** Eine begehbare Ebene (wie Ebene3D in vertrag3d.ts, ohne three): y ist
+ *  die Bodenhoehe in Metern, die Wohnung liegt bei 0. */
+export interface EbeneDaten {
+  id: string
+  name: string
+  y: number
+  hindernisse: readonly Rechteck[]
+}
+
+/** So nah an 0 (Meter) gilt ein Boden als der Boden der Wohnung. */
+export const WOHNUNG_BODEN_M = 0.05
+/** Aufzug: mit faehrt, wer beim Abfahren hoechstens so weit ueber oder
+ *  unter dem Boden der Kabine steht ... */
+export const AUFZUG_BODEN_M = 0.5
+/** ... und waehrend der Fahrt hoechstens so weit (waagrecht) von der
+ *  Stelle bleibt, an der die Fahrt begann. Weiter weg ist man ausgestiegen. */
+export const AUFZUG_NAH_M = 1.2
 
 export class Hindernisse {
   /** Kantenlaenge einer Rasterzelle in Metern. */
@@ -101,6 +134,31 @@ export class Hindernisse {
     this.bx1.push(x + ex)
     this.bz1.push(z + ez)
     return i
+  }
+
+  /** Viele Rechtecke auf einmal (die einer Ebene). Rechtecke mit
+   *  kaputten Zahlen (NaN, unendlich) kommen nicht hinein. Gibt zurueck,
+   *  wie viele das waren. Vor rastern(). */
+  alle(liste: readonly Rechteck[]): number {
+    let verworfen = 0
+    for (const r of liste) {
+      if (![r.x, r.z, r.laenge, r.tiefe, r.drehY].every(Number.isFinite)) {
+        verworfen++
+        continue
+      }
+      this.dazu(r.x, r.z, r.laenge, r.tiefe, r.drehY)
+    }
+    return verworfen
+  }
+
+  /** Nur die ersten n Rechtecke behalten (die Wohnung ohne die Rechtecke
+   *  ihrer Ebene). Danach rastern(). */
+  kuerzen(n: number): void {
+    const k = Math.max(0, Math.min(Math.floor(n), this.mx.length))
+    for (const f of [this.mx, this.mz, this.ux, this.uz, this.hl, this.ht, this.bx0, this.bz0, this.bx1, this.bz1]) f.length = k
+    this.an.length = k
+    this.raster.clear()
+    this.anzahl = 0
   }
 
   /** Halbe Ausdehnung des Rechtecks i entlang x und z. */
@@ -345,5 +403,189 @@ export class Hindernisse {
         return
       }
     }
+  }
+}
+
+/** Mitfahren im Aufzug (E83), ohne three. Die Welt meldet je Bild den
+ *  Boden der Kabine (oder null, wenn sie steht). Mit faehrt, wer beim
+ *  Abfahren steht und auf ihrem Boden steht (wer sie von einem anderen
+ *  Geschoss ruft, bleibt, wo er ist), und nur, solange er nahe der Stelle
+ *  bleibt, an der die Fahrt begann; wer sich weiter entfernt oder sich
+ *  setzt, ist ausgestiegen und bleibt es fuer diese Fahrt. */
+export class Mitfahrt {
+  /** Eine Fahrt laeuft. */
+  an = false
+  /** Man faehrt gerade mit: der eigene Boden ist der der Kabine. */
+  mit = false
+  /** In dieser Fahrt wenigstens ein Bild mitgefahren. */
+  gefahren = false
+  /** Wo man beim Abfahren stand. */
+  x = 0
+  z = 0
+
+  /** Ein Bild. kabine: Boden der Kabine (Meter) oder null; x, z: wo man
+   *  steht; boden: der eigene Boden; stehend: man steht (sitzt nicht, kein
+   *  Hinsetzen oder Aufstehen im Gang). Gibt zurueck: 0 keine Fahrt, 1 die
+   *  Fahrt laeuft (mit sagt, ob man mitfaehrt), 2 die Fahrt ist eben zu
+   *  Ende, nachdem man mitgefahren ist: jetzt gilt die naechste Ebene. */
+  schritt(kabine: number | null, x: number, z: number, boden: number, stehend: boolean): 0 | 1 | 2 {
+    if (kabine !== null && Number.isFinite(kabine)) {
+      if (!this.an) {
+        this.an = true
+        this.gefahren = false
+        this.x = x
+        this.z = z
+        this.mit = stehend && Math.abs(kabine - boden) <= AUFZUG_BODEN_M
+      }
+      if (this.mit) {
+        if (!stehend || Math.hypot(x - this.x, z - this.z) > AUFZUG_NAH_M) this.mit = false
+        else this.gefahren = true
+      }
+      return 1
+    }
+    if (!this.an) return 0
+    const gefahren = this.gefahren
+    this.ruhe()
+    return gefahren ? 2 : 0
+  }
+
+  /** Keine Fahrt (Begehen an oder aus, neue Welt). */
+  ruhe(): void {
+    this.an = false
+    this.mit = false
+    this.gefahren = false
+  }
+}
+
+/** Index der Ebene der Wohnung: Boden bei 0, bei mehreren die mit der
+ *  Kennung 'wohnung', sonst die erste. -1, wenn keine bei 0 liegt. */
+export function wohnungsEbene(ebenen: readonly EbeneDaten[]): number {
+  let erste = -1
+  for (let i = 0; i < ebenen.length; i++) {
+    if (!(Math.abs(ebenen[i].y) <= WOHNUNG_BODEN_M)) continue
+    if (ebenen[i].id === 'wohnung') return i
+    if (erste < 0) erste = i
+  }
+  return erste
+}
+
+/** Eine Ebene mit ihrem Raster. Ohne gueltigen Boden (y kaputt) ist sie
+ *  nicht betretbar, behaelt aber ihren Platz, damit die Indizes zu denen
+ *  der Welt passen. */
+export interface EbeneRaster {
+  id: string
+  name: string
+  y: number
+  raster: Hindernisse
+}
+
+/** Begehbare Ebenen fuer den Zusammenstoss (E83). Jede Ebene hat ihr
+ *  eigenes Raster, und es gilt nur das der aktiven: was auf einer Ebene
+ *  steht, haelt auf keiner anderen auf. Die Ebene der Wohnung benutzt das
+ *  Raster der Wohnung selbst (Waende, Tueren, Moebel zuerst, dahinter die
+ *  Rechtecke der Ebene wie Gang und Aufzug). Liegt keine Ebene bei 0, steht
+ *  die Wohnung allein als Index -1 da, mit Boden 0. */
+export class Ebenen {
+  /** Raster der Wohnung; dasselbe Objekt, das der Motor beim Bauen fuellt. */
+  readonly wohnung: Hindernisse
+  /** Zellgroesse der Raster aller anderen Ebenen (Meter). */
+  readonly zelle: number
+  liste: EbeneRaster[] = []
+  /** Index der Ebene der Wohnung, -1 ohne. */
+  wohnIndex = -1
+  /** Aktive Ebene, -1 = die Wohnung allein. */
+  index = -1
+  /** Rechtecke, die beim letzten setzen() wegen kaputter Zahlen wegfielen. */
+  verworfen = 0
+  /** Wie viele Rechtecke im Raster der Wohnung ihr selbst gehoeren. */
+  private eigene = 0
+  /** Die Rechtecke der Ebene der Wohnung (nach jedem Neubau wieder dazu). */
+  private wohnRechtecke: readonly Rechteck[] = []
+
+  constructor(wohnung: Hindernisse, zelle = 1) {
+    this.wohnung = wohnung
+    this.zelle = zelle
+  }
+
+  /** Die Wohnung ist neu gebaut (leeren(), dazu() ...): haengt die
+   *  Rechtecke ihrer Ebene an und rastert. Statt wohnung.rastern(). */
+  wohnungFertig(): void {
+    this.eigene = this.wohnung.groesse
+    this.wohnungRastern()
+  }
+
+  private wohnungRastern(): number {
+    this.wohnung.kuerzen(this.eigene)
+    const verworfen = this.wohnung.alle(this.wohnRechtecke)
+    this.wohnung.rastern()
+    return verworfen
+  }
+
+  /** Neue Ebenen (leer: keine). Jede bekommt ihr Raster; aktiv ist danach
+   *  die Ebene der Wohnung. */
+  setzen(ebenen: readonly EbeneDaten[]): void {
+    this.wohnIndex = wohnungsEbene(ebenen)
+    let verworfen = 0
+    this.liste = ebenen.map((e, i) => {
+      if (i === this.wohnIndex) return { id: e.id, name: e.name, y: e.y, raster: this.wohnung }
+      const h = new Hindernisse(this.zelle)
+      verworfen += h.alle(e.hindernisse)
+      h.rastern()
+      return { id: e.id, name: e.name, y: e.y, raster: h }
+    })
+    this.wohnRechtecke = this.wohnIndex >= 0 ? ebenen[this.wohnIndex].hindernisse : []
+    verworfen += this.wohnungRastern()
+    this.verworfen = verworfen
+    this.index = this.wohnIndex
+  }
+
+  /** Das Raster, das gerade gilt. */
+  get aktiv(): Hindernisse {
+    return this.index >= 0 ? this.liste[this.index].raster : this.wohnung
+  }
+
+  /** Steht man auf der Ebene der Wohnung (oder der Wohnung allein)? */
+  get aufWohnung(): boolean {
+    return this.index === this.wohnIndex
+  }
+
+  /** Bodenhoehe der Ebene i, ohne Angabe der aktiven; -1 ist 0. */
+  boden(i = this.index): number {
+    return i >= 0 && i < this.liste.length ? this.liste[i].y : 0
+  }
+
+  /** Laesst sich Ebene i betreten? -1 nur, wenn die Wohnung allein steht. */
+  gibt(i: number): boolean {
+    if (i === -1) return this.wohnIndex === -1
+    return Number.isInteger(i) && i >= 0 && i < this.liste.length && Number.isFinite(this.liste[i].y)
+  }
+
+  /** Auf Ebene i wechseln. false (und nichts aendert sich), wenn es sie nicht gibt. */
+  wechseln(i: number): boolean {
+    if (!this.gibt(i)) return false
+    this.index = i
+    return true
+  }
+
+  /** Die Ebene, deren Boden y am naechsten liegt (bei Gleichstand die
+   *  erste); die Wohnung allein (-1, Boden 0) zaehlt mit, wenn keine Ebene
+   *  bei 0 liegt. Kaputtes y: die aktive. */
+  naechste(y: number): number {
+    if (!Number.isFinite(y)) return this.index
+    let best = this.index
+    let abstand = Infinity
+    if (this.wohnIndex === -1) {
+      best = -1
+      abstand = Math.abs(y)
+    }
+    for (let i = 0; i < this.liste.length; i++) {
+      if (!this.gibt(i)) continue
+      const d = Math.abs(this.liste[i].y - y)
+      if (d < abstand) {
+        abstand = d
+        best = i
+      }
+    }
+    return best
   }
 }
