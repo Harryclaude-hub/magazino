@@ -60,4 +60,11 @@ export const schnell: Woerterbuch = {
   'schnell.kein_platz': { de: 'Noch kein Platz im Grundriss', ar: 'لا موضع في المخطط بعد' },
   'schnell.platzieren': { de: 'Im Zimmer platzieren', ar: 'ضعه في الغرفة' },
   'schnell.platz_aendern': { de: 'Platz ändern', ar: 'تغيير الموضع' },
+  // Karte einer Kiste in der 3D-Begehung (E82). Zurück, Inhalt und
+  // "Ganz öffnen" nehmen die vorhandenen Schlüssel.
+  'schnell.kiste_oeffnen': { de: 'Kiste öffnen', ar: 'افتح الصندوق' },
+  'schnell.kiste_schliessen': { de: 'Kiste schließen', ar: 'أغلق الصندوق' },
+  'schnell.zur_begehung': { de: 'Zurück zur Begehung', ar: 'العودة إلى التجوّل' },
+  'schnell.zur_ansicht': { de: 'Zurück zur 3D-Ansicht', ar: 'العودة إلى العرض الثلاثي الأبعاد' },
+  'schnell.inhalt_laedt': { de: 'Inhalt wird geholt', ar: 'جارٍ إحضار المحتويات' },
 }

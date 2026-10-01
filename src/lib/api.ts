@@ -1627,3 +1627,29 @@ export async function verlaufLoeschen(projectId: string): Promise<number> {
   if (res.error) throw new Error(tg('fehler.verlauf_loeschen', { grund: errText(res.error) }))
   return res.count ?? 0
 }
+
+/* ------------------------------------------------- Kistenkarte in 3D (E82) */
+
+/** Was die Karte einer Kiste in der 3D-Begehung nachlaedt: die Kiste
+ *  selbst, ihren Inhalt in derselben Reihenfolge wie auf der Kistenseite
+ *  (listContents) und den Pfad ihres Deckbilds, oder null.
+ *
+ *  Drei Abfragen nebeneinander, ein Weg zum Server. Das Deckbild kommt aus
+ *  den Fotos DIESER Kiste: die Datenbank laesst als Deckbild nur ein Foto
+ *  der eigenen Kiste zu (Trigger aus 0012), darum genuegt es, unter ihnen
+ *  das mit der Nummer aus cover_photo_id zu nehmen. Erst die Kiste und
+ *  dann ihr Foto zu holen kostete einen zweiten Weg. Gelesen wird nur. */
+export async function ladeKistenKarte(
+  itemId: string,
+): Promise<{ item: Item; contents: ItemContent[]; coverPath: string | null }> {
+  const [item, contents, fotos] = await Promise.all([
+    getItem(itemId),
+    listContents(itemId),
+    supabase.from('item_photos').select('id,path').eq('item_id', itemId),
+  ])
+  if (fotos.error) throw new Error(tg('fehler.fotos_laden', { grund: errText(fotos.error) }))
+  const deck = item.cover_photo_id
+    ? ((fotos.data ?? []) as { id: string; path: string }[]).find((f) => f.id === item.cover_photo_id)
+    : undefined
+  return { item, contents, coverPath: deck?.path ?? null }
+}
