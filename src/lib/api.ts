@@ -1723,6 +1723,7 @@ export async function speichereSiedlung(
   if (s.gebaeude !== undefined) werte.gebaeude = s.gebaeude
   if (s.wohnung !== undefined) werte.wohnung = s.wohnung
   if (s.aussen !== undefined) werte.aussen = s.aussen
+  if (s.innen !== undefined) werte.innen = s.innen
 
   if (!s.id) {
     const neu = {
@@ -1749,4 +1750,31 @@ export async function loescheSiedlung(id: string): Promise<void> {
   const res = await supabase.from('siedlungen').delete({ count: 'exact' }).eq('id', id)
   if (res.error) throw new Error(errText(res.error))
   if (!res.count) throw new Error(tg('zustand.nichts_gefunden'))
+}
+
+/** Eine Siedlung aus einer Datei eintragen (E85, siedlungImport.ts), mit
+ *  dem eigenen Konto, ohne Befehle in der Datenbank. Gibt es schon eine
+ *  eigene Siedlung mit derselben Wohnung, wird sie ersetzt statt doppelt
+ *  angelegt. Deko und Schalter fuer den eigenen Grundriss kommen danach;
+ *  scheitern sie, bleibt die Siedlung trotzdem eingetragen, und der Grund
+ *  kommt als Text zurueck (deko), nichts wird verschwiegen. */
+export async function siedlungImportieren(
+  d: import('./siedlungImport').SiedlungDatei,
+): Promise<{ siedlung: SiedlungZeile; deko: 'ok' | 'keine' | { fehler: string } }> {
+  const gid = d.siedlung.wohnung?.grundrissId ?? null
+  const vorhanden = gid ? (await listSiedlungen()).find((x) => x.wohnung?.grundrissId === gid) : undefined
+  const siedlung = await speichereSiedlung({ ...(vorhanden ? { id: vorhanden.id } : {}), ...d.siedlung })
+  if (!d.deko) return { siedlung, deko: 'keine' }
+  try {
+    const plan = await ladeGrundriss(d.deko.grundrissId)
+    if (!plan) throw new Error(tg('fehler.db.grundriss.grundriss_fehlt'))
+    // Gleiche Kennungen: ein zweites Laden aendert nur, legt nichts doppelt an.
+    await speichereGrundriss(d.deko.grundrissId, plan.grundriss.version, { objekte: d.deko.objekte })
+    const da = new Set((plan.grundriss.symbole ?? []).map((x) => x.id))
+    const neu = d.deko.symbole.filter((x) => !da.has(x.id))
+    if (neu.length) await speichereLinien(d.deko.grundrissId, plan.grundriss.linien ?? [], [...(plan.grundriss.symbole ?? []), ...neu])
+    return { siedlung, deko: 'ok' }
+  } catch (err) {
+    return { siedlung, deko: { fehler: err instanceof Error ? err.message : String(err) } }
+  }
 }

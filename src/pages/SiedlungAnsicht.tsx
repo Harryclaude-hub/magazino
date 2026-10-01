@@ -137,7 +137,7 @@ export default function SiedlungAnsicht() {
       <AppHeader
         title={siedlung?.name || t('siedlung.titel')}
         subtitle={unterzeile}
-        back="/app/siedlung"
+        back="/app"
         sticky={false}
         actions={
           bereit ? (
@@ -205,8 +205,8 @@ export default function SiedlungAnsicht() {
               icon={<Building2 size={34} />}
               title={t('siedlung.nicht_gefunden')}
               action={
-                <Button variant="outline" onClick={() => nav('/app/siedlung')}>
-                  {t('siedlung.zur_liste')}
+                <Button variant="outline" onClick={() => nav('/app')}>
+                  {t('siedlung.zurueck_start')}
                 </Button>
               }
             />

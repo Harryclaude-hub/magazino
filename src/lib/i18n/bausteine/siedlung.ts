@@ -14,6 +14,23 @@ import type { Woerterbuch } from '../woerter'
 export const siedlungWoerter: Woerterbuch = {
   // ------------------------------------------------------------- Liste
   'siedlung.titel': { de: 'Siedlung', ar: 'المجمّع السكني' },
+  'siedlung.laden': { de: 'Siedlung laden', ar: 'تحميل المجمّع السكني' },
+  'siedlung.laden_hinweis': {
+    de: 'Wähle die Datei deiner Siedlung (endet auf .json). Die App trägt die Häuser, alle Wohnungen und die Deko mit deinem Konto ein. Das musst du nur einmal machen.',
+    ar: 'اختر ملف مجمّعك السكني (ينتهي بـ .json). يسجّل التطبيق المباني وكل الشقق والديكور بحسابك. يكفي فعل ذلك مرة واحدة.',
+  },
+  'siedlung.laden_laeuft': { de: 'Siedlung wird eingetragen', ar: 'جارٍ تسجيل المجمّع السكني' },
+  'siedlung.geladen': { de: 'Siedlung eingetragen', ar: 'تم تسجيل المجمّع السكني' },
+  'siedlung.deko_ok': { de: 'Deko und Schalter sind in deinem Grundriss', ar: 'الديكور والمفاتيح موجودة في مخططك' },
+  'siedlung.deko_fehler': {
+    de: 'Die Siedlung ist da, aber Deko und Schalter kamen nicht in den Grundriss: {grund}',
+    ar: 'المجمّع موجود، لكن الديكور والمفاتيح لم تُضف إلى المخطط: {grund}',
+  },
+  'siedlung.datei_fehler': { de: 'Die Datei passt nicht: {grund}', ar: 'الملف غير مناسب: {grund}' },
+  'siedlung.datei_zu_gross': { de: 'zu groß', ar: 'كبير جدًا' },
+  'siedlung.datei_kein_json': { de: 'keine JSON-Datei', ar: 'ليس ملف JSON' },
+  'siedlung.datei_falsche_art': { de: 'keine Siedlungs-Datei von Kistly', ar: 'ليس ملف مجمّع سكني من Kistly' },
+  'siedlung.zurueck_start': { de: 'Zur Startseite', ar: 'إلى الصفحة الرئيسية' },
   'siedlung.intro': {
     de: 'Die Häuser rund um dein Zuhause in 3D, mit deiner Wohnung darin. Du gehst durch das Haus, das Treppenhaus und mit dem Aufzug.',
     ar: 'المباني حول منزلك بالأبعاد الثلاثية، وشقتك بداخلها. تتجوّل في المبنى وعلى الدرج وفي المصعد.',
