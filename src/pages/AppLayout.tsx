@@ -221,6 +221,9 @@ export default function AppLayout() {
           <Outlet />
         </div>
 
+        {/* Platzhalter so hoch wie die feste Leiste, damit nichts darunter
+            verschwindet (Hoehe meldet die Leiste selbst als --nav-h). */}
+        <div className="lg:hidden" style={{ height: 'var(--nav-h, 5.5rem)' }} aria-hidden="true" />
         <div className="lg:hidden">
         <BottomNav>
           <NavTab

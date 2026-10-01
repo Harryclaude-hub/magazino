@@ -565,3 +565,12 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   zwei Reihen (oben Ansicht und Bewegen samt Vollbild, unten Licht und
   Anzeige) und laesst sich einklappen; dann bleibt oben links ein kleiner
   Knopf zum Aufklappen.
+- **E79 Untere Leiste fest, Menue "Mehr" als Blatt, 3D quer:** Die untere
+  Leiste ist jetzt fest am unteren Rand (vorher sticky in einem gleich
+  hohen Behaelter, darum scrollte sie weg); ein Platzhalter in ihrer Hoehe
+  haelt den Inhalt frei. Das Menue "Mehr" in der Kopfzeile am Handy ist
+  ein Blatt von unten ueber der ganzen Seite (Portal an body) mit grossen
+  Zeilen; die Erklaerung haelt ihren Zustand in der Kopfzeile, vorher
+  verschwand sie mit dem Menue. 3D: hochkant zwei Reihen, quer eine Reihe
+  nur mit Zeichen, Namen erst ab Computerbreite; Abstand zur
+  Kamera-Aussparung oben und seitlich, Gehpfeile ueber der Wischleiste.

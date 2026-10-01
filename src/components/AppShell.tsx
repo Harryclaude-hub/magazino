@@ -1,11 +1,12 @@
 import { Children, Fragment, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MoreHorizontal } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { ArrowLeft, CircleHelp, MoreHorizontal } from 'lucide-react'
 import { cx } from '../lib/util'
 import { Avatar } from './ui'
 import { displayNameOf, useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
-import { ErklaerKnopf } from './Fuehrung'
+import { ErklaerKnopf, Fuehrung } from './Fuehrung'
 import { ProjektMenue } from './ProjektMenue'
 
 /** Kopfzeile. Rechts steht immer das eigene Profil, so wie bei den grossen
@@ -99,27 +100,23 @@ function einzeln(knoten: ReactNode): ReactNode[] {
 }
 
 /** Kopfzeile am Handy: hoechstens ein Knopf sichtbar, der Rest und die
- *  Erklaerung im Menue. Im Menue steht neben jedem Zeichen sein Name
- *  (aus aria-label, siehe .kopf-menue in index.css). */
+ *  Erklaerung in einem Blatt, das von unten kommt (E79). Das Blatt liegt
+ *  ueber allem (Portal an body), damit nichts darueber oder darunter
+ *  rutscht. Neben jedem Zeichen steht sein Name (aus aria-label, siehe
+ *  .kopf-menue in index.css). Die Erklaerung haelt ihren Zustand hier, nicht
+ *  im Blatt: sonst verschwand sie mit dem Blatt, sobald man tippte. */
 function KopfHandy({ actions }: { actions: ReactNode }) {
   const t = useT()
   const knoepfe = einzeln(actions)
   const [offen, setOffen] = useState(false)
-  const huelle = useRef<HTMLDivElement>(null)
+  const [erklaerung, setErklaerung] = useState(false)
   useEffect(() => {
     if (!offen) return
-    const weg = (e: Event) => {
-      if (huelle.current && !huelle.current.contains(e.target as Node)) setOffen(false)
-    }
     const taste = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOffen(false)
     }
-    document.addEventListener('pointerdown', weg)
     document.addEventListener('keydown', taste)
-    return () => {
-      document.removeEventListener('pointerdown', weg)
-      document.removeEventListener('keydown', taste)
-    }
+    return () => document.removeEventListener('keydown', taste)
   }, [offen])
   if (knoepfe.length <= 1) {
     return (
@@ -132,30 +129,41 @@ function KopfHandy({ actions }: { actions: ReactNode }) {
   return (
     <>
       {knoepfe[0]}
-      <div ref={huelle} className="relative">
-        <button
-          type="button"
-          aria-label={t('kopf.mehr')}
-          title={t('kopf.mehr')}
-          aria-expanded={offen}
-          onClick={() => setOffen((v) => !v)}
-          className="knopf flex h-10 w-10 items-center justify-center rounded-knopf border-2 border-ink/12 bg-surface text-ink transition hover:bg-raised"
-        >
-          <MoreHorizontal size={20} />
-        </button>
-        {offen ? (
-          <div
-            role="menu"
-            // Nach dem Tippen auf einen Eintrag schliessen; der Eintrag selbst
-            // hat dann schon gehandelt.
-            onClickCapture={() => window.setTimeout(() => setOffen(false), 0)}
-            className="kopf-menue absolute end-0 top-full z-40 mt-2 flex w-64 max-w-[calc(100vw-1.5rem)] flex-col gap-1 rounded-karte border border-line bg-surface p-2 shadow-dialog"
-          >
-            {knoepfe.slice(1)}
-            <ErklaerKnopf />
-          </div>
-        ) : null}
-      </div>
+      <button
+        type="button"
+        aria-label={t('kopf.mehr')}
+        title={t('kopf.mehr')}
+        aria-expanded={offen}
+        onClick={() => setOffen(true)}
+        className="knopf flex h-10 w-10 items-center justify-center rounded-knopf border-2 border-ink/12 bg-surface text-ink transition hover:bg-raised"
+      >
+        <MoreHorizontal size={20} />
+      </button>
+      {offen
+        ? createPortal(
+            <div className="fixed inset-0 z-[90] sm:hidden" role="dialog" aria-modal="true" aria-label={t('kopf.mehr')}>
+              <button type="button" aria-label={t('aktion.schliessen')} className="absolute inset-0 bg-black/45" onClick={() => setOffen(false)} />
+              <div
+                // Nach dem Tippen auf einen Eintrag schliessen; der Eintrag hat dann schon gehandelt.
+                onClickCapture={() => window.setTimeout(() => setOffen(false), 0)}
+                className="kopf-menue safe-bottom absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col gap-1 overflow-y-auto rounded-t-karte border-t border-line bg-surface p-3 shadow-dialog"
+              >
+                <span className="kopf-griff" aria-hidden="true" />
+                {knoepfe.slice(1)}
+                <button
+                  type="button"
+                  aria-label={t('fuehrung.knopf')}
+                  onClick={() => setErklaerung(true)}
+                  className="knopf items-center rounded-knopf text-ink"
+                >
+                  <CircleHelp size={19} />
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+      {erklaerung ? <Fuehrung onClose={() => setErklaerung(false)} /> : null}
     </>
   )
 }
@@ -274,7 +282,9 @@ export function BottomNav({ children }: { children: ReactNode }) {
   return (
     <nav
       ref={ref}
-      className="no-print safe-bottom sticky bottom-0 z-40 border-t-2 border-line bg-paper/98 backdrop-blur"
+      // Fest am unteren Rand (E79): sticky klebte nur in seinem eigenen,
+      // gleich hohen Behaelter und scrollte darum mit weg.
+      className="no-print safe-bottom fixed inset-x-0 bottom-0 z-40 border-t-2 border-line bg-paper/98 backdrop-blur"
     >
       <div className="mx-auto flex max-w-5xl items-end px-2 pt-2">{children}</div>
     </nav>

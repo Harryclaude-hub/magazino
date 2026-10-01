@@ -297,11 +297,13 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
       {leisteZu ? null : (
       <div
         className={cx(
-          'flex flex-col items-center gap-1 px-2 pb-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:px-3 sm:pt-2',
+          // Hochkant zwei Reihen, quer (ab md) eine Reihe nur mit Zeichen, ab lg mit Namen.
+          // Abstand zur Kamera-Aussparung oben und, quer gehalten, links und rechts.
+          'flex flex-col items-center gap-1 pb-2 pe-[calc(env(safe-area-inset-right,0px)+0.5rem)] ps-[calc(env(safe-area-inset-left,0px)+0.5rem)] pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] md:flex-row md:flex-wrap md:justify-center md:gap-1.5 lg:justify-start lg:gap-2 lg:pt-2',
           vollbild ? 'absolute inset-x-0 top-0 z-20 bg-surface/85 backdrop-blur' : 'border-b border-line bg-surface',
         )}
       >
-        <div className="flex items-center justify-center gap-1 sm:contents">
+        <div className="flex items-center justify-center gap-1 md:contents">
           <Knopf zeichen={KarteIcon} name={t('plan3d.ansicht_oben')} onClick={() => blick('oben')} disabled={geht !== 'ja' || leer} />
           <Knopf zeichen={Eye} name={t('plan3d.ansicht_schraeg')} onClick={() => blick('schraeg')} disabled={geht !== 'ja' || leer} />
           {hatKiste ? (
@@ -326,7 +328,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
             onClick={vollbildUmschalten}
           />
         </div>
-        <div className="flex items-center justify-center gap-1 sm:contents">
+        <div className="flex items-center justify-center gap-1 md:contents">
           <div className="flex rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('plan3d.licht')}>
             {(
               [
@@ -359,7 +361,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
           />
           <Knopf zeichen={Layers} name={t('plan3d.waende_halb')} an={halb} onClick={() => setHalb((v) => !v)} disabled={geht !== 'ja'} />
           <Knopf zeichen={Square} name={t('plan3d.teppiche')} an={teppiche} onClick={() => setTeppiche((v) => !v)} disabled={geht !== 'ja'} />
-          <p className="t-sub hidden min-w-0 flex-1 truncate px-1 sm:block">
+          <p className="t-sub hidden min-w-0 flex-1 truncate px-1 lg:block">
             {geht !== 'ja'
               ? null
               : gehen
@@ -380,7 +382,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
           aria-label={t('plan3d.leinwand')}
         />
         {leisteZu ? (
-          <div className="absolute start-2 top-[calc(env(safe-area-inset-top,0px)+0.5rem)] z-30 flex gap-1">
+          <div className="absolute start-[calc(env(safe-area-inset-left,0px)+0.5rem)] top-[calc(env(safe-area-inset-top,0px)+0.5rem)] z-30 flex gap-1">
             <Knopf zeichen={SlidersHorizontal} name={t('plan3d.leiste_auf')} onClick={() => setLeisteZu(false)} />
             {onSchliessen && !vollbild ? <Knopf zeichen={X} name={t('plan3d.schliessen')} onClick={onSchliessen} /> : null}
           </div>
@@ -391,7 +393,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
             dir="auto"
             className={cx(
               'absolute end-3 z-30 w-64 max-w-[calc(100%-1.5rem)] rounded-2xl border border-line bg-surface/95 p-2 shadow-lg',
-              vollbild && !leisteZu ? 'top-28 sm:top-16' : 'top-3',
+              vollbild && !leisteZu ? 'top-28 md:top-16' : 'top-3',
             )}
           >
             <p className="t-sub px-1 pb-1">{t('plan3d.licht_schalter_hilfe')}</p>
@@ -432,7 +434,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
           </div>
         ) : geht === 'ja' && gehen ? (
           // Gehen per Knopf: gedrueckt halten, loslassen bleibt stehen.
-          <div className="absolute bottom-4 start-4 grid grid-cols-3 gap-1.5" dir="ltr">
+          <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] start-[calc(env(safe-area-inset-left,0px)+1rem)] grid grid-cols-3 gap-1.5" dir="ltr">
             {GEH_KNOEPFE.map(({ r, Zeichen, spalte, zeile }) => (
               <button
                 key={r}
@@ -493,10 +495,10 @@ function Knopf({
       title={hilfe ?? name}
       onClick={onClick}
       disabled={disabled}
-      className="h-10 w-10 justify-center px-0 sm:w-auto sm:min-w-10 sm:px-3.5"
+      className="h-10 w-10 justify-center px-0 lg:w-auto lg:min-w-10 lg:px-3.5"
     >
       <Zeichen size={17} style={farbe ? { color: farbe } : undefined} />
-      <span className="hidden sm:inline">{name}</span>
+      <span className="hidden lg:inline">{name}</span>
     </Button>
   )
 }
@@ -523,11 +525,11 @@ function Teil({
       onClick={onClick}
       title={hilfe ?? name}
       className={cx(
-        'flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-1.5 text-sm font-bold leading-tight sm:px-2',
+        'flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-1.5 text-sm font-bold leading-tight lg:px-2',
         an ? 'bg-ink text-paper' : 'text-ink hover:bg-raised',
       )}
     >
-      <Zeichen size={15} /> <span className="hidden sm:inline">{name}</span>
+      <Zeichen size={15} /> <span className="hidden lg:inline">{name}</span>
     </button>
   )
 }

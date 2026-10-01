@@ -59,7 +59,7 @@ export function ErklaerKnopf() {
   )
 }
 
-function Fuehrung({ onClose }: { onClose: () => void }) {
+export function Fuehrung({ onClose }: { onClose: () => void }) {
   const { t, lang } = useSprache()
   const { pathname } = useLocation()
   const desktop = useIstDesktop()
