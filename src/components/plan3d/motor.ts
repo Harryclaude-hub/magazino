@@ -1148,6 +1148,22 @@ export function motorStarten(host: HTMLElement): Motor | null {
 
   /* --------------------------------------------------- Szene bauen */
 
+  /** Sitz- und Liegeplaetze je Moebel (E82): ein Tipp irgendwo auf das
+   *  Moebel nimmt den naechsten, nicht nur ein Tipp genau auf das Polster. */
+  let plaetze = new Map<string, NonNullable<Quader['platz']>[]>()
+  function naechsterPlatz(objektId: string, x: number, z: number): NonNullable<Quader['platz']> | null {
+    let best: NonNullable<Quader['platz']> | null = null
+    let bester = 1.5
+    for (const pl of plaetze.get(objektId) ?? []) {
+      const d = Math.hypot(pl.punkt[0] - x, pl.punkt[2] - z)
+      if (d < bester) {
+        bester = d
+        best = pl
+      }
+    }
+    return best
+  }
+
   function leeren() {
     // Laufende Tueren und Schubladen gelten als angekommen, damit der
     // Neubau sie dort zeigt, wo sie hinwollten.
@@ -1188,6 +1204,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     schubGruppen = []
     dinge = new Map()
     geraetTeile = []
+    plaetze = new Map()
   }
 
   /** Haelt dieses Teil beim Begehen auf? Waende (ohne Sturz und Oberteil der
@@ -1257,7 +1274,14 @@ export function motorStarten(host: HTMLElement): Motor | null {
         // schaltet sie und greift nicht das Moebel (wie vor E82).
         else if (OBJEKT_ROLLEN.has(k.rolle) && !k.tuer && !k.schub) u.objektId = k.id
       }
-      if (k.platz) u.platz = k.platz
+      if (k.platz) {
+        u.platz = k.platz
+        if (k.id) {
+          const liste = plaetze.get(k.id) ?? []
+          liste.push(k.platz)
+          plaetze.set(k.id, liste)
+        }
+      }
       if (k.rolle === 'scheibe' || (k.deckkraft < 0.5 && k.rolle !== 'kiste') || g?.teil === 'an') u.glas = true
       if (g) {
         u.geraet = g
@@ -2179,8 +2203,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
           aufheben(d)
           return
         }
-        if (u.platz) {
-          platzNehmen(u.platz)
+        const pl = u.platz ?? (u.objektId ? naechsterPlatz(u.objektId, hit.point.x, hit.point.z) : null)
+        if (pl) {
+          platzNehmen(pl)
           return
         }
       }

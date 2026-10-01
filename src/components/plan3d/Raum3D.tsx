@@ -1,14 +1,24 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Clock, Crosshair, Eye, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, Map as KarteIcon, Maximize2, Minimize2, Moon, Rotate3d, SlidersHorizontal, Square, Sun, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowDownToLine, ArrowUpFromLine, Clock, Crosshair, Eye, Flower2, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, Map as KarteIcon, Maximize2, Mic, MicOff, Minimize2, Moon, Rotate3d, SlidersHorizontal, Square, Sun, Users, X } from 'lucide-react'
+import { displayNameOf, useAuth } from '../../lib/auth'
+import { standardLook } from '../../lib/avatar'
+import { wohnungBeitreten, type WohnungVerbindung } from '../../lib/anwesenheit'
 import { useSprache } from '../../lib/i18n'
+import { Sprechen, type SprechZustand } from '../../lib/sprechen'
 import type { GrundrissDaten } from '../../lib/types'
 import { cx } from '../../lib/util'
-import { Button } from '../ui'
+import { useProjektOptional } from '../../pages/ProjectLayout'
+import { Button, useToast } from '../ui'
 import { flaecheQm, innenPunkt, raumTitel } from '../plan/hilfe'
-import { motorStarten, type Blick, type Motor, type Treffer3D } from './motor'
+import { baueUmgebung } from './aussen3d'
+import { baueFigur } from './avatar3d'
+import KistenKarte from './KistenKarte'
+import { motorStarten, type Blick, type Figur3D, type Haltung, type Motor, type Pose3D, type Treffer3D } from './motor'
 import { Knueppel } from './Knueppel'
 import { farbenLesen } from './farben3d'
 import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
+import { umgebungAus } from './umgebungRahmen'
 
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
  *
@@ -24,8 +34,15 @@ import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
  * halbdurchsichtig.
  *
  * Begehen: in Augenhoehe durch die Wohnung (W A S D oder Pfeiltasten,
- * ziehen schaut umher, am Handy Pfeilknoepfe). Waende halten auf, Tueren
+ * ziehen schaut umher, am Handy der Knueppel). Waende halten auf, Tueren
  * und Durchgaenge sind offen. Esc oder der Knopf beendet es.
+ *
+ * E82: Beim Begehen setzt man sich hin oder legt sich hin (Antippen),
+ * hebt kleine Dinge auf, schaltet Fernseher und Wasser, schliesst Tueren
+ * ab. Eine angetippte Kiste zeigt ihre Karte mit Zurueck zur Begehung.
+ * Wer im selben Umzug gerade auch durch die Wohnung geht, erscheint als
+ * Figur, und mit Mikrofon hoert man sich, lauter, je naeher man steht.
+ * Draussen gibt es eine ruhige Umgebung (aussen3d.ts).
  *
  * Die Farben kommen aus den Tokens (getComputedStyle) und werden bei
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
@@ -60,6 +77,14 @@ function startPunkt(daten: GrundrissDaten, raumId: string | null): [number, numb
   return best ? innenPunkt(best.punkte) : null
 }
 
+/** Eine ruhige Farbe je Person, fest aus der Kennung. */
+function farbeFuer(uid: string): string {
+  const farben = ['#4f6d8f', '#7a5c8e', '#4f8a6e', '#a0663f', '#8a4f5c', '#5c7a8a']
+  let h = 0
+  for (let i = 0; i < uid.length; i++) h = (h * 31 + uid.charCodeAt(i)) >>> 0
+  return farben[h % farben.length]
+}
+
 /** Kiste -> Objekt, auf oder in dem ihr Stapel steht (ueber Kisten hinweg). */
 function traegerKarte(daten: GrundrissDaten): Map<string, string> {
   const nachId = new Map(daten.kisten.map((k) => [k.id, k]))
@@ -80,6 +105,10 @@ function traegerKarte(daten: GrundrissDaten): Map<string, string> {
 
 export default function Raum3D({ daten, raumId = null, hervor = null, markiert = null, onSchliessen, onObjektZiehen, onTippen, className }: Raum3DProps) {
   const { t } = useSprache()
+  const nav = useNavigate()
+  const toast = useToast()
+  const { user, profile } = useAuth()
+  const projekt = useProjektOptional()
   const host = useRef<HTMLDivElement>(null)
   const motor = useRef<Motor | null>(null)
   const [geht, setGeht] = useState<'pruefen' | 'ja' | 'nein'>('pruefen')
@@ -131,16 +160,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     document.addEventListener('fullscreenchange', weg)
     return () => document.removeEventListener('fullscreenchange', weg)
   }, [])
-  useEffect(() => {
-    if (!vollbild || gehen) return
-    const taste = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.stopPropagation()
-      setVollbild(false)
-    }
-    window.addEventListener('keydown', taste, true)
-    return () => window.removeEventListener('keydown', taste, true)
-  }, [vollbild, gehen])
+
   // Licht (E71): Automatisch nach Uhrzeit (7 bis 19 Uhr Tag), oder fest.
   const [licht, setLicht] = useState<'auto' | 'tag' | 'abend'>('auto')
   const [stunde, setStunde] = useState(() => new Date().getHours())
@@ -154,6 +174,14 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   const [raumLicht, setRaumLicht] = useState<Record<string, boolean>>({})
   const [lichtListeAuf, setLichtListeAuf] = useState(false)
   const [teppiche, setTeppiche] = useState(true)
+  // Deko und Spielzeug (E82): eigene Ebene wie die Teppiche.
+  const [deko, setDeko] = useState(true)
+  // Karte einer angetippten Kiste und die Kiste, die offen gezeigt wird (E82).
+  const [karte, setKarte] = useState<string | null>(null)
+  const [offeneKiste, setOffeneKiste] = useState<string | null>(null)
+  // Beim Begehen: stehen, sitzen, liegen; und was man in der Hand haelt.
+  const [haltung, setHaltung] = useState<Haltung>('stehen')
+  const [inHand, setInHand] = useState<string | null>(null)
   const lichtRaeumeListe = useMemo(
     () => daten.raeume.filter((r) => r.punkte.length >= 3 && (!raumId || r.id === raumId)),
     [daten.raeume, raumId],
@@ -188,7 +216,10 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     }
   }, [])
 
-  const koerper = useMemo(() => baueSzene(daten, farben, { raumId, hervor, markiert, teppiche }), [daten, farben, raumId, hervor, markiert, teppiche])
+  const koerper = useMemo(
+    () => baueSzene(daten, farben, { raumId, hervor, markiert, teppiche, deko, offeneKiste }),
+    [daten, farben, raumId, hervor, markiert, teppiche, deko, offeneKiste],
+  )
   const hatKiste = useMemo(() => hervorMitte(koerper) !== null, [koerper])
   const leer = koerper.length === 0
 
@@ -238,10 +269,64 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   useLayoutEffect(() => {
     tippRueck.current = onTippen
   })
-  const kannTippen = Boolean(onTippen)
+  // Eine Kiste zeigt beim Begehen immer ihre Karte (E82), in der
+  // Drehansicht nur dort, wo niemand sonst den Klick braucht (nicht im
+  // Zeichner, der damit auswaehlt und hinstellt).
+  const gehenRef = useRef(gehen)
+  useLayoutEffect(() => {
+    gehenRef.current = gehen
+  })
   useEffect(() => {
-    motor.current?.tippen(kannTippen ? (x, y, tr) => tippRueck.current?.(x, y, tr) : null)
-  }, [kannTippen, geht])
+    motor.current?.tippen((x, y, tr) => {
+      if (tr?.kiste && (gehenRef.current || !tippRueck.current)) {
+        setKarte(tr.kiste)
+        return
+      }
+      tippRueck.current?.(x, y, tr)
+    })
+  }, [geht])
+  // Solange die Karte offen ist, ruhen Gehen und Umschauen.
+  useEffect(() => {
+    motor.current?.eingabe(karte === null)
+  }, [karte, geht])
+  useEffect(() => {
+    const m = motor.current
+    if (!m) return
+    m.haltung(setHaltung)
+    m.inHand(setInHand)
+    return () => {
+      m.haltung(null)
+      m.inHand(null)
+    }
+  }, [geht])
+  // Spiegel spiegeln echt, solange man geht (kostet Rechenzeit).
+  useEffect(() => {
+    motor.current?.spiegel(gehen)
+  }, [gehen, geht])
+
+  // Draussen (E82): Himmel, Wiese, Weg, Baeume, Nachbarhaeuser. Nur fuer die
+  // ganze Wohnung, nicht beim Blick in einen einzelnen Raum.
+  const umgebung = useMemo(
+    () => (raumId ? null : umgebungAus({ raeume: daten.raeume, oeffnungen: daten.oeffnungen })),
+    [daten.raeume, daten.oeffnungen, raumId],
+  )
+  useEffect(() => {
+    const m = motor.current
+    if (!m || geht !== 'ja' || !umgebung) return
+    let welt: ReturnType<typeof baueUmgebung>
+    try {
+      welt = baueUmgebung({ rahmen: umgebung.rahmen, frei: umgebung.frei, farben, stockwerkHoehe: 0 })
+    } catch (err) {
+      // Ohne Aussenwelt geht die Wohnung weiter; der Fehler wird gezeigt.
+      console.warn('[3d] Aussenwelt:', err)
+      return
+    }
+    m.umgebung({ gruppe: welt.gruppe, nebel: welt.nebel, himmel: welt.himmel })
+    return () => {
+      m.umgebung(null)
+      welt.dispose()
+    }
+  }, [umgebung, farben, geht])
   /** Bedienung mit Fingern (Handy, Tablet): anderer Hinweis. */
   const beruehren = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
   const traeger = useMemo(() => traegerKarte(daten), [daten])
@@ -262,17 +347,119 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gehen, geht])
 
-  // Esc beendet erst das Begehen, bevor es 3D schliesst.
+  // Esc der Reihe nach (E82): erst die Kistenkarte, dann aufstehen, dann
+  // das Begehen beenden, dann das Vollbild; erst danach schliesst 3D.
+  const escLage = useRef({ karte, haltung, gehen, vollbild })
+  useLayoutEffect(() => {
+    escLage.current = { karte, haltung, gehen, vollbild }
+  })
   useEffect(() => {
-    if (!gehen) return
     const taste = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      const z = escLage.current
+      if (z.karte) setKarte(null)
+      else if (z.gehen && z.haltung !== 'stehen') motor.current?.aufstehen()
+      else if (z.gehen) setGehen(false)
+      else if (z.vollbild) setVollbild(false)
+      else return
       e.stopPropagation()
-      setGehen(false)
+      e.preventDefault()
     }
     window.addEventListener('keydown', taste, true)
     return () => window.removeEventListener('keydown', taste, true)
-  }, [gehen])
+  }, [])
+
+  // ------------------------------------------------ Mitspieler und Sprechen
+  // Nur beim Begehen und nur im eigenen Umzug: wer gleichzeitig geht, sieht
+  // die anderen als Figur; Ton nur mit eingeschaltetem Mikrofon (E82).
+  const uid = user?.id ?? null
+  const projectId = daten.grundriss.project_id
+  const live = gehen && geht === 'ja' && !!uid && !!projekt && projekt.project.id === projectId
+  const mitgliederRef = useRef(projekt?.members ?? [])
+  useLayoutEffect(() => {
+    mitgliederRef.current = projekt?.members ?? []
+  })
+  const [leuteDa, setLeuteDa] = useState<string[]>([])
+  const [sprech, setSprech] = useState<SprechZustand | null>(null)
+  const sprechenRef = useRef<Sprechen | null>(null)
+  const figuren = useRef(new Map<string, Figur3D>())
+  useEffect(() => {
+    const m = motor.current
+    if (!live || !m || !uid) return
+    const grundrissId = daten.grundriss.id
+    const figurenKarte = figuren.current
+    const eigene = { p: null as Pose3D | null }
+    const fremde = new Map<string, Pose3D>()
+    const abstand = (a: Pose3D, b: Pose3D) => Math.hypot(a.x - b.x, a.z - b.z)
+    let verbindung: WohnungVerbindung | null = null
+    const sprechen = new Sprechen({ signal: (an, d) => verbindung?.signal(an, d) }, uid)
+    sprechen.on('zustand', setSprech)
+    sprechenRef.current = sprechen
+    const figurenSetzen = (uids: string[]) => {
+      const karte = figurenKarte
+      for (const u of [...karte.keys()]) if (!uids.includes(u)) karte.delete(u)
+      for (const u of uids) {
+        if (karte.has(u)) continue
+        const mit = mitgliederRef.current.find((x) => x.user_id === u)
+        const prof = mit?.profile ?? null
+        karte.set(u, baueFigur(prof?.avatar3d ?? standardLook(u), displayNameOf(prof, '?'), farbeFuer(u)))
+      }
+      // Der Motor gibt Figuren frei, die nicht mehr in der Liste stehen.
+      m.leute([...karte].map(([u, figur]) => ({ uid: u, figur })))
+    }
+    verbindung = wohnungBeitreten({
+      projectId,
+      grundrissId,
+      uid,
+      onWer: (leute) => {
+        const hier = leute.filter((l) => l.grundrissId === grundrissId).map((l) => l.uid)
+        // Synchron, damit fruehe Signale nicht verloren gehen (sprechen.ts).
+        sprechen.leute(hier)
+        for (const u of [...fremde.keys()]) if (!hier.includes(u)) fremde.delete(u)
+        figurenSetzen(hier)
+        setLeuteDa(hier)
+      },
+      onPose: (u, p) => {
+        fremde.set(u, p)
+        motor.current?.leutePose(u, p)
+        if (eigene.p) sprechen.lautstaerke(u, abstand(eigene.p, p))
+      },
+      onSignal: (von, d) => sprechen.empfangen(von, d),
+      onFehler: (text) => toast(text, 'error'),
+    })
+    m.eigenePose((p) => {
+      eigene.p = p
+      verbindung?.pose(p)
+      for (const [u, q] of fremde) sprechen.lautstaerke(u, abstand(p, q))
+    })
+    return () => {
+      m.eigenePose(null)
+      sprechen.beenden()
+      verbindung?.verlassen()
+      sprechenRef.current = null
+      figurenKarte.clear()
+      m.leute([])
+      setSprech(null)
+      setLeuteDa([])
+    }
+    // toast ist stabil genug; ein neuer Wert soll die Verbindung nicht neu aufbauen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, uid, projectId, daten.grundriss.id])
+
+  // Die eigene Figur, nur im Spiegel zu sehen (E82).
+  useEffect(() => {
+    const m = motor.current
+    if (!m || !gehen || geht !== 'ja') return
+    const figur = baueFigur(profile?.avatar3d ?? (uid ? standardLook(uid) : null), '', uid ? farbeFuer(uid) : '#4f6d8f')
+    m.ich(figur)
+    return () => {
+      m.ich(null)
+      figur.dispose()
+    }
+  }, [gehen, geht, uid, profile])
+
+  const karteKiste = karte ? (daten.kisten.find((k) => k.id === karte) ?? null) : null
+  const karteRaum = karteKiste?.platz_raum_id ? daten.raeume.find((r) => r.id === karteKiste.platz_raum_id) : null
 
   return (
     <div
@@ -357,6 +544,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
           />
           <Knopf zeichen={Layers} name={t('plan3d.waende_halb')} an={halb} onClick={() => setHalb((v) => !v)} disabled={geht !== 'ja'} />
           <Knopf zeichen={Square} name={t('plan3d.teppiche')} an={teppiche} onClick={() => setTeppiche((v) => !v)} disabled={geht !== 'ja'} />
+          <Knopf zeichen={Flower2} name={t('plan3d.deko')} an={deko} onClick={() => setDeko((v) => !v)} disabled={geht !== 'ja'} />
           <p className="t-sub hidden min-w-0 flex-1 truncate px-1 lg:block">
             {geht !== 'ja'
               ? null
@@ -428,14 +616,79 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
               {t('plan3d.geht_nicht')}
             </p>
           </div>
-        ) : geht === 'ja' && gehen ? (
-          // Gehen per Steuerknueppel (E81): schieben, loslassen bleibt stehen.
-          <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] start-[calc(env(safe-area-inset-left,0px)+1rem)]">
-            <Knueppel name={t('plan3d.knueppel')} onLage={(x, y) => motor.current?.gehenStick(x, y)} />
-          </div>
+        ) : geht === 'ja' && gehen && !karte ? (
+          <>
+            {/* Gehen per Steuerknueppel (E81): schieben, loslassen bleibt stehen. */}
+            <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] start-[calc(env(safe-area-inset-left,0px)+1rem)]">
+              <Knueppel name={t('plan3d.knueppel')} onLage={(x, y) => motor.current?.gehenStick(x, y)} />
+            </div>
+            {/* Rechts unten (E82): aufstehen, ablegen, Mikrofon, wer da ist. */}
+            <div dir="auto" className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] end-[calc(env(safe-area-inset-right,0px)+1rem)] flex max-w-[60%] flex-col items-end gap-2">
+              {sprech?.tonGesperrt && leuteDa.length > 0 ? (
+                <p className="rounded-xl border border-line bg-surface/95 px-3 py-2 text-sm font-bold text-ink shadow">{t('plan3d.ton_tippen')}</p>
+              ) : null}
+              {sprech?.fehler ? (
+                <p className="rounded-xl border border-danger bg-surface/95 px-3 py-2 text-sm font-bold text-danger shadow" role="alert">{sprech.fehler}</p>
+              ) : null}
+              {haltung !== 'stehen' ? (
+                <Button size="sm" onClick={() => motor.current?.aufstehen()}>
+                  <ArrowUpFromLine size={17} /> {t('plan3d.aufstehen')}
+                </Button>
+              ) : null}
+              {inHand ? (
+                <Button size="sm" onClick={() => motor.current?.ablegen()}>
+                  <ArrowDownToLine size={17} /> {t('plan3d.ablegen')}
+                </Button>
+              ) : null}
+              {live ? (
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="flex h-10 items-center gap-1 rounded-knopf border-2 border-line bg-surface/95 px-2.5 text-sm font-bold text-ink shadow"
+                    title={t('plan3d.leute_da', { n: leuteDa.length })}
+                    aria-label={t('plan3d.leute_da', { n: leuteDa.length })}
+                  >
+                    <Users size={16} /> <span className="t-serial">{leuteDa.length}</span>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant={sprech?.mikrofon ? 'aktiv' : 'outline'}
+                    aria-pressed={!!sprech?.mikrofon}
+                    aria-label={t(sprech?.mikrofon ? 'plan3d.mikro_aus' : 'plan3d.mikro_an')}
+                    title={t('plan3d.mikro_hilfe')}
+                    // Direkt im Klick: der Browser gibt nur so Mikrofon und Ton frei.
+                    onClick={() => void sprechenRef.current?.mikrofon(!sprech?.mikrofon)}
+                    className="h-10 w-10 justify-center px-0"
+                  >
+                    {sprech?.mikrofon ? <Mic size={18} /> : <MicOff size={18} />}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </>
         ) : geht === 'ja' && leer ? (
           <div dir="auto" className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
             <p className="rounded-xl border border-line bg-surface px-3 py-2 text-muted">{t('plan3d.leer')}</p>
+          </div>
+        ) : null}
+        {karteKiste ? (
+          // Karte der angetippten Kiste (E82): im 3D-Behaelter, damit sie auch
+          // im Vollbild zu sehen ist. Zurueck fuehrt in die Begehung.
+          <div className={cx('absolute inset-x-0 bottom-0 z-40', vollbild && !leisteZu ? 'top-28 md:top-16' : 'top-0')}>
+            <KistenKarte
+              kiste={karteKiste}
+              raumName={karteRaum ? raumTitel(karteRaum) : null}
+              projectId={projectId}
+              offen={offeneKiste === karteKiste.id}
+              begehen={gehen}
+              onOeffnen={() => setOffeneKiste((v) => (v === karteKiste.id ? null : karteKiste.id))}
+              onZurueck={() => setKarte(null)}
+              onGanzOeffnen={(pfad) => {
+                setKarte(null)
+                if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
+                onSchliessen?.()
+                nav(pfad)
+              }}
+            />
           </div>
         ) : null}
       </div>
