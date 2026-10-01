@@ -669,3 +669,11 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Ebene, nicht als Hoehe). Liste Wohnungen: antippen springt vor die
   Wohnungstuer. Die eigene Wohnung ersetzt die gleiche Wohnung aus dem
   Plan.
+- **E85 Eine Siedlung, laden aus Datei:** Karam wollte keine SQL-Befehle
+  ausfuehren und keine Liste mit Anlegen. Der Bereich zeigt genau die eine
+  Siedlung und oeffnet sie sofort in 3D. Ist noch keine da, gibt es nur
+  den Knopf Siedlung laden: man waehlt einmal eine Datei (art
+  kistly-siedlung), die App prueft sie und traegt sie mit dem eigenen
+  Konto ein, Deko und Schalter fuer den eigenen Grundriss gleich mit. Die
+  Datei liegt nur beim Nutzer, nie im Code. Der Assistent zum Anlegen
+  (SiedlungEinrichten) bleibt im Code, hat aber keinen Eingang mehr.
