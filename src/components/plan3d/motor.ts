@@ -19,6 +19,7 @@ import {
   AmbientLight,
   BoxGeometry,
   Color,
+  CylinderGeometry,
   DirectionalLight,
   EdgesGeometry,
   Group,
@@ -36,6 +37,7 @@ import {
   Scene,
   Shape,
   ShapeGeometry,
+  SphereGeometry,
   TOUCH,
   Vector2,
   Vector3,
@@ -45,7 +47,8 @@ import {
   type Object3D,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { hervorMitte, szeneRahmen, type Koerper, type Licht3D, type TuerDreh, type Vec3 } from './szene'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { hervorMitte, szeneRahmen, type Koerper, type Licht3D, type Quader, type TuerDreh, type Vec3 } from './szene'
 
 export type Blick = 'oben' | 'schraeg' | 'kiste'
 
@@ -66,6 +69,9 @@ export interface Motor {
   begehen(an: boolean, start: [number, number] | null): void
   /** Gehen per Knopf (Handy): Richtung halten, loslassen stoppt. */
   gehenKnopf(richtung: GehRichtung, an: boolean): void
+  /** Gehen per Steuerknueppel (E81): x nach rechts, y nach vorn, je -1
+   *  bis 1. Wie weit gedrueckt, so schnell. 0, 0 bleibt stehen. */
+  gehenStick(x: number, y: number): void
   /** Lichtquellen der Szene (Decke, Kueche, Lampen). E71. */
   lichter(liste: Licht3D[]): void
   /** Tag: Sonne, Lampen aus. Abend: wenig Himmel, alle Lampen an. */
@@ -158,9 +164,24 @@ export function motorStarten(host: HTMLElement): Motor | null {
   } catch {
     return null
   }
-  // Scharf im Stand, schnell in Bewegung (siehe bewegungAn).
-  const ratioStand = Math.min(window.devicePixelRatio || 1, 1.5)
-  const ratioBewegt = Math.min(ratioStand, 1)
+  // Scharf im Stand, in Bewegung etwas weniger (siehe bewegungAn). E81:
+  // vorher 1,5 und 1, das sah beim Gehen kantig aus ("wie Pixel"). Jetzt
+  // bis 2 und 1,5; kommt das Geraet beim Gehen nicht mit (unter rund 30
+  // Bildern je Sekunde), geht es fuer die Bewegung auf 1 zurueck.
+  const ratioStand = Math.min(window.devicePixelRatio || 1, 2)
+  let ratioBewegt = Math.min(ratioStand, 1.5)
+  let messung = { zeit: 0, bilder: 0 }
+  function tempoMessen(dt: number) {
+    if (ratioBewegt <= 1) return
+    messung.zeit += dt
+    messung.bilder++
+    if (messung.bilder < 40) return
+    if (messung.zeit / messung.bilder > 1 / 30) {
+      ratioBewegt = 1
+      renderer.setPixelRatio(ratioBewegt)
+    }
+    messung = { zeit: 0, bilder: 0 }
+  }
   renderer.setPixelRatio(ratioStand)
   renderer.domElement.style.display = 'block'
   renderer.domElement.style.width = '100%'
@@ -193,6 +214,48 @@ export function motorStarten(host: HTMLElement): Motor | null {
 
   const einheit = new BoxGeometry(1, 1, 1)
   const kanten = new EdgesGeometry(einheit)
+
+  /* Runde Formen (E81). Gerundete Quader haben ihre echte Groesse (die
+   * Rundung soll nicht mitgestreckt werden), Zylinder und Kugeln sind
+   * Einheitskoerper und werden gestreckt wie der Wuerfel. Gleiche Formen
+   * teilen sich eine Geometrie; beim Neubau der Szene wird alles frei. */
+  const formen = new Map<string, BufferGeometry>()
+  function geteilt(key: string, bau: () => BufferGeometry): BufferGeometry {
+    let g = formen.get(key)
+    if (!g) {
+      g = bau()
+      formen.set(key, g)
+    }
+    return g
+  }
+  /** Feine Fase an Moebeln und Kisten, damit keine Kante messerscharf ist
+   *  und das Licht an den Kanten weich abbricht. Meter. */
+  const FASE_ROLLEN = new Set(['moebel', 'front', 'regal', 'brett', 'kiste'])
+  function form(k: Quader): { geo: BufferGeometry; echt: boolean } {
+    const f = k.form
+    if (f?.art === 'kugel') return { geo: geteilt('kugel', () => new SphereGeometry(0.5, 32, 20)), echt: false }
+    if (f?.art === 'zylinder') {
+      const oben = Math.round(f.oben * 100) / 100
+      return {
+        geo: geteilt(`zyl:${oben}:${f.achse}`, () => {
+          const g = new CylinderGeometry(0.5 * oben, 0.5, 1, 40)
+          if (f.achse === 'x') g.rotateZ(-Math.PI / 2)
+          else if (f.achse === 'z') g.rotateX(Math.PI / 2)
+          return g
+        }),
+        echt: false,
+      }
+    }
+    const [w, h, d] = k.masse
+    const klein = Math.min(w, h, d)
+    const r = Math.min(k.rund ?? (FASE_ROLLEN.has(k.rolle) ? Math.min(0.008, klein * 0.25) : 0), klein / 2)
+    if (r < 0.002) return { geo: einheit, echt: false }
+    const mm = (v: number) => Math.round(v * 1000)
+    return {
+      geo: geteilt(`rund:${mm(w)}:${mm(h)}:${mm(d)}:${mm(r)}`, () => new RoundedBoxGeometry(w, h, d, r >= 0.02 ? 4 : r >= 0.008 ? 2 : 1, r)),
+      echt: true,
+    }
+  }
 
   /* Moebel ziehen. Die Zuhoerer sitzen am host in der Einfang-Phase, also
    * vor OrbitControls am Canvas: trifft der Druck ein Moebel, bekommt die
@@ -508,7 +571,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const alt = [...gruppe.children]
     gruppe.clear()
     // Geteilte Materialien werden dabei mehrfach freigegeben; das ist in three harmlos.
-    for (const o of alt) wegwerfen(o, einheit, kanten)
+    for (const o of alt) wegwerfen(o, einheit, kanten, ...formen.values())
+    for (const g of formen.values()) g.dispose()
+    formen.clear()
     flaechenMat.clear()
     linienMat.clear()
     waende = []
@@ -542,7 +607,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
             depthWrite: k.deckkraft >= 1,
           })
         : flaecheMaterial(k.farbe, k.deckkraft, durch, k.art === 'quader' ? (k.glanz ?? 0) : 0)
-      const mesh = new Mesh(einheit, mat)
+      const gestalt = wand ? { geo: einheit, echt: false } : form(k)
+      const mesh = new Mesh(gestalt.geo, mat)
       if (k.id && (k.rolle === 'moebel' || k.rolle === 'regal' || k.rolle === 'brett')) mesh.userData = { objektId: k.id }
       else if (k.id && k.rolle === 'kiste') mesh.userData = { kisteId: k.id }
       else if (k.id && k.rolle === 'schalter') mesh.userData = { schalterRaum: k.id }
@@ -567,7 +633,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
         schubSetzen(mesh, schubStand.get(k.schub.id) ?? 0)
       }
       mesh.position.set(k.mitte[0], k.mitte[1], k.mitte[2])
-      mesh.scale.set(k.masse[0], k.masse[1], k.masse[2])
+      if (!gestalt.echt) mesh.scale.set(k.masse[0], k.masse[1], k.masse[2])
       mesh.rotation.y = k.drehY
       let linien: LineSegments | null = null
       if (k.kante) {
@@ -578,6 +644,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
             ? new LineBasicMaterial({ color: new Color(k.kante), transparent: durch, opacity: deck })
             : linieMaterial(k.kante, deck, durch),
         )
+        // An einer Geometrie in echter Groesse wird der Einheitswuerfel der
+        // Linien selbst gestreckt.
+        if (gestalt.echt) linien.scale.set(k.masse[0], k.masse[1], k.masse[2])
         mesh.add(linien)
       }
       gruppe.add(mesh)
@@ -602,6 +671,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
   let neigung = 0 // hoch und runter schauen
   let vorher: { pos: Vector3; ziel: Vector3; fov: number } | null = null
   const halten = new Set<GehRichtung>()
+  /** Steuerknueppel: seitlich und vor, je -1..1. */
+  let stick = { x: 0, y: 0 }
   let rennen = false
   let schritt = 0
   let zuletzt = 0
@@ -650,9 +721,13 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (!gehen || weg) return
     const dt = zuletzt ? Math.min(0.05, (zeit - zuletzt) / 1000) : 0.016
     zuletzt = zeit
-    const vor = (halten.has('vor') ? 1 : 0) - (halten.has('zurueck') ? 1 : 0)
-    const seit = (halten.has('rechts') ? 1 : 0) - (halten.has('links') ? 1 : 0)
-    if (!vor && !seit) {
+    const tasteVor = (halten.has('vor') ? 1 : 0) - (halten.has('zurueck') ? 1 : 0)
+    const tasteSeit = (halten.has('rechts') ? 1 : 0) - (halten.has('links') ? 1 : 0)
+    const vor = Math.max(-1, Math.min(1, tasteVor + stick.y))
+    const seit = Math.max(-1, Math.min(1, tasteSeit + stick.x))
+    // Tasten gehen voll, der Knueppel so weit, wie er gedrueckt ist.
+    const tempo = tasteVor || tasteSeit ? 1 : Math.min(1, Math.hypot(stick.x, stick.y))
+    if ((!vor && !seit) || tempo < 0.05) {
       zuletzt = 0
       bewegungAn(false)
       return
@@ -661,7 +736,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
     let dx = -Math.sin(gier) * vor + Math.cos(gier) * seit
     let dz = -Math.cos(gier) * vor - Math.sin(gier) * seit
     const l = Math.hypot(dx, dz)
-    const weit = (rennen ? RENNEN_M_S : GEHEN_M_S) * dt
+    const weit = (rennen ? RENNEN_M_S : GEHEN_M_S) * tempo * dt
+    tempoMessen(dt)
     dx = (dx / l) * weit
     dz = (dz / l) * weit
     const p = camera.position
@@ -709,7 +785,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (r) halten.delete(r)
   }
   // Fenster verliert den Fokus: sonst liefe man mit "gedrueckter" Taste weiter.
-  const fokusWeg = () => halten.clear()
+  const fokusWeg = () => {
+    halten.clear()
+    stick = { x: 0, y: 0 }
+  }
   window.addEventListener('keydown', tasteRunter)
   window.addEventListener('keyup', tasteHoch)
   window.addEventListener('blur', fokusWeg)
@@ -859,6 +938,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     }
     gehen = false
     halten.clear()
+    stick = { x: 0, y: 0 }
     schauen = null
     if (schritt) cancelAnimationFrame(schritt)
     schritt = 0
@@ -940,6 +1020,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
     tippen(fn) {
       tippFn = fn
     },
+    gehenStick(x, y) {
+      stick = { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) }
+      if (gehen && (stick.x || stick.y)) losgehen()
+    },
     gehenKnopf(richtung, an) {
       if (!gehen) return
       if (an) {
@@ -977,6 +1061,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       leeren()
       einheit.dispose()
       kanten.dispose()
+      for (const g of formen.values()) g.dispose()
       renderer.dispose()
       renderer.forceContextLoss()
       renderer.domElement.remove()

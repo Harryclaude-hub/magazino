@@ -8,6 +8,7 @@ import {
   ImagePlus,
   Layers,
   MapPin,
+  Minus,
   Pencil,
   Plus,
   Printer,
@@ -72,6 +73,7 @@ import { groesseSatz, useEigeneGroessen, useKistenGroessen } from '../lib/groess
 import { zahlLesen } from '../lib/geometrie'
 import { markFlaeche } from '../lib/marken'
 import {
+  aufnahmeZeit,
   ausschnittErstellen,
   compressImage,
   signedUrls,
@@ -90,7 +92,8 @@ import {
   type Tag,
   type TagKind,
 } from '../lib/types'
-import { appUrl, contrastOn, cx, fmtDateTime, relTime, rollenArt, uid, useAsync } from '../lib/util'
+import { appUrl, contrastOn, cx, fmtDate, fmtDateTime, relTime, rollenArt, uid, useAsync } from '../lib/util'
+import { alterText } from '../lib/alter'
 import { displayNameOf, useAuth } from '../lib/auth'
 
 /* "Wo steht die Kiste" (Lageplan mit Knoepfen) laedt als eigener Teil,
@@ -259,6 +262,43 @@ export default function ItemDetail() {
     }
   }
 
+  /** Menge um eins aendern (E81): eins rausgenommen, eins dazu. Unter
+   *  eins geht es nicht, dafuer gibt es den Papierkorb. Die Zeit der
+   *  Aenderung setzt die Datenbank; hier nur vorweg, damit sie sofort
+   *  dasteht. */
+  function mengeAendern(c: ItemContent, um: 1 | -1) {
+    const neu = c.qty + um
+    if (neu < 1 || neu > 999) return
+    const vorher = { qty: c.qty, geaendert_at: c.geaendert_at, geaendert_was: c.geaendert_was }
+    setContents((list) =>
+      list.map((x) => (x.id === c.id ? { ...x, qty: neu, geaendert_at: new Date().toISOString(), geaendert_was: 'menge' } : x)),
+    )
+    void updateContent(c.id, { qty: neu }).catch((err: unknown) => {
+      setContents((list) => list.map((x) => (x.id === c.id ? { ...x, ...vorher } : x)))
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    })
+  }
+
+  /** Was unter einem Eintrag klein steht: wann zuletzt geaendert und wie
+   *  alt das Foto ist, aus dem er stammt. */
+  function zeitZeile(c: ItemContent): { text: string; titel: string } {
+    const teile: string[] = []
+    const titel: string[] = []
+    const wann = alterText(t, tn, c.geaendert_at)
+    teile.push(c.geaendert_was ? t(`kisten.geaendert_${c.geaendert_was}`, { wann }) : t('kisten.eingetragen', { wann }))
+    titel.push(fmtDateTime(c.geaendert_at))
+    const foto = c.photo_id ? photos.find((p) => p.id === c.photo_id) : undefined
+    if (foto) {
+      teile.push(t('kisten.foto_alter', { wann: alterText(t, tn, foto.aufgenommen_at ?? foto.created_at) }))
+      titel.push(
+        foto.aufgenommen_at
+          ? t('kisten.foto_vom', { datum: fmtDate(foto.aufgenommen_at) })
+          : t('kisten.foto_hochgeladen', { datum: fmtDate(foto.created_at) }),
+      )
+    }
+    return { text: teile.join(' · '), titel: titel.join(' · ') }
+  }
+
   async function onAddEntry() {
     const text = newEntry.trim()
     if (!text || !item) return
@@ -302,6 +342,7 @@ export default function ItemDetail() {
             'foto',
             undefined,
             neueSchicht,
+            await aufnahmeZeit(file),
           )
           setPhotos((p) => [...p, row])
           const u = await signedUrls('item-photos', [path])
@@ -598,7 +639,7 @@ export default function ItemDetail() {
                                 c.checked && 'text-muted line-through',
                               )}
                             >
-                              {c.qty > 1 ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
+                              {c.qty > 1 && !canEdit ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
                               {c.text}
                             </button>
                           ) : (
@@ -608,7 +649,7 @@ export default function ItemDetail() {
                                 c.checked && 'text-muted line-through',
                               )}
                             >
-                              {c.qty > 1 ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
+                              {c.qty > 1 && !canEdit ? <><span className="t-serial">{c.qty}x</span>{' '}</> : null}
                               {c.text}
                             </span>
                           )}
@@ -635,6 +676,44 @@ export default function ItemDetail() {
                               ) : null}
                             </span>
                           ) : null}
+
+                          {/* Menge und Zeit (E81). Der Zaehler steht unter dem
+                              Namen, damit der Name die Breite behaelt. */}
+                          <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {canEdit ? (
+                              <span className="inline-flex items-center rounded-lg border-2 border-line bg-surface" role="group" aria-label={t('kisten.menge')} dir="ltr">
+                                <button
+                                  type="button"
+                                  disabled={c.qty <= 1}
+                                  onClick={() => mengeAendern(c, -1)}
+                                  aria-label={t('kisten.menge_weniger')}
+                                  title={t('kisten.menge_weniger')}
+                                  className="grid h-8 w-9 place-items-center rounded-s-md text-ink transition hover:bg-raised active:scale-95 disabled:opacity-35"
+                                >
+                                  <Minus size={16} strokeWidth={3} />
+                                </button>
+                                <span className="t-serial min-w-8 px-1 text-center text-base font-black" aria-live="polite">{c.qty}</span>
+                                <button
+                                  type="button"
+                                  disabled={c.qty >= 999}
+                                  onClick={() => mengeAendern(c, 1)}
+                                  aria-label={t('kisten.menge_mehr')}
+                                  title={t('kisten.menge_mehr')}
+                                  className="grid h-8 w-9 place-items-center rounded-e-md text-ink transition hover:bg-raised active:scale-95 disabled:opacity-35"
+                                >
+                                  <Plus size={16} strokeWidth={3} />
+                                </button>
+                              </span>
+                            ) : null}
+                            {(() => {
+                              const z = zeitZeile(c)
+                              return (
+                                <span className="t-sub text-sm" title={z.titel}>
+                                  {z.text}
+                                </span>
+                              )
+                            })()}
+                          </span>
                         </div>
 
                         {canEdit ? (
@@ -956,6 +1035,17 @@ export default function ItemDetail() {
                               <Layers size={15} />
                               <span className="t-serial">{p.schicht ?? '-'}</span>
                             </button>
+                            {/* Wie alt das Foto ist (E81): Aufnahme, sonst Hochladen. */}
+                            <span
+                              className="pointer-events-none absolute bottom-1.5 end-1.5 rounded-lg bg-black/65 px-1.5 py-1 text-xs font-bold leading-none text-white"
+                              title={
+                                p.aufgenommen_at
+                                  ? t('kisten.foto_vom', { datum: fmtDate(p.aufgenommen_at) })
+                                  : t('kisten.foto_hochgeladen', { datum: fmtDate(p.created_at) })
+                              }
+                            >
+                              {alterText(t, tn, p.aufgenommen_at ?? p.created_at)}
+                            </span>
 
                             {/* Ein Ding, das die Erkennung uebersehen hat, hier
                                 von Hand markieren. */}
@@ -1162,6 +1252,20 @@ export default function ItemDetail() {
                                 })
                               ) : ev.type === 'scan' ? (
                                 t('kisten.ev_scan')
+                              ) : ev.type === 'inhalt_menge' ? (
+                                <>
+                                  {t('kisten.ev_menge')} {d.text}{' '}
+                                  <span className="t-serial" dir="ltr">
+                                    {String(d.von)} &rarr; {String(d.nach)}
+                                  </span>
+                                </>
+                              ) : ev.type === 'inhalt_kiste' ? (
+                                <>
+                                  {t('kisten.ev_umgepackt')} {d.text}{' '}
+                                  <span className="t-serial" dir="ltr">
+                                    {d.von ?? '?'} &rarr; {d.nach ?? '?'}
+                                  </span>
+                                </>
                               ) : ev.type === 'code' ? (
                                 <>
                                   {t('kisten.ev_code')}{' '}

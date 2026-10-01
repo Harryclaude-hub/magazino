@@ -61,7 +61,7 @@ import {
 } from '../lib/api'
 import { useSprache } from '../lib/i18n'
 import { markFlaeche } from '../lib/marken'
-import { compressImage, signedUrls, uploadTo } from '../lib/media'
+import { aufnahmeZeit, compressImage, signedUrls, uploadTo } from '../lib/media'
 import { notifyItemStatus } from '../lib/push'
 import { useWischen } from '../lib/wischen'
 import type { Item, ItemContent, ItemPhoto, ItemStatus } from '../lib/types'
@@ -249,6 +249,8 @@ export default function FurnitureDetail() {
             datei.name || undefined,
             art,
             seiteFuer,
+            null,
+            alsPdf ? null : await aufnahmeZeit(datei),
           )
           setFotos((p) => [...p, row])
           const u = await signedUrls('item-photos', [pfad])

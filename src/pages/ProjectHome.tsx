@@ -128,6 +128,10 @@ function EventLine({ ev, nameOf }: { ev: ItemEvent; nameOf: (id: string | null) 
     text = t('umzuege.ereignis_scan')
   } else if (ev.type === 'code') {
     text = mitSerial(t('umzuege.ereignis_code', { code: d.to ?? '' }), d.to ?? '')
+  } else if (ev.type === 'inhalt_menge') {
+    text = t('umzuege.ereignis_menge', { text: d.text ?? '', von: String(d.von ?? ''), nach: String(d.nach ?? '') })
+  } else if (ev.type === 'inhalt_kiste') {
+    text = mitSerial(t('umzuege.ereignis_umgepackt', { text: d.text ?? '', code: d.nach ?? '' }), d.nach ?? '')
   }
   return (
     <li className="flex items-baseline gap-2 px-3 py-2.5">

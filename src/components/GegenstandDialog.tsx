@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Camera, Plus, X } from 'lucide-react'
 import { Button, Chip, ErrorBox, Field, Input, Modal, Select, useToast } from './ui'
 import { addPhotoRecord, createItem, groesseFuerMasse, setCoverPhoto } from '../lib/api'
-import { compressImage, uploadTo } from '../lib/media'
+import { aufnahmeZeit, compressImage, uploadTo } from '../lib/media'
 import { useSprache } from '../lib/i18n'
 import { laengeLesen } from '../lib/geometrie'
 import { uid } from '../lib/util'
@@ -149,7 +149,7 @@ export function GegenstandDialog({
         const blob = await compressImage(foto)
         const pfad = `${projectId}/${item.id}/${uid()}.jpg`
         await uploadTo('item-photos', pfad, blob, 'image/jpeg')
-        const zeile = await addPhotoRecord(projectId, item.id, pfad)
+        const zeile = await addPhotoRecord(projectId, item.id, pfad, undefined, 'foto', undefined, null, await aufnahmeZeit(foto))
         item = await setCoverPhoto(item.id, zeile.id)
       } catch (err) {
         toast(

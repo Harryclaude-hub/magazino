@@ -48,6 +48,13 @@ export interface Teil {
   glanz?: number
   /** Leuchtet, wenn das Licht im Raum an ist (LED, Lampenschirm), E74. */
   leuchte?: boolean
+  /** Ecken abgerundet, Radius in cm (E81). Polster, Matratzen, Kissen weit,
+   *  Holz und Fronten fein; ohne Angabe legt der Motor eine Fase an. */
+  rund?: number
+  /** Rund statt eckig (E81), im Quader x0..z1: Zylinder (oben: oberer
+   *  Radius zum unteren, unter 1 ein Kegel nach oben spitz; achse hoch,
+   *  laengs = Breite, quer = Tiefe) oder Kugel. */
+  form?: { art: 'zylinder'; oben?: number; achse?: 'hoch' | 'laengs' | 'quer' } | { art: 'kugel' }
   /** Laesst sich oeffnen (E68). Beschrieben relativ zur langen und kurzen
    *  Seite des Teils, damit Spiegeln und Achsentausch es nicht aendern:
    *  Tuer: Angel am Anfang ('min') oder Ende ('max') der langen Seite,
@@ -137,22 +144,33 @@ const t = (x0: number, y0: number, x1: number, y1: number, z0: number, z1: numbe
   deckkraft,
 })
 
-/** Vier Beine an den Ecken, eingerueckt. */
-function beine(B: number, T: number, dicke: number, ein: number, oben: number, farbe: string): Teil[] {
+/** Abgerundet, Radius in cm (E81). */
+const rd = (q: Teil, rund: number): Teil => ({ ...q, rund })
+/** Als Zylinder im Quader des Teils (E81). */
+const zyl = (q: Teil, oben = 1, achse: 'hoch' | 'laengs' | 'quer' = 'hoch'): Teil => ({ ...q, form: { art: 'zylinder', oben, achse } })
+/** Als Kugel im Quader des Teils (E81). */
+const kugel = (q: Teil): Teil => ({ ...q, form: { art: 'kugel' } })
+
+/** Vier Beine an den Ecken, eingerueckt. rund: gedrechselt (Zylinder,
+ *  nach unten etwas schmaler), sonst kantig. */
+function beine(B: number, T: number, dicke: number, ein: number, oben: number, farbe: string, rund = false): Teil[] {
   const d = Math.min(dicke, B / 4, T / 4)
+  const bein = (q: Teil) => (rund ? zyl(q, 1.35) : rd(q, 0.4))
   return [
-    t(ein, ein, ein + d, ein + d, 0, oben, farbe),
-    t(B - ein - d, ein, B - ein, ein + d, 0, oben, farbe),
-    t(ein, T - ein - d, ein + d, T - ein, 0, oben, farbe),
-    t(B - ein - d, T - ein - d, B - ein, T - ein, 0, oben, farbe),
+    bein(t(ein, ein, ein + d, ein + d, 0, oben, farbe)),
+    bein(t(B - ein - d, ein, B - ein, ein + d, 0, oben, farbe)),
+    bein(t(ein, T - ein - d, ein + d, T - ein, 0, oben, farbe)),
+    bein(t(B - ein - d, T - ein - d, B - ein, T - ein, 0, oben, farbe)),
   ]
 }
 
-/** Nebeneinander liegende Polster zwischen x0 und x1, mit Fuge. */
+/** Nebeneinander liegende Polster zwischen x0 und x1, mit Fuge. Weich
+ *  gerundet (E81): so weit, wie das Polster dick ist, nur nicht ganz. */
 function polster(x0: number, x1: number, n: number, y0: number, y1: number, z0: number, z1: number, farbe: string): Teil[] {
   const out: Teil[] = []
   const w = (x1 - x0) / n
-  for (let i = 0; i < n; i++) out.push(t(x0 + i * w + 0.5, y0, x0 + (i + 1) * w - 0.5, y1, z0, z1, farbe))
+  const rund = Math.min(7, (z1 - z0) * 0.42, (y1 - y0) * 0.42, w * 0.3)
+  for (let i = 0; i < n; i++) out.push(rd(t(x0 + i * w + 0.6, y0, x0 + (i + 1) * w - 0.6, y1, z0, z1, farbe), rund))
   return out
 }
 
@@ -162,13 +180,13 @@ function couch(B: number, T: number, H: number, stoff: string, f: MoebelFarben, 
   const sitzOben = Math.min(46, H * 0.55)
   const n = einsitzer ? 1 : B - 2 * arm > 170 ? 3 : 2
   return [
-    ...beine(B, T, 5, 3, 8, f.holzDunkel),
-    t(0, 0, B, T, 8, sitzOben - 10, ton(stoff, 0.9)),
+    ...beine(B, T, 5, 4, 8, f.holzDunkel, true),
+    rd(t(0, 0, B, T, 8, sitzOben - 10, ton(stoff, 0.9)), 3),
     ...polster(arm, B - arm, n, lehne, T - 1, sitzOben - 10, sitzOben, ton(stoff, 1.08)),
-    t(0, 0, B, lehne, sitzOben - 10, H, stoff),
+    rd(t(0, 0, B, lehne, sitzOben - 10, H, stoff), 7),
     ...polster(arm, B - arm, n, lehne, lehne + Math.min(14, T * 0.16), sitzOben, H - 6, ton(stoff, 1.14)),
-    t(0, lehne, arm, T, sitzOben - 10, sitzOben + 16, ton(stoff, 0.96)),
-    t(B - arm, lehne, B, T, sitzOben - 10, sitzOben + 16, ton(stoff, 0.96)),
+    rd(t(0, lehne - 4, arm, T, sitzOben - 10, sitzOben + 16, ton(stoff, 0.96)), Math.min(9, arm * 0.45)),
+    rd(t(B - arm, lehne - 4, B, T, sitzOben - 10, sitzOben + 16, ton(stoff, 0.96)), Math.min(9, arm * 0.45)),
   ]
 }
 
@@ -186,14 +204,14 @@ function lCouch(o: O, stoff: string): Teil[] {
   const polsterFarbe = ton(stoff, 1.08)
   // Rahmen mit freier Ecke rechts oben: langer Teil unten (y aT..T), Schenkel links (x 0..schenkel).
   const teile: Teil[] = [
-    t(0, aT, B, T, 4, sitz - 10, ton(stoff, 0.9)),
-    t(0, 0, schenkel, aT, 4, sitz - 10, ton(stoff, 0.9)),
-    t(0, T - lehne, B, T, sitz - 10, H, stoff),
-    t(0, 0, lehne, T - lehne, sitz - 10, H, stoff),
-    t(0, 0, schenkel, arm, sitz - 10, sitz + 16, ton(stoff, 0.96)),
-    t(B - arm, aT, B, T - lehne, sitz - 10, sitz + 16, ton(stoff, 0.96)),
+    rd(t(0, aT, B, T, 4, sitz - 10, ton(stoff, 0.9)), 3),
+    rd(t(0, 0, schenkel, aT, 4, sitz - 10, ton(stoff, 0.9)), 3),
+    rd(t(0, T - lehne, B, T, sitz - 10, H, stoff), 7),
+    rd(t(0, 0, lehne, T - lehne, sitz - 10, H, stoff), 7),
+    rd(t(0, 0, schenkel, arm, sitz - 10, sitz + 16, ton(stoff, 0.96)), Math.min(9, arm * 0.45)),
+    rd(t(B - arm, aT, B, T - lehne, sitz - 10, sitz + 16, ton(stoff, 0.96)), Math.min(9, arm * 0.45)),
     ...polster(lehne, B - arm, Math.max(2, Math.round((B - arm - lehne) / 75)), aT, T - lehne, sitz - 10, sitz, polsterFarbe),
-    t(lehne, arm, schenkel - 0.5, aT - 0.5, sitz - 10, sitz, polsterFarbe),
+    rd(t(lehne, arm, schenkel - 0.5, aT - 0.5, sitz - 10, sitz, polsterFarbe), 5),
   ]
   return teile.map(spiegler(o))
 }
@@ -201,19 +219,19 @@ function lCouch(o: O, stoff: string): Teil[] {
 function bett(B: number, T: number, stoff: string, f: MoebelFarben): Teil[] {
   const matratze = 52
   const out: Teil[] = [
-    t(0, 0, B, T, 0, 30, f.holz),
-    t(0, 0, B, 6, 0, 100, ton(f.holz, 0.92)),
-    t(3, 6, B - 3, T - 3, 30, matratze, f.waesche),
-    t(2, T * 0.34, B - 2, T - 2, matratze, matratze + 6, stoff),
+    rd(t(0, 0, B, T, 0, 30, f.holz), 1.2),
+    rd(t(0, 0, B, 6, 0, 100, ton(f.holz, 0.92)), 2),
+    rd(t(3, 6, B - 3, T - 3, 30, matratze, f.waesche), 5),
+    rd(t(2, T * 0.34, B - 2, T - 2, matratze, matratze + 6, stoff), 3),
   ]
   const kissen = B >= 130 ? 2 : 1
   const w = (B - 16) / kissen
-  for (let i = 0; i < kissen; i++) out.push(t(8 + i * w + 2, 10, 8 + (i + 1) * w - 2, Math.min(T * 0.3, 55), matratze, matratze + 11, ton(f.waesche, 1.05)))
+  for (let i = 0; i < kissen; i++) out.push(rd(t(8 + i * w + 2, 10, 8 + (i + 1) * w - 2, Math.min(T * 0.3, 55), matratze, matratze + 11, ton(f.waesche, 1.05)), 5))
   return out
 }
 
 function tisch(B: number, T: number, H: number, holz: string): Teil[] {
-  return [t(0, 0, B, T, H - 4, H, holz), ...beine(B, T, 6, 4, H - 4, ton(holz, 0.8))]
+  return [rd(t(0, 0, B, T, H - 4, H, holz), 1.2), ...beine(B, T, 6, 4, H - 4, ton(holz, 0.8))]
 }
 
 /** Stuhl (E77): Rahmen etwas dunkler als Sitz und Lehne (Eiche mit
@@ -229,15 +247,15 @@ function stuhl(x0: number, y0: number, x1: number, y1: number, lehneBeiY0: boole
   const rahmen = ton(holz, 0.72)
   const pfosten = 3.5
   const out: Teil[] = [
-    ...beine(B, T, 3.5, 1.5, sitz - 3, rahmen).map((b) => ({ ...b, x0: b.x0 + x0, x1: b.x1 + x0, y0: b.y0 + y0, y1: b.y1 + y0 })),
-    t(x0, y0, x1, y1, sitz - 4, sitz - 1.5, rahmen),
-    t(x0 + 2, y0 + 2, x1 - 2, y1 - 2, sitz - 1.5, sitz, holz),
+    ...beine(B, T, 3.5, 1.5, sitz - 3, rahmen, true).map((b) => ({ ...b, x0: b.x0 + x0, x1: b.x1 + x0, y0: b.y0 + y0, y1: b.y1 + y0 })),
+    rd(t(x0, y0, x1, y1, sitz - 4, sitz - 1.5, rahmen), 1.2),
+    rd(t(x0 + 2, y0 + 2, x1 - 2, y1 - 2, sitz - 1.5, sitz, holz), 1),
     t(x0 + 1.5, ly0, x0 + 1.5 + pfosten, ly1, sitz, H, rahmen),
     t(x1 - 1.5 - pfosten, ly0, x1 - 1.5, ly1, sitz, H, rahmen),
     t(x0 + 1.5, ly0, x1 - 1.5, ly1, H - 6, H, rahmen),
     t(x0 + 1.5 + pfosten, ly0 + 0.6, x1 - 1.5 - pfosten, ly1 - 0.6, sitz + 10, H - 6, holz),
   ]
-  if (kissen) out.push(t(x0 + B * 0.1, y0 + 2, x1 - B * 0.1, y1 - 2, sitz, sitz + 3, f.stoff))
+  if (kissen) out.push(rd(t(x0 + B * 0.1, y0 + 2, x1 - B * 0.1, y1 - 2, sitz, sitz + 3, f.stoff), 1.4))
   return out
 }
 
@@ -409,10 +427,9 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
     case 'esstisch_rund': {
       const holz = eigen ?? f.holz
       return [
-        t(B * 0.15, 0, B * 0.85, T, H - 4, H, holz),
-        t(0, T * 0.15, B, T * 0.85, H - 4, H, holz),
-        t(B * 0.44, T * 0.44, B * 0.56, T * 0.56, 3, H - 4, ton(holz, 0.8)),
-        t(B * 0.3, T * 0.3, B * 0.7, T * 0.7, 0, 3, ton(holz, 0.8)),
+        zyl(t(0, 0, B, T, H - 4, H, holz)),
+        zyl(t(B * 0.42, T * 0.42, B * 0.58, T * 0.58, 3, H - 4, ton(holz, 0.8)), 0.8),
+        zyl(t(B * 0.28, T * 0.28, B * 0.72, T * 0.72, 0, 3, ton(holz, 0.8)), 0.92),
       ]
     }
     case 'essgruppe': {
@@ -434,11 +451,11 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
     case 'buerostuhl': {
       const s = eigen ?? f.schwarz
       return [
-        t(0, T * 0.45, B, T * 0.55, 0, 5, f.schwarz),
-        t(B * 0.45, 0, B * 0.55, T, 0, 5, f.schwarz),
-        t(B * 0.45, T * 0.45, B * 0.55, T * 0.55, 5, 42, f.metall),
-        t(B * 0.1, T * 0.15, B * 0.9, T * 0.9, 42, 50, s),
-        t(B * 0.15, 0, B * 0.85, T * 0.12, 55, H, s),
+        rd(t(0, T * 0.45, B, T * 0.55, 0, 5, f.schwarz), 1.5),
+        rd(t(B * 0.45, 0, B * 0.55, T, 0, 5, f.schwarz), 1.5),
+        zyl(t(B * 0.45, T * 0.45, B * 0.55, T * 0.55, 5, 42, f.metall)),
+        rd(t(B * 0.1, T * 0.15, B * 0.9, T * 0.9, 42, 50, s), 3.5),
+        rd(t(B * 0.15, 0, B * 0.85, T * 0.12, 55, H, s), 3),
       ]
     }
     case 'fernseher': {
@@ -462,7 +479,7 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
     case 'kuehlschrank':
     case 'gefrierschrank': {
       const k = eigen ?? f.weiss
-      const out: Teil[] = [t(0, 0, B, T - 1, 0, H, ton(k, 0.96))]
+      const out: Teil[] = [rd(t(0, 0, B, T - 1, 0, H, ton(k, 0.96)), 2)]
       if (art === 'kuehlschrank' && H > 120) {
         out.push(tuer(0.5, T - 1, B - 0.5, T, 0.5, H * 0.35 - 0.5, k, 'max', 1), tuer(0.5, T - 1, B - 0.5, T, H * 0.35 + 0.5, H - 0.5, k, 'max', 1))
       } else out.push(tuer(0.5, T - 1, B - 0.5, T, 0.5, H - 0.5, k, 'max', 1))
@@ -472,9 +489,9 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
     case 'waschmaschine':
     case 'trockner':
       return [
-        t(0, 0, B, T - 1, 0, H, f.weiss),
-        t(B * 0.2, T - 1, B * 0.8, T, H * 0.2, H * 0.62, art === 'trockner' ? ton(f.glas, 0.7) : ton(f.schwarz, 1.5)),
-        t(B * 0.05, T - 1, B * 0.6, T, H * 0.84, H * 0.95, ton(f.weiss, 0.93)),
+        rd(t(0, 0, B, T - 1, 0, H, f.weiss), 2),
+        zyl(t(B * 0.2, T - 1, B * 0.8, T + 0.5, H * 0.18, H * 0.18 + B * 0.6, art === 'trockner' ? ton(f.glas, 0.7) : ton(f.schwarz, 1.5)), 1, 'quer'),
+        rd(t(B * 0.05, T - 1, B * 0.6, T, H * 0.84, H * 0.95, ton(f.weiss, 0.93)), 0.8),
       ]
     case 'geschirrspueler':
       return [t(0, 0, B, T - 1, 0, H, ton(f.front, 0.95)), t(0.3, T - 1, B - 0.3, T, 10, H - 0.5, f.front), t(0, 0, B, T, H - 4, H, f.platte)]
@@ -498,7 +515,7 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
         const n = Math.max(1, Math.round(w / 60))
         out.push(
           t(s.x0 + 2, s.y0 + 2, s.x1 - 2, s.y1 - 4, 0, 8, ton(korpus, 0.8)),
-          t(s.x0, s.y0, s.x1, s.y1, 8, sitz - 8, korpus),
+          rd(t(s.x0, s.y0, s.x1, s.y1, 8, sitz - 8, korpus), 1),
           ...polster(s.x0, s.x1, n, s.y0, s.y1, sitz - 8, sitz, ton(stoff, 1.1)),
         )
         if (s.lehne && H > sitz + 10) out.push(...polster(s.x0, s.x1, n, 0, Math.min(14, T * 0.3), sitz, H, ton(stoff, 1.18)))
@@ -514,10 +531,9 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       const schirm = Math.min(40, H * 0.45)
       const farbe = eigen ?? '#c8a574'
       return [
-        t(B / 2 - 0.4, T / 2 - 0.4, B / 2 + 0.4, T / 2 + 0.4, schirm, H, f.schwarz),
-        t(B * 0.15, 0, B * 0.85, T, 0, schirm, farbe),
-        t(0, T * 0.15, B, T * 0.85, 0, schirm, farbe),
-        { ...t(B * 0.35, T * 0.35, B * 0.65, T * 0.65, -2, 0.5, f.waesche), leuchte: true },
+        zyl(t(B / 2 - 0.4, T / 2 - 0.4, B / 2 + 0.4, T / 2 + 0.4, schirm, H, f.schwarz)),
+        zyl(t(0, 0, B, T, 0, schirm, farbe), 0.3),
+        { ...zyl(t(B * 0.2, T * 0.2, B * 0.8, T * 0.8, -1, 0.5, f.waesche)), leuchte: true },
       ]
     }
     case 'hochschrank': {
@@ -539,19 +555,19 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
     }
     case 'wc':
       return [
-        t(B * 0.3, T * 0.3, B * 0.7, T * 0.85, 0, 36, f.keramik),
-        t(B * 0.08, T * 0.25, B * 0.92, T, 36, 42, ton(f.keramik, 0.97)),
-        t(B * 0.05, 0, B * 0.95, T * 0.22, 0, Math.min(H, 82), f.keramik),
+        zyl(t(B * 0.22, T * 0.3, B * 0.78, T * 0.92, 0, 36, f.keramik), 1.35),
+        zyl(t(B * 0.06, T * 0.25, B * 0.94, T, 36, 42, ton(f.keramik, 0.97))),
+        rd(t(B * 0.05, 0, B * 0.95, T * 0.22, 0, Math.min(H, 82), f.keramik), 4),
       ]
     case 'waschbecken':
       return [
-        t(0, 0, B, T, H - 15, H, f.keramik),
-        t(B * 0.15, T * 0.2, B * 0.85, T * 0.85, H, H + 0.4, ton(f.keramik, 0.9)),
-        t(B / 2 - 2, 2, B / 2 + 2, 8, H, H + 20, f.metall),
-        t(B * 0.4, 0, B * 0.6, T * 0.4, 0, H - 15, ton(f.keramik, 0.97)),
+        rd(t(0, 0, B, T, H - 15, H, f.keramik), 5),
+        zyl(t(B * 0.15, T * 0.2, B * 0.85, T * 0.85, H, H + 0.4, ton(f.keramik, 0.88))),
+        { ...zyl(t(B / 2 - 1.5, 2, B / 2 + 1.5, 5, H, H + 20, f.metall)), glanz: 0.8 },
+        rd(t(B * 0.4, 0, B * 0.6, T * 0.4, 0, H - 15, ton(f.keramik, 0.97)), 3),
       ]
     case 'badewanne':
-      return [t(0, 0, B, T, 0, H, f.keramik), t(6, 6, B - 6, T - 6, H, H + 0.4, ton(f.keramik, 0.9))]
+      return [rd(t(0, 0, B, T, 0, H, f.keramik), 6), rd(t(6, 6, B - 6, T - 6, H, H + 0.4, ton(f.keramik, 0.88)), 0.2)]
     case 'dusche':
       return [t(0, 0, B, T, 0, Math.max(3, H), f.keramik), t(0, T - 1, B, T, H, 200, f.glas, 0.25), t(B - 1, 0, B, T, H, 200, f.glas, 0.25)]
     case 'teppich': {
@@ -571,14 +587,17 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       // Messing, wenn der Name es sagt (AARSTID), sonst Metall.
       const fuss = /messing/i.test(o.name ?? '') ? '#b08d57' : f.metall
       return [
-        { ...t(B * 0.25, T * 0.25, B * 0.75, T * 0.75, 0, 3, fuss), glanz: 0.7 },
-        { ...t(B * 0.46, T * 0.46, B * 0.54, T * 0.54, 3, H - 30, fuss), glanz: 0.7 },
-        t(B * 0.1, T * 0.1, B * 0.9, T * 0.9, H - 30, H, eigen ?? f.waesche),
-        { ...t(B * 0.2, T * 0.2, B * 0.8, T * 0.8, H - 31, H - 29.5, f.waesche), leuchte: true },
+        { ...zyl(t(B * 0.22, T * 0.22, B * 0.78, T * 0.78, 0, 3, fuss), 0.85), glanz: 0.7 },
+        { ...zyl(t(B * 0.47, T * 0.47, B * 0.53, T * 0.53, 3, H - 30, fuss)), glanz: 0.7 },
+        zyl(t(B * 0.08, T * 0.08, B * 0.92, T * 0.92, H - 30, H, eigen ?? f.waesche), 0.78),
+        { ...zyl(t(B * 0.18, T * 0.18, B * 0.82, T * 0.82, H - 31, H - 29.5, f.waesche)), leuchte: true },
       ]
     }
     case 'pflanze':
-      return [t(B * 0.25, T * 0.25, B * 0.75, T * 0.75, 0, H * 0.3, f.topf), t(0, 0, B, T, H * 0.3, H, eigen ?? f.gruen)]
+      return [
+        zyl(t(B * 0.22, T * 0.22, B * 0.78, T * 0.78, 0, H * 0.3, f.topf), 1.2),
+        kugel(t(0, 0, B, T, H * 0.26, H, eigen ?? f.gruen)),
+      ]
     case 'klavier':
       return [
         t(0, 0, B, T * 0.55, 0, H, eigen ?? f.schwarz),
@@ -596,8 +615,8 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
     case 'fahrrad': {
       const r = Math.min(H * 0.66, B * 0.36)
       return [
-        t(0, T * 0.47, r, T * 0.53, 0, r, f.schwarz),
-        t(B - r, T * 0.47, B, T * 0.53, 0, r, f.schwarz),
+        zyl(t(0, T * 0.47, r, T * 0.53, 0, r, f.schwarz), 1, 'quer'),
+        zyl(t(B - r, T * 0.47, B, T * 0.53, 0, r, f.schwarz), 1, 'quer'),
         t(r * 0.5, T * 0.48, B - r * 0.5, T * 0.52, r * 0.55, r * 0.7, eigen ?? f.metall),
         t(B * 0.3, T * 0.3, B * 0.42, T * 0.7, H * 0.85, H * 0.9, f.schwarz),
       ]

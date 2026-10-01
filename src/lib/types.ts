@@ -164,6 +164,11 @@ export interface ItemContent {
   /** Selbsteinschaetzung der Erkennung, 0 bis 1. null bei Handeintraegen. */
   sicherheit: number | null
   created_at: string
+  /** Zuletzt Menge, Name oder Kiste geaendert (setzt die Datenbank, 0042).
+   *  Ohne Aenderung gleich dem Anlegen. */
+  geaendert_at: string
+  /** Was zuletzt geaendert wurde; null: noch nichts seit dem Anlegen. */
+  geaendert_was: 'menge' | 'text' | 'kiste' | null
 }
 
 /** Eine Stufe der Kistengroesse, 1 bis 10. Liter ist der Inhalt, wie ihn
@@ -260,6 +265,9 @@ export interface ItemPhoto {
   caption: string | null
   created_by: string | null
   created_at: string
+  /** Wann das Foto gemacht wurde (aus den Bilddaten, 0042). null:
+   *  unbekannt, dann zaehlt created_at (hochgeladen). */
+  aufgenommen_at: string | null
 }
 
 /* -------------------------------------------------------- Bilderkennung */

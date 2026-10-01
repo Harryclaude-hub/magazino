@@ -68,6 +68,8 @@ function alsEintrag(z: SuchTreffer): ItemContent {
     ausschnitt_pfad: z.ausschnitt_pfad,
     sicherheit: null,
     created_at: '',
+    geaendert_at: '',
+    geaendert_was: null,
   }
 }
 
@@ -85,6 +87,7 @@ function alsFoto(z: SuchTreffer): ItemPhoto | null {
     caption: null,
     created_by: null,
     created_at: '',
+    aufgenommen_at: null,
   }
 }
 

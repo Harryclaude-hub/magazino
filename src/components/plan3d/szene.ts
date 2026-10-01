@@ -133,6 +133,13 @@ export interface Quader {
   glanz?: number
   /** Farbe der Kanten, null ohne Kanten. */
   kante: string | null
+  /** Ecken abgerundet, Radius in Metern (E81). Ohne Angabe legt der Motor
+   *  bei Moebeln und Kisten eine feine Fase an. 0 = scharfe Kante. */
+  rund?: number
+  /** Rund statt eckig (E81), die Masse bleiben die umschliessende Kiste:
+   *  Zylinder (oben: oberer Radius im Verhaeltnis zum unteren, Kegel;
+   *  achse in Weltkoordinaten) oder Kugel. */
+  form?: Form3D
   /** Id der Kiste oder des Objekts, sonst null. */
   id: string | null
   /** Gesuchte oder gewaehlte Kiste (bzw. Moebel). */
@@ -149,6 +156,8 @@ export interface Quader {
    *  derselben id fahren zusammen. E68. */
   schub?: { id: string; weg: [number, number] }
 }
+
+export type Form3D = { art: 'zylinder'; oben: number; achse: 'x' | 'y' | 'z' } | { art: 'kugel' }
 
 export interface TuerDreh {
   id: string
@@ -477,6 +486,18 @@ function lokalQuader(
   return quader(rolle, [m((x0 + x1) / 2), m((unten + oben) / 2), m((y0 + y1) / 2)], [m(x1 - x0), m(oben - unten), m(y1 - y0)], farbe, mehr)
 }
 
+/** Die Rundform eines Teils in Weltachsen. Laengs ist die Breite des
+ *  Moebels (lokal x), quer die Tiefe (lokal y); bei 90 und 270 Grad
+ *  tauschen sie. In der Welt ist x der Plan-x, z der Plan-y, y oben. */
+function formWelt(o: Objekt, teil: Teil): Form3D | undefined {
+  const f = teil.form
+  if (!f) return undefined
+  if (f.art === 'kugel') return { art: 'kugel' }
+  const quer = o.drehung === 90 || o.drehung === 270
+  const achse = f.achse === 'laengs' ? (quer ? 'z' : 'x') : f.achse === 'quer' ? (quer ? 'x' : 'z') : 'y'
+  return { art: 'zylinder', oben: f.oben ?? 1, achse }
+}
+
 function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Raum[], markiert: string | null = null): Koerper[] {
   const out: Koerper[] = []
   for (const o of liste) {
@@ -498,23 +519,34 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
       for (const q of form) {
         // Leuchtende Teile (LED unter den Oberschraenken, Lampenschirm unten)
         // gehoeren zum Licht ihres Raums und gehen mit dem Schalter an (E74).
+        const rundform = formWelt(o, q)
         if (q.leuchte && !ist) {
           const l = lokalQuader(o, 'leuchte', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, q.farbe, { id: o.raum_id })
-          if (l) out.push(l)
+          if (l) out.push({ ...l, form: rundform, rund: q.rund !== undefined ? m(q.rund) : undefined })
           continue
         }
         const qf = ist ? f.hervor : q.farbe
         // Kanten an allem, was man sieht (E74: mehr Kontrast), nur nicht an
         // ganz kleinen Teilen; sauberer und schneller.
         const gross = Math.max(q.x1 - q.x0, q.y1 - q.y0) >= 12 && q.z1 - q.z0 >= 2
-        const kante = ist ? f.kisteRand : gross && art !== 'mauer' ? ton(qf, 0.68) : undefined
+        // Runde und weich gepolsterte Teile ohne Kantenlinien (E81): die
+        // Linie saesse auf einer Rundung in der Luft; die Rundung zeigt das
+        // Licht selbst.
+        const weich = !!rundform || (q.rund ?? 0) >= 2
+        const kante = ist ? f.kisteRand : gross && !weich && art !== 'mauer' ? ton(qf, 0.68) : undefined
         const k =
           q.front?.art === 'tuer'
             ? drehTuer(o, `${o.id}:t${form.indexOf(q)}`, q, unten, qf, kante ?? ton(qf, 0.8))
             : lokalQuader(o, 'moebel', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, qf, { kante, id: o.id, hervor: ist })
         if (!k) continue
         if (q.front?.art === 'schub') k.schub = { id: `${o.id}:s${q.front.gruppe}`, weg: schubWeg(o, q) }
-        out.push({ ...k, glanz: q.glanz ?? glanz, ...(q.deckkraft !== undefined ? { deckkraft: q.deckkraft } : {}) })
+        out.push({
+          ...k,
+          glanz: q.glanz ?? glanz,
+          ...(q.deckkraft !== undefined ? { deckkraft: q.deckkraft } : {}),
+          ...(q.rund !== undefined ? { rund: m(q.rund) } : {}),
+          ...(rundform ? { form: rundform, kante: ist ? k.kante : null } : {}),
+        })
       }
       continue
     }

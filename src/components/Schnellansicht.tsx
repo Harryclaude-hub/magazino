@@ -13,7 +13,7 @@ import {
   type SchnellDaten,
 } from '../lib/api'
 import { useSprache } from '../lib/i18n'
-import { compressImage, signedUrl, uploadTo } from '../lib/media'
+import { aufnahmeZeit, compressImage, signedUrl, uploadTo } from '../lib/media'
 import { notifyItemStatus } from '../lib/push'
 import type { Item, ItemStatus } from '../lib/types'
 import { appUrl, contrastOn, uid } from '../lib/util'
@@ -206,7 +206,7 @@ export function Schnellansicht({
       const blob = await compressImage(datei)
       const pfad = `${item.project_id}/${item.id}/${uid()}.jpg`
       await uploadTo('item-photos', pfad, blob, 'image/jpeg')
-      const foto = await addPhotoRecord(item.project_id, item.id, pfad)
+      const foto = await addPhotoRecord(item.project_id, item.id, pfad, undefined, 'foto', undefined, null, await aufnahmeZeit(datei))
       melden(await setCoverPhoto(item.id, foto.id))
       setBild(await signedUrl('item-photos', pfad))
       toast(t('schnell.deckbild_gesetzt'), 'ok')

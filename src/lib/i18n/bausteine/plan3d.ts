@@ -66,10 +66,11 @@ export const plan3dWoerter: Woerterbuch = {
     ar: 'W A S D أو مفاتيح الأسهم للمشي، Shift للركض، السحب للنظر حولك. Esc للإنهاء.',
   },
   'plan3d.begehen_bedienung_handy': {
-    de: 'Pfeile halten zum Gehen, mit dem Finger ziehen zum Umschauen.',
-    ar: 'اضغط على الأسهم للمشي، واسحب بإصبعك للنظر حولك.',
+    de: 'Links den Knopf schieben zum Gehen, rechts mit dem Finger ziehen zum Umschauen.',
+    ar: 'ادفع الزر يسارًا للمشي، واسحب بإصبعك يمينًا للنظر حولك.',
   },
   'plan3d.gehen_vor': { de: 'Vorwärts gehen', ar: 'امشِ للأمام' },
+  'plan3d.knueppel': { de: 'Gehen: in die Richtung schieben', ar: 'المشي: ادفع في الاتجاه' },
   'plan3d.gehen_zurueck': { de: 'Rückwärts gehen', ar: 'امشِ للخلف' },
   'plan3d.gehen_links': { de: 'Nach links gehen', ar: 'امشِ لليسار' },
   'plan3d.gehen_rechts': { de: 'Nach rechts gehen', ar: 'امشِ لليمين' },

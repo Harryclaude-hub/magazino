@@ -583,3 +583,30 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   (Migration 0041: Loesch-Regel auf item_events nur fuer den Besitzer;
   geloescht wird der ganze Verlauf des Umzugs samt dem der Kisten, Kisten
   und Inhalte bleiben), mit Rueckfrage.
+- **E81 KI nur fuer den Kisteninhalt, Mengen, Zeitangaben, Begehen,
+  runde 3D-Formen:** Die Bilderkennung sucht zuerst die Kiste und nennt
+  ihren Rahmen als erste Zeile (`KISTE|x1,y1,x2,y2`); genannt wird nur,
+  was in ihr liegt, nicht die Kiste selbst, nicht Klebeband oder Polster,
+  nichts daneben. Die Funktion prueft nach: Dinge, deren Mitte ausserhalb
+  des Kistenrahmens liegt (4 % Spiel), oder die fast so gross sind wie
+  die Kiste, fallen weg. Ohne Kiste im Bild (`KISTE|keine`) gilt alles.
+  Jeder Eintrag hat einen Mengenzaehler (minus, Zahl, plus); unter eins
+  geht es nicht, dafuer ist der Papierkorb da. Migration 0042: die
+  Datenbank setzt `geaendert_at` und `geaendert_was` (Menge, Name, andere
+  Kiste; Abhaken zaehlt nicht), und Menge und Umpacken stehen im Verlauf.
+  Fotos merken sich, wann sie aufgenommen wurden (`aufgenommen_at`, aus den
+  Bilddaten des Handys vor dem Verkleinern, sonst aus der Dateizeit, wenn
+  sie mindestens zehn Minuten alt ist); unbekannt bleibt null, dann zaehlt
+  das Hochladen. Unter jedem Eintrag steht "Menge geaendert vor 2 Wochen
+  - Foto vor 1 Jahr", auf jedem Foto sein Alter. Begehen am Handy: ein
+  Steuerknueppel statt vier Pfeilen (schieben, so weit, so schnell), und
+  die 3D-Flaeche markiert beim langen Druecken nichts mehr. 3D: Moebel
+  haben gerundete Kanten (Polster weit, Holz fein, sonst eine Fase von
+  hoechstens 8 mm), Runde Dinge sind rund (runder Tisch, Lampenschirme,
+  Topf und Pflanze, Toilette, Bullauge, Raeder, gedrechselte Beine).
+  Schaerfe: im Stand bis zweifach, beim Gehen anderthalbfach; schafft das
+  Geraet beim Gehen keine 30 Bilder je Sekunde, geht es fuer die Bewegung
+  auf einfach zurueck. Nicht moeglich: ein IKEA-Moebel Stueck fuer Stueck
+  gleich nachbauen. Die Moebel sind aus Bausteinen zusammengesetzt; die
+  echten 3D-Modelle gehoeren IKEA und sind nicht frei zu verwenden. Vom
+  Link kommen weiter Masse, Farbe und Material.

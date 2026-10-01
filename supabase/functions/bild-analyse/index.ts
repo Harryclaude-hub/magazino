@@ -117,14 +117,23 @@ class BildFehler extends Error {
 /* ------------------------------------------------------------ Anweisung */
 
 function anweisung(was: Was, _sprache: Sprache): string {
+  /* Kiste (E81): nur was IN der Kiste liegt. Zuerst die Kiste finden und
+   * ihren Rahmen als erste Zeile nennen; was ausserhalb liegt (Boden,
+   * Tisch, Hand, die Kiste daneben), zaehlt nicht. Die Zeile KISTE prueft
+   * dingeAus nach: Dinge, deren Mitte ausserhalb liegt, fallen weg. */
   const worum =
     was === 'moebel'
-      ? 'Auf dem Bild ist ein Möbelstück, das für einen Umzug erfasst wird. Nenne das Stück selbst und die einzelnen Teile, die zu sehen sind (Bretter, Beine, Schrauben, Schlüssel, Beschläge).'
+      ? ['Auf dem Bild ist ein Möbelstück, das für einen Umzug erfasst wird. Nenne das Stück selbst und die einzelnen Teile, die zu sehen sind (Bretter, Beine, Schrauben, Schlüssel, Beschläge).']
       : was === 'zimmer'
-        ? 'Auf dem Bild ist ein Zimmer, das umgezogen werden soll. Nenne die Möbel und die größeren Gegenstände darin. Kleinkram wie einzelne Stifte gehört nicht dazu.'
-        : 'Auf dem Bild ist der Inhalt einer Umzugskiste, oder eine offene Kiste von oben. Finde JEDEN einzelnen Gegenstand, der zu sehen ist, auch kleine.'
+        ? ['Auf dem Bild ist ein Zimmer, das umgezogen werden soll. Nenne die Möbel und die größeren Gegenstände darin. Kleinkram wie einzelne Stifte gehört nicht dazu.']
+        : [
+            'Auf dem Bild ist eine Umzugskiste (Karton, Kiste, Box, Korb, Wanne oder Tasche). Es zählt NUR, was IN dieser Kiste liegt.',
+            'Schritt 1: Finde die Kiste. Die ERSTE Zeile ist genau: KISTE|x1,y1,x2,y2 mit dem Rahmen um die Öffnung der Kiste. Sind mehrere Kisten zu sehen, nimm die größte in der Mitte. Ist gar keine Kiste zu sehen, schreibe KISTE|keine.',
+            'Schritt 2: Nenne JEDEN Gegenstand, der in dieser Kiste liegt, auch kleine.',
+            'NICHT nennen: die Kiste selbst, Deckel, Klebeband, Aufkleber, Etikett, Polster, Zeitungspapier, Luftpolsterfolie, und alles außerhalb der Kiste: Boden, Tisch, Möbel, Wand, Hände, Füße, Menschen, Tiere, andere Kisten und was daneben liegt.',
+          ]
   return [
-    worum,
+    ...worum,
     'Antworte NUR mit Zeilen, eine Zeile je Ding, ohne Einleitung, ohne Nummern, ohne Codeblock, genau so:',
     'menge|Name auf Deutsch|Name auf Arabisch|x1,y1,x2,y2|Suchwort, Suchwort, Suchwort|Hinweis',
     'Beispiel: 1|UHU Alleskleber|غراء UHU|412,130,520,388|Kleber, Klebstoff, صمغ|',
@@ -276,8 +285,13 @@ function dingeAus(inhalt: string, sprache: Sprache, ende: boolean): Ding[] {
   const zeilen = rest.split('\n')
   if (!ende) zeilen.pop()
   const out: Ding[] = []
+  let kiste: Rahmen | null = null
   for (const z of zeilen) {
     const teile = z.split('|').map((s) => s.trim())
+    if (/^\W*kiste\W*$/i.test(teile[0] ?? '')) {
+      kiste = kistenRahmen(teile[1] ?? '')
+      continue
+    }
     if (teile.length < 3) continue
     const menge = Number(teile[0].replace(/[^\d]/g, ''))
     const bbox = (teile[3] ?? '').split(/[,\s]+/).filter(Boolean).map(Number)
@@ -289,10 +303,45 @@ function dingeAus(inhalt: string, sprache: Sprache, ende: boolean): Ding[] {
       suchwoerter: (teile[4] ?? '').split(/[,،;]/).map((w) => w.trim()),
       hinweis: teile[5] ?? null,
     })
-    if (d) out.push(d)
+    if (d && inDerKiste(d, kiste)) out.push(d)
     if (out.length >= 60) break
   }
   return out
+}
+
+interface Rahmen {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+/** Der Rahmen der Kiste aus "x1,y1,x2,y2" (Promille), oder null bei
+ *  "keine" oder Unsinn. Zu kleine Rahmen (unter 5 % des Bildes) gelten
+ *  nicht: dann hat das Modell eher ein Etikett gemeint als die Kiste. */
+function kistenRahmen(roh: string): Rahmen | null {
+  const z = roh.split(/[,\s]+/).filter(Boolean).map(promille)
+  if (z.length !== 4 || z.some((v) => v === null)) return null
+  const [a, b, c, e] = z as number[]
+  const r = { x0: Math.min(a, c) / 1000, y0: Math.min(b, e) / 1000, x1: Math.max(a, c) / 1000, y1: Math.max(b, e) / 1000 }
+  if ((r.x1 - r.x0) * (r.y1 - r.y0) < 0.05) return null
+  return r
+}
+
+/** Gehoert das Ding zur Kiste? Ohne Kistenrahmen oder ohne eigenen Rahmen
+ *  ja (nichts zum Pruefen). Sonst muss seine Mitte im Rahmen liegen (mit
+ *  4 % Spiel, Dinge ragen oft ueber den Rand), und ein Ding, das fast so
+ *  gross ist wie die Kiste, ist meist die Kiste selbst. */
+function inDerKiste(d: Ding, k: Rahmen | null): boolean {
+  if (!k || d.x === null || d.y === null) return true
+  const spiel = 0.04
+  if (d.x < k.x0 - spiel || d.x > k.x1 + spiel || d.y < k.y0 - spiel || d.y > k.y1 + spiel) return false
+  if (d.x0 !== null && d.x1 !== null && d.y0 !== null && d.y1 !== null) {
+    const ding = (d.x1 - d.x0) * (d.y1 - d.y0)
+    const kiste = (k.x1 - k.x0) * (k.y1 - k.y0)
+    if (ding >= kiste * 0.85) return false
+  }
+  return true
 }
 
 /** Was ein Versuch zurueckgibt. fertig: das Modell hat von selbst

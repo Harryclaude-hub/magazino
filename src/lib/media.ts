@@ -32,6 +32,89 @@ export async function compressImage(file: File, max = 1600, quality = 0.82): Pro
   }
 }
 
+/* ------------------------------------------------------ Aufnahmedatum */
+
+/** Wann ein Foto gemacht wurde (E81), als ISO-Zeit, oder null.
+ *  Zuerst aus den Bilddaten des Handys (EXIF, "DateTimeOriginal"), die
+ *  das Verkleinern sonst wegwirft. Fehlen sie, gilt die Dateizeit, aber
+ *  nur wenn sie deutlich vor jetzt liegt: ein frisch aufgenommenes Foto
+ *  traegt sonst die Uhrzeit des Hochladens und waere kein Gewinn. */
+export async function aufnahmeZeit(file: File): Promise<string | null> {
+  const plausibel = (ms: number) => ms > Date.UTC(1990, 0, 1) && ms < Date.now() + 86_400_000
+  try {
+    if (file.type === 'image/jpeg' || /\.jpe?g$/i.test(file.name)) {
+      const exif = exifZeit(new DataView(await file.slice(0, 256 * 1024).arrayBuffer()))
+      if (exif !== null && plausibel(exif)) return new Date(exif).toISOString()
+    }
+  } catch (err) {
+    console.warn('[media] Bilddaten nicht lesbar:', err)
+  }
+  const datei = file.lastModified
+  if (datei && plausibel(datei) && Date.now() - datei > 10 * 60_000) return new Date(datei).toISOString()
+  return null
+}
+
+/** DateTimeOriginal (sonst DateTime) aus einem JPEG, als Millisekunden in
+ *  Ortszeit des Geraets, oder null. Liest nur den Kopf der Datei. */
+function exifZeit(v: DataView): number | null {
+  if (v.byteLength < 4 || v.getUint16(0) !== 0xffd8) return null
+  let p = 2
+  while (p + 4 <= v.byteLength) {
+    const marke = v.getUint16(p)
+    const laenge = v.getUint16(p + 2)
+    if ((marke & 0xff00) !== 0xff00 || laenge < 2) return null
+    // APP1 mit "Exif\0\0"
+    if (marke === 0xffe1 && p + 10 <= v.byteLength && v.getUint32(p + 4) === 0x45786966) {
+      return tiffZeit(v, p + 10)
+    }
+    if (marke === 0xffda) return null // Bilddaten beginnen: kein EXIF davor
+    p += 2 + laenge
+  }
+  return null
+}
+
+function tiffZeit(v: DataView, start: number): number | null {
+  const klein = v.getUint16(start) === 0x4949
+  const u16 = (o: number) => v.getUint16(start + o, klein)
+  const u32 = (o: number) => v.getUint32(start + o, klein)
+  const text = (o: number, n: number) => {
+    let s = ''
+    for (let i = 0; i < n && start + o + i < v.byteLength; i++) {
+      const c = v.getUint8(start + o + i)
+      if (c === 0) break
+      s += String.fromCharCode(c)
+    }
+    return s
+  }
+  /** Eintraege eines Verzeichnisses: Kennung -> Wertstelle und Anzahl. */
+  const lesen = (ifd: number) => {
+    const out = new Map<number, { wert: number; n: number }>()
+    if (start + ifd + 2 > v.byteLength) return out
+    const anzahl = u16(ifd)
+    for (let i = 0; i < anzahl; i++) {
+      const e = ifd + 2 + i * 12
+      if (start + e + 12 > v.byteLength) break
+      out.set(u16(e), { n: u32(e + 4), wert: u32(e + 8) })
+    }
+    return out
+  }
+  const ifd0 = lesen(u32(4))
+  let roh: string | null = null
+  const exifZeiger = ifd0.get(0x8769)
+  if (exifZeiger) {
+    const orig = lesen(exifZeiger.wert).get(0x9003)
+    if (orig && orig.n >= 19) roh = text(orig.wert, 19)
+  }
+  if (!roh) {
+    const dt = ifd0.get(0x0132)
+    if (dt && dt.n >= 19) roh = text(dt.wert, 19)
+  }
+  const m = roh ? /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(roh) : null
+  if (!m) return null
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])
+  return Number.isNaN(d.getTime()) ? null : d.getTime()
+}
+
 /* ----------------------------------------------------------- Ausschnitt */
 
 export interface Rahmen {

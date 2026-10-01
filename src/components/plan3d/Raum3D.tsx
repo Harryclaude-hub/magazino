@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clock, Crosshair, Eye, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, Map as KarteIcon, Maximize2, Minimize2, Moon, Rotate3d, SlidersHorizontal, Square, Sun, X } from 'lucide-react'
+import { Clock, Crosshair, Eye, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, Map as KarteIcon, Maximize2, Minimize2, Moon, Rotate3d, SlidersHorizontal, Square, Sun, X } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
 import type { GrundrissDaten } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { Button } from '../ui'
 import { flaecheQm, innenPunkt, raumTitel } from '../plan/hilfe'
-import { motorStarten, type Blick, type GehRichtung, type Motor, type Treffer3D } from './motor'
+import { motorStarten, type Blick, type Motor, type Treffer3D } from './motor'
+import { Knueppel } from './Knueppel'
 import { farbenLesen } from './farben3d'
 import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
 
@@ -58,13 +59,6 @@ function startPunkt(daten: GrundrissDaten, raumId: string | null): [number, numb
   for (const r of kandidaten) if (!best || flaecheQm(r.punkte) > flaecheQm(best.punkte)) best = r
   return best ? innenPunkt(best.punkte) : null
 }
-
-const GEH_KNOEPFE: { r: GehRichtung; Zeichen: typeof ArrowUp; spalte: number; zeile: number }[] = [
-  { r: 'vor', Zeichen: ArrowUp, spalte: 2, zeile: 1 },
-  { r: 'links', Zeichen: ArrowLeft, spalte: 1, zeile: 2 },
-  { r: 'zurueck', Zeichen: ArrowDown, spalte: 2, zeile: 2 },
-  { r: 'rechts', Zeichen: ArrowRight, spalte: 3, zeile: 2 },
-]
 
 /** Kiste -> Objekt, auf oder in dem ihr Stapel steht (ueber Kisten hinweg). */
 function traegerKarte(daten: GrundrissDaten): Map<string, string> {
@@ -284,7 +278,9 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     <div
       ref={wurzel}
       className={cx(
-        'flex min-h-0 flex-col overflow-hidden bg-paper',
+        // plan3d-flaeche: langes Druecken markiert nichts und oeffnet kein
+        // Menue (E81, am iPhone wurde beim Gehen die ganze Seite blau).
+        'plan3d-flaeche flex min-h-0 flex-col overflow-hidden bg-paper',
         vollbild ? 'fixed inset-0 z-[70]' : 'relative h-full',
         className && !vollbild ? className : null,
       )}
@@ -433,26 +429,9 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
             </p>
           </div>
         ) : geht === 'ja' && gehen ? (
-          // Gehen per Knopf: gedrueckt halten, loslassen bleibt stehen.
-          <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] start-[calc(env(safe-area-inset-left,0px)+1rem)] grid grid-cols-3 gap-1.5" dir="ltr">
-            {GEH_KNOEPFE.map(({ r, Zeichen, spalte, zeile }) => (
-              <button
-                key={r}
-                type="button"
-                aria-label={t(`plan3d.gehen_${r}`)}
-                style={{ gridColumn: spalte, gridRow: zeile, touchAction: 'none' }}
-                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-line bg-surface/90 text-ink shadow active:bg-ink active:text-paper"
-                onPointerDown={(e) => {
-                  e.currentTarget.setPointerCapture(e.pointerId)
-                  motor.current?.gehenKnopf(r, true)
-                }}
-                onPointerUp={() => motor.current?.gehenKnopf(r, false)}
-                onPointerCancel={() => motor.current?.gehenKnopf(r, false)}
-                onContextMenu={(e) => e.preventDefault()}
-              >
-                <Zeichen size={20} />
-              </button>
-            ))}
+          // Gehen per Steuerknueppel (E81): schieben, loslassen bleibt stehen.
+          <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] start-[calc(env(safe-area-inset-left,0px)+1rem)]">
+            <Knueppel name={t('plan3d.knueppel')} onLage={(x, y) => motor.current?.gehenStick(x, y)} />
           </div>
         ) : geht === 'ja' && leer ? (
           <div dir="auto" className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">

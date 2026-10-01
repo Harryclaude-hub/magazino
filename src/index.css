@@ -473,3 +473,19 @@ input[type='color']::-webkit-color-swatch {
 [lang='ar'] * {
   letter-spacing: normal !important;
 }
+
+/* 3D und Begehen (E81): langes Druecken auf Bild, Knoepfe oder Knueppel
+   markiert keinen Text, zeigt kein Kopieren-Menue und kein graues
+   Aufleuchten. Am iPhone war beim Gehen sonst die ganze Seite markiert. */
+.plan3d-flaeche,
+.plan3d-flaeche * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.plan3d-flaeche input,
+.plan3d-flaeche textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}

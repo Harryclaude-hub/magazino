@@ -1229,6 +1229,8 @@ export async function addPhotoRecord(
   seite?: string,
   /** Wie tief in der Kiste. 1 ist oben. */
   schicht?: number | null,
+  /** Wann das Foto gemacht wurde (aufnahmeZeit), sonst unbekannt. */
+  aufgenommenAt?: string | null,
 ): Promise<ItemPhoto> {
   const { data: auth } = await supabase.auth.getUser()
   const res = await supabase
@@ -1242,6 +1244,7 @@ export async function addPhotoRecord(
       schicht: schicht ?? null,
       caption: caption ?? null,
       created_by: auth.user?.id ?? null,
+      aufgenommen_at: aufgenommenAt ?? null,
     })
     .select('*')
     .single()

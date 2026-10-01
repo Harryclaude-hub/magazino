@@ -106,6 +106,8 @@ export const umzuege: Woerterbuch = {
     de: 'hat den Code auf {code} geändert',
     ar: 'غيّر الرمز إلى {code}',
   },
+  'umzuege.ereignis_menge': { de: 'Menge geändert: {text} ({von} auf {nach})', ar: 'تغيّرت الكمية: {text} ({von} إلى {nach})' },
+  'umzuege.ereignis_umgepackt': { de: '{text} umgepackt nach {code}', ar: 'نُقل {text} إلى {code}' },
 
   // ------------------------------------------------- Startseite, Fusszeile
   'umzuege.alle_kisten': { de: 'Alle Kisten', ar: 'كل الصناديق' },
