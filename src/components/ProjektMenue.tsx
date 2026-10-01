@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import {
   ArrowLeftRight,
@@ -76,7 +77,10 @@ export function ProjektMenue() {
       >
         <Menu size={22} />
       </button>
-      {offen ? (
+      {/* An body gehaengt (E80): die Kopfzeile hat backdrop-blur, und das
+          sperrt ein fixed-Element in ihre eigene Hoehe ein. */}
+      {offen
+        ? createPortal(
         <div className="fixed inset-0 z-[80] lg:hidden" role="dialog" aria-modal="true" aria-label={t('menue.umzug')}>
           <button type="button" aria-label={t('aktion.schliessen')} className="absolute inset-0 bg-black/40" onClick={() => setOffen(false)} />
           <nav className="safe-top absolute inset-y-0 start-0 flex w-[84%] max-w-xs flex-col overflow-y-auto border-e border-line bg-surface shadow-dialog">
@@ -123,8 +127,10 @@ export function ProjektMenue() {
               </Link>
             </div>
           </nav>
-        </div>
-      ) : null}
+        </div>,
+            document.body,
+          )
+        : null}
     </>
   )
 }

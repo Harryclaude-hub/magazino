@@ -1616,3 +1616,11 @@ export async function produktLesen(url: string): Promise<ProduktDaten> {
   }
   return data as ProduktDaten
 }
+
+/** Den ganzen Verlauf eines Umzugs loeschen (0041, nur der Besitzer).
+ *  Gibt zurueck, wie viele Eintraege weg sind. */
+export async function verlaufLoeschen(projectId: string): Promise<number> {
+  const res = await supabase.from('item_events').delete({ count: 'exact' }).eq('project_id', projectId)
+  if (res.error) throw new Error(tg('fehler.verlauf_loeschen', { grund: errText(res.error) }))
+  return res.count ?? 0
+}

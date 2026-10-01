@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Armchair,
   ArrowLeft,
   Boxes,
+  ChevronDown,
   ChevronRight,
   ClipboardList,
   Cog,
@@ -12,6 +13,7 @@ import {
   LayoutGrid,
   Plus,
   Printer,
+  Trash2,
   Users,
 } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
@@ -20,12 +22,14 @@ import {
   Card,
   Empty,
   ErrorBox,
+  ConfirmDialog,
   IconButton,
   Loading,
   SectionTitle,
+  useToast,
 } from '../components/ui'
 import { useProject } from './ProjectLayout'
-import { getStats, listProjectEvents, listTagStats } from '../lib/api'
+import { getStats, listProjectEvents, listTagStats, verlaufLoeschen } from '../lib/api'
 import { useSprache, useT } from '../lib/i18n'
 import type { ItemEvent } from '../lib/types'
 import { contrastOn, relTime, useAsync, withAlpha } from '../lib/util'
@@ -137,13 +141,21 @@ function EventLine({ ev, nameOf }: { ev: ItemEvent; nameOf: (id: string | null) 
 }
 
 export default function ProjectHome() {
-  const { project, rooms, people, members, canEdit } = useProject()
+  const { project, rooms, people, members, canEdit, isOwner } = useProject()
+  const toast = useToast()
   const { t, tn } = useSprache()
   const nav = useNavigate()
   const base = `/app/p/${project.id}`
 
   const stats = useAsync(() => getStats(project.id), [project.id])
-  const events = useAsync(() => listProjectEvents(project.id, 12), [project.id])
+  /* Verlauf (E80): zugeklappt und erst beim Aufklappen geladen, damit der
+   * Umzug schneller aufgeht. Der Besitzer kann ihn loeschen. */
+  const [verlaufAuf, setVerlaufAuf] = useState(false)
+  const [verlaufWeg, setVerlaufWeg] = useState(false)
+  const events = useAsync(
+    () => (verlaufAuf ? listProjectEvents(project.id, 12) : Promise.resolve([] as ItemEvent[])),
+    [project.id, verlaufAuf],
+  )
   const roomCounts = useAsync(() => listTagStats(project.id), [project.id])
 
   const nameOf = (id: string | null) =>
@@ -370,25 +382,59 @@ export default function ProjectHome() {
           </>
         ) : null}
 
-        {/* Verlauf */}
-        <SectionTitle>{t('umzuege.zuletzt')}</SectionTitle>
-        <Card className="overflow-hidden">
-          {events.loading ? (
-            <Loading label={t('umzuege.verlauf_laden')} />
-          ) : events.error ? (
-            <div className="p-4">
-              <ErrorBox error={events.error} onRetry={events.reload} />
+        {/* Verlauf: zugeklappt, laedt erst beim Aufklappen (E80). */}
+        <SectionTitle
+          action={
+            <div className="flex gap-2">
+              {isOwner && verlaufAuf && (events.data ?? []).length > 0 ? (
+                <Button variant="outline" size="sm" onClick={() => setVerlaufWeg(true)}>
+                  <Trash2 size={16} /> {t('umzuege.verlauf_loeschen')}
+                </Button>
+              ) : null}
+              <Button variant="outline" size="sm" aria-expanded={verlaufAuf} onClick={() => setVerlaufAuf((v) => !v)}>
+                <ChevronDown size={16} className={verlaufAuf ? 'rotate-180' : undefined} />
+                {t(verlaufAuf ? 'umzuege.verlauf_verbergen' : 'umzuege.verlauf_zeigen')}
+              </Button>
             </div>
-          ) : (events.data ?? []).length === 0 ? (
-            <p className="t-sub px-4 py-8 text-center">{t('umzuege.verlauf_leer')}</p>
-          ) : (
-            <ul className="zebra divide-y divide-line">
-              {(events.data ?? []).map((ev) => (
-                <EventLine key={ev.id} ev={ev} nameOf={nameOf} />
-              ))}
-            </ul>
-          )}
-        </Card>
+          }
+        >
+          {t('umzuege.zuletzt')}
+        </SectionTitle>
+        {verlaufAuf ? (
+          <Card className="overflow-hidden">
+            {events.loading ? (
+              <Loading label={t('umzuege.verlauf_laden')} />
+            ) : events.error ? (
+              <div className="p-4">
+                <ErrorBox error={events.error} onRetry={events.reload} />
+              </div>
+            ) : (events.data ?? []).length === 0 ? (
+              <p className="t-sub px-4 py-8 text-center">{t('umzuege.verlauf_leer')}</p>
+            ) : (
+              <ul className="zebra divide-y divide-line">
+                {(events.data ?? []).map((ev) => (
+                  <EventLine key={ev.id} ev={ev} nameOf={nameOf} />
+                ))}
+              </ul>
+            )}
+          </Card>
+        ) : null}
+        <ConfirmDialog
+          open={verlaufWeg}
+          title={t('umzuege.verlauf_loeschen')}
+          body={t('umzuege.verlauf_loeschen_frage')}
+          confirmLabel={t('umzuege.verlauf_loeschen')}
+          onClose={() => setVerlaufWeg(false)}
+          onConfirm={async () => {
+            try {
+              await verlaufLoeschen(project.id)
+              toast(t('umzuege.verlauf_geloescht'), 'ok')
+              events.reload()
+            } catch (err) {
+              toast(err instanceof Error ? err.message : String(err), 'error')
+            }
+          }}
+        />
 
         <div data-tour="umzug-fuss" className="mt-6 hidden gap-2.5 sm:grid sm:grid-cols-2 lg:grid-cols-4">
           <Link to={`${base}/kisten`} className="block">

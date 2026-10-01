@@ -45,7 +45,6 @@ export function AppHeader({
           wide ? 'max-w-6xl lg:max-w-[1600px]' : 'max-w-5xl lg:max-w-6xl 2xl:max-w-7xl',
         )}
       >
-        <ProjektMenue />
         {back ? (
           <button
             data-tour="zurueck"
@@ -57,6 +56,8 @@ export function AppHeader({
             <ArrowLeft size={22} className="spiegeln" />
           </button>
         ) : null}
+        {/* Erst zurueck, dann das Menue des Umzugs (E80). */}
+        <ProjektMenue />
 
         <div className="min-w-0 flex-1">
           <div className="t-name truncate">{title}</div>

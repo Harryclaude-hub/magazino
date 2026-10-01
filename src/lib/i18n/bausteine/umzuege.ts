@@ -84,6 +84,14 @@ export const umzuege: Woerterbuch = {
 
   // ---------------------------------------------------- Startseite, Verlauf
   'umzuege.zuletzt': { de: 'Zuletzt passiert', ar: 'آخر ما حدث' },
+  'umzuege.verlauf_zeigen': { de: 'Verlauf zeigen', ar: 'عرض السجل' },
+  'umzuege.verlauf_verbergen': { de: 'Verlauf einklappen', ar: 'طي السجل' },
+  'umzuege.verlauf_loeschen': { de: 'Verlauf löschen', ar: 'حذف السجل' },
+  'umzuege.verlauf_loeschen_frage': {
+    de: 'Der ganze Verlauf dieses Umzugs wird gelöscht, auch der Verlauf jeder einzelnen Kiste. Kisten und Inhalte bleiben. Das lässt sich nicht rückgängig machen.',
+    ar: 'سيُحذف سجل هذه النقلة بالكامل، بما في ذلك سجل كل صندوق. الصناديق ومحتوياتها تبقى. لا يمكن التراجع عن ذلك.',
+  },
+  'umzuege.verlauf_geloescht': { de: 'Verlauf gelöscht', ar: 'تم حذف السجل' },
   'umzuege.verlauf_laden': { de: 'Verlauf wird geladen', ar: 'جارٍ تحميل السجل' },
   'umzuege.verlauf_leer': {
     de: 'Noch nichts passiert. Sobald Kisten angelegt oder gescannt werden, steht es hier.',

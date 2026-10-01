@@ -574,3 +574,12 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   verschwand sie mit dem Menue. 3D: hochkant zwei Reihen, quer eine Reihe
   nur mit Zeichen, Namen erst ab Computerbreite; Abstand zur
   Kamera-Aussparung oben und seitlich, Gehpfeile ueber der Wischleiste.
+- **E80 Drei-Striche-Menue repariert, Verlauf einklappbar und loeschbar:**
+  Das Menue des Umzugs hing in der Kopfzeile, und deren backdrop-blur
+  sperrte das feste Menue in die Hoehe der Kopfzeile (darum erschien es
+  zerquetscht); jetzt haengt es an body. Reihenfolge in der Kopfzeile:
+  erst Zurueck, dann das Menue. "Zuletzt passiert" ist zugeklappt und wird
+  erst beim Aufklappen geladen. Der Besitzer kann den Verlauf loeschen
+  (Migration 0041: Loesch-Regel auf item_events nur fuer den Besitzer;
+  geloescht wird der ganze Verlauf des Umzugs samt dem der Kisten, Kisten
+  und Inhalte bleiben), mit Rueckfrage.

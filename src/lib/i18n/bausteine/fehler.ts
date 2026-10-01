@@ -165,6 +165,7 @@ export const fehler: Woerterbuch = {
 
   // ----------------------------------------------------------- Verlauf
   'fehler.verlauf_laden': { de: 'Verlauf laden: {grund}', ar: 'تعذّر تحميل السجل: {grund}' },
+  'fehler.verlauf_loeschen': { de: 'Verlauf löschen: {grund}', ar: 'تعذّر حذف السجل: {grund}' },
 
   // -------------------------------------------------------------- Chat
   'fehler.nachrichten_laden': {
