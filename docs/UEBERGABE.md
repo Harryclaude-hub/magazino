@@ -43,11 +43,15 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
   Zimmer in 3D (Liste oder Klick auf den Schalter), Spiegel, Teppiche
   (ausblendbar), mehr Kontrast, Fenster laut Plan, Abstellraum und
   Flurende neu.
+- Nachtrag 01.10. (E75 bis E77): Bilderkennung mit 20-Sekunden-Grenze
+  (Version 6, Liste gleich uebernommen), fuenf weitere Designs, Handy-
+  Kopfzeile mit Menue, 3D-Vollbild, Moebel per IKEA-Link (Funktion
+  produkt-lesen), Begehen im Massstab 1,75 m.
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E74.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E77.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler

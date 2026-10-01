@@ -98,8 +98,15 @@ const WAND_HALB = 0.16
 /* Begehen: Augenhoehe, Schritt und Abstand zur Wand in Metern. Gegen
  * Waende, Bruestungen und Fenster stoesst man; Tueren und Durchgaenge
  * sind offen (der Pruefstrahl laeuft in Kniehoehe unter dem Sturz durch).
- * Moebel halten nicht auf, damit man nirgends haengen bleibt. */
-const AUGE_M = 1.6
+ * Seit E77 geht ein Mann mit 1,75 m durch die Wohnung: Augen auf 1,64 m,
+ * Schultern 46 cm breit, und Moebel und Kisten halten auf (Strahlen in
+ * Knie- und Tischhoehe). So spuert man, wo man durchpasst. Teppiche und
+ * Haengendes ueber Kopf halten nicht auf. */
+const AUGE_M = 1.64
+/** Halbe Schulterbreite: links und rechts davon prueft je ein Strahl. */
+const SCHULTER_M = 0.23
+/** Hoehen, in denen Moebel aufhalten: Knie (Sofa, Bett, Bank) und Tischplatte. */
+const MOEBEL_HOEHEN = [0.4, 0.73]
 const KNIE_M = 0.45
 const GEHEN_M_S = 1.4
 const RENNEN_M_S = 2.8
@@ -323,6 +330,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
   let waende: WandInfo[] = []
   /** Woran man beim Begehen stoesst (Rollen in HINDERNIS). */
   let hindernisse: Mesh[] = []
+  /** Moebel und Kisten, an denen man beim Begehen haengen bleibt (E77). */
+  let moebelHindernisse: Mesh[] = []
   /** Tuerblaetter, die sich per Klick drehen (E65). */
   let tueren: Mesh[] = []
   /** Winkel je Tuer, damit ein Neubau der Szene ihn nicht zuruecksetzt. */
@@ -504,6 +513,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     linienMat.clear()
     waende = []
     hindernisse = []
+    moebelHindernisse = []
     tueren = []
     schuebe = []
   }
@@ -537,6 +547,11 @@ export function motorStarten(host: HTMLElement): Motor | null {
       else if (k.id && k.rolle === 'kiste') mesh.userData = { kisteId: k.id }
       else if (k.id && k.rolle === 'schalter') mesh.userData = { schalterRaum: k.id }
       if (HINDERNIS.has(k.rolle)) hindernisse.push(mesh)
+      else if (k.art === 'quader' && (k.rolle === 'moebel' || k.rolle === 'regal' || k.rolle === 'front' || k.rolle === 'kiste')) {
+        const unten = k.mitte[1] - k.masse[1] / 2
+        const oben = k.mitte[1] + k.masse[1] / 2
+        if (oben > 0.3 && unten < 1.2) moebelHindernisse.push(mesh)
+      }
       if (k.art === 'quader' && k.tuer) {
         // Tuerstand behalten, wenn die Szene neu gebaut wird (Zeichner aendert live).
         const stand = tuerStand.get(k.tuer.id)
@@ -597,17 +612,35 @@ export function motorStarten(host: HTMLElement): Motor | null {
     rendern()
   }
 
-  /** Ist der Weg von (x, z) um (dx, dz) frei? Strahl in Kniehoehe. */
+  /** Ist der Weg von (x, z) um (dx, dz) frei? Strahlen aus der Mitte und
+   *  von beiden Schultern: Waende in Kniehoehe, Moebel in Knie- und
+   *  Tischhoehe. */
   function frei(x: number, z: number, dx: number, dz: number): boolean {
     const l = Math.hypot(dx, dz)
     if (l < 1e-6) return true
-    strahl.set(new Vector3(x, KNIE_M, z), new Vector3(dx / l, 0, dz / l))
-    strahl.far = l + WAND_ABSTAND_M
+    const rx = dx / l
+    const rz = dz / l
     const zu = tueren.filter((t) => {
       const d = t.userData.tuer as TuerLage
       return Math.abs(winkelDiff(d.winkel, d.zu)) < 0.35
     })
-    const stoss = strahl.intersectObjects(zu.length ? [...hindernisse, ...zu] : hindernisse, false).length > 0
+    const waende = zu.length ? [...hindernisse, ...zu] : hindernisse
+    const richtung = new Vector3(rx, 0, rz)
+    let stoss = false
+    strahl.far = l + WAND_ABSTAND_M
+    for (const seite of [0, -SCHULTER_M, SCHULTER_M]) {
+      // Seitlich versetzt, quer zur Gehrichtung.
+      const sx = x - rz * seite
+      const sz = z + rx * seite
+      strahl.set(new Vector3(sx, KNIE_M, sz), richtung)
+      if (strahl.intersectObjects(waende, false).length > 0) stoss = true
+      for (const h of MOEBEL_HOEHEN) {
+        if (stoss) break
+        strahl.set(new Vector3(sx, h, sz), richtung)
+        if (strahl.intersectObjects(moebelHindernisse, false).length > 0) stoss = true
+      }
+      if (stoss) break
+    }
     strahl.far = Infinity
     return !stoss
   }

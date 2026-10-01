@@ -532,3 +532,23 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   auseinander). Abschnittstitel kraeftiger mit Linie und Akzentstrich;
   die Kistenliste am Handy bekommt je Zimmer eine Kopfzeile mit Farbe
   und Anzahl.
+- **E77 Moebel nach dem Produkt, Begehen im Massstab 1,75 m:** Neue
+  Funktion `produkt-lesen` (nur ikea.com, jede Weiterleitung geprueft,
+  nichts gespeichert): holt Name, Preis, Masse und ein kleines
+  Produktfoto. Im Zeichner neben dem Link der Knopf "Vom Link
+  uebernehmen": Link einsetzen, tippen, und Name, Masse, Preis, Material
+  und Farbe richten sich nach dem Produkt (Farbe = haeufigster Farbton
+  des Fotos ohne Studiohintergrund, `src/lib/produkt.ts`). So tauscht
+  man ein Moebel gegen ein anderes Produkt. Alle 60 verlinkten Moebel
+  wurden abgeglichen: die Masse stimmten schon, 22 Farben kommen jetzt
+  aus dem Produktfoto; weisse Moebel bleiben weiss (Schatten machen sie
+  im Foto grau), Teppiche mit Raumfoto, Spiegel und Toepfe bleiben.
+  Details: Stuehle mit dunklerem Rahmen, Pfosten und Lehnenflaeche (statt
+  Klotz mit grauem Kissen), AARSTID mit Messingfuss, KUDDARNA-Polster im
+  echten hellen Graubeige. Ganz gleich wie das Foto geht mit Quadern
+  nicht; dafuer braeuchte es die 3D-Modelle von IKEA, und die gehoeren
+  IKEA. Begehen: Augen auf 1,64 m, Schultern 46 cm, Moebel und Kisten
+  halten auf (Strahlen in 40 und 73 cm Hoehe). Ess-Eck nachgemessen:
+  Rueckenpolster bis Tischkante 43 cm, Sitzvorderkante bis Tisch 7 cm,
+  Platz fuer die Beine unter dem Tisch 29 cm; das ist bequem, enger als
+  ein Stuhl ist nur das seitliche Hineinrutschen, wie bei jeder Eckbank.

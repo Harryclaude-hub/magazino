@@ -1577,3 +1577,42 @@ export async function listProfiles(ids: string[]): Promise<Map<string, Profile>>
   for (const p of (res.data ?? []) as Profile[]) map.set(p.id, p)
   return map
 }
+
+/* ------------------------------------------------------------ Produkt (E77) */
+
+/** Was produkt-lesen von einer IKEA-Produktseite liefert. */
+export interface ProduktDaten {
+  url: string
+  name: string | null
+  preis_cent: number | null
+  masse: { name: string; wert: string }[]
+  breite_cm: number | null
+  tiefe_cm: number | null
+  hoehe_cm: number | null
+  /** Tiefe der langen Seite (Recamiere, Ecke), fuer die L-Form. */
+  tiefe_lang_cm: number | null
+  /** Kleines Produktfoto als data:-Adresse, fuer die Farbe. */
+  bild: string | null
+}
+
+/** Name, Preis, Masse und Foto eines Produkts von seiner Seite holen. */
+export async function produktLesen(url: string): Promise<ProduktDaten> {
+  const { data, error } = await supabase.functions.invoke('produkt-lesen', {
+    body: { url },
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (error) {
+    let grund = errText(error)
+    const ctx = (error as { context?: unknown }).context
+    if (ctx instanceof Response) {
+      try {
+        const k = (await ctx.clone().json()) as { error?: string }
+        if (k.error) grund = k.error
+      } catch {
+        /* kein JSON: der allgemeine Grund bleibt */
+      }
+    }
+    throw new Error(tg('fehler.produkt_lesen', { grund }))
+  }
+  return data as ProduktDaten
+}

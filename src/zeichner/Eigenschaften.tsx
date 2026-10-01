@@ -1,11 +1,12 @@
 import { SYMBOL_ARTEN } from './werkzeuge/strom'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ExternalLink, Hand, Plus, RotateCcw, RotateCw, Trash2 } from 'lucide-react'
+import { Download, ExternalLink, Hand, Plus, RotateCcw, RotateCw, Trash2 } from 'lucide-react'
 import { Button, Chip, CodeChip, Input, Select } from '../components/ui'
 import { flaecheQm, raumTitel } from '../components/plan/hilfe'
 import { objektName } from '../components/plan/lage'
-import { listItems } from '../lib/api'
+import { listItems, produktLesen } from '../lib/api'
+import { farbeAusBild, istProduktLink, nachProdukt } from '../lib/produkt'
 import { BODEN_STANDARD, BODENFARBEN, kontrast, OBJEKTFARBEN, WANDFARBEN, type DatenFarbe } from '../lib/farben'
 import { cmText, laengeLesen } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
@@ -478,6 +479,7 @@ function OeffnungTeil({ p, o }: { p: EigenschaftenProps; o: Oeffnung }) {
 function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
   const { t } = useSprache()
   const [eintraege, setEintraege] = useState<Item[] | null>(null)
+  const [produktLaedt, setProduktLaedt] = useState(false)
   const [eintragFehler, setEintragFehler] = useState<string | null>(null)
   const [versuch, setVersuch] = useState(0)
   useEffect(() => {
@@ -649,9 +651,41 @@ function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
           }}
         />
         {o.link ? (
-          <a href={o.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border-2 border-ink px-2.5 py-1 text-sm font-bold text-ink hover:bg-raised">
-            <ExternalLink size={14} /> {t('zeichner.eig.zum_produkt')}
-          </a>
+          <div className="flex flex-wrap gap-2">
+            <a href={o.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border-2 border-ink px-2.5 py-1 text-sm font-bold text-ink hover:bg-raised">
+              <ExternalLink size={14} /> {t('zeichner.eig.zum_produkt')}
+            </a>
+            {/* E77: anderes Produkt gewaehlt? Link einsetzen, hier tippen:
+                Name, Masse, Preis und Farbe kommen von der Seite. */}
+            {istProduktLink(o.link) ? (
+              <Button
+                size="sm"
+                variant="outline"
+                loading={produktLaedt}
+                title={t('zeichner.eig.vom_link_hilfe')}
+                onClick={() => {
+                  const link = o.link as string
+                  setProduktLaedt(true)
+                  void (async () => {
+                    try {
+                      const d = await produktLesen(link)
+                      const farbe = d.bild ? await farbeAusBild(d.bild) : null
+                      const raum = p.dok.raeume.find((r) => r.id === o.raum_id)
+                      const neu = nachProdukt(o, d, farbe, raum?.hoehe_cm ?? 250)
+                      p.aendern(objektSetzen(p.dok, neu), p.auswahl)
+                      p.hinweis(t('zeichner.eig.vom_link_fertig', { masse: `${neu.breite_cm} x ${neu.tiefe_cm} x ${neu.hoehe_cm} cm` }))
+                    } catch (err) {
+                      p.hinweis(err instanceof Error ? err.message : String(err))
+                    } finally {
+                      setProduktLaedt(false)
+                    }
+                  })()
+                }}
+              >
+                <Download size={14} /> {t('zeichner.eig.vom_link')}
+              </Button>
+            ) : null}
+          </div>
         ) : null}
         <TextFeld
           label={t('zeichner.eig.preis')}

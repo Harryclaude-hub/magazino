@@ -44,6 +44,10 @@ export const fehler: Woerterbuch = {
     de: 'Nur für Admins.',
     ar: 'للمسؤولين فقط.',
   },
+  'fehler.produkt_lesen': {
+    de: 'Die Produktseite ließ sich nicht lesen: {grund}',
+    ar: 'تعذّرت قراءة صفحة المنتج: {grund}',
+  },
   'fehler.linien_speichern': {
     de: 'Die Hilfslinien wurden nicht gespeichert: {grund}',
     ar: 'لم تُحفظ الخطوط المساعدة: {grund}',

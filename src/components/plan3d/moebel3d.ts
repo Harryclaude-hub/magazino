@@ -73,7 +73,8 @@ export function ton(hex: string, faktor: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
 }
 
-type O = Pick<Objekt, 'breite_cm' | 'tiefe_cm' | 'hoehe_cm' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke' | 'farbe'>
+type O = Pick<Objekt, 'breite_cm' | 'tiefe_cm' | 'hoehe_cm' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke' | 'farbe'> &
+  Partial<Pick<Objekt, 'name' | 'material'>>
 
 /** Rechteck in einem Rahmen mit der freien Ecke rechts oben ('ro') auf die
  *  echte Ecke spiegeln (wie das L-Zeichen in 2D). */
@@ -215,18 +216,29 @@ function tisch(B: number, T: number, H: number, holz: string): Teil[] {
   return [t(0, 0, B, T, H - 4, H, holz), ...beine(B, T, 6, 4, H - 4, ton(holz, 0.8))]
 }
 
-function stuhl(x0: number, y0: number, x1: number, y1: number, lehneBeiY0: boolean, holz: string, f: MoebelFarben): Teil[] {
+/** Stuhl (E77): Rahmen etwas dunkler als Sitz und Lehne (Eiche mit
+ *  Rattan wie STOCKHOLM), Lehne aus zwei Pfosten, oberem Riegel und
+ *  Flaeche. Ein Sitzkissen nur bei Stoff. H: Hoehe bis zur Oberkante. */
+function stuhl(x0: number, y0: number, x1: number, y1: number, lehneBeiY0: boolean, holz: string, f: MoebelFarben, H = 90, kissen = false): Teil[] {
   const B = x1 - x0
   const T = y1 - y0
-  const lehne = Math.min(5, T * 0.12)
+  const sitz = Math.min(46, H * 0.55)
+  const lehne = Math.min(4, T * 0.1)
   const ly0 = lehneBeiY0 ? y0 : y1 - lehne
   const ly1 = lehneBeiY0 ? y0 + lehne : y1
-  return [
-    ...beine(B, T, 3.5, 2, 44, ton(holz, 0.8)).map((b) => ({ ...b, x0: b.x0 + x0, x1: b.x1 + x0, y0: b.y0 + y0, y1: b.y1 + y0 })),
-    t(x0, y0, x1, y1, 44, 48, holz),
-    t(x0, ly0, x1, ly1, 48, 90, holz),
-    t(x0 + B * 0.1, y0 + 2, x1 - B * 0.1, y1 - 2, 48, 50, f.stoff),
+  const rahmen = ton(holz, 0.72)
+  const pfosten = 3.5
+  const out: Teil[] = [
+    ...beine(B, T, 3.5, 1.5, sitz - 3, rahmen).map((b) => ({ ...b, x0: b.x0 + x0, x1: b.x1 + x0, y0: b.y0 + y0, y1: b.y1 + y0 })),
+    t(x0, y0, x1, y1, sitz - 4, sitz - 1.5, rahmen),
+    t(x0 + 2, y0 + 2, x1 - 2, y1 - 2, sitz - 1.5, sitz, holz),
+    t(x0 + 1.5, ly0, x0 + 1.5 + pfosten, ly1, sitz, H, rahmen),
+    t(x1 - 1.5 - pfosten, ly0, x1 - 1.5, ly1, sitz, H, rahmen),
+    t(x0 + 1.5, ly0, x1 - 1.5, ly1, H - 6, H, rahmen),
+    t(x0 + 1.5 + pfosten, ly0 + 0.6, x1 - 1.5 - pfosten, ly1 - 0.6, sitz + 10, H - 6, holz),
   ]
+  if (kissen) out.push(t(x0 + B * 0.1, y0 + 2, x1 - B * 0.1, y1 - 2, sitz, sitz + 3, f.stoff))
+  return out
 }
 
 /** Kasten mit Sockel, Korpus und Fronten (Kommode, Sideboard, TV-Board). */
@@ -418,7 +430,7 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       return out
     }
     case 'stuhl':
-      return stuhl(0, 0, B, T, true, eigen ?? f.holz, f)
+      return stuhl(0, 0, B, T, true, eigen ?? f.holz, f, H, o.material === 'stoff' || o.material === 'samt' || o.material === 'leder')
     case 'buerostuhl': {
       const s = eigen ?? f.schwarz
       return [
@@ -477,7 +489,8 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       // Rueckenkissen je 60 cm an der Wand. Als L (E73) je Kasten, der
       // Ausschnitt bleibt frei (Eckbank um einen Mauervorsprung).
       const korpus = eigen ?? f.weiss
-      const stoff = f.stoff
+      // KUDDARNA-Polster gibt es nur in hellem Graubeige (E77).
+      const stoff = /kuddarna/i.test(o.name ?? '') ? '#cfc8ba' : f.stoff
       const sitz = Math.min(46, H)
       const out: Teil[] = []
       for (const s of bankStuecke(o)) {
@@ -554,13 +567,16 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       const d = Math.min(T, 2.5)
       return [t(0, 0, B, d - 0.6, 0, H, eigen ?? f.weiss), { ...t(1.5, d - 0.6, B - 1.5, d, 1.5, H - 1.5, f.spiegel), glanz: 0.95 }]
     }
-    case 'stehlampe':
+    case 'stehlampe': {
+      // Messing, wenn der Name es sagt (AARSTID), sonst Metall.
+      const fuss = /messing/i.test(o.name ?? '') ? '#b08d57' : f.metall
       return [
-        t(B * 0.25, T * 0.25, B * 0.75, T * 0.75, 0, 3, f.metall),
-        t(B * 0.46, T * 0.46, B * 0.54, T * 0.54, 3, H - 30, f.metall),
+        { ...t(B * 0.25, T * 0.25, B * 0.75, T * 0.75, 0, 3, fuss), glanz: 0.7 },
+        { ...t(B * 0.46, T * 0.46, B * 0.54, T * 0.54, 3, H - 30, fuss), glanz: 0.7 },
         t(B * 0.1, T * 0.1, B * 0.9, T * 0.9, H - 30, H, eigen ?? f.waesche),
         { ...t(B * 0.2, T * 0.2, B * 0.8, T * 0.8, H - 31, H - 29.5, f.waesche), leuchte: true },
       ]
+    }
     case 'pflanze':
       return [t(B * 0.25, T * 0.25, B * 0.75, T * 0.75, 0, H * 0.3, f.topf), t(0, 0, B, T, H * 0.3, H, eigen ?? f.gruen)]
     case 'klavier':

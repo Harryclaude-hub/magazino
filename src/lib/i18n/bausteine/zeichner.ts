@@ -331,6 +331,12 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.eig.link': { de: 'Link zum Produkt', ar: 'رابط المنتج' },
   'zeichner.eig.link_falsch': { de: 'Der Link muss mit https:// anfangen.', ar: 'يجب أن يبدأ الرابط بـ https://.' },
   'zeichner.eig.zum_produkt': { de: 'Zum Produkt', ar: 'إلى المنتج' },
+  'zeichner.eig.vom_link': { de: 'Vom Link übernehmen', ar: 'أخذ البيانات من الرابط' },
+  'zeichner.eig.vom_link_hilfe': {
+    de: 'Holt Name, Maße, Preis und Farbe von der IKEA-Seite und passt das Möbel daran an.',
+    ar: 'يجلب الاسم والمقاسات والسعر واللون من صفحة إيكيا ويضبط قطعة الأثاث عليها.',
+  },
+  'zeichner.eig.vom_link_fertig': { de: 'Vom Produkt übernommen: {masse}', ar: 'أُخذ من المنتج: {masse}' },
   'zeichner.eig.preis': { de: 'Preis in Euro', ar: 'السعر باليورو' },
   'zeichner.eig.preis_falsch': { de: 'Bitte einen Preis wie 899 oder 899,90 eingeben.', ar: 'يرجى إدخال سعر مثل 899 أو 899,90.' },
   'zeichner.eig.boden': { de: 'Höhe über dem Boden', ar: 'الارتفاع عن الأرض' },
