@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 
 /** Steuerknueppel zum Begehen am Handy (E81). Ein Kreis, darin ein Knopf,
  *  den der Daumen in jede Richtung schiebt: oben vor, unten zurueck,
- *  seitlich zur Seite. Je weiter geschoben, desto schneller. Loslassen
+ *  seitlich zur Seite. Je weiter geschoben, desto schneller (sanft
+ *  ansteigend, damit kleine Schritte genau gehen). Loslassen
  *  bleibt stehen. Ersetzt die vier Pfeile: dort musste man fuer schraeg
  *  zwei Knoepfe halten, und langes Druecken markierte am iPhone die Seite.
  *  Die andere Hand (oder derselbe Daumen danach) zieht auf dem Bild zum
@@ -24,8 +25,11 @@ export function Knueppel({ name, onLage }: { name: string; onLage: (x: number, y
       dy /= l
     }
     // Kleiner toter Bereich in der Mitte, damit ein ruhender Daumen nicht schleicht.
-    const tot = 0.15
-    const wirk = l < tot ? 0 : (Math.min(1, l) - tot) / (1 - tot)
+    const tot = 0.12
+    const roh = l < tot ? 0 : (Math.min(1, l) - tot) / (1 - tot)
+    // Sanfte Kurve (E82): wenig Druck geht langsam und genau, ganz gedrueckt
+    // bleibt voll. Anfahren und Abbremsen glaettet der Motor.
+    const wirk = roh ** 1.4
     const f = l > 0 ? wirk / Math.min(1, l) : 0
     setLage({ x: dx, y: dy })
     onLage(dx * f, -dy * f)
