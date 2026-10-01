@@ -12,9 +12,22 @@
 //   und aufzugZiel() (genau einmal je Ankunft), Tueren gehen auf,
 // - gleiche Daten geben Ecke fuer Ecke dieselbe Welt, dispose() gibt alles
 //   frei, unsinnige Daten werfen laut.
+// Innen (E84), mit einem erfundenen Haus mit Plaenen (zwei Wohnungen mit
+// gemeinsamer Wand, Tueren, Fenster, Wohnungstueren, Gang, Stiege, Aufzug,
+// zwei Geschosse) und einem grossen erfundenen Haus fuer Zeit und Menge:
+// - gemeinsame Waende nur einmal (Dicke 10, 20, 30 cm), Tueren als Luecken
+//   in den Hindernissen, Fenster mit Bruestung (Strahl gegen das Mesh),
+// - gebaut wird erst nach kamera() im Haus, Huelle weg und innen da;
+//   kamera(NaN) zeigt wieder nur Huellen,
+// - die eigene Wohnung wird nicht doppelt gebaut (kein Dreieck dort),
+// - Ebenen: Boden, Obergeschosse je Haus, Kennungen und Indizes; fahrt()
+//   meldet den Index der Ziel-Ebene, aufzugZiel() genau einmal,
+// - Sprungziele: Anzahl, vor der Wohnungstuer, Blick zur Tuer,
+// - unter 120 000 Dreiecke und 12 Zeichenaufrufe je Haus, kein Bau-Schritt
+//   ueber 30 ms, dispose() gibt auch das Innere frei.
 // Aufruf im Projektordner: node scripts/siedlung-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
-import { BackSide, PerspectiveCamera, Vector3 } from 'three'
+import { BackSide, PerspectiveCamera, Raycaster, Vector3 } from 'three'
 import { aufzugZiel, baueSiedlung } from '../src/components/plan3d/siedlung3d.ts'
 
 let fehler = 0
@@ -55,6 +68,12 @@ const F = {
   rahmen3d: '#eeece8',
   platte: '#4a4a4c',
   spiegel: '#c3d0d6',
+  wandKopf: '#cfc9bf',
+  tuer3d: '#f4f2ed',
+  zarge3d: '#d6d0c5',
+  boden3d: '#bb9670',
+  keramik: '#f6f6f3',
+  front: '#d4b48a',
 }
 
 /* Erfundene Siedlung: fuenf Haeuser, Umrisse in Metern um einen frei
@@ -174,6 +193,37 @@ function gangKante(umriss) {
   return beste
 }
 
+/** Dreiecke im Kasten der eigenen Wohnung (Rahmen und 15 cm, Boden -0,02
+ *  bis Geschosshoehe - 0,05, Welt). */
+function inWohnung(meshes, rahmen, gh) {
+  const k = [rahmen[0] - 0.15, -0.02, rahmen[1] - 0.15, rahmen[2] + 0.15, gh - 0.05, rahmen[3] + 0.15]
+  const mitte = [(k[0] + k[3]) / 2, (k[1] + k[4]) / 2, (k[2] + k[5]) / 2]
+  const halb = [(k[3] - k[0]) / 2 - 1e-3, (k[4] - k[1]) / 2 - 1e-3, (k[5] - k[2]) / 2 - 1e-3]
+  const a = new Vector3()
+  const b = new Vector3()
+  const c = new Vector3()
+  let drin = 0
+  for (const m of meshes) {
+    if (m.name === 'himmel') continue
+    const p = m.geometry.attributes.position
+    const ix = m.geometry.index
+    const n = ix ? ix.count : p.count
+    for (let i = 0; i < n; i += 3) {
+      const ia = ix ? ix.getX(i) : i
+      const ib = ix ? ix.getX(i + 1) : i + 1
+      const ic = ix ? ix.getX(i + 2) : i + 2
+      a.fromBufferAttribute(p, ia).applyMatrix4(m.matrixWorld)
+      b.fromBufferAttribute(p, ib).applyMatrix4(m.matrixWorld)
+      c.fromBufferAttribute(p, ic).applyMatrix4(m.matrixWorld)
+      if (dreieckImKasten([a.x, a.y, a.z], [b.x, b.y, b.z], [c.x, c.y, c.z], mitte, halb)) {
+        if (drin < 3) console.log('  in der Wohnung:', m.name, [a, b, c].map((v) => v.toArray().map((x) => +x.toFixed(3))))
+        drin++
+      }
+    }
+  }
+  return drin
+}
+
 /* ------------------------------------------------ Faelle */
 
 function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
@@ -220,32 +270,7 @@ function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
 
   // Die Wohnung bleibt frei: kein Dreieck im Kasten (Welt).
   if (rahmen && haus) {
-    const gh = haus.geschossHoehe
-    const k = [rahmen[0] - 0.15, -0.02, rahmen[1] - 0.15, rahmen[2] + 0.15, gh - 0.05, rahmen[3] + 0.15]
-    const mitte = [(k[0] + k[3]) / 2, (k[1] + k[4]) / 2, (k[2] + k[5]) / 2]
-    const halb = [(k[3] - k[0]) / 2 - 1e-3, (k[4] - k[1]) / 2 - 1e-3, (k[5] - k[2]) / 2 - 1e-3]
-    const a = new Vector3()
-    const b = new Vector3()
-    const c = new Vector3()
-    let drin = 0
-    for (const m of meshes) {
-      if (m.name === 'himmel') continue
-      const p = m.geometry.attributes.position
-      const ix = m.geometry.index
-      const n = ix ? ix.count : p.count
-      for (let i = 0; i < n; i += 3) {
-        const ia = ix ? ix.getX(i) : i
-        const ib = ix ? ix.getX(i + 1) : i + 1
-        const ic = ix ? ix.getX(i + 2) : i + 2
-        a.fromBufferAttribute(p, ia).applyMatrix4(m.matrixWorld)
-        b.fromBufferAttribute(p, ib).applyMatrix4(m.matrixWorld)
-        c.fromBufferAttribute(p, ic).applyMatrix4(m.matrixWorld)
-        if (dreieckImKasten([a.x, a.y, a.z], [b.x, b.y, b.z], [c.x, c.y, c.z], mitte, halb)) {
-          if (drin < 3) console.log('  in der Wohnung:', m.name, [a, b, c].map((v) => v.toArray().map((x) => +x.toFixed(3))))
-          drin++
-        }
-      }
-    }
+    const drin = inWohnung(meshes, rahmen, haus.geschossHoehe)
     wahr(`${name}: kein Dreieck in der Wohnung (${drin})`, drin === 0)
   }
 
@@ -425,6 +450,20 @@ function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
     wahr(`${name}: ohne Wohnung keine Knoepfe`, w.interaktiv === null && w.fahrt() === null && w.kabine === null && w.schritt(0.016, 1.6) === false)
   }
 
+  // Sprungziele (E84): Haustueren und Spielplatz, frei, auf gueltigen Ebenen.
+  const S = w.sprungziele
+  wahr(
+    `${name}: Sprungziele gueltig`,
+    Array.isArray(S) && S.every((s) => Number.isInteger(s.ebene) && s.ebene >= 0 && s.ebene < E.length && [s.x, s.z, s.gier].every(Number.isFinite)),
+  )
+  if (aussen.spielplatz) wahr(`${name}: Sprungziel Spielplatz`, S.filter((s) => s.name === 'Spielplatz').length === 1)
+  const haustueren = S.filter((s) => s.name.startsWith('Eingang '))
+  wahr(`${name}: Sprungziele vor den Haustueren (${haustueren.length})`, haustueren.length >= 4 && new Set(haustueren.map((s) => s.name)).size === haustueren.length)
+  for (const s of S) wahr(`${name}: Sprungziel ${s.name} frei`, frei(E[s.ebene], s.x, s.z, 0.2))
+  // Ohne Plaene baut kamera() nichts und schaltet nichts um.
+  w.kamera(0, 1.6, 0)
+  wahr(`${name}: ohne Plaene nichts innen`, meshesVon(w.gruppe).every((m) => !m.name.startsWith('innen')) && w.gruppe.userData.innen === 0)
+
   // Was draussen steht.
   const u = w.gruppe.userData
   wahr(`${name}: Strasse im Osten (${u.strasse})`, u.strasse === 'ost')
@@ -559,6 +598,568 @@ wirft('Geschosshoehe 0', { ...siedlung(null), gebaeude: [{ ...HAEUSER[0], gescho
 wirft('Weg mit einem Punkt', siedlung(null, { ...AUSSEN, wege: [[[0, 0]]] }))
 wirft('Kennung doppelt', { ...siedlung(null), gebaeude: [HAEUSER[0], { ...HAEUSER[1], id: 'h1' }] })
 wahr('aufzugZiel fremder Welt ist null', aufzugZiel({ gruppe: null, nebel: null, himmel: null, ebenen: [], interaktiv: null, dispose() {} }) === null)
+
+/* ------------------------------------------------ Innen (E84) */
+
+/* Erfundenes Haus mit Plaenen in Haus 5 (Plan in cm ab der Ecke
+ * (-32,6; -51,0) m, nicht gedreht): Wohnung A (vier Raeume) und B (drei
+ * Raeume und Terrasse oder Balkon) mit gemeinsamer Wand bei x = 1700, der
+ * Gang davor, Stiege und Aufzug am Westende; zwei Geschosse. */
+const oeff = (raum, art, kante, abstand_cm, breite_cm, extra = {}) => ({
+  raum,
+  art,
+  kante,
+  abstand_cm,
+  breite_cm,
+  hoehe_cm: art === 'fenster' ? 140 : 210,
+  bruestung_cm: art === 'fenster' ? 90 : 0,
+  anschlag: 'links',
+  aufschlag: 'innen',
+  ...extra,
+})
+function innenGeschoss(k) {
+  const a = {
+    top: `X${k}1`,
+    typ: 'A',
+    raeume: [
+      { name: 'Wohnkueche', art: 'innen', punkte: [[700, 0], [1300, 0], [1300, 650], [700, 650]] },
+      { name: 'Zimmer', art: 'innen', punkte: [[1300, 0], [1700, 0], [1700, 400], [1300, 400]] },
+      { name: 'Bad', art: 'innen', punkte: [[1300, 400], [1500, 400], [1500, 650], [1300, 650]] },
+      { name: 'VR', art: 'innen', punkte: [[1500, 400], [1700, 400], [1700, 650], [1500, 650]] },
+    ],
+    // Tuer VR-Zimmer, Wohnungstuer, Fenster, Durchgang, Tuer Bad-VR.
+    oeffnungen: [oeff(3, 'tuer', 0, 60, 80), oeff(3, 'tuer', 2, 50, 100), oeff(0, 'fenster', 0, 50, 150), oeff(0, 'durchgang', 1, 100, 90), oeff(2, 'tuer', 1, 60, 80)],
+    moebel: [
+      { name: 'Kuechenzeile', x: 900, y: 6, breite_cm: 240, tiefe_cm: 60, drehung: 0 },
+      { name: 'WC', x: 1440, y: 644, breite_cm: 40, tiefe_cm: 55, drehung: 180 },
+      { name: 'Waschbecken', x: 1306, y: 600, breite_cm: 60, tiefe_cm: 45, drehung: 270 },
+      { name: 'Badewanne', x: 1305, y: 405, breite_cm: 170, tiefe_cm: 75, drehung: 0 },
+      // Moebel ausser Kueche und Bad werden nicht gebaut.
+      { name: 'Bett', x: 1350, y: 50, breite_cm: 160, tiefe_cm: 200, drehung: 0 },
+    ],
+    eingang: [1600, 662],
+  }
+  const draussen =
+    k === 0
+      ? { name: 'Terrasse', art: 'draussen', punkte: [[1700, -300], [2700, -300], [2700, 0], [1700, 0]] }
+      : { name: 'Balkon', art: 'draussen', punkte: [[1900, -150], [2300, -150], [2300, 0], [1900, 0]] }
+  const b = {
+    top: `X${k}2`,
+    typ: 'B',
+    raeume: [
+      { name: 'Wohnkueche', art: 'innen', punkte: [[1700, 0], [2700, 0], [2700, 400], [1700, 400]] },
+      { name: 'Bad', art: 'innen', punkte: [[1700, 400], [2000, 400], [2000, 650], [1700, 650]] },
+      { name: 'VR', art: 'innen', punkte: [[2000, 400], [2700, 400], [2700, 650], [2000, 650]] },
+      draussen,
+    ],
+    oeffnungen: [oeff(2, 'tuer', 2, 300, 100), oeff(2, 'tuer', 0, 100, 90), oeff(0, 'tuer', 0, 250, 100, { aufschlag: 'aussen' })],
+    moebel: [{ name: 'Kuechenzeile', x: 2400, y: 6, breite_cm: 280, tiefe_cm: 60, drehung: 0 }],
+    eingang: [2350, 662],
+  }
+  return {
+    geschoss: k,
+    wohnungen: [a, b],
+    allgemein: [
+      { art: 'gang', punkte: [[0, 650], [2700, 650], [2700, 900], [0, 900]] },
+      { art: 'stiege', punkte: [[0, 100], [200, 100], [200, 650], [0, 650]] },
+      { art: 'aufzug', punkte: [[200, 445], [410, 445], [410, 650], [200, 650]] },
+    ],
+  }
+}
+const INNEN = [{ gebaeudeId: 'h5', x: -32.6, z: -51.0, drehung: 0, geschosse: [innenGeschoss(0), innenGeschoss(1)] }]
+/** Plan (cm) im Haus mit Plaenen -> lokal (m). */
+const planLokal = ([x, y]) => [-32.6 + x / 100, -51.0 + y / 100]
+const mitInnen = (wohnung, innen = INNEN) => ({ ...siedlung(wohnung), innen })
+
+function sichtbarAlle(o) {
+  for (let x = o; x; x = x.parent) if (!x.visible) return false
+  return true
+}
+/** Zeichenaufrufe: sichtbare Meshes mit sichtbarem Material. */
+function aufrufeVon(o) {
+  let n = 0
+  o.traverse((m) => {
+    if (m.isMesh && sichtbarAlle(m) && m.material.visible !== false) n++
+  })
+  return n
+}
+function dreieckeVon(o) {
+  let n = 0
+  o.traverse((m) => {
+    if (m.isMesh && m.material.visible !== false) n += dreiecke(m)
+  })
+  return n
+}
+const nachName = (w, name) => meshesVon(w.gruppe).find((m) => m.name === name) ?? null
+/** Bis zur Ruhe schritt() rufen (Bau der uebrigen Geschosse, Aufzug). */
+function ruhe(w, y = 1.6) {
+  let n = 0
+  while (w.schritt(1 / 60, y) && n < 5000) n++
+  return n
+}
+
+const INNEN_FAELLE = [
+  ['Innen, Wohnung im 1. OG', { grundrissId: 'g1', gebaeudeId: 'h5', geschoss: 1, x: -24, z: -50.96, drehung: 0 }, RAHMEN],
+  ['Innen, ohne Wohnung', null, null],
+  ['Innen, Wohnung in Haus 4', { grundrissId: 'g1', gebaeudeId: 'h4', geschoss: 3, x: 20, z: -72.5, drehung: 90 }, RAHMEN],
+  ['Innen, Wohnung im EG gedreht', { grundrissId: 'g1', gebaeudeId: 'h5', geschoss: 0, x: -6.5, z: -38.8, drehung: 180 }, RAHMEN],
+]
+
+function innenPruefen(name, wohnung, rahmen) {
+  const w = baueSiedlung({ siedlung: mitInnen(wohnung), farben: F, wohnungRahmen: rahmen })
+  w.gruppe.updateMatrixWorld(true)
+  const LG = w.gruppe.children.find((x) => x.name === 'siedlungLage')
+  /** Lokal (Meter, Hoehe lokal) -> Welt als Vector3. */
+  const welt3 = (p, y = 0) => new Vector3(p[0], y, p[1]).applyMatrix4(LG.matrixWorld)
+  /** Plan (cm) -> Welt (x, z). */
+  const plan = (p) => {
+    const v = welt3(planLokal(p))
+    return [v.x, v.z]
+  }
+  const gh = 3
+  const g = wohnung ? wohnung.geschoss : 0
+  const E = w.ebenen
+
+  /* Ebenen: Boden, dann je Haus die Obergeschosse. */
+  const soll = [{ id: wohnung && g === 0 ? 'wohnung' : 'boden', name: 'EG', y: -g * gh }]
+  if (wohnung && wohnung.gebaeudeId !== 'h5') {
+    const h = HAEUSER.find((x) => x.id === wohnung.gebaeudeId)
+    for (let k = 1; k < h.geschosse; k++) soll.push({ id: k === g ? 'wohnung' : `${h.id}:${k}`, name: `${h.name} ${k}. OG`, y: (k - g) * gh })
+  }
+  soll.push({ id: wohnung && wohnung.gebaeudeId === 'h5' && g === 1 ? 'wohnung' : 'h5:1', name: 'Haus 5 1. OG', y: (1 - g) * gh })
+  wahr(
+    `${name}: Ebenen ${E.map((e) => e.id).join(',')}`,
+    E.length === soll.length && soll.every((s, i) => E[i].id === s.id && E[i].name === s.name && Math.abs(E[i].y - s.y) < 1e-9),
+  )
+  const iOG = E.findIndex((e) => e.name === 'Haus 5 1. OG')
+  for (const e of E) {
+    wahr(`${name}: ${e.name} hat Hindernisse`, e.hindernisse.length > 0)
+    wahr(`${name}: ${e.name} Hindernisse gueltig`, e.hindernisse.every((h) => [h.x, h.z, h.laenge, h.tiefe, h.drehY].every(Number.isFinite) && h.laenge > 0 && h.tiefe > 0))
+  }
+
+  /* Waende im EG: gemeinsame nur einmal, Dicken, Luecken. */
+  const unten = E[0]
+  const bodenFrei = unten.id === 'boden'
+  if (bodenFrei) {
+    const bei = (p) => unten.hindernisse.filter((h) => abstandHindernis(h, ...plan(p)) < 1e-6)
+    const trenn = bei([1700, 250])
+    wahr(`${name}: Wand zwischen A und B einmal (${trenn.length})`, trenn.length === 1)
+    if (trenn[0]) nahe(`${name}: Wand zwischen Wohnungen 20 cm`, trenn[0].tiefe, 0.2, 1e-6)
+    const inner = bei([1300, 300])
+    wahr(`${name}: Wand in A einmal (${inner.length})`, inner.length === 1)
+    if (inner[0]) nahe(`${name}: Wand in der Wohnung 10 cm`, inner[0].tiefe, 0.1, 1e-6)
+    const aussen = bei([1000, 0])
+    wahr(`${name}: Aussenwand einmal (${aussen.length})`, aussen.length === 1)
+    if (aussen[0]) nahe(`${name}: Aussenwand 30 cm`, aussen[0].tiefe, 0.3, 1e-6)
+    wahr(`${name}: Fenster bleibt zu`, bei([800, 0]).length === 1)
+    wahr(`${name}: Durchgang offen`, bei([1300, 145]).length === 0)
+    wahr(`${name}: durch die Wohnungstuer`, wegFrei(unten, plan([1600, 520]), plan([1600, 780]), 0.23))
+    wahr(`${name}: durch die Tuer zum Zimmer`, wegFrei(unten, plan([1600, 520]), plan([1600, 250]), 0.23))
+    wahr(`${name}: vom Bad nicht in den Gang`, !wegFrei(unten, plan([1400, 520]), plan([1400, 780]), 0.23))
+    wahr(`${name}: vom Garten durch die Haustuer`, wegFrei(unten, plan([-250, 775]), plan([300, 775]), 0.23))
+    wahr(`${name}: Stiege zu`, !frei(unten, ...plan([100, 300]), 0.1))
+    wahr(`${name}: in den Aufzug`, wegFrei(unten, plan([305, 800]), plan([305, 560]), 0.23))
+  }
+  // Gelaender am Balkon im 1. OG (nicht im EG).
+  wahr(`${name}: Gelaender am Balkon`, !frei(E[iOG], ...plan([2100, -140]), 0.02))
+
+  /* Erst kamera() baut, und nur im Haus. */
+  const innenMeshes = () => meshesVon(w.gruppe).filter((m) => /^innen:h5:|^innenGlas:h5$|^kabine:h5$|^aufzugTueren:h5$/.test(m.name))
+  const huelle = nachName(w, 'huelle:h5')
+  wahr(`${name}: vor kamera() nichts innen`, innenMeshes().length === 0 && !!huelle && huelle.visible)
+  const draussenW = welt3([40, 40], 1.6)
+  w.kamera(draussenW.x, draussenW.y, draussenW.z)
+  wahr(`${name}: kamera() draussen baut nichts`, innenMeshes().length === 0 && huelle.visible)
+  const imGang = welt3(planLokal([1600, 800]), 1.6)
+  w.kamera(imGang.x, imGang.y, imGang.z)
+  const gruppeH5 = w.gruppe.getObjectByName('innen:h5')
+  // kamera() baut nicht selbst: bis das Geschoss fertig ist, bleibt die Huelle.
+  wahr(`${name}: kamera() baut nicht im selben Bild`, innenMeshes().length === 0 && !!gruppeH5 && !gruppeH5.visible && huelle.visible)
+  const schritte = ruhe(w)
+  const stock0 = nachName(w, 'innen:h5:0')
+  const stock1 = nachName(w, 'innen:h5:1')
+  wahr(`${name}: schritt() baut alles (${schritte})`, !!stock0 && !!stock1)
+  wahr(`${name}: innen sichtbar, Huelle weg`, gruppeH5.visible && !huelle.visible)
+  // Reihenfolge: das Geschoss der Kamera, dann Glas und Aufzug, dann der Rest.
+  const reihe = gruppeH5.children.map((x) => x.name)
+  wahr(
+    `${name}: Geschoss der Kamera zuerst (${reihe.join(',')})`,
+    reihe.indexOf('innen:h5:0') === 0 && reihe.indexOf('innenGlas:h5') > 0 && reihe.indexOf('innenGlas:h5') < reihe.indexOf('innen:h5:1'),
+  )
+  w.kamera(Number.NaN, Number.NaN, Number.NaN)
+  wahr(`${name}: kamera(NaN): nur Huellen`, !gruppeH5.visible && huelle.visible)
+  const hoch = welt3(planLokal([1600, 800]), 60)
+  w.kamera(hoch.x, hoch.y, hoch.z)
+  wahr(`${name}: hoch ueber dem Dach: Huelle`, !gruppeH5.visible && huelle.visible)
+  w.kamera(imGang.x, imGang.y, imGang.z)
+  wahr(`${name}: wieder drin, nichts neu gebaut`, gruppeH5.visible && nachName(w, 'innen:h5:0') === stock0 && nachName(w, 'innen:h5:1') === stock1)
+  w.gruppe.updateMatrixWorld(true)
+
+  /* Menge: je Haus unter 120 000 Dreiecken und 12 Zeichenaufrufen. */
+  const tris = dreieckeVon(gruppeH5)
+  const auf = aufrufeVon(gruppeH5)
+  wahr(`${name}: Haus innen ${tris} Dreiecke, ${auf} Zeichenaufrufe`, tris < 120000 && auf < 12)
+  for (const m of meshesVon(gruppeH5)) {
+    wahr(`${name}: ${m.name} Lage endlich`, m.geometry.attributes.position.array.every(Number.isFinite))
+    if (m.material.visible === false) continue
+    const col = m.geometry.attributes.color
+    wahr(`${name}: ${m.name} Eckfarben`, !!col && col.count === m.geometry.attributes.position.count && m.material.vertexColors === true)
+  }
+
+  /* Fenster: Bruestung 90 cm, darueber offen (Glas eigenes Mesh), Sturz. */
+  if (bodenFrei) {
+    const strahl = new Raycaster()
+    const trifft = (mesh, von, nach, y, weit) => {
+      const a = welt3(planLokal(von), y)
+      const b = welt3(planLokal(nach), y)
+      strahl.set(a, b.sub(a).normalize())
+      strahl.far = weit
+      return strahl.intersectObject(mesh, false).length > 0
+    }
+    const glas = nachName(w, 'innenGlas:h5')
+    wahr(`${name}: unter dem Fenster Wand`, trifft(stock0, [800, 100], [800, -100], 0.5, 1.5))
+    wahr(`${name}: Fensterbank bis 90 cm`, trifft(stock0, [800, 100], [800, -100], 0.86, 1.5))
+    wahr(`${name}: ueber der Bruestung offen`, !trifft(stock0, [800, 100], [800, -100], 0.98, 1.5) && !trifft(stock0, [800, 100], [800, -100], 1.6, 1.5))
+    wahr(`${name}: im Fenster Glas`, !!glas && trifft(glas, [800, 100], [800, -100], 1.6, 1.5))
+    wahr(`${name}: Sturz ueber dem Fenster`, trifft(stock0, [800, 100], [800, -100], 2.4, 1.5))
+    wahr(`${name}: Wohnungstuer offen`, !trifft(stock0, [1600, 800], [1600, 500], 1.0, 2.5))
+    wahr(`${name}: Sturz ueber der Tuer`, trifft(stock0, [1600, 800], [1600, 500], 2.25, 2.5))
+    wahr(`${name}: Trennwand ohne Tuer`, trifft(stock0, [1600, 200], [1800, 200], 1.0, 2.5))
+  }
+
+  /* Die eigene Wohnung nicht doppelt: kein Dreieck in ihrem Kasten, und
+   * die Wohnung A im 1. OG faellt im Fall 1 ganz weg (auch ausserhalb). */
+  if (wohnung && rahmen) {
+    const haus = HAEUSER.find((h) => h.id === wohnung.gebaeudeId)
+    const drin = inWohnung(meshesVon(w.gruppe), rahmen, haus.geschossHoehe)
+    wahr(`${name}: kein Dreieck in der Wohnung, auch innen (${drin})`, drin === 0)
+  }
+  const inA = (mesh, y0, y1) => {
+    let n = 0
+    const p = mesh.geometry.attributes.position
+    const v = new Vector3()
+    // Westwand von A und davor, ausserhalb der Aussparung der Wohnung.
+    const [x0, z0] = planLokal([640, 10])
+    const [x1, z1] = planLokal([800, 590])
+    for (let i = 0; i < p.count; i += 3) {
+      let cx = 0
+      let cy = 0
+      let cz = 0
+      for (let j = 0; j < 3; j++) {
+        v.fromBufferAttribute(p, i + j)
+        cx += v.x / 3
+        cy += v.y / 3
+        cz += v.z / 3
+      }
+      if (cx > x0 && cx < x1 && cz > z0 && cz < z1 && cy > y0 && cy < y1) n++
+    }
+    return n
+  }
+  const aOben = inA(stock1, 3.05, 5.6)
+  const aUnten = inA(stock0, 0.05, 2.6)
+  if (wohnung && wohnung.gebaeudeId === 'h5' && g === 1) wahr(`${name}: Wohnung A im 1. OG weg (${aOben}), im EG da (${aUnten})`, aOben === 0 && aUnten > 0)
+  else wahr(`${name}: Wohnung A in beiden Geschossen (${aOben}, ${aUnten})`, aOben > 0 && aUnten > 0)
+
+  /* Sprungziele: je Wohnung vor ihrer Tuer, mit Blick zur Tuer. */
+  const S = w.sprungziele
+  const gier = (von, nach) => {
+    const a = welt3(planLokal(von))
+    const b = welt3(planLokal(nach))
+    return Math.atan2(-(b.x - a.x), -(b.z - a.z))
+  }
+  const winkel = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)))
+  const wohnungen = [
+    ['X01, EG', 0, [1600, 650]],
+    ['X02, EG', 0, [2350, 650]],
+    ['X11, 1. OG', iOG, [1600, 650]],
+    ['X12, 1. OG', iOG, [2350, 650]],
+  ]
+  for (const [n, e, tuer] of wohnungen) {
+    const s = S.filter((x) => x.name === n)
+    wahr(`${name}: Sprungziel ${n} einmal`, s.length === 1)
+    if (!s[0]) continue
+    const [x, z] = plan([tuer[0], tuer[1] + 80])
+    wahr(`${name}: Sprungziel ${n} auf Ebene ${s[0].ebene}`, s[0].ebene === e)
+    nahe(`${name}: Sprungziel ${n} x`, s[0].x, x, 1e-6)
+    nahe(`${name}: Sprungziel ${n} z`, s[0].z, z, 1e-6)
+    nahe(`${name}: Sprungziel ${n} Blick zur Tuer`, winkel(s[0].gier, gier([tuer[0], tuer[1] + 80], tuer)), 0, 1e-6)
+    wahr(`${name}: Sprungziel ${n} frei`, frei(E[s[0].ebene], s[0].x, s[0].z, 0.2))
+  }
+  const haus5 = S.filter((x) => x.name === 'Eingang Haus 5')
+  wahr(`${name}: Sprungziel vor der Haustuer`, haus5.length === 1 && haus5[0].ebene === 0 && frei(E[0], haus5[0].x, haus5[0].z, 0.2))
+  if (haus5[0] && bodenFrei) wahr(`${name}: von der Haustuer in den Gang`, wegFrei(E[0], [haus5[0].x, haus5[0].z], plan([1300, 775]), 0.23))
+  const eingaenge = S.filter((x) => x.name.startsWith('Eingang '))
+  wahr(`${name}: Sprungziele: 4 Wohnungen, ${eingaenge.length} Haustueren, Spielplatz (${S.length})`, S.length === 4 + eingaenge.length + 1 && eingaenge.length === 5)
+
+  /* Aufzug in Haus 5: Kabine, Knoepfe je Geschoss, fahrt() meldet den
+   * Index der Ziel-Ebene, aufzugZiel() genau einmal. */
+  const I = w.interaktiv
+  const kabineH5 = nachName(w, 'kabine:h5')
+  wahr(`${name}: Kabine in Haus 5`, !!I && !!kabineH5)
+  if (I && kabineH5) {
+    const ruf = (k) => I.objekte.find((o) => o.name === `aufzugRuf:h5:${k}`)
+    const fahre = (k) => I.objekte.find((o) => o.name === `aufzugFahre:h5:${k}`)
+    wahr(`${name}: Knoepfe je Geschoss`, !!ruf(0) && !!ruf(1) && !!fahre(0) && !!fahre(1))
+    wahr(`${name}: Knoepfe zeigen ihre Ebene`, fahre(1).userData.ebene === iOG && fahre(0).userData.ebene === 0 && fahre(1).userData.geschoss === 1)
+    wahr(`${name}: Rufknopf nur im Geschoss der Kamera`, sichtbarAlle(ruf(0)) && !sichtbarAlle(ruf(1)))
+    // In die Kabine (am Geschoss, an dem sie steht).
+    const start = wohnung && wohnung.gebaeudeId === 'h5' ? g : 0
+    const ziel = start === 0 ? 1 : 0
+    const mitte = welt3(planLokal([305, 545]), start * gh + 1.6)
+    w.kamera(mitte.x, mitte.y, mitte.z)
+    const r = w.kabine
+    wahr(`${name}: Kamera in der Kabine`, !!r && mitte.x > r[0] && mitte.x < r[2] && mitte.z > r[1] && mitte.z < r[3])
+    wahr(`${name}: anfangs keine Fahrt`, w.fahrt() === null && aufzugZiel(w) === null)
+    const farbeVorher = Float32Array.from(kabineH5.geometry.attributes.color.array)
+    I.tippen(fahre(ziel))
+    let anders = 0
+    const farbeNach = kabineH5.geometry.attributes.color.array
+    for (let i = 0; i < farbeNach.length; i++) if (Math.abs(farbeNach[i] - farbeVorher[i]) > 1e-6) anders++
+    wahr(`${name}: gedrueckter Knopf leuchtet (${anders})`, anders > 0)
+    const zielE = ziel === 1 ? iOG : 0
+    const f0 = w.fahrt()
+    wahr(`${name}: fahrt() meldet den Index der Ziel-Ebene (${f0 && f0.ziel})`, !!f0 && f0.ziel === zielE)
+    // Fahren wie der Motor: die Kamera faehrt mit.
+    const ank = []
+    const ys = []
+    for (let i = 0; i < 4000; i++) {
+      const weiter = w.schritt(1 / 60, mitte.y)
+      const f = w.fahrt()
+      if (f) {
+        ys.push(f.y)
+        w.kamera(mitte.x, f.y + 1.6, mitte.z)
+        if (f.ziel !== zielE) wahr(`${name}: Ziel bleibt`, false)
+      }
+      const a = aufzugZiel(w)
+      if (a !== null) ank.push(a)
+      if (!weiter) break
+    }
+    wahr(`${name}: genau eine Ankunft (${ank})`, ank.length === 1 && ank[0] === zielE)
+    nahe(`${name}: Fahrt beginnt auf der Ebene`, ys[0], E[start === 0 ? 0 : iOG].y, 1e-9)
+    nahe(`${name}: Fahrt endet auf der Ebene`, ys[ys.length - 1], E[zielE].y, 1e-9)
+    kabineH5.updateMatrixWorld(true)
+    const v = new Vector3()
+    kabineH5.getWorldPosition(v)
+    nahe(`${name}: Kabine am Ziel`, v.y, E[zielE].y, 1e-9)
+    let zurueck = 0
+    for (let i = 0; i < farbeNach.length; i++) if (Math.abs(farbeNach[i] - farbeVorher[i]) > 1e-6) zurueck++
+    wahr(`${name}: Knopf wieder aus`, zurueck === 0)
+    // Ausserhalb der Kabine meldet fahrt() nichts.
+    w.kamera(imGang.x, imGang.y, imGang.z)
+    I.tippen(ruf(0))
+    wahr(`${name}: Fahrt ohne Kamera in der Kabine ist nicht ihre`, w.fahrt() === null)
+    ruhe(w)
+  }
+  // Der Aufzug am Laubengang des eigenen Hauses ohne Plaene: Ziel als Index.
+  if (wohnung && wohnung.gebaeudeId === 'h4') {
+    const fahreH4 = I.objekte.find((o) => o.name === 'aufzugFahre1')
+    const kab = nachName(w, 'kabine')
+    wahr(`${name}: Aufzug am Laubengang da`, !!fahreH4 && !!kab)
+    if (fahreH4 && kab) {
+      // Mitte der Kabine (Welt), dort steht die Kamera.
+      kab.updateMatrixWorld(true)
+      const c = kab.geometry.boundingSphere.center.clone().applyMatrix4(kab.matrixWorld)
+      w.kamera(c.x, 1.6, c.z)
+      I.tippen(fahreH4)
+      const f = w.fahrt()
+      wahr(`${name}: Laubengang: Ziel ist die Ebene ${f && f.ziel}`, !!f && f.ziel === E.findIndex((e) => e.id === 'h4:1'))
+      ruhe(w)
+    }
+  }
+  return w
+}
+
+const innenWelten = []
+for (const [name, wohnung, rahmen] of INNEN_FAELLE) innenWelten.push([name, innenPruefen(name, wohnung, rahmen)])
+
+// Gleiche Daten, gleiche Welt, auch innen.
+{
+  const [, wohnung, rahmen] = INNEN_FAELLE[0]
+  const bauen = () => {
+    const w = baueSiedlung({ siedlung: mitInnen(wohnung), farben: F, wohnungRahmen: rahmen })
+    const LG = w.gruppe.children.find((x) => x.name === 'siedlungLage')
+    w.gruppe.updateMatrixWorld(true)
+    const p = new Vector3(...[planLokal([1600, 800])].map(([x, z]) => [x, 1.6, z])[0]).applyMatrix4(LG.matrixWorld)
+    w.kamera(p.x, p.y, p.z)
+    ruhe(w)
+    return w
+  }
+  const a = bauen()
+  const b = bauen()
+  gleich('Innen', a, b)
+  wahr('Innen: gleiche Sprungziele', JSON.stringify(a.sprungziele) === JSON.stringify(b.sprungziele))
+  freigeben('Innen (a)', a)
+  freigeben('Innen (b)', b)
+}
+for (const [name, w] of innenWelten) {
+  freigeben(name, w)
+  w.kamera(0, 1.6, 0)
+  wahr(`${name}: nach dispose baut kamera() nichts`, w.gruppe.children.length === 0)
+}
+
+/* Ein grosses erfundenes Haus (Haus 4, fuenf Geschosse, je sechs Wohnungen
+ * mit sieben Raeumen, Loggien, Gaerten): Menge und Zeit je Bau-Schritt. */
+function grossesHaus() {
+  const geschosse = []
+  for (let k = 0; k < 5; k++) {
+    const wohnungen = []
+    for (let i = 0; i < 6; i++) {
+      const sued = i >= 3
+      const W = 690
+      const x0 = (i % 3) * W
+      // Nord: y 0..1000, Sued gespiegelt: y 2150..1150; der Gang dazwischen.
+      const Y = (y) => (sued ? 2150 - y : y)
+      const R = (xa, ya, xb, yb) => {
+        const p = [[x0 + xa, Y(ya)], [x0 + xb, Y(ya)], [x0 + xb, Y(yb)], [x0 + xa, Y(yb)]]
+        return sued ? p.reverse() : p
+      }
+      const raeume = [
+        { name: 'Wohnkueche', art: 'innen', punkte: R(0, 0, W, 450) },
+        { name: 'Zimmer', art: 'innen', punkte: R(0, 450, W / 2, 800) },
+        { name: 'Zimmer', art: 'innen', punkte: R(W / 2, 450, W, 800) },
+        { name: 'Bad', art: 'innen', punkte: R(0, 800, 230, 1000) },
+        { name: 'WC', art: 'innen', punkte: R(230, 800, 370, 1000) },
+        { name: 'VR', art: 'innen', punkte: R(370, 800, W, 1000) },
+        k === 0 ? { name: 'Garten', art: 'draussen', punkte: R(0, -400, W, 0) } : { name: 'Loggia', art: 'draussen', punkte: R(0, -150, W, 0) },
+      ]
+      // Kanten: Index 0 laeuft entlang ya (Nordseite bei Nord-Wohnungen).
+      const vorn = sued ? 2 : 0
+      const hinten = sued ? 0 : 2
+      const oeffnungen = [
+        oeff(0, 'fenster', vorn, 380, 160),
+        oeff(0, 'tuer', vorn, 150, 100, { aufschlag: 'aussen' }),
+        oeff(1, 'fenster', 3, 120, 140),
+        oeff(2, 'fenster', 1, 120, 140),
+        oeff(5, 'tuer', hinten, 120, 100),
+        oeff(5, 'tuer', vorn, 60, 80),
+        oeff(5, 'durchgang', vorn, 200, 90),
+        oeff(3, 'tuer', 1, 40, 80),
+        oeff(4, 'tuer', 1, 40, 70),
+        oeff(1, 'tuer', 1, 260, 80),
+      ]
+      const moebel = [
+        { name: 'Kuechenzeile', x: x0 + 350, y: Y(sued ? 66 : 6), breite_cm: 300, tiefe_cm: 60, drehung: 0 },
+        { name: 'Badewanne', x: x0 + 5, y: Y(sued ? 995 : 805), breite_cm: 170, tiefe_cm: 75, drehung: 0 },
+        { name: 'Waschbecken', x: x0 + 180, y: Y(sued ? 995 : 950), breite_cm: 60, tiefe_cm: 45, drehung: 0 },
+        { name: 'WC', x: x0 + 260, y: Y(sued ? 995 : 940), breite_cm: 40, tiefe_cm: 55, drehung: 0 },
+        { name: 'Waschbecken', x: x0 + 300, y: Y(sued ? 870 : 810), breite_cm: 45, tiefe_cm: 35, drehung: 0 },
+        { name: 'Waschmaschine', x: x0 + 620, y: Y(sued ? 995 : 935), breite_cm: 60, tiefe_cm: 60, drehung: 0 },
+      ]
+      wohnungen.push({ top: `G${k}${i}`, typ: 'G', raeume, oeffnungen, moebel, eingang: [x0 + 520, sued ? 1140 : 1010] })
+    }
+    geschosse.push({
+      geschoss: k,
+      wohnungen,
+      allgemein: [
+        { art: 'gang', punkte: [[0, 1000], [2070, 1000], [2070, 1150], [0, 1150]] },
+        { art: 'stiege', punkte: [[2070, 900], [2270, 900], [2270, 1450], [2070, 1450]] },
+        { art: 'aufzug', punkte: [[2070, 1450], [2280, 1450], [2280, 1655], [2070, 1655]] },
+      ],
+    })
+  }
+  return { gebaeudeId: 'h4', x: 4.5, z: -72.6, drehung: 0, geschosse }
+}
+{
+  // Dreimal bauen und je Schritt die kuerzeste Zeit nehmen: so zaehlt die
+  // Arbeit selbst, nicht, ob der Rechner gerade anderes tut.
+  const DATEN = mitInnen(null, [INNEN[0], grossesHaus()])
+  const laeufe = []
+  let w = null
+  for (let lauf = 0; lauf < 3; lauf++) {
+    if (w) freigeben(`Grosses Haus (${lauf})`, w)
+    w = baueSiedlung({ siedlung: DATEN, farben: F, wohnungRahmen: null })
+    w.gruppe.updateMatrixWorld(true)
+    const LG = w.gruppe.children.find((x) => x.name === 'siedlungLage')
+    const p = new Vector3(4.5 + 10, 1.6, -72.6 + 10.75).applyMatrix4(LG.matrixWorld)
+    const zeiten = []
+    let t = performance.now()
+    w.kamera(p.x, p.y, p.z)
+    zeiten.push(performance.now() - t)
+    for (let i = 0; i < 200; i++) {
+      t = performance.now()
+      const weiter = w.schritt(1 / 60, p.y)
+      zeiten.push(performance.now() - t)
+      if (!weiter) break
+    }
+    laeufe.push(zeiten)
+  }
+  const n = Math.min(...laeufe.map((z) => z.length))
+  const kuerzest = Array.from({ length: n }, (_, i) => Math.min(...laeufe.map((z) => z[i])))
+  const langsam = Math.max(...kuerzest)
+  const gruppe = w.gruppe.getObjectByName('innen:h4')
+  const stock = meshesVon(gruppe).filter((m) => m.name.startsWith('innen:h4:'))
+  const tris = dreieckeVon(gruppe)
+  const auf = aufrufeVon(gruppe)
+  wahr(`Grosses Haus: alle fuenf Geschosse gebaut (${stock.length})`, stock.length === 5)
+  wahr(`Grosses Haus: ${tris} Dreiecke, ${auf} Zeichenaufrufe`, tris < 120000 && auf < 12)
+  wahr(`Grosses Haus: laengster Bau-Schritt ${langsam.toFixed(1)} ms`, langsam < 30)
+  wahr(`Grosses Haus: kamera() baut nicht (${kuerzest[0].toFixed(2)} ms)`, kuerzest[0] < 2)
+  wahr(`Grosses Haus: Sprungziele (${w.sprungziele.length})`, w.sprungziele.filter((s) => /^G\d\d, /.test(s.name)).length === 30)
+  wahr(`Grosses Haus: Ebenen (${w.ebenen.length})`, w.ebenen.length === 1 + 4 + 1)
+  console.log(`  grosses Haus: ${tris} Dreiecke, ${auf} Zeichenaufrufe, ${n - 1} Bau-Schritte, der laengste ${langsam.toFixed(1)} ms`)
+  freigeben('Grosses Haus', w)
+}
+
+// Eine Halle, in der Stiege und Aufzug stehen (der Gang umfasst beide):
+// ueber dem Schacht kein Boden, in der Halle keine Wand um die Stiege.
+{
+  const halle = (k) => {
+    const g = innenGeschoss(k)
+    return { ...g, allgemein: [{ art: 'gang', punkte: [[0, 100], [700, 100], [700, 650], [2700, 650], [2700, 900], [0, 900]] }, ...g.allgemein.slice(1)] }
+  }
+  const w = baueSiedlung({ siedlung: mitInnen(null, [{ ...INNEN[0], geschosse: [halle(0), halle(1)] }]), farben: F, wohnungRahmen: null })
+  w.gruppe.updateMatrixWorld(true)
+  const LG = w.gruppe.children.find((x) => x.name === 'siedlungLage')
+  const welt3 = (p, y) => new Vector3(...planLokal(p).flatMap((v, i) => (i === 0 ? [v, y] : [v]))).applyMatrix4(LG.matrixWorld)
+  const im = welt3([500, 500], 4.6)
+  w.kamera(im.x, im.y, im.z)
+  ruhe(w)
+  w.gruppe.updateMatrixWorld(true)
+  const stock1 = nachName(w, 'innen:h5:1')
+  const strahl = new Raycaster()
+  const runter = (p) => {
+    const a = welt3(p, 4.0)
+    strahl.set(a, new Vector3(0, -1, 0))
+    strahl.far = 1.5
+    return !!stock1 && strahl.intersectObject(stock1, false).length > 0
+  }
+  wahr('Halle: im 1. OG gebaut', !!stock1)
+  wahr('Halle: Boden in der Halle', runter([550, 300]))
+  wahr('Halle: ueber dem Schacht kein Boden', !runter([305, 545]))
+  const E = w.ebenen
+  const og = E.find((e) => e.id === 'h5:1')
+  const plan = (p) => {
+    const v = welt3(p, 0)
+    return [v.x, v.z]
+  }
+  wahr('Halle: Stiege zu, Halle frei', !frei(og, ...plan([100, 300]), 0.05) && frei(og, ...plan([550, 300]), 0.23))
+  // Die Tuer zeigt in die Halle (nicht zur Stiege): von Osten hinein.
+  wahr('Halle: in den Aufzug', wegFrei(og, plan([620, 547]), plan([330, 547]), 0.23))
+  wahr('Halle: nicht von der Stiege her', !wegFrei(og, plan([305, 800]), plan([305, 560]), 0.23))
+  freigeben('Halle', w)
+}
+
+// Unsinnige Plaene werfen laut.
+{
+  const g0 = innenGeschoss(0)
+  const mit = (aenderung) => mitInnen(null, [{ ...INNEN[0], ...aenderung }])
+  const wohnungMit = (w) => ({ geschosse: [{ ...g0, wohnungen: [{ ...g0.wohnungen[0], ...w }, g0.wohnungen[1]] }] })
+  wirft('innen: unbekanntes Haus', mit({ gebaeudeId: 'gibt-es-nicht' }), null)
+  wirft('innen: doppelt', mitInnen(null, [INNEN[0], INNEN[0]]), null)
+  wirft('innen: Drehung 45', mit({ drehung: 45 }), null)
+  wirft('innen: Lage NaN', mit({ x: Number.NaN }), null)
+  wirft('innen: Geschoss zu hoch', mit({ geschosse: [{ ...g0, geschoss: 4 }] }), null)
+  wirft('innen: Geschoss doppelt', mit({ geschosse: [g0, g0] }), null)
+  wirft('innen: Raum mit zwei Punkten', mit(wohnungMit({ raeume: [{ name: 'Zimmer', art: 'innen', punkte: [[0, 0], [100, 0]] }] })), null)
+  wirft('innen: Raum ohne Art', mit(wohnungMit({ raeume: [{ name: 'Zimmer', art: 'oben', punkte: [[0, 0], [100, 0], [100, 100]] }] })), null)
+  wirft('innen: Oeffnung an einer Kante, die es nicht gibt', mit(wohnungMit({ oeffnungen: [oeff(0, 'tuer', 7, 10, 80)] })), null)
+  wirft('innen: Oeffnung in einem Raum, den es nicht gibt', mit(wohnungMit({ oeffnungen: [oeff(9, 'tuer', 0, 10, 80)] })), null)
+  wirft('innen: Oeffnung NaN', mit(wohnungMit({ oeffnungen: [oeff(0, 'tuer', 0, Number.NaN, 80)] })), null)
+  wirft('innen: Moebel gedreht 45', mit(wohnungMit({ moebel: [{ name: 'WC', x: 0, y: 0, breite_cm: 40, tiefe_cm: 50, drehung: 45 }] })), null)
+  wirft('innen: allgemein unbekannt', mit({ geschosse: [{ ...g0, allgemein: [{ art: 'keller', punkte: [[0, 0], [100, 0], [100, 100]] }] }] }), null)
+  wirft('innen: keine Liste', { ...siedlung(null), innen: { a: 1 } }, null)
+}
+
 
 if (fehler) {
   console.log(`${fehler} Abweichung(en)`)

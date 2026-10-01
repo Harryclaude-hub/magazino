@@ -163,4 +163,24 @@ export const siedlungWoerter: Woerterbuch = {
   'siedlung.ebene_jetzt': { de: 'Du bist hier: {name}', ar: 'أنت هنا: {name}' },
   'siedlung.haus_stock': { de: '{haus}, {stock}', ar: '{haus}، {stock}' },
   'siedlung.aufzug': { de: 'Aufzug: Stockwerk wählen', ar: 'المصعد: اختر الطابق' },
+
+  // ------------------------------------------- Liste der Wohnungen (E84)
+  'siedlung.wohnungen': { de: 'Wohnungen', ar: 'الشقق' },
+  'siedlung.wohnungen_hilfe': {
+    de: 'Alle Wohnungen der Siedlung: antippen und hingehen',
+    ar: 'كل شقق المجمّع: اضغط وانتقل إليها',
+  },
+  'siedlung.wohnungen_laedt': { de: 'Die Häuser werden noch gebaut', ar: 'لا يزال بناء المباني جاريًا' },
+  'siedlung.wohnungen_suchen': { de: 'Nach Top suchen, etwa 12', ar: 'ابحث برقم الشقة، مثلًا 12' },
+  'siedlung.wohnungen_leer': {
+    de: 'In dieser Siedlung gibt es noch keine Wohnungen zum Hingehen.',
+    ar: 'لا توجد في هذا المجمّع شقق يمكن الانتقال إليها بعد.',
+  },
+  'siedlung.wohnungen_keine_treffer': { de: 'Keine Wohnung passt zu „{suche}“.', ar: 'لا توجد شقة تطابق «{suche}».' },
+  'siedlung.springen_hinweis': {
+    de: 'Tipp auf eine Wohnung, dann gehst du dort weiter.',
+    ar: 'اضغط على شقة لتتابع التجوّل من هناك.',
+  },
+  'siedlung.springen': { de: 'Hingehen', ar: 'انتقال' },
+  'siedlung.springen_zu': { de: 'Zu {name} gehen', ar: 'الانتقال إلى {name}' },
 }
