@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Bell, BellOff, LogOut, ShieldCheck } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
+import { AvatarEditor } from '../components/AvatarEditor'
 import { InstallCard } from '../components/InstallCard'
 import { ALLE_DESIGNS, MODE_KEY, useTheme } from '../components/ThemeToggle'
 import { SpracheWahl } from '../components/SpracheToggle'
@@ -181,6 +182,9 @@ export default function Settings() {
               </Button>
             </div>
           </Field>
+
+          {/* Figur in der 3D-Wohnung (E82), gleich unter dem Namen. */}
+          <AvatarEditor />
         </Card>
 
         {/* Sicherheit */}

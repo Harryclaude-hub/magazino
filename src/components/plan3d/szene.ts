@@ -11,9 +11,21 @@
  * Entschieden wird hier nichts, gezeigt wird, was grundriss_laden liefert.
  */
 import { flaeche2, objektGlobal, objektRechtecke, punktImPolygon, wandStuecke, zuUmriss, type Punkt } from '../../lib/geometrie.ts'
-import { flaecheQm, innenNormale, innenPunkt, kisteAusdehnung, oeffnungPunkte, spaltenBereich, streckenAbstand, symbolAnWand } from '../plan/hilfe.ts'
-import type { GrundrissDaten, Objekt, Raum } from '../../lib/types'
-import { moebelArt } from '../plan/moebelArt.ts'
+import {
+  autoSchalter,
+  flaecheQm,
+  inOeffnung,
+  innenNormale,
+  innenPunkt,
+  kisteAusdehnung,
+  oeffnungPunkte,
+  oeffnungsLoecher,
+  spaltenBereich,
+  streckenAbstand,
+  symbolAnWand,
+} from '../plan/hilfe.ts'
+import type { GrundrissDaten, Objekt, PlanKiste, Raum } from '../../lib/types'
+import { istDeko, moebelArt, type MoebelArt } from '../plan/moebelArt.ts'
 import { moebelTeile, ton, type Teil } from './moebel3d.ts'
 
 /** Die Farben, die die Szene braucht. Raum3D liest sie aus den Tokens. */
@@ -276,6 +288,18 @@ const SEITE_CM = 2
 
 const m = (cm: number) => cm / 100
 
+/** Massen der Tuerbeschlaege (E82), cm: Rosette 52 mm rund und 8 mm stark,
+ *  Klinke 125 mm lang und 18 mm stark, Achse 1050 mm ueber dem Boden und
+ *  65 mm vor der Schlosskante, Schluesselrosette 72 mm darunter. */
+const KLINKE_HOEHE_CM = 105
+const KLINKE_KANTE_CM = 6.5
+const KLINKE_LANG_CM = 12.5
+const KLINKE_DICK_CM = 1.8
+const ROSETTE_CM = 5.2
+const ROSETTE_DICK_CM = 0.8
+const SCHLOSS_UNTER_CM = 7.2
+const BESCHLAG_GLANZ = 0.85
+
 function quader(
   rolle: Rolle,
   mitte: Vec3,
@@ -342,6 +366,127 @@ function aufRand(r: Pick<Raum, 'punkte'>, p: Punkt): boolean {
 
 /** Hoehe des Balkongelaenders in cm (Oberkante Handlauf etwas darueber). */
 const GELAENDER_CM = 100
+/** Handlauf rund, 45 mm; Pfosten 40 x 40 mm, hoechstens 1,2 m auseinander. */
+const HANDLAUF_CM = 4.5
+const PFOSTEN_CM = 4
+const PFOSTEN_ABSTAND_CM = 120
+/** Glasfuellung zwischen den Pfosten (E82): das Hindernis. */
+const GLAS_DECKKRAFT = 0.22
+/** Balkonplatte und Dielen (E82), cm: Diele 14 breit im Raster 14,5
+ *  (5 mm Fuge), 2 hoch. */
+const PLATTE_CM = 16
+const DIELE_CM = 14
+const DIELE_RASTER_CM = 14.5
+const DIELE_HOCH_CM = 2
+
+/** Gelaender einer offenen Balkonseite a -> b (cm, E82): runde Pfosten aus
+ *  Metall, darauf ein runder Handlauf (Oberkante 104,5 cm), unten eine
+ *  Fussleiste, dazwischen Glas. Pfosten, Handlauf und Leiste ohne
+ *  Innenseite (innen null), damit der Motor sie rundet; das Glas mit
+ *  Innenseite wie eine Wand. Alles hat die Rolle Bruestung: man stoesst an. */
+function gelaender(a: Punkt, b: Punkt, innen: [number, number], f: Farben3D): Quader[] {
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+  if (l < 1) return []
+  const ux = (b[0] - a[0]) / l
+  const uy = (b[1] - a[1]) / l
+  const bei = (t: number): Punkt => [a[0] + ux * t, a[1] + uy * t]
+  const drehY = -Math.atan2(uy, ux)
+  const felder = Math.max(1, Math.ceil(l / PFOSTEN_ABSTAND_CM))
+  const schritt = l / felder
+  const out: Quader[] = []
+  for (let i = 0; i <= felder; i++) {
+    const p = bei(i * schritt)
+    out.push({
+      ...quader('bruestung', [m(p[0]), m(GELAENDER_CM / 2), m(p[1])], [m(PFOSTEN_CM), m(GELAENDER_CM), m(PFOSTEN_CM)], f.metall, { drehY }),
+      glanz: 0.75,
+      rund: m(0.6),
+    })
+  }
+  const lauf = streifen('bruestung', a, b, GELAENDER_CM, GELAENDER_CM + HANDLAUF_CM, HANDLAUF_CM, f.metall)
+  if (lauf) out.push({ ...lauf, glanz: 0.8, form: { art: 'zylinder', oben: 1, achse: 'x' } })
+  const fuss = streifen('bruestung', a, b, 6, 10, 3, f.metall)
+  if (fuss) out.push({ ...fuss, glanz: 0.75, rund: m(0.5) })
+  for (let i = 0; i < felder; i++) {
+    const glas = streifen('bruestung', bei(i * schritt + PFOSTEN_CM / 2), bei((i + 1) * schritt - PFOSTEN_CM / 2), 10, GELAENDER_CM - 1, 1, f.glas, {
+      deckkraft: GLAS_DECKKRAFT,
+      innen,
+    })
+    if (glas) out.push({ ...glas, glanz: 0.85 })
+  }
+  return out
+}
+
+/** Ein Grundriss-Umriss als Rechtecke (cm): Baender quer zur Richtung
+ *  laengs, je Band die Stuecke im Raum. Genau bei rechtwinkligen Raeumen,
+ *  sonst angenaehert (Mitte des Bands). laengs 0: Baender uebereinander
+ *  (y), Stuecke entlang x; laengs 1 umgekehrt. */
+function zerlegen(p: Punkt[], laengs: 0 | 1): { x0: number; x1: number; y0: number; y1: number }[] {
+  const q = laengs === 0 ? 1 : 0
+  const stufen = [...new Set(p.map((v) => v[q]))].sort((u, v) => u - v)
+  const out: { x0: number; x1: number; y0: number; y1: number }[] = []
+  for (let i = 0; i + 1 < stufen.length; i++) {
+    const q0 = stufen[i]
+    const q1 = stufen[i + 1]
+    if (q1 - q0 < 0.5) continue
+    const qm = (q0 + q1) / 2
+    const schnitte: number[] = []
+    for (let k = 0; k < p.length; k++) {
+      const s = p[k]
+      const e = p[(k + 1) % p.length]
+      if (s[q] > qm !== e[q] > qm) schnitte.push(s[laengs] + ((qm - s[q]) * (e[laengs] - s[laengs])) / (e[q] - s[q]))
+    }
+    schnitte.sort((u, v) => u - v)
+    for (let k = 0; k + 1 < schnitte.length; k += 2) {
+      const l0 = schnitte[k]
+      const l1 = schnitte[k + 1]
+      if (l1 - l0 < 0.5) continue
+      out.push(laengs === 0 ? { x0: l0, x1: l1, y0: q0, y1: q1 } : { x0: q0, x1: q1, y0: l0, y1: l1 })
+    }
+  }
+  return out
+}
+
+/** Boden eines Balkons (E82): eine Betonplatte, 16 cm stark, ueber den
+ *  Rand hinaus sichtbar (Oberkante knapp unter dem Boden, damit der
+ *  Boden in den Fugen zu sehen ist), darauf Holzdielen, 14 cm breit, 5 mm
+ *  Fuge, 2 cm hoch, entlang der langen Seite. Rolle Boden: kein Hindernis. */
+function balkonBoden(r: Raum, f: Farben3D): Quader[] {
+  const xs = r.punkte.map((v) => v[0])
+  const ys = r.punkte.map((v) => v[1])
+  const laengs: 0 | 1 = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys) ? 0 : 1
+  const stuecke = zerlegen(r.punkte, laengs)
+  const out: Quader[] = []
+  const platte = ton(f.fassade, 0.9)
+  const RAND = 6
+  for (const s of stuecke) {
+    out.push(
+      quader(
+        'boden',
+        [m((s.x0 + s.x1) / 2), -0.005 - m(PLATTE_CM) / 2, m((s.y0 + s.y1) / 2)],
+        [m(s.x1 - s.x0 + 2 * RAND), m(PLATTE_CM), m(s.y1 - s.y0 + 2 * RAND)],
+        platte,
+        { kante: ton(platte, 0.75) },
+      ),
+    )
+  }
+  // Dielen im festen Raster ab der Raumkante, damit sie ueber alle Stuecke fluchten.
+  const start = laengs === 0 ? Math.min(...ys) : Math.min(...xs)
+  const toene = r.bodenfarbe ? [r.bodenfarbe, ton(r.bodenfarbe, 0.95), ton(r.bodenfarbe, 1.05)] : [1.2, 1.25, 1.3].map((k) => ton(ton(f.holz, 0.62), k))
+  for (const s of stuecke) {
+    const q0 = laengs === 0 ? s.y0 : s.x0
+    const q1 = laengs === 0 ? s.y1 : s.x1
+    for (let k = Math.floor((q0 - start) / DIELE_RASTER_CM); start + k * DIELE_RASTER_CM < q1; k++) {
+      const a = Math.max(q0, start + k * DIELE_RASTER_CM)
+      const e = Math.min(q1, start + k * DIELE_RASTER_CM + DIELE_CM)
+      if (e - a < 1) continue
+      const [x0, x1, y0, y1] = laengs === 0 ? [s.x0, s.x1, a, e] : [a, e, s.y0, s.y1]
+      out.push(
+        quader('boden', [m((x0 + x1) / 2), m(DIELE_HOCH_CM / 2), m((y0 + y1) / 2)], [m(x1 - x0), m(DIELE_HOCH_CM), m(y1 - y0)], toene[((k % 3) + 3) % 3]),
+      )
+    }
+  }
+  return out
+}
 
 /** Liegt p (Mitte eines Wandstuecks) an einer Kante eines anderen Raums
  *  (bis 45 cm, also in derselben dicken Wand)? Dann ist es eine echte Wand. */
@@ -388,11 +533,9 @@ function waende(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: stri
     const farbe = s.farbe ?? f.wand3d
     const H = r.hoehe_cm
     if (r.art === 'draussen' && !s.dicke && !anderemRaumNah(raeume, r, mitte)) {
-      // Offene Seite eines Balkons (E69): Glasgelaender mit Handlauf statt Wand.
-      const glas = streifen('bruestung', a, b, 4, GELAENDER_CM, 2, f.glas, { deckkraft: 0.28, kante: f.metall, innen })
-      const lauf = streifen('bruestung', a, b, GELAENDER_CM, GELAENDER_CM + 5, 6, f.metall, { innen })
-      const fuss = streifen('bruestung', a, b, 0, 4, 6, f.metall, { innen })
-      for (const q of [glas, lauf, fuss]) if (q) out.push({ ...q, glanz: q === glas ? 0.85 : 0.75 })
+      // Offene Seite eines Balkons: Gelaender statt Wand (E69, E82). Ohne
+      // Verlaengerung an den Ecken: dort steht ein Pfosten.
+      out.push(...gelaender(s.a, s.b, innen, f))
       continue
     }
     const wand = streifen('wand', a, b, 0, H - KOPF_CM, dicke, farbe, { kante: s.dicke ? null : f.wandKante, innen })
@@ -439,31 +582,38 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
       dazu(streifen('zarge', bei(0), bei(z), 0, th, WAND_CM + 2, f.zarge3d, { kante: f.wandKante, innen }))
       dazu(streifen('zarge', bei(l - z), bei(l), 0, th, WAND_CM + 2, f.zarge3d, { kante: f.wandKante, innen }))
       dazu(streifen('zarge', a, b, Math.max(0, th - z), th, WAND_CM + 2, f.zarge3d, { kante: f.wandKante, innen }))
-      // Blatt: an der Angel, 25 Grad offen zur Aufschlagseite.
+      // Blatt: an der Angel, beschrieben in der Stellung zu (E82, TuerDreh):
+      // entlang der Wand zur anderen Zarge. Der Motor oeffnet es (anfangs
+      // TUER_OFFEN_GRAD zur Aufschlagseite); ganz offen steht es quer zur Wand.
       const rechts = o.anschlag === 'rechts'
       const angel: Punkt = rechts ? bei(l - z) : bei(z)
       const gx = rechts ? -ux : ux
       const gy = rechts ? -uy : uy
       const seite = o.aufschlag === 'aussen' ? -1 : 1
-      const w = (TUER_OFFEN_GRAD * Math.PI) / 180
-      const dx = Math.cos(w) * gx + Math.sin(w) * seite * innen[0]
-      const dy = Math.cos(w) * gy + Math.sin(w) * seite * innen[1]
       const lang = Math.max(1, l - 2 * z)
-      const blatt = streifen('tuerblatt', angel, [angel[0] + dx * lang, angel[1] + dy * lang], 0, Math.max(1, th - z), BLATT_CM, f.tuer3d, {
+      const blatt = streifen('tuerblatt', angel, [angel[0] + gx * lang, angel[1] + gy * lang], 0, Math.max(1, th - z), BLATT_CM, f.tuer3d, {
         kante: f.zarge3d,
         innen,
       })
       if (blatt) {
-        // Zu: entlang der Wand zur anderen Zarge. Ganz offen: quer zur Wand.
-        blatt.tuer = {
+        const dreh: TuerDreh = {
           id: o.id,
           angel: [m(angel[0]), m(angel[1])],
           laenge: m(lang),
           zu: -Math.atan2(gy, gx),
           auf: -Math.atan2(seite * innen[1], seite * innen[0]),
         }
+        blatt.tuer = dreh
+        out.push(blatt)
+        // Der Schluessel steckt auf der Seite des eigenen Raums; gehoert die
+        // Tuer zu einem Raum draussen (Balkon) und liegt dahinter ein Raum
+        // der Wohnung, steckt er drinnen (E82).
+        const mitte: Punkt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+        const drinnenDahinter = raeume.some(
+          (x) => x.id !== r.id && x.art === 'innen' && punktImPolygon(zuUmriss(x.punkte), mitte[0] - innen[0] * 30, mitte[1] - innen[1] * 30),
+        )
+        out.push(...beschlag(angel, [gx, gy], lang, innen, r.art === 'draussen' && drinnenDahinter ? -1 : 1, dreh, o.id, f))
       }
-      dazu(blatt)
     } else {
       const br = Math.max(0, Math.min(o.bruestung_cm, H))
       const top = Math.min(H, br + o.hoehe_cm)
@@ -484,6 +634,47 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
       )
     }
   }
+  return out
+}
+
+/** Drueckergarnitur einer Zimmertuer (E82), silbern, auf beiden Seiten des
+ *  Blatts: runde Rosette, Klinke zur Angel hin, darunter die runde
+ *  Schluesselrosette; der Schluessel (Bart und Reide) steckt auf der Seite
+ *  schluessel (+1 = Richtung innen, -1 = Gegenseite). Alles in der
+ *  Stellung zu, mit derselben TuerDreh wie das Blatt (dreht mit), ohne
+ *  Innenseite (innen null, so rundet der Motor) und kein Hindernis.
+ *  angel und g (Richtung zur Schlosskante) in cm. Masse der Quader: x
+ *  entlang des Blatts, y hoch, z quer durch das Blatt. */
+function beschlag(angel: Punkt, g: Punkt, lang: number, innen: [number, number], schluessel: 1 | -1, dreh: TuerDreh, id: string, f: Farben3D): Quader[] {
+  const zu = dreh.zu
+  const achse = Math.max(lang / 2, lang - KLINKE_KANTE_CM)
+  const flaeche = BLATT_CM / 2
+  const out: Quader[] = []
+  const teil = (rolle: Rolle, t: number, tief: number, h: number, masse: Vec3, extra: Partial<Quader>) => {
+    const x = angel[0] + g[0] * t + innen[0] * tief
+    const y = angel[1] + g[1] * t + innen[1] * tief
+    out.push({
+      ...quader(rolle, [m(x), m(h), m(y)], [m(masse[0]), m(masse[1]), m(masse[2])], f.griff, { drehY: zu, id: rolle === 'schluessel' ? id : null }),
+      glanz: BESCHLAG_GLANZ,
+      tuer: { ...dreh },
+      ...extra,
+    })
+  }
+  const rundZ = { form: { art: 'zylinder', oben: 1, achse: 'z' } } as const
+  const schloss = KLINKE_HOEHE_CM - SCHLOSS_UNTER_CM
+  for (const s of [1, -1] as const) {
+    // Rosette, Hals und Griff der Klinke; der Griff zeigt zur Angel.
+    teil('griff', achse, s * (flaeche + ROSETTE_DICK_CM / 2), KLINKE_HOEHE_CM, [ROSETTE_CM, ROSETTE_CM, ROSETTE_DICK_CM], rundZ)
+    teil('griff', achse, s * (flaeche + ROSETTE_DICK_CM + 2.1), KLINKE_HOEHE_CM, [KLINKE_DICK_CM, KLINKE_DICK_CM, 4.2], rundZ)
+    teil('griff', achse - KLINKE_LANG_CM / 2 + KLINKE_DICK_CM / 2, s * (flaeche + 5.5), KLINKE_HOEHE_CM, [KLINKE_LANG_CM, KLINKE_DICK_CM, KLINKE_DICK_CM], {
+      rund: m(0.8),
+    })
+    teil('griff', achse, s * (flaeche + ROSETTE_DICK_CM / 2), schloss, [ROSETTE_CM, ROSETTE_CM, ROSETTE_DICK_CM], rundZ)
+  }
+  // Schluessel, etwa 6 cm: Bart aus dem Schloss, dann die runde Reide.
+  const s = schluessel
+  teil('schluessel', achse, s * (flaeche + ROSETTE_DICK_CM + 1.5), schloss, [0.4, 0.9, 3], { rund: m(0.2) })
+  teil('schluessel', achse, s * (flaeche + ROSETTE_DICK_CM + 3 + 1.3), schloss, [0.35, 2.6, 2.6], { form: { art: 'zylinder', oben: 1, achse: 'x' } })
   return out
 }
 
@@ -574,47 +765,12 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
     const H = o.hoehe_cm
     // Haengend (0039): alles um die Unterkante ueber dem Boden angehoben.
     const unten = o.boden_cm ?? 0
-    // Moebel mit Form (E64): Teile aus moebel3d, jedes mit einer Kante im
-    // dunkleren Ton der eigenen Farbe. Gesucht: alles in der Hervorfarbe.
+    // Moebel mit Form (E64): Teile aus moebel3d, als Quader in moebelQuader.
     const decke = (raeume.find((r) => r.id === o.raum_id)?.hoehe_cm ?? 250) - unten
     const art = o.art === 'moebel' ? moebelArt(o.name ?? '') : null
     const form = o.art === 'moebel' ? moebelTeile(o, art, f, decke) : null
     if (form) {
-      // Glanz des Hauptmaterials (Stoff, Leder ...); Teile mit eigenem Glanz
-      // (Keramik, Metall, Kochfeld) behalten ihn.
-      const glanz = materialGlanz(o.material ?? standardMaterial(art))
-      for (const q of form) {
-        // Leuchtende Teile (LED unter den Oberschraenken, Lampenschirm unten)
-        // gehoeren zum Licht ihres Raums und gehen mit dem Schalter an (E74).
-        const rundform = formWelt(o, q)
-        if (q.leuchte && !ist) {
-          const l = lokalQuader(o, 'leuchte', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, q.farbe, { id: o.raum_id })
-          if (l) out.push({ ...l, form: rundform, rund: q.rund !== undefined ? m(q.rund) : undefined })
-          continue
-        }
-        const qf = ist ? f.hervor : q.farbe
-        // Kanten an allem, was man sieht (E74: mehr Kontrast), nur nicht an
-        // ganz kleinen Teilen; sauberer und schneller.
-        const gross = Math.max(q.x1 - q.x0, q.y1 - q.y0) >= 12 && q.z1 - q.z0 >= 2
-        // Runde und weich gepolsterte Teile ohne Kantenlinien (E81): die
-        // Linie saesse auf einer Rundung in der Luft; die Rundung zeigt das
-        // Licht selbst.
-        const weich = !!rundform || (q.rund ?? 0) >= 2
-        const kante = ist ? f.kisteRand : gross && !weich && art !== 'mauer' ? ton(qf, 0.68) : undefined
-        const k =
-          q.front?.art === 'tuer'
-            ? drehTuer(o, `${o.id}:t${form.indexOf(q)}`, q, unten, qf, kante ?? ton(qf, 0.8))
-            : lokalQuader(o, 'moebel', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, qf, { kante, id: o.id, hervor: ist })
-        if (!k) continue
-        if (q.front?.art === 'schub') k.schub = { id: `${o.id}:s${q.front.gruppe}`, weg: schubWeg(o, q) }
-        out.push({
-          ...k,
-          glanz: q.glanz ?? glanz,
-          ...(q.deckkraft !== undefined ? { deckkraft: q.deckkraft } : {}),
-          ...(q.rund !== undefined ? { rund: m(q.rund) } : {}),
-          ...(rundform ? { form: rundform, kante: ist ? k.kante : null } : {}),
-        })
-      }
+      out.push(...moebelQuader(o, form, f, art, ist))
       continue
     }
     if (o.art === 'moebel' || o.form === 'l') {
@@ -666,6 +822,69 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
   return out
 }
 
+/** Die Teile eines Moebels (moebel3d.ts, lokal in cm) als Quader in der
+ *  Welt (E64, E82). Jedes Teil mit einer Kante im dunkleren Ton der eigenen
+ *  Farbe, gesucht (ist) alles in der Hervorfarbe. Dazu die E82-Felder:
+ *  Platz, Ding, Geraet, Spiegel, Neigung, und der Griff einer Tuer dreht
+ *  mit ihr. Reine Rechnung, auch fuer die Pruefung. */
+export function moebelQuader(o: Objekt, form: Teil[], f: Farben3D, art: MoebelArt | null, ist: boolean): Quader[] {
+  const out: Quader[] = []
+  // Haengend (0039): alles um die Unterkante ueber dem Boden angehoben.
+  const unten = o.boden_cm ?? 0
+  // Glanz des Hauptmaterials (Stoff, Leder ...); Teile mit eigenem Glanz
+  // (Keramik, Metall, Kochfeld) behalten ihn.
+  const glanz = materialGlanz(o.material ?? standardMaterial(art))
+  // Tueren mit gruppe (E82) heissen nach ihr, damit ihr Griff (front
+  // 'griff', gleiche gruppe) dieselbe Drehung bekommt; sonst nach dem
+  // Platz in der Liste wie bisher.
+  const tuerId = (q: Teil) => (q.front?.art === 'tuer' && q.front.gruppe !== undefined ? `${o.id}:t${q.front.gruppe}` : `${o.id}:t${form.indexOf(q)}`)
+  const gruppen = new Map<number, TuerDreh>()
+  for (const q of form) {
+    if (q.front?.art !== 'tuer' || q.front.gruppe === undefined || gruppen.has(q.front.gruppe)) continue
+    const d = drehTuer(o, tuerId(q), q, unten, q.farbe, q.farbe)?.tuer
+    if (d) gruppen.set(q.front.gruppe, d)
+  }
+  for (const q of form) {
+    // Leuchtende Teile (LED unter den Oberschraenken, Lampenschirm unten)
+    // gehoeren zum Licht ihres Raums und gehen mit dem Schalter an (E74).
+    const rundform = formWelt(o, q)
+    if (q.leuchte && !ist) {
+      const l = lokalQuader(o, 'leuchte', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, q.farbe, { id: o.raum_id })
+      if (l) out.push({ ...l, form: rundform, rund: q.rund !== undefined ? m(q.rund) : undefined })
+      continue
+    }
+    const qf = ist ? f.hervor : q.farbe
+    // Kanten an allem, was man sieht (E74: mehr Kontrast), nur nicht an
+    // ganz kleinen Teilen; sauberer und schneller.
+    const gross = Math.max(q.x1 - q.x0, q.y1 - q.y0) >= 12 && q.z1 - q.z0 >= 2
+    // Runde und weich gepolsterte Teile ohne Kantenlinien (E81): die
+    // Linie saesse auf einer Rundung in der Luft; die Rundung zeigt das
+    // Licht selbst.
+    const weich = !!rundform || (q.rund ?? 0) >= 2
+    const kante = ist ? f.kisteRand : gross && !weich && art !== 'mauer' ? ton(qf, 0.68) : undefined
+    const k =
+      q.front?.art === 'tuer'
+        ? drehTuer(o, tuerId(q), q, unten, qf, kante ?? ton(qf, 0.8))
+        : lokalQuader(o, teilRolle(q), q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, qf, { kante, id: o.id, hervor: ist })
+    if (!k) continue
+    if (q.front?.art === 'schub') k.schub = { id: `${o.id}:s${q.front.gruppe}`, weg: schubWeg(o, q) }
+    // Griff einer Moebeltuer: in der Stellung zu beschrieben, dreht mit ihr.
+    if (q.front?.art === 'griff') {
+      const d = gruppen.get(q.front.gruppe)
+      if (d) k.tuer = { ...d }
+    }
+    out.push({
+      ...k,
+      glanz: q.glanz ?? glanz,
+      ...(q.deckkraft !== undefined ? { deckkraft: q.deckkraft } : {}),
+      ...(q.rund !== undefined ? { rund: m(q.rund) } : {}),
+      ...(rundform ? { form: rundform, kante: ist ? k.kante : null } : {}),
+      ...teilFelder(o, q, unten, k.drehY),
+    })
+  }
+  return out
+}
+
 function teilBox(x0: number, y0: number, x1: number, y1: number, z0: number, z1: number, farbe: string): Teil {
   return { x0, y0, x1, y1, z0, z1, farbe }
 }
@@ -675,6 +894,77 @@ function globalRichtung(o: Objekt, dx: number, dy: number): [number, number] {
   const a = objektGlobal(o, 0, 0)
   const b = objektGlobal(o, dx, dy)
   return [b[0] - a[0], b[1] - a[1]]
+}
+
+/** Rolle eines Moebelteils, das keine Tuer ist (E82): Griff, Spiegel,
+ *  Ding zum Aufheben, sonst Moebel. */
+function teilRolle(q: Teil): Rolle {
+  if (q.front?.art === 'griff') return 'griff'
+  if (q.spiegel) return 'spiegel'
+  if (q.ding) return 'ding'
+  return 'moebel'
+}
+
+/** Einheitsvektor in (x, z); (0, 0) bleibt. */
+function einheit(v: [number, number]): [number, number] {
+  const l = Math.hypot(v[0], v[1])
+  return l > 0 ? [v[0] / l, v[1] / l] : [0, 0]
+}
+
+/** Blickrichtung als drehY wie die Kamera (0 = Blick nach -z) fuer eine
+ *  Richtung (x, z) in der Welt. */
+export function blickAus(dx: number, dz: number): number {
+  const w = Math.atan2(-dx, -dz)
+  // -0 und -Pi vermeiden, damit Vergleiche und Pruefung eindeutig sind.
+  return Math.abs(w) < 1e-12 ? 0 : w <= -Math.PI + 1e-12 ? Math.PI : w
+}
+
+/** Die E82-Felder eines Moebelteils als Quader-Felder: Platz (Mitte der
+ *  Oberseite, Blick lokal vorn/hinten/links/rechts in der Welt), Ding,
+ *  Geraet, Spiegel (Vorderseite = lokal +y) und Neigung (siehe kippWelt).
+ *  drehY ist die des fertigen Quaders. */
+function teilFelder(o: Objekt, q: Teil, unten: number, drehY: number): Partial<Quader> {
+  const out: Partial<Quader> = {}
+  if (q.platz) {
+    const [cx, cy] = objektGlobal(o, (q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2)
+    const lokal: Record<'vorn' | 'hinten' | 'links' | 'rechts', [number, number]> = { vorn: [0, 1], hinten: [0, -1], links: [-1, 0], rechts: [1, 0] }
+    const [dx, dz] = globalRichtung(o, ...lokal[q.platz.blick])
+    out.platz = { art: q.platz.art, punkt: [m(cx), m(unten + q.z1), m(cy)], blick: blickAus(dx, dz) }
+  }
+  if (q.ding) out.ding = `${o.id}:${q.ding}`
+  if (q.geraet) out.geraet = { id: `${o.id}:g${q.geraet.nr ?? 0}`, art: q.geraet.art, teil: q.geraet.teil }
+  if (q.spiegel) out.normale = einheit(globalRichtung(o, 0, 1))
+  if (q.kipp) {
+    const k = kippWelt(o, q.kipp, drehY)
+    if (k) out.kipp = k
+  }
+  return out
+}
+
+/** Neigung eines Moebelteils (Teil.kipp, Grad) als Quader.kipp (Radiant).
+ *  Teil.kipp gilt mit der Rechte-Hand-Regel im lokalen x, y, z (z oben):
+ *  positives laengs (um lokal x) bringt die Oberkante nach hinten (-y, zur
+ *  Wand; Lehne nach hinten), positives quer (um lokal y) nach rechts (+x).
+ *  In der Welt kippt das um eine waagrechte Achse u, die je nach
+ *  o.drehung die Welt-x- oder -z-Achse ist (mit Vorzeichen); Quader.kipp
+ *  rechnet in den Achsen des Quaders vor drehY, darum u noch um -drehY. */
+function kippWelt(o: Objekt, kipp: NonNullable<Teil['kipp']>, drehY: number): { x: number; z: number } | undefined {
+  let x = 0
+  let z = 0
+  const c = Math.cos(drehY)
+  const s = Math.sin(drehY)
+  const um = (d: [number, number], grad: number) => {
+    // Die Oberkante wandert nach d (x, z): Drehachse u = (d.z, -d.x).
+    const w = (grad * Math.PI) / 180
+    const ux = d[1]
+    const uz = -d[0]
+    x += w * (ux * c - uz * s)
+    z += w * (ux * s + uz * c)
+  }
+  if (kipp.laengs) um(einheit(globalRichtung(o, 0, -1)), kipp.laengs)
+  if (kipp.quer) um(einheit(globalRichtung(o, 1, 0)), kipp.quer)
+  const rund = (v: number) => (Math.abs(v) < 1e-12 ? 0 : v)
+  return x || z ? { x: rund(x), z: rund(z) } : undefined
 }
 
 /** Tuer eines Moebels als Quader, der sich um seine Angel dreht (E68). */
@@ -711,21 +1001,123 @@ function schubWeg(o: Objekt, q: Teil): [number, number] {
   return [m(dx), m(dy)]
 }
 
-function kisten(daten: GrundrissDaten, f: Farben3D, raumId: string | null, hervor: string | null): Koerper[] {
+function kisten(daten: GrundrissDaten, f: Farben3D, raumId: string | null, hervor: string | null, offen: string | null): Koerper[] {
   const liste = raumId ? daten.kisten.filter((k) => k.platz_raum_id === raumId) : daten.kisten
   const gibtHervor = !!hervor && liste.some((k) => k.id === hervor)
-  return liste.map((k) => {
+  const out: Koerper[] = []
+  for (const k of liste) {
     const [ex, ey] = kisteAusdehnung(k)
     const ist = k.id === hervor
+    const deckkraft = gibtHervor && !ist ? GEDAEMPFT : 1
+    if (offen && k.id === offen) {
+      out.push(...offeneKiste(k, f, ist, deckkraft))
+      continue
+    }
     // Einen halben cm kleiner, damit Kanten gestapelter Kisten sichtbar bleiben.
-    return quader(
-      'kiste',
-      [m(k.platz_x), m(k.unten_cm + k.hoehe_cm / 2), m(k.platz_y)],
-      [m(Math.max(1, ex - 0.5)), m(Math.max(1, k.hoehe_cm - 0.5)), m(Math.max(1, ey - 0.5))],
-      ist ? f.hervor : (k.mark_color ?? k.room_color ?? f.objekt),
-      { kante: f.kisteRand, id: k.id, hervor: ist, deckkraft: gibtHervor && !ist ? GEDAEMPFT : 1 },
+    out.push(
+      quader(
+        'kiste',
+        [m(k.platz_x), m(k.unten_cm + k.hoehe_cm / 2), m(k.platz_y)],
+        [m(Math.max(1, ex - 0.5)), m(Math.max(1, k.hoehe_cm - 0.5)), m(Math.max(1, ey - 0.5))],
+        ist ? f.hervor : (k.mark_color ?? k.room_color ?? f.objekt),
+        { kante: f.kisteRand, id: k.id, hervor: ist, deckkraft },
+      ),
     )
-  })
+  }
+  return out
+}
+
+/** Klappen einer offenen Kiste: so weit aufgeklappt (Grad); ueber 90
+ *  lehnen sie nach aussen. */
+const KLAPPE_GRAD = 115
+/** Pappe 5 mm stark. */
+const PAPPE_CM = 0.5
+/** Fuellstand, wenn keiner angegeben ist (Prozent). */
+const FUELLSTAND_STANDARD = 70
+
+/** Kleine Zahl aus einer Id, damit dieselbe Kiste immer gleich aussieht. */
+function streuung(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return h
+}
+
+/** Eine offene Kiste aus Pappe (E82): Boden, vier Waende, vier Klappen
+ *  nach aussen geklappt (an der Oberkante der Wand angeschlagen), innen
+ *  eine Fuellung in Hoehe des Fuellstands (sonst 70 Prozent) mit vier bis
+ *  sechs kleinen Bloecken als Andeutung des Inhalts, und Klebeband an den
+ *  Stirnseiten. Alle Teile tragen die Id der Kiste und die Rolle Kiste,
+ *  damit Antippen sie trifft. Gesucht: roter Rand statt roter Pappe. */
+function offeneKiste(k: PlanKiste, f: Farben3D, ist: boolean, deckkraft: number): Quader[] {
+  const [ex0, ey0] = kisteAusdehnung(k)
+  const ex = Math.max(2, ex0 - 0.5)
+  const ey = Math.max(2, ey0 - 0.5)
+  const unten = k.unten_cm + 0.25
+  const oben = k.unten_cm + Math.max(2, k.hoehe_cm - 0.25)
+  const h = oben - unten
+  const cx = k.platz_x
+  const cy = k.platz_y
+  const D = PAPPE_CM
+  const pappe = f.pappe
+  const rand = ist ? f.hervor : ton(pappe, 0.72)
+  const out: Quader[] = []
+  const teil = (mitte: Vec3, masse: Vec3, farbe: string, extra: Partial<Quader> = {}, kante: string | null = rand) => {
+    out.push({
+      ...quader('kiste', [m(mitte[0]), m(mitte[1]), m(mitte[2])], [m(masse[0]), m(masse[1]), m(masse[2])], farbe, { kante, id: k.id, hervor: ist, deckkraft }),
+      ...extra,
+    })
+  }
+  // Boden und Waende.
+  teil([cx, unten + D / 2, cy], [ex, D, ey], ton(pappe, 0.92))
+  teil([cx, unten + h / 2, cy - ey / 2 + D / 2], [ex, h, D], pappe)
+  teil([cx, unten + h / 2, cy + ey / 2 - D / 2], [ex, h, D], pappe)
+  teil([cx - ex / 2 + D / 2, unten + h / 2, cy], [D, h, ey - 2 * D], ton(pappe, 0.96))
+  teil([cx + ex / 2 - D / 2, unten + h / 2, cy], [D, h, ey - 2 * D], ton(pappe, 0.96))
+  // Klappen: an der Oberkante angeschlagen, um KLAPPE_GRAD aufgeklappt. Die
+  // Mitte liegt eine halbe Klappenbreite vom Scharnier entfernt in der
+  // Richtung, in die die Klappe jetzt zeigt; so bleibt die innere Kante
+  // auf der Wand.
+  const W = Math.max(1, Math.min(ex, ey) / 2 - 0.5)
+  const w = (KLAPPE_GRAD * Math.PI) / 180
+  const hoch = Math.sin(w) * (W / 2)
+  const weg = -Math.cos(w) * (W / 2) // nach aussen (cos 115 < 0)
+  const klappe = ton(pappe, 1.06)
+  const zW = ey / 2 - D / 2
+  const xW = ex / 2 - D / 2
+  teil([cx, oben + hoch, cy + zW + weg], [ex - 1, D, W], klappe, { kipp: { x: w, z: 0 } })
+  teil([cx, oben + hoch, cy - zW - weg], [ex - 1, D, W], klappe, { kipp: { x: -w, z: 0 } })
+  teil([cx + xW + weg, oben + hoch, cy], [W, D, ey - 1], klappe, { kipp: { x: 0, z: -w } })
+  teil([cx - xW - weg, oben + hoch, cy], [W, D, ey - 1], klappe, { kipp: { x: 0, z: w } })
+  // Fuellung bis zum Fuellstand, dunkler, darauf der angedeutete Inhalt.
+  const pct = Math.max(0, Math.min(100, k.fuellstand ?? FUELLSTAND_STANDARD))
+  const ix = ex - 2 * D - 0.4
+  const iy = ey - 2 * D - 0.4
+  const fuellOben = unten + D + 1 + Math.max(0, h - D - 1) * (pct / 100)
+  teil([cx, fuellOben - 0.5, cy], [ix, 1, iy], ton(pappe, 0.55), {}, null)
+  if (pct >= 5 && ix > 4 && iy > 4) {
+    const z = streuung(k.id)
+    const anzahl = 4 + (z % 3)
+    const farben = [ton(f.leinen, 0.85), ton(f.spielBlau, 1.35), ton(f.holz, 0.95), ton(f.stoff, 1.2), ton(f.spielGruen, 1.3), ton(f.spielRot, 1.4)]
+    const zw = ix / 3
+    const zh = iy / 2
+    for (let i = 0; i < anzahl; i++) {
+      const r = (z >>> (i * 3)) & 7 // 0..7, fuer kleine Unterschiede
+      const sx = zw * (0.5 + (r % 3) * 0.1)
+      const sz = zh * (0.5 + ((r >> 1) % 3) * 0.1)
+      const sh = Math.min(3 + r, Math.max(1, oben + 3 - fuellOben))
+      const mx = cx - ix / 2 + zw * ((i % 3) + 0.5) + ((r % 2 ? 1 : -1) * zw * 0.08)
+      const mz = cy - iy / 2 + zh * (Math.floor(i / 3) + 0.5)
+      teil([mx, fuellOben + sh / 2, mz], [sx, sh, sz], farben[(i + z) % farben.length], { rund: m(Math.min(1, sh / 3)) }, null)
+    }
+  }
+  // Klebeband an den Stirnseiten (quer zur langen Seite), von oben herab.
+  const band = ton(pappe, 1.18)
+  if (ex >= ey) {
+    for (const s of [1, -1]) teil([cx + s * (ex / 2 + 0.05), oben - 4, cy], [0.1, 8, Math.min(5, ey * 0.4)], band, { glanz: 0.6 }, null)
+  } else {
+    for (const s of [1, -1]) teil([cx, oben - 4, cy + s * (ey / 2 + 0.05)], [Math.min(5, ex * 0.4), 8, 0.1], band, { glanz: 0.6 }, null)
+  }
+  return out
 }
 
 /* ------------------------------------------------------------ Szene */
@@ -749,29 +1141,62 @@ export function baueSzene(daten: GrundrissDaten, farben: Farben3D, optionen: Sze
       id: r.id,
     })
   }
+  // Balkon (E82): Betonplatte mit sichtbarer Kante und Holzdielen.
+  for (const r of sichtbar) if (r.art === 'draussen') out.push(...balkonBoden(r, farben))
   out.push(...waende(daten, raeume, farben, raumId))
   out.push(...oeffnungen(daten, raeume, farben, raumId))
-  const ohneTeppich = (o: Objekt) => optionen.teppiche !== false || moebelArt(o.name ?? '') !== 'teppich'
+  // Teppiche (E74) und Deko (E82) lassen sich ausblenden.
+  const zeigen = (o: Objekt) =>
+    (optionen.teppiche !== false || moebelArt(o.name ?? '') !== 'teppich') && (optionen.deko !== false || !istDeko(o))
   out.push(
     ...objekte(
-      (raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte).filter(ohneTeppich),
+      (raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte).filter(zeigen),
       farben,
       hervor,
       raeume,
       optionen.markiert ?? null,
     ),
   )
-  out.push(...kisten(daten, farben, raumId, hervor))
+  out.push(...kisten(daten, farben, raumId, hervor, optionen.offeneKiste ?? null))
   out.push(...symbole(daten, sichtbar, farben))
-  // Deckenleuchten, wo der Raum keine eigene hat (E71).
+  // Deckenleuchten, wo der Raum keine eigene hat (E71); draussen eine
+  // Wandleuchte an der Hauswand (E82).
   for (const l of lichter(daten, raumId)) {
-    if (l.leuchte) out.push(quader('leuchte', [l.pos[0], l.pos[1] + 0.03, l.pos[2]], [0.34, 0.03, 0.34], farben.waesche, { kante: farben.metall, id: l.raumId }))
+    if (!l.leuchte) continue
+    if (l.wand) out.push(...wandLeuchte(l, farben))
+    else out.push(quader('leuchte', [l.pos[0], l.pos[1] + 0.03, l.pos[2]], [0.34, 0.03, 0.34], farben.waesche, { kante: farben.metall, id: l.raumId }))
   }
   return out
 }
 
-/** Eine Lichtquelle in Metern (E71). leuchte: an der Decke eine Leuchte
- *  zeichnen (automatische Deckenlichter). */
+/** Wandleuchte draussen (E82): dunkles Gehaeuse an der Wand, davor ein
+ *  leuchtender Glaskoerper (geht mit dem Schalter des Raums an), oben ein
+ *  Dach. l.wand zeigt von der Wand weg; die Wand liegt WANDLEUCHTE_VOR
+ *  hinter l.pos. */
+function wandLeuchte(l: Licht3D, f: Farben3D): Quader[] {
+  const n = l.wand
+  if (!n) return []
+  const drehY = -Math.atan2(-n[0], n[1])
+  const wx = l.pos[0] - n[0] * m(WANDLEUCHTE_VOR_CM)
+  const wz = l.pos[2] - n[1] * m(WANDLEUCHTE_VOR_CM)
+  const y = m(WANDLEUCHTE_CM)
+  const vor = (cm: number): [number, number] => [wx + n[0] * m(cm), wz + n[1] * m(cm)]
+  // Rueckplatte 2 cm an der Wand, davor Glas (2 bis 11 cm) und Dach.
+  const [px, pz] = vor(1)
+  const [gx, gz] = vor(6.5)
+  return [
+    { ...quader('moebel', [px, y, pz], [0.13, 0.24, 0.02], f.schwarz, { drehY }), glanz: 0.5, rund: 0.004 },
+    { ...quader('leuchte', [gx, y - 0.01, gz], [0.1, 0.15, 0.09], f.waesche, { drehY, id: l.raumId }), rund: 0.006 },
+    { ...quader('moebel', [gx, y + 0.075, gz], [0.13, 0.02, 0.11], f.schwarz, { drehY }), glanz: 0.5, rund: 0.004 },
+  ]
+}
+
+/** Wandleuchte draussen: Mitte auf 2,0 m, das Licht 15 cm vor der Wand. */
+const WANDLEUCHTE_CM = 200
+const WANDLEUCHTE_VOR_CM = 15
+
+/** Eine Lichtquelle in Metern (E71). leuchte: eine Leuchte zeichnen
+ *  (automatische Lichter), an der Decke oder, mit wand, an der Wand. */
 export interface Licht3D {
   pos: Vec3
   staerke: number
@@ -780,6 +1205,9 @@ export interface Licht3D {
   leuchte: boolean
   /** Der Raum, dessen Schalter dieses Licht schaltet (E74). */
   raumId: string
+  /** Wandleuchte (E82, draussen an der Hauswand): Richtung von der Wand
+   *  weg (x, z), Laenge 1. Ohne: Deckenleuchte. */
+  wand?: [number, number]
 }
 
 /** Wo es Licht gibt: je Raum Deckenlicht (ab 12 m2 zwei, entlang der
@@ -803,6 +1231,21 @@ export function lichter(daten: GrundrissDaten, raumId: string | null = null): Li
     const breit = Math.max(...xs) - Math.min(...xs)
     const tief = Math.max(...ys) - Math.min(...ys)
     const draussen = r.art === 'draussen'
+    const wand = draussen ? aussenWand(r, daten) : null
+    if (wand) {
+      // Draussen keine schwebende Deckenplatte, sondern eine Wandleuchte
+      // an der Hauswand auf 2,0 m (E82); das Licht 15 cm davor.
+      out.push({
+        pos: [m(wand.punkt[0] + wand.innen[0] * WANDLEUCHTE_VOR_CM), m(WANDLEUCHTE_CM - 5), m(wand.punkt[1] + wand.innen[1] * WANDLEUCHTE_VOR_CM)],
+        staerke: 0.5,
+        farbe: '#ffd29a',
+        art: 'lampe',
+        leuchte: true,
+        raumId: r.id,
+        wand: wand.innen,
+      })
+      continue
+    }
     if (flaeche >= 12 && !draussen) {
       // Zwei Leuchten entlang der langen Seite, beide sicher im Raum.
       const d = (breit >= tief ? breit : tief) / 4
@@ -835,14 +1278,49 @@ export function lichter(daten: GrundrissDaten, raumId: string | null = null): Li
   return out
 }
 
+/** Die Hauswand eines Raums draussen (E82): die laengste Kante, an der ein
+ *  anderer Raum liegt (also eine echte Wand, kein Gelaender), und darauf
+ *  eine Stelle ohne Tuer oder Fenster, moeglichst in der Mitte. punkt auf
+ *  der Innenseite der Wand (cm), innen zeigt auf den Balkon. null ohne
+ *  Hauswand (freie Terrasse). */
+function aussenWand(r: Raum, daten: GrundrissDaten): { punkt: Punkt; innen: [number, number] } | null {
+  const raeume = daten.raeume.filter((x) => x.punkte.length >= 3)
+  const loecher = oeffnungsLoecher(daten)
+  const n = r.punkte.length
+  const kanten: { k: number; l: number }[] = []
+  for (let k = 0; k < n; k++) {
+    const a = r.punkte[k]
+    const b = r.punkte[(k + 1) % n]
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+    if (l >= 40 && anderemRaumNah(raeume, r, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])) kanten.push({ k, l })
+  }
+  kanten.sort((p, q) => q.l - p.l)
+  for (const { k, l } of kanten) {
+    const a = r.punkte[k]
+    const b = r.punkte[(k + 1) % n]
+    const ux = (b[0] - a[0]) / l
+    const uy = (b[1] - a[1]) / l
+    const innen = raumInnen(r, k)
+    for (const anteil of [0.5, 0.35, 0.65, 0.2, 0.8]) {
+      const t = l * anteil
+      if (t < 20 || t > l - 20) continue
+      // Die Leuchte ist 13 cm breit: beide Raender frei.
+      const frei = [-10, 0, 10].every((d) => !inOeffnung([a[0] + ux * (t + d), a[1] + uy * (t + d)], ux, uy, loecher))
+      if (frei) return { punkt: [a[0] + ux * t + innen[0] * (WAND_CM / 2), a[1] + uy * t + innen[1] * (WAND_CM / 2)], innen }
+    }
+  }
+  return null
+}
+
 /** Lichter an der Decke; Steckdosen (30 cm hoch) und Schalter (105 cm)
  *  als flache Platten an der naechsten Wand (E74), nie frei im Raum.
  *  Schalter sind unauffaellig weiss und schalten ihren Raum (oder den, den
- *  sie laut Plan schalten); Steckdosen haben einen roten Rand. */
+ *  sie laut Plan schalten); Steckdosen haben einen roten Rand. Raeume ohne
+ *  Schalter bekommen einen automatischen neben der Tuer (E82, autoSchalter). */
 function symbole(daten: GrundrissDaten, raeume: Raum[], f: Farben3D): Koerper[] {
   const out: Koerper[] = []
   const drin = new Set(raeume.map((r) => r.id))
-  for (const s of daten.grundriss.symbole ?? []) {
+  for (const s of [...(daten.grundriss.symbole ?? []), ...autoSchalter(daten)]) {
     if (s.art === 'licht') {
       const r = raeume.find((x) => punktImPolygon(zuUmriss(x.punkte), s.x, s.y))
       if (r) out.push(quader('leuchte', [m(s.x), m(r.hoehe_cm - 2), m(s.y)], [m(30), m(4), m(30)], f.waesche, { kante: f.metall, id: r.id }))

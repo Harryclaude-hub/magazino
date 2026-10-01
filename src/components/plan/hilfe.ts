@@ -17,7 +17,7 @@ import {
   type Punkt,
   type Rechteck,
 } from '../../lib/geometrie.ts'
-import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, Raum } from '../../lib/types'
+import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, PlanSymbol, Raum } from '../../lib/types'
 import { moebelArt } from './moebelArt.ts'
 
 /** Name eines Raums: das Zimmer, sonst der eigene Name, sonst leer. */
@@ -322,12 +322,41 @@ export function symbolAnWand(
 ): { punkt: Punkt; innen: Punkt; raumId: string } | null {
   const raum = daten.raeume.find((r) => r.punkte.length >= 3 && punktImPolygon(zuUmriss(r.punkte), p[0], p[1]))
   if (!raum) return null
+  const w = naechsteWand(p, raum, oeffnungsLoecher(daten))
+  return w ? { punkt: w.punkt, innen: w.innen, raumId: raum.id } : null
+}
+
+/** Anfang und Ende aller Oeffnungen (Tueren, Fenster, Durchgaenge) in cm. */
+export function oeffnungsLoecher(daten: Pick<GrundrissDaten, 'raeume' | 'oeffnungen'>): [Punkt, Punkt][] {
   const loecher: [Punkt, Punkt][] = []
   for (const o of daten.oeffnungen) {
     const r = daten.raeume.find((x) => x.id === o.raum_id)
     const s = r ? oeffnungPunkte(r, o) : null
     if (s) loecher.push(s)
   }
+  return loecher
+}
+
+/** Liegt q, ein Punkt auf einer Wand mit der Richtung (rx, ry), in einer
+ *  Oeffnung dieser Wand (gleiche Richtung, hoechstens eine dicke Wand
+ *  daneben, 5 cm Rand)? */
+export function inOeffnung(q: Punkt, rx: number, ry: number, loecher: [Punkt, Punkt][]): boolean {
+  return loecher.some(([s0, s1]) => {
+    const sl = Math.hypot(s1[0] - s0[0], s1[1] - s0[1])
+    if (sl === 0) return false
+    const sx = (s1[0] - s0[0]) / sl
+    const sy = (s1[1] - s0[1]) / sl
+    if (Math.abs(sx * ry - sy * rx) > 0.01) return false
+    const quer = Math.abs((q[0] - s0[0]) * sy - (q[1] - s0[1]) * sx)
+    const laengs = (q[0] - s0[0]) * sx + (q[1] - s0[1]) * sy
+    return quer <= 41 && laengs > -5 && laengs < sl + 5
+  })
+}
+
+/** Die naechste Wand des Raums zu p: Punkt auf ihrer Innenseite, Richtung
+ *  in den Raum und ob die Stelle frei ist (nicht in einer Oeffnung). Freie
+ *  Stellen gehen vor; p darf auch knapp ausserhalb des Raums liegen. */
+function naechsteWand(p: Punkt, raum: Pick<Raum, 'punkte'>, loecher: [Punkt, Punkt][]): { punkt: Punkt; innen: Punkt; frei: boolean } | null {
   const sinn = flaeche2(zuUmriss(raum.punkte)) >= 0 ? 1 : -1
   const n = raum.punkte.length
   let beste: { punkt: Punkt; innen: Punkt; d: number; frei: boolean } | null = null
@@ -342,20 +371,98 @@ export function symbolAnWand(
     const t = Math.max(WAND_HALB_CM + 5, Math.min(l - WAND_HALB_CM - 5, (p[0] - a[0]) * rx + (p[1] - a[1]) * ry))
     const q: Punkt = [a[0] + rx * t, a[1] + ry * t]
     const innen: Punkt = [-ry * sinn, rx * sinn]
-    // In einer Oeffnung dieser Wand (gleiche Richtung, hoechstens eine dicke Wand daneben)?
-    const frei = !loecher.some(([s0, s1]) => {
-      const sl = Math.hypot(s1[0] - s0[0], s1[1] - s0[1])
-      if (sl === 0) return false
-      const sx = (s1[0] - s0[0]) / sl
-      const sy = (s1[1] - s0[1]) / sl
-      if (Math.abs(sx * ry - sy * rx) > 0.01) return false
-      const quer = Math.abs((q[0] - s0[0]) * sy - (q[1] - s0[1]) * sx)
-      const laengs = (q[0] - s0[0]) * sx + (q[1] - s0[1]) * sy
-      return quer <= 41 && laengs > -5 && laengs < sl + 5
-    })
+    const frei = !inOeffnung(q, rx, ry, loecher)
     const d = Math.hypot(p[0] - q[0], p[1] - q[1])
     const kandidat = { punkt: [q[0] + innen[0] * WAND_HALB_CM, q[1] + innen[1] * WAND_HALB_CM] as Punkt, innen, d, frei }
     if (!beste || (kandidat.frei && !beste.frei) || (kandidat.frei === beste.frei && d < beste.d)) beste = kandidat
   }
-  return beste ? { punkt: beste.punkt, innen: beste.innen, raumId: raum.id } : null
+  return beste ? { punkt: beste.punkt, innen: beste.innen, frei: beste.frei } : null
+}
+
+/** Ein Lichtschalter, den der Plan nicht hat (E82): jeder Raum bekommt
+ *  einen, wenn ihn kein Schalter schaltet. Nur Anzeige, nie gespeichert,
+ *  nicht zu bearbeiten. id 'auto:<raumId>', schaltet den Raum. */
+export type AutoSchalter = PlanSymbol & { art: 'schalter'; schaltet: string; auto: true }
+
+/** So weit neben der Zarge (cm) sitzt ein automatischer Schalter. */
+const AUTO_SCHALTER_CM = 15
+/** So weit in den Raum hinein wird gesucht, bevor er an die Wand rueckt. */
+const AUTO_SCHALTER_INNEN_CM = 20
+
+/** Automatische Lichtschalter fuer jeden Raum (innen und draussen) ohne
+ *  Schalter. Ein Raum hat einen, wenn ein Schalter ihn schaltet: laut Plan
+ *  (schaltet) oder weil er an seiner Wand sitzt (symbolAnWand), genau wie
+ *  in der 3D-Szene. Der neue sitzt wie ueblich an der Griffseite der
+ *  ersten Tuer (oder des ersten Durchgangs) des Raums, gegenueber der
+ *  Angel, 15 cm neben der Zarge, innen an einer freien Wandstelle. Ohne
+ *  Tuer an der freien Wand, die der Raummitte am naechsten ist. Schmale
+ *  Flaechen (Vorwand, unter 60 cm) bekommen keinen. Reine Rechnung. */
+export function autoSchalter(
+  daten: Pick<GrundrissDaten, 'raeume' | 'oeffnungen'> & { grundriss: { symbole?: PlanSymbol[] | null } },
+): AutoSchalter[] {
+  const raeume = daten.raeume.filter((r) => r.punkte.length >= 3)
+  const geschaltet = new Set<string>()
+  for (const s of daten.grundriss.symbole ?? []) {
+    if (s.art !== 'schalter') continue
+    const w = symbolAnWand([s.x, s.y], daten)
+    if (!w) continue
+    geschaltet.add(s.schaltet && raeume.some((r) => r.id === s.schaltet) ? s.schaltet : w.raumId)
+  }
+  const loecher = oeffnungsLoecher(daten)
+  const out: AutoSchalter[] = []
+  for (const r of raeume) {
+    if (geschaltet.has(r.id)) continue
+    const box = punkteBox(r.punkte)
+    if (Math.min(box.x1 - box.x0, box.y1 - box.y0) < 60) continue
+    const stelle = schalterStelle(r, daten, loecher)
+    if (!stelle) continue
+    out.push({ id: `auto:${r.id}`, art: 'schalter', x: stelle[0], y: stelle[1], schaltet: r.id, auto: true })
+  }
+  return out
+}
+
+/** Wo der automatische Schalter von r sitzt (cm, Innenseite der Wand). */
+function schalterStelle(r: Raum, daten: Pick<GrundrissDaten, 'raeume' | 'oeffnungen'>, loecher: [Punkt, Punkt][]): Punkt | null {
+  const n = r.punkte.length
+  // Tueren und Durchgaenge des Raums, danach die der Nachbarn auf seinem Rand.
+  const eigene: { o: Oeffnung; s: [Punkt, Punkt] }[] = []
+  const fremde: { o: Oeffnung; s: [Punkt, Punkt] }[] = []
+  for (const o of daten.oeffnungen) {
+    if (o.art === 'fenster') continue
+    const raum = daten.raeume.find((x) => x.id === o.raum_id)
+    const s = raum ? oeffnungPunkte(raum, o) : null
+    if (!s) continue
+    if (o.raum_id === r.id) eigene.push({ o, s })
+    else {
+      const mitte: Punkt = [(s[0][0] + s[1][0]) / 2, (s[0][1] + s[1][1]) / 2]
+      let nah = Infinity
+      for (let k = 0; k < n; k++) nah = Math.min(nah, streckenAbstand(mitte, r.punkte[k], r.punkte[(k + 1) % n]).abstand)
+      if (nah <= WAND_HALB_CM + 1) fremde.push({ o, s })
+    }
+  }
+  for (const { o, s } of [...eigene, ...fremde]) {
+    const angel = o.anschlag === 'rechts' ? s[1] : s[0]
+    const griff = o.anschlag === 'rechts' ? s[0] : s[1]
+    const l = Math.hypot(griff[0] - angel[0], griff[1] - angel[1])
+    if (l === 0) continue
+    const ux = (griff[0] - angel[0]) / l
+    const uy = (griff[1] - angel[1]) / l
+    // Innenrichtung von r an dieser Wand: senkrecht zur Oeffnung, zum Raum hin.
+    const nx = -uy
+    const ny = ux
+    const mitte: Punkt = [(s[0][0] + s[1][0]) / 2, (s[0][1] + s[1][1]) / 2]
+    const probe = punktImPolygon(zuUmriss(r.punkte), mitte[0] + nx * 20, mitte[1] + ny * 20)
+    const seite = probe ? 1 : -1
+    // Zuerst die Griffseite, sonst die Angelseite.
+    for (const [ende, richtung] of [[griff, 1], [angel, -1]] as [Punkt, number][]) {
+      const p: Punkt = [
+        ende[0] + ux * richtung * AUTO_SCHALTER_CM + nx * seite * AUTO_SCHALTER_INNEN_CM,
+        ende[1] + uy * richtung * AUTO_SCHALTER_CM + ny * seite * AUTO_SCHALTER_INNEN_CM,
+      ]
+      const w = naechsteWand(p, r, loecher)
+      if (w?.frei && Math.hypot(w.punkt[0] - p[0], w.punkt[1] - p[1]) <= 60) return w.punkt
+    }
+  }
+  const w = naechsteWand(innenPunkt(r.punkte), r, loecher)
+  return w ? w.punkt : null
 }

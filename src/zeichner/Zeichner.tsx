@@ -33,6 +33,7 @@ import { BereichDialog } from '../components/BereichDialog'
 import { neuerBereich, type BereichEntwurf } from '../lib/bereich'
 import { Button, CodeChip, Modal, useToast } from '../components/ui'
 import { datenBox, kisteRechteck, raumTitel } from '../components/plan/hilfe'
+import { istDeko } from '../components/plan/moebelArt'
 import { GrundrissFehler, ladeGrundriss, listItems, platzRaeumen, platzSetzen, speichereGrundriss, speichereLinien, updateTag } from '../lib/api'
 import {
   cmText,
@@ -172,6 +173,8 @@ export default function Zeichner({
   const [winkel, setWinkel] = useState(true)
   // Teppiche ein- und ausblenden (E74), nur die Ansicht.
   const [teppiche, setTeppiche] = useState(true)
+  // Deko und Spielzeug ein- und ausblenden (E82), nur die Ansicht.
+  const [deko, setDeko] = useState(true)
   /** Umschalter 2D/3D: 3D liegt ueber der Zeichenflaeche und zeigt z.dok live. */
   const [drei, setDrei] = useState(false)
   const [zeigerCm, setZeigerCm] = useState<Punkt | null>(null)
@@ -961,6 +964,8 @@ export default function Zeichner({
   const w = WERKZEUGE[werkzeug.name]
   const vorschau = ansicht ? w.vorschau(kontext, werkzeug.s) : {}
   const anzeige = vorschau.dok ?? z.dok
+  // Ausgeblendete Deko (E82) zeichnet die Leinwand nicht; der Plan bleibt.
+  const leinwandDok = useMemo(() => (deko ? anzeige : { ...anzeige, objekte: anzeige.objekte.filter((o) => !istDeko(o)) }), [anzeige, deko])
   /* Nur Warnung (START 5.2, BAUPLAN 7.1 E12): sich ueberdeckende Raeume
    * speichert der Zeichner trotzdem. */
   const ueberlappend = useMemo(() => {
@@ -1244,7 +1249,7 @@ export default function Zeichner({
         >
           {ansicht && groesse[0] > 0 ? (
             <Leinwand
-              dok={anzeige}
+              dok={leinwandDok}
               auswahl={z.auswahl}
               hervor={kisteId}
               ansicht={ansicht}
@@ -1440,6 +1445,14 @@ export default function Zeichner({
           className={cx('rounded-md px-2 py-0.5 font-bold', teppiche ? 'bg-ink text-paper' : 'hover:bg-raised')}
         >
           {t('zeichner.teppiche')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setDeko((v) => !v)}
+          aria-pressed={deko}
+          className={cx('rounded-md px-2 py-0.5 font-bold', deko ? 'bg-ink text-paper' : 'hover:bg-raised')}
+        >
+          {t('zeichner.deko')}
         </button>
         <span className="t-serial text-muted">{ansicht ? `${Math.round(ansicht.s * 100)} %` : ''}</span>
         <span data-tour="z-tasten" className="t-sub ms-auto">{t('zeichner.tasten_hilfe')}</span>

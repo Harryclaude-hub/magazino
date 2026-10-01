@@ -268,21 +268,101 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
         { art: 'zug', p: [[r + 2, T / 2], [B / 2, T * 0.2], [B - r - 2, T / 2]], zu: false },
       ]
     }
-    // E82: Zeichen folgen (Vertrag, der Umriss reicht vorerst).
+    /* E82: Deko, Spielzeug, Stoffe, Sockel. */
     case 'spielzeugkiste':
+      // Truhe mit Deckelfuge, darin ein Ball und ein Klotz.
+      return [
+        rechteck(B * 0.05, T * 0.08, B * 0.95, T * 0.92),
+        { art: 'linie', a: [B * 0.05, T * 0.3], b: [B * 0.95, T * 0.3] },
+        { art: 'kreis', m: [B * 0.32, T * 0.62], r: k * 0.14 },
+        rechteck(B * 0.56, T * 0.46, B * 0.78, T * 0.8),
+      ]
     case 'kuscheltier':
+      // Teddykopf von oben: Kopf mit zwei Ohren und Schnauze.
+      return [
+        { art: 'kreis', m: [B / 2, T * 0.56], r: k * 0.32 },
+        { art: 'kreis', m: [B / 2 - k * 0.27, T * 0.56 - k * 0.27], r: k * 0.11 },
+        { art: 'kreis', m: [B / 2 + k * 0.27, T * 0.56 - k * 0.27], r: k * 0.11 },
+        { art: 'kreis', m: [B / 2, T * 0.56 + k * 0.12], r: k * 0.09 },
+      ]
     case 'bausteine':
+      // Ein paar Kloetze, versetzt.
+      return [
+        rechteck(B * 0.1, T * 0.12, B * 0.42, T * 0.44),
+        rechteck(B * 0.52, T * 0.18, B * 0.88, T * 0.42),
+        rechteck(B * 0.22, T * 0.54, B * 0.5, T * 0.88),
+        { art: 'zug', p: [[B * 0.6, T * 0.88], [B * 0.74, T * 0.54], [B * 0.88, T * 0.88]], zu: true },
+      ]
     case 'spielkueche':
+      // Zwei Kochstellen links, Becken rechts.
+      return [
+        { art: 'kreis', m: [B * 0.25, T * 0.34], r: k * 0.14 },
+        { art: 'kreis', m: [B * 0.25, T * 0.7], r: k * 0.14 },
+        rechteck(B * 0.55, T * 0.24, B * 0.88, T * 0.78),
+        { art: 'kreis', m: [B * 0.715, T * 0.12], r: k * 0.05 },
+      ]
     case 'buecher':
+      // Ein Stapel: drei Buecher leicht verdreht, mit Ruecken.
+      return [
+        rechteck(B * 0.08, T * 0.14, B * 0.8, T * 0.78),
+        { art: 'zug', p: [[B * 0.2, T * 0.22], [B * 0.92, T * 0.3], [B * 0.86, T * 0.92], [B * 0.14, T * 0.84]], zu: true },
+        { art: 'linie', a: [B * 0.16, T * 0.14], b: [B * 0.16, T * 0.78] },
+      ]
     case 'bild':
-    case 'kissen':
-    case 'wolldecke':
+      // Flach an der Wand: Rahmen mit Bildflaeche.
+      return [rechteck(B * 0.04, T * 0.15, B * 0.96, T * 0.85), { art: 'linie', a: [B * 0.12, T * 0.5], b: [B * 0.88, T * 0.5] }]
+    case 'kissen': {
+      // Kissen von oben: Ecken spitz, Seiten eingezogen.
+      const ecken: Punkt[] = [[0.06, 0.06], [0.5, 0.15], [0.94, 0.06], [0.85, 0.5], [0.94, 0.94], [0.5, 0.85], [0.06, 0.94], [0.15, 0.5]]
+      const p = ecken.map(([x, y]): Punkt => [B * x, T * y])
+      return [{ art: 'zug', p, zu: true }]
+    }
+    case 'wolldecke': {
+      // Gefaltet: zwei Falten und Fransen an einer Seite.
+      const fransen = [0.25, 0.45, 0.65, 0.85].map((f): Form => ({ art: 'linie', a: [B * 0.92, T * f], b: [B, T * f] }))
+      return [
+        rechteck(B * 0.04, T * 0.1, B * 0.92, T * 0.9),
+        { art: 'linie', a: [B * 0.04, T * 0.37], b: [B * 0.92, T * 0.37] },
+        { art: 'linie', a: [B * 0.04, T * 0.63], b: [B * 0.92, T * 0.63] },
+        ...fransen,
+      ]
+    }
     case 'korb':
-    case 'vorhang':
+      // Rand und Boden des Korbs, dazu Henkel.
+      return [
+        ellipse(B / 2, T / 2, B * 0.44, T * 0.42),
+        ellipse(B / 2, T / 2, B * 0.32, T * 0.3),
+        { art: 'linie', a: [B * 0.06, T / 2], b: [B * 0.18, T / 2] },
+        { art: 'linie', a: [B * 0.82, T / 2], b: [B * 0.94, T / 2] },
+      ]
+    case 'vorhang': {
+      // Schiene an der Wand, davor der Stoff in Falten.
+      const n = Math.max(4, Math.round(B / 12))
+      const falten: Punkt[] = []
+      for (let i = 0; i <= n; i++) falten.push([(B * i) / n, i % 2 === 0 ? T * 0.4 : T * 0.85])
+      return [{ art: 'linie', a: [0, T * 0.15], b: [B, T * 0.15] }, { art: 'zug', p: falten, zu: false }]
+    }
     case 'obstschale':
-    case 'blumenkasten':
+      // Schale mit drei Fruechten.
+      return [
+        { art: 'kreis', m: [B / 2, T / 2], r: k * 0.44 },
+        { art: 'kreis', m: [B * 0.4, T * 0.42], r: k * 0.13 },
+        { art: 'kreis', m: [B * 0.6, T * 0.44], r: k * 0.12 },
+        { art: 'kreis', m: [B * 0.5, T * 0.62], r: k * 0.12 },
+      ]
+    case 'blumenkasten': {
+      // Langer Kasten, darin Pflanzen in einer Reihe.
+      const n = Math.max(2, Math.min(6, Math.round(B / 18)))
+      const pflanzen = Array.from({ length: n }, (_, i): Form => ({ art: 'kreis', m: [(B * (i + 0.5)) / n, T / 2], r: Math.min(T * 0.3, B / n / 2.4) }))
+      return [rechteck(B * 0.02, T * 0.1, B * 0.98, T * 0.9), ...pflanzen]
+    }
     case 'sockel':
-      return []
+      // Unterbau mit Auszug: Front und Griffleiste.
+      return [
+        rechteck(B * 0.05, T * 0.08, B * 0.95, T * 0.92),
+        { art: 'linie', a: [B * 0.05, T * 0.84], b: [B * 0.95, T * 0.84] },
+        { art: 'linie', a: [B * 0.38, T * 0.74], b: [B * 0.62, T * 0.74] },
+      ]
   }
 }
 

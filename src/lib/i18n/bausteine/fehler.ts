@@ -223,6 +223,36 @@ export const fehler: Woerterbuch = {
     ar: 'لم يتم إنشاء الاتصال المباشر. يحدث ذلك في بعض شبكات الهاتف عندما لا يتوفر خادم TURN.',
   },
 
+  // ------------------------------------- Figur und Wohnung live (E82)
+  'fehler.figur_ungueltig': {
+    de: 'Diese Figur lässt sich nicht speichern. Bitte die Auswahl prüfen.',
+    ar: 'لا يمكن حفظ هذه الشخصية. يرجى مراجعة الاختيارات.',
+  },
+  'fehler.figur_spalte_fehlt': {
+    de: 'Die Datenbank kennt Figuren noch nicht. Speichern geht nach dem nächsten Update.',
+    ar: 'قاعدة البيانات لا تعرف الشخصيات بعد. سيصبح الحفظ ممكنًا بعد التحديث القادم.',
+  },
+  'fehler.wohnung_anmeldung': {
+    de: 'Verbindung zur Wohnung nicht aufgebaut: {grund}',
+    ar: 'لم يتم الاتصال بالشقة: {grund}',
+  },
+  'fehler.wohnung_kanal': {
+    de: 'Die Verbindung zu den anderen in der Wohnung ist gestört. Du siehst sie gerade nicht.',
+    ar: 'الاتصال بالآخرين في الشقة متعطل. لا يمكنك رؤيتهم الآن.',
+  },
+  'fehler.wohnung_zeit': {
+    de: 'Die anderen in der Wohnung antworten nicht. Es wird weiter versucht.',
+    ar: 'الآخرون في الشقة لا يستجيبون. تتم المحاولة من جديد.',
+  },
+  'fehler.wohnung_zu': {
+    de: 'Die Verbindung zu den anderen in der Wohnung wurde beendet.',
+    ar: 'انتهى الاتصال بالآخرين في الشقة.',
+  },
+  'fehler.sprechen_mikrofon_abgelehnt': {
+    de: 'Das Mikrofon ist gesperrt. Zuhören geht trotzdem; zum Sprechen das Mikrofon in den Seiteneinstellungen erlauben.',
+    ar: 'الميكروفون محظور. يمكنك الاستماع رغم ذلك؛ وللتحدث اسمح باستخدام الميكروفون في إعدادات الموقع.',
+  },
+
   // ---------------------------------------------------------- Aufnahme
   'fehler.keine_aufnahme': { de: 'Es läuft keine Aufnahme', ar: 'لا يوجد تسجيل جارٍ' },
   'fehler.aufnahme_leer': {

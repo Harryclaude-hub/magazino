@@ -10,6 +10,8 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase, errText } from './supabase'
 import { appUrl } from './util'
+import { pruefeLook } from './avatar'
+import { tg } from './i18n'
 import type { Profile } from './types'
 
 interface AuthValue {
@@ -22,7 +24,7 @@ interface AuthValue {
   signOut: () => Promise<void>
   sendReset: (email: string) => Promise<void>
   updatePassword: (password: string) => Promise<void>
-  updateProfile: (patch: Partial<Pick<Profile, 'display_name' | 'avatar_path'>>) => Promise<void>
+  updateProfile: (patch: Partial<Pick<Profile, 'display_name' | 'avatar_path' | 'avatar3d'>>) => Promise<void>
   refreshProfile: () => Promise<void>
 }
 
@@ -114,13 +116,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async updateProfile(patch) {
         if (!session?.user) throw new Error('Nicht angemeldet')
+        /* Die Figur (E82) prueft die Datenbank selbst (0043). Vorher hier
+         * dieselbe Regel, damit ein kaputter Look gar nicht erst losgeht. */
+        if (patch.avatar3d != null && !pruefeLook(patch.avatar3d)) {
+          throw new Error(tg('fehler.figur_ungueltig'))
+        }
         const { data, error } = await supabase
           .from('profiles')
           .update(patch)
           .eq('id', session.user.id)
           .select('*')
           .single()
-        if (error) throw new Error(errText(error))
+        if (error) {
+          const roh = `${error.message ?? ''} ${error.details ?? ''}`
+          // CHECK aus 0043 abgelehnt.
+          if (roh.includes('profiles_avatar3d_ok')) throw new Error(tg('fehler.figur_ungueltig'))
+          // Spalte fehlt: Migration 0043 ist noch nicht eingespielt.
+          if ('avatar3d' in patch && (error.code === 'PGRST204' || roh.includes("'avatar3d' column"))) {
+            throw new Error(tg('fehler.figur_spalte_fehlt'))
+          }
+          throw new Error(errText(error))
+        }
         setProfile(data as Profile)
       },
       async refreshProfile() {
