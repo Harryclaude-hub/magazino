@@ -771,6 +771,72 @@ export interface Siedlung {
   gebaeude: SiedlungGebaeude[]
   wohnung: SiedlungWohnung | null
   aussen: SiedlungAussen
+  /** Die Haeuser innen, wo Plaene bekannt sind (E84, Migration 0045). */
+  innen?: SiedlungInnenHaus[] | null
   created_at: string
   updated_at: string
+}
+
+/* ------------------------------------------------- Siedlung innen (E84)
+ * Die Wohnungen eines Hauses Geschoss fuer Geschoss, wie in Kistlys
+ * Grundriss: Raeume als Umrisse in cm, Oeffnungen auf ihren Kanten. Alles
+ * in den Koordinaten des Geschosses (cm, x nach rechts, y nach unten wie
+ * ein Plan); wo dieses Geschoss in der Siedlung liegt, sagt
+ * SiedlungInnenHaus (x, z, drehung) mit derselben Formel wie
+ * SiedlungWohnung: Siedlung (x, z) = (h.x, h.z) + R(drehung) * (px/100, py/100). */
+
+export interface SiedlungInnenRaum {
+  name: string
+  art: 'innen' | 'draussen'
+  punkte: [number, number][]
+}
+
+export interface SiedlungInnenOeffnung {
+  /** Index in raeume der Wohnung. */
+  raum: number
+  art: 'tuer' | 'fenster' | 'durchgang'
+  kante: number
+  abstand_cm: number
+  breite_cm: number
+  hoehe_cm: number
+  bruestung_cm: number
+  anschlag: 'links' | 'rechts'
+  aufschlag: 'innen' | 'aussen'
+}
+
+export interface SiedlungInnenMoebel {
+  name: string
+  x: number
+  y: number
+  breite_cm: number
+  tiefe_cm: number
+  drehung: 0 | 90 | 180 | 270
+}
+
+export interface SiedlungInnenWohnung {
+  /** Top-Nummer wie im Plan, etwa 'D05'. */
+  top: string
+  typ: string
+  raeume: SiedlungInnenRaum[]
+  oeffnungen: SiedlungInnenOeffnung[]
+  /** Kueche und Bad, wie im Plan gezeichnet. */
+  moebel: SiedlungInnenMoebel[]
+  /** Mitte der Wohnungstuer aussen (cm), zum Hinspringen. */
+  eingang: [number, number] | null
+}
+
+export interface SiedlungInnenGeschoss {
+  /** 0 = Erdgeschoss, 1 = 1. OG ... */
+  geschoss: number
+  wohnungen: SiedlungInnenWohnung[]
+  /** Stiegenhaus, Aufzug, Gang oder Laubengang: Flaechen in cm. */
+  allgemein: { art: 'stiege' | 'aufzug' | 'gang' | 'laubengang'; punkte: [number, number][] }[]
+}
+
+export interface SiedlungInnenHaus {
+  gebaeudeId: string
+  x: number
+  z: number
+  drehung: 0 | 90 | 180 | 270
+  geschosse: SiedlungInnenGeschoss[]
 }

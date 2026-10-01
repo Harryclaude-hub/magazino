@@ -79,7 +79,22 @@ export interface Welt3D {
   ebenen: Ebene3D[]
   /** Aufzugknoepfe und Aehnliches, sonst null. */
   interaktiv: Interaktiv3D | null
+  /** Wohnungen und Orte zum Hinspringen (E84), sonst leer oder fehlt. */
+  sprungziele?: Sprungziel3D[]
   /** Jedes Bild (beim Begehen): Aufzugtueren, Kabine. true = es bewegt sich noch. */
   schritt?(dt: number, kameraY: number): boolean
   dispose(): void
+}
+
+/* ------------------------------------------------------------ E84 */
+
+/** Ein Sprungziel in der Siedlung (Liste "Wohnungen"): wohin die Kamera
+ *  beim Begehen springt. ebene: Index in Welt3D.ebenen. */
+export interface Sprungziel3D {
+  name: string
+  ebene: number
+  x: number
+  z: number
+  /** Blickrichtung (0 = nach -z). */
+  gier: number
 }
