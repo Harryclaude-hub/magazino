@@ -641,3 +641,19 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   manchen Mobilfunknetzen). Kiste antippen zeigt ihre Karte mit Zurueck zur
   Begehung und Kiste oeffnen; Esc der Reihe nach. Nicht moeglich: Moebel
   Stueck fuer Stueck wie IKEA; die echten 3D-Modelle gehoeren IKEA.
+- **E83 Siedlung als eigener Bereich:** Neben den Umzuegen gibt es die
+  Siedlung: die Haeuser rund um die eigene Wohnung in 3D, die Wohnung
+  selbst darin im richtigen Stockwerk, begehbar mit Laubengang,
+  Stiegenhaus und Aufzug zwischen den Stockwerken. Erreichbar ueber einen
+  Knopf oben neben dem Profil; geladen wird erst beim Oeffnen (eigene
+  Code-Teile, nichts beim Start). In den Einstellungen laesst sich der
+  Knopf abschalten. Daten nur in der Datenbank (Migration 0044, Tabelle
+  siedlungen, privat je Besitzer, lesbar fuer die Mitglieder des Umzugs
+  der eigenen Wohnung): wo jemand wohnt, steht nie im oeffentlichen Code.
+  Umrisse kommen aus OpenStreetMap (Hinweis wird gezeigt), Geschosse und
+  Aussehen stellt man ein (Assistent in vier Schritten: Adresse, Haeuser,
+  Wohnung platzieren, speichern). Haeuser: Geschosse, Fenster, Loggien
+  und Balkone je Stil, Gruendach mit PV; draussen Wege, Strasse,
+  Spielplatz, Tiefgarage, Baeume. Motor: begehbare Ebenen je Stockwerk mit
+  eigener Kollision, der Aufzug faehrt die Kamera mit. Die anderen
+  Wohnungen innen folgen in einem eigenen Schritt.
