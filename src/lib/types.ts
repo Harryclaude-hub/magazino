@@ -814,7 +814,7 @@ export interface SiedlungInnenMoebel {
 }
 
 export interface SiedlungInnenWohnung {
-  /** Top-Nummer wie im Plan, etwa 'D05'. */
+  /** Top-Nummer wie im Plan, etwa 'A12'. */
   top: string
   typ: string
   raeume: SiedlungInnenRaum[]

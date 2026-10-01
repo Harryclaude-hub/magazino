@@ -4,6 +4,7 @@
  * auseinanderlaeuft.
  */
 import { supabase, errText } from './supabase'
+import { siedlungInnenPruefen } from './siedlungInnen'
 import { tg } from './i18n'
 import { zuPunkten, zuUmriss } from './geometrie'
 import type {
@@ -1665,6 +1666,9 @@ type SiedlungZeile = import('./types').Siedlung
 type SiedlungAussenWerte = import('./types').SiedlungAussen
 
 const SIEDLUNG_SPALTEN = 'id, owner_id, name, lat, lon, gebaeude, wohnung, aussen, created_at, updated_at'
+/** Mit den Haeusern innen (E84, 0045): gross, darum nur beim Oeffnen einer
+ *  Siedlung, nicht in der Liste. */
+const SIEDLUNG_SPALTEN_INNEN = `${SIEDLUNG_SPALTEN}, innen`
 
 /** Zeile der Datenbank in die Form der Oberflaeche: fehlende Listen leer,
  *  lat und lon als Zahl. */
@@ -1677,7 +1681,21 @@ function siedlungLesen(z: SiedlungZeile): SiedlungZeile {
     gebaeude: Array.isArray(z.gebaeude) ? z.gebaeude : [],
     wohnung: z.wohnung ?? null,
     aussen: { spielplatz: a.spielplatz ?? null, tiefgarage: a.tiefgarage ?? null, wege: a.wege ?? [] },
+    innen: innenLesen(z.innen, Array.isArray(z.gebaeude) ? z.gebaeude.map((g) => g.id) : []),
   }
+}
+
+/** Die Haeuser innen (E84): nur Haeuser ohne Fehler; ein kaputtes Haus
+ *  faellt weg (mit Hinweis in der Konsole), statt die ganze Siedlung zu
+ *  sperren. Fehlt die Spalte in der Abfrage, bleibt es undefined. */
+function innenLesen(roh: unknown, gebaeudeIds: string[]): SiedlungZeile['innen'] {
+  if (roh === undefined) return undefined
+  if (!Array.isArray(roh)) return null
+  return roh.filter((h, i) => {
+    const probleme = siedlungInnenPruefen([h], gebaeudeIds)
+    if (probleme.length) console.warn(`[siedlung] Haus ${i} innen ausgelassen:`, probleme.slice(0, 3))
+    return probleme.length === 0
+  }) as NonNullable<SiedlungZeile['innen']>
 }
 
 /** Alle Siedlungen, die man sehen darf: die eigenen und die aus einem
@@ -1690,7 +1708,7 @@ export async function listSiedlungen(): Promise<SiedlungZeile[]> {
 
 /** Eine Siedlung. null heisst: gibt es nicht (mehr) oder nicht sichtbar. */
 export async function ladeSiedlung(id: string): Promise<SiedlungZeile | null> {
-  const res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN).eq('id', id).maybeSingle()
+  const res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN_INNEN).eq('id', id).maybeSingle()
   if (res.error) throw new Error(errText(res.error))
   return res.data ? siedlungLesen(res.data as SiedlungZeile) : null
 }
