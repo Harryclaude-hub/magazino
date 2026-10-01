@@ -19,7 +19,7 @@ import { Knueppel } from './Knueppel'
 import { farbenLesen } from './farben3d'
 import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
 import { umgebungAus } from './umgebungRahmen'
-import type { Ebene3D, Welt3D } from './vertrag3d'
+import type { Ebene3D, Sprungziel3D, Welt3D } from './vertrag3d'
 
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
  *
@@ -50,6 +50,11 @@ import type { Ebene3D, Welt3D } from './vertrag3d'
  * steht dann oben, auf welchem Stockwerk man ist. Ohne welt bleibt alles
  * wie zuvor.
  *
+ * E84: Die Welt der Siedlung bringt Sprungziele mit (alle Wohnungen der
+ * Haeuser mit Plan). Raum3D meldet sie der Seite (onSprungziele), und
+ * steuer.springen(i) bringt einen beim Begehen dorthin; wer gerade nicht
+ * geht, beginnt das Begehen dort.
+ *
  * Die Farben kommen aus den Tokens (getComputedStyle) und werden bei
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
  */
@@ -61,16 +66,24 @@ export interface Raum3DSteuer {
   zurWohnung(): void
   /** Alles von oben zeigen. */
   vonOben(): void
+  /** Zum Sprungziel index der Welt gehen (E84, Nummer in der Liste, die
+   *  onSprungziele gemeldet hat). Wer nicht geht, beginnt das Begehen und
+   *  steht dann dort. Unbekannte Nummer oder noch keine Welt: nichts. */
+  springen(index: number): void
 }
 
-/** Was der Motor fuer eine eigene Welt kann (E83, Paket motor). Hier nur
- *  als freiwillige Angabe und ueber unknown gegriffen, damit es nach dem
- *  Zusammenfuehren nicht mit motor.ts kollidiert: fehlt welt(), kommt die
- *  Welt ueber umgebung() und es gibt keine Stockwerke. */
+/** Was der Motor fuer eine eigene Welt kann (E83 und E84, Paket motor).
+ *  Hier nur als freiwillige Angabe und ueber unknown gegriffen, damit es
+ *  nach dem Zusammenfuehren nicht mit motor.ts kollidiert: fehlt welt(),
+ *  kommt die Welt ueber umgebung() und es gibt keine Stockwerke; fehlt
+ *  springen(), meldet springen es in der Konsole. */
 interface MotorMitWelt {
   welt?: (w: Welt3D | null) => void
   ebeneJetzt?: (fn: ((ebene: unknown) => void) | null) => void
   ebeneWechseln?: (i: number) => void
+  /** Beim Begehen auf Ebene ebene (Index in welt().ebenen) an die Stelle
+   *  x, z (Meter, Welt) mit Blick gier (0 = nach -z). */
+  springen?: (ebene: number, x: number, z: number, gier: number) => void
 }
 
 function mitWelt(m: Motor): MotorMitWelt {
@@ -111,6 +124,11 @@ export interface Raum3DProps {
   /** Meldet das Stockwerk, auf dem man gerade geht (Name der Ebene der
    *  welt), oder null, wenn man nicht geht. */
   onEbene?: (name: string | null) => void
+  /** Die Sprungziele der welt (E84), jedes Mal, wenn sie gebaut ist (auch
+   *  neu, etwa bei Hell und Dunkel); ohne Ziele eine leere Liste. ebenen:
+   *  die Namen der Ebenen der welt, Index wie Sprungziel3D.ebene (fuer
+   *  Ueberschriften). Schlaegt der Bau fehl, kommt nichts. */
+  onSprungziele?: (ziele: Sprungziel3D[], ebenen: string[]) => void
   /** Griff fuer Knoepfe ausserhalb (Kopfzeile der Siedlung). */
   steuer?: Ref<Raum3DSteuer>
   className?: string
@@ -152,7 +170,7 @@ function traegerKarte(daten: GrundrissDaten): Map<string, string> {
   return out
 }
 
-export default function Raum3D({ daten, raumId = null, hervor = null, markiert = null, onSchliessen, onObjektZiehen, onTippen, welt, onEbene, steuer, className }: Raum3DProps) {
+export default function Raum3D({ daten, raumId = null, hervor = null, markiert = null, onSchliessen, onObjektZiehen, onTippen, welt, onEbene, onSprungziele, steuer, className }: Raum3DProps) {
   const { t } = useSprache()
   const nav = useNavigate()
   const toast = useToast()
@@ -388,6 +406,14 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   // oben das hoechste wie an der Tafel im Aufzug; i ist die Nummer in welt.ebenen).
   const [ebeneLage, setEbeneLage] = useState<{ name: string | null; liste: { i: number; name: string; y: number }[] } | null>(null)
   const [aufzugAuf, setAufzugAuf] = useState(false)
+  // Sprungziele der gebauten Welt (E84): fuer steuer.springen hier, fuer
+  // die Liste der Wohnungen an die Seite. Der Rueckruf in einer Ref, damit
+  // ein neuer Wert die Welt nicht neu baut.
+  const sprungziele = useRef<Sprungziel3D[]>([])
+  const sprungRueck = useRef(onSprungziele)
+  useLayoutEffect(() => {
+    sprungRueck.current = onSprungziele
+  })
   useEffect(() => {
     const m = motor.current
     if (!m || geht !== 'ja' || !welt) return
@@ -404,7 +430,10 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     else m.umgebung({ gruppe: w.gruppe, nebel: w.nebel, himmel: w.himmel })
     const liste = w.ebenen.map((x, i) => ({ i, name: x.name, y: x.y })).sort((a, b) => b.y - a.y)
     mw.ebeneJetzt?.((e) => setEbeneLage({ name: ebenenName(e, w.ebenen), liste }))
+    sprungziele.current = w.sprungziele ?? []
+    sprungRueck.current?.(sprungziele.current, w.ebenen.map((x) => x.name))
     return () => {
+      sprungziele.current = []
       mw.ebeneJetzt?.(null)
       if (mw.welt) mw.welt(null)
       else m.umgebung(null)
@@ -454,6 +483,27 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
         setGehen(false)
         motor.current?.blick('oben')
       },
+      // E84: Liste der Wohnungen. Wer nicht geht, beginnt erst das Begehen
+      // (der Motor merkt sich die Kamera fuer danach), dann der Sprung.
+      // setGehen(true) laesst die Leiste folgen; das begehen() im Effekt
+      // darunter tut dann nichts mehr, der Motor geht ja schon.
+      springen(index: number) {
+        const m = motor.current
+        const ziel = sprungziele.current[index]
+        if (!m || geht !== 'ja' || !ziel) return
+        const mw = mitWelt(m)
+        if (!mw.springen) {
+          console.warn('[3d] Der Motor kann noch nicht springen (Motor.springen fehlt).')
+          return
+        }
+        setKarte(null)
+        setAufzugAuf(false)
+        if (!gehenRef.current) {
+          m.begehen(true, startPunkt(daten, raumId))
+          setGehen(true)
+        }
+        mw.springen(ziel.ebene, ziel.x, ziel.z, ziel.gier)
+      },
     }),
     [geht, daten, raumId],
   )
@@ -475,6 +525,12 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   useEffect(() => {
     const taste = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      // Ein offenes Fenster ueber der Seite (etwa die Liste der Wohnungen
+      // der Siedlung, E84) schliesst zuerst. Eines, in dem diese Ansicht
+      // selbst steckt (Fenster3D) oder das in ihr liegt, zaehlt nicht.
+      const w = wurzel.current
+      const fremd = Array.from(document.querySelectorAll('[aria-modal="true"]')).some((d) => !!w && !d.contains(w) && !w.contains(d))
+      if (fremd) return
       const z = escLage.current
       if (z.karte) setKarte(null)
       else if (z.gehen && z.haltung !== 'stehen') motor.current?.aufstehen()

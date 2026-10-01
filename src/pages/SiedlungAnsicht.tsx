@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Building2, House, Map as KarteIcon } from 'lucide-react'
+import { Building2, ChevronRight, DoorOpen, House, Map as KarteIcon, Search, X } from 'lucide-react'
 import { AppHeader } from '../components/AppShell'
 import { Ansicht3D } from '../components/plan3d/oeffnen'
 import type { Raum3DSteuer } from '../components/plan3d/Raum3D'
 import type { Farben3D } from '../components/plan3d/szene'
 import { umgebungAus } from '../components/plan3d/umgebungRahmen'
-import type { Welt3D } from '../components/plan3d/vertrag3d'
-import { Button, Empty, ErrorBox, Loading } from '../components/ui'
+import type { Sprungziel3D, Welt3D } from '../components/plan3d/vertrag3d'
+import { Button, Empty, ErrorBox, IconButton, Input, Loading } from '../components/ui'
 import { ladeGrundriss, ladeSiedlung } from '../lib/api'
 import { useSprache } from '../lib/i18n'
 import { siedlungWoerter } from '../lib/i18n/bausteine/siedlung'
@@ -30,7 +31,14 @@ woerterNachladen(siedlungWoerter)
  * Nichts davon laedt beim Start der App: diese Seite ist ein eigener Teil
  * (App.tsx), three kommt mit Raum3D (oeffnen.tsx) und siedlung3d.ts hier
  * per import(), beides erst, wenn die Seite offen ist. Laden, Fehler und
- * "gibt es nicht" sind eigene Zustaende. */
+ * "gibt es nicht" sind eigene Zustaende.
+ *
+ * E84: Oben der Knopf "Wohnungen". Er oeffnet die Liste der Sprungziele,
+ * die die Welt mitbringt (am Handy ein Blatt von unten, am Computer eine
+ * Leiste am Rand); Tippen schliesst sie und bringt einen beim Begehen
+ * dorthin. Solange die Welt nicht gebaut ist, ist der Knopf aus; hat sie
+ * keine Ziele, steht in der Liste ein Hinweis. Der Name oben ist der
+ * gespeicherte Name der Siedlung, nie ein fester Text. */
 
 /** Ohne eigene Wohnung: eine leere Szene, nur die Welt drumherum. */
 const OHNE_WOHNUNG: GrundrissDaten = {
@@ -91,6 +99,25 @@ export default function SiedlungAnsicht() {
   const steuer = useRef<Raum3DSteuer>(null)
   const [ebene, setEbene] = useState<string | null>(null)
 
+  // Sprungziele (E84), gemerkt zu der Welt, fuer die Raum3D sie gebaut hat:
+  // eine neue Welt beginnt wieder bei "noch nicht gebaut" (Knopf aus).
+  // Raum3D meldet sie in einem Effekt, also nach dem Setzen der Ref hier.
+  const [ziele, setZiele] = useState<{ fuer: unknown; liste: Sprungziel3D[]; ebenen: string[] } | null>(null)
+  const weltJetzt = useRef(welt)
+  useLayoutEffect(() => {
+    weltJetzt.current = welt
+  })
+  const zieleMelden = useCallback((liste: Sprungziel3D[], ebenen: string[]) => setZiele({ fuer: weltJetzt.current, liste, ebenen }), [])
+  const sprung = ziele && welt && ziele.fuer === welt ? ziele : null
+  // Offen fuer genau diese Welt: kommt eine neue, geht die Liste zu.
+  const [listeFuer, setListeFuer] = useState<unknown>(null)
+  const listeAuf = !!sprung && listeFuer === welt
+  const listeZu = useCallback(() => setListeFuer(null), [])
+  const hingehen = useCallback((i: number) => {
+    setListeFuer(null)
+    steuer.current?.springen(i)
+  }, [])
+
   const wohnung = siedlung?.wohnung ?? null
   const haus = wohnung ? siedlung?.gebaeude.find((g) => g.id === wohnung.gebaeudeId) : undefined
   const stock = wohnung ? (wohnung.geschoss === 0 ? t('siedlung.geschoss_eg') : t('siedlung.geschoss_n', { n: wohnung.geschoss })) : null
@@ -113,33 +140,57 @@ export default function SiedlungAnsicht() {
         back="/app/siedlung"
         sticky={false}
         actions={
-          // Von oben braucht die Wohnung als Rahmen; ohne sie dreht man selbst.
-          bereit && wohnung ? (
+          bereit ? (
             <>
+              {/* Zuerst: am Handy bleibt nur der erste Knopf sichtbar, der Rest
+                  steht unter "Mehr". Aus, bis die Welt gebaut ist. */}
               <Button
                 size="sm"
                 variant="outline"
-                aria-label={t('siedlung.zur_wohnung')}
-                title={t('siedlung.zur_wohnung')}
-                onClick={() => steuer.current?.zurWohnung()}
+                aria-label={t('siedlung.wohnungen')}
+                title={sprung ? t('siedlung.wohnungen_hilfe') : t('siedlung.wohnungen_laedt')}
+                aria-haspopup="dialog"
+                aria-expanded={listeAuf}
+                disabled={!sprung}
+                // welt ist eine Funktion: in eine Funktion verpackt, sonst
+                // haelt React sie fuer eine Aenderungsvorschrift und ruft sie.
+                onClick={() => setListeFuer(() => welt)}
               >
-                <House size={18} />
-                <span className="hidden sm:inline">{t('siedlung.zur_wohnung')}</span>
+                <DoorOpen size={18} />
+                <span className="hidden sm:inline">{t('siedlung.wohnungen')}</span>
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                aria-label={t('siedlung.von_oben')}
-                title={t('siedlung.von_oben')}
-                onClick={() => steuer.current?.vonOben()}
-              >
-                <KarteIcon size={18} />
-                <span className="hidden sm:inline">{t('siedlung.von_oben')}</span>
-              </Button>
+              {/* Von oben braucht die Wohnung als Rahmen; ohne sie dreht man selbst. */}
+              {wohnung ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    aria-label={t('siedlung.zur_wohnung')}
+                    title={t('siedlung.zur_wohnung')}
+                    onClick={() => steuer.current?.zurWohnung()}
+                  >
+                    <House size={18} />
+                    <span className="hidden sm:inline">{t('siedlung.zur_wohnung')}</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    aria-label={t('siedlung.von_oben')}
+                    title={t('siedlung.von_oben')}
+                    onClick={() => steuer.current?.vonOben()}
+                  >
+                    <KarteIcon size={18} />
+                    <span className="hidden sm:inline">{t('siedlung.von_oben')}</span>
+                  </Button>
+                </>
+              ) : null}
             </>
           ) : null
         }
       />
+      {sprung && listeAuf ? (
+        <WohnungenBlatt ziele={sprung.liste} ebenen={sprung.ebenen} onWahl={hingehen} onClose={listeZu} />
+      ) : null}
       <div className="flex min-h-0 flex-1 flex-col">
         {zustand.loading ? (
           <Loading label={t('siedlung.ansicht_laedt')} />
@@ -180,7 +231,7 @@ export default function SiedlungAnsicht() {
               </p>
             ) : null}
             <div className="min-h-0 flex-1">
-              <Ansicht3D daten={daten ?? OHNE_WOHNUNG} welt={welt} onEbene={setEbene} steuer={steuer} />
+              <Ansicht3D daten={daten ?? OHNE_WOHNUNG} welt={welt} onEbene={setEbene} onSprungziele={zieleMelden} steuer={steuer} />
             </div>
             {/* Pflichtangabe der Kartendaten (ODbL), unter dem Bild statt darauf. */}
             <p dir="ltr" className="shrink-0 border-t border-line bg-surface px-3 py-1 text-[0.6875rem] text-muted">
@@ -189,6 +240,191 @@ export default function SiedlungAnsicht() {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------ Liste der Wohnungen (E84) */
+
+/** Die Liste ueber der Seite: am Handy ein Blatt von unten, am Computer
+ *  eine Leiste am Rand, damit das Bild daneben zu sehen bleibt. Sie
+ *  entsteht bei jedem Oeffnen neu, die Suche beginnt also leer. Ohne
+ *  Unschaerfe dahinter (kostet bei 3D Rechenzeit, wie Fenster3D). Tasten
+ *  bleiben im Blatt, sonst ginge man mit den Pfeilen in 3D los. */
+function WohnungenBlatt({
+  ziele,
+  ebenen,
+  onWahl,
+  onClose,
+}: {
+  ziele: Sprungziel3D[]
+  ebenen: string[]
+  onWahl: (index: number) => void
+  onClose: () => void
+}) {
+  const { t } = useSprache()
+  const [suche, setSuche] = useState('')
+  const feld = useRef<HTMLInputElement>(null)
+  const blatt = useRef<HTMLDivElement>(null)
+  const zu = useRef(onClose)
+  useLayoutEffect(() => {
+    zu.current = onClose
+  })
+  useEffect(() => {
+    // Esc auch dann, wenn der Fokus nicht im Blatt liegt.
+    const taste = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') zu.current()
+    }
+    document.addEventListener('keydown', taste)
+    const vorher = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    // Am Computer gleich ins Suchfeld; am Handy nicht, sonst deckt die
+    // Tastatur die Liste zu.
+    if (window.matchMedia('(pointer: fine)').matches) feld.current?.focus()
+    else blatt.current?.focus()
+    return () => {
+      document.removeEventListener('keydown', taste)
+      document.body.style.overflow = vorher
+    }
+  }, [])
+
+  // Portal an body, wie Modal: sonst liegt das Blatt unter der Kopfzeile.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-stretch lg:justify-end">
+      <div className="absolute inset-0 bg-black/45 lg:bg-black/20" aria-hidden="true" onClick={onClose} />
+      <div
+        ref={blatt}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('siedlung.wohnungen')}
+        tabIndex={-1}
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === 'Escape') onClose()
+        }}
+        className="animate-in relative flex max-h-[85dvh] w-full flex-col rounded-t-karte border border-b-0 border-line bg-surface shadow-dialog outline-none sm:max-w-lg lg:h-full lg:max-h-none lg:w-96 lg:max-w-none lg:rounded-none lg:border-y-0 lg:border-e-0"
+      >
+        <div className="flex items-center gap-2 border-b border-line px-4 py-3">
+          <DoorOpen size={19} className="shrink-0 text-muted" />
+          <h2 className="min-w-0 flex-1 truncate text-base font-bold">{t('siedlung.wohnungen')}</h2>
+          <IconButton size="sm" label={t('aktion.schliessen')} onClick={onClose}>
+            <X size={18} />
+          </IconButton>
+        </div>
+        <div className="border-b border-line px-4 py-3">
+          <div className="relative">
+            <Search size={18} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted" />
+            <Input
+              ref={feld}
+              type="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              value={suche}
+              onChange={(e) => setSuche(e.target.value)}
+              placeholder={t('siedlung.wohnungen_suchen')}
+              aria-label={t('siedlung.wohnungen_suchen')}
+              className="ps-10"
+            />
+          </div>
+          <p className="t-sub mt-2">{t('siedlung.springen_hinweis')}</p>
+        </div>
+        <div className="scrollbar-thin safe-bottom min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <WohnungenListe ziele={ziele} ebenen={ebenen} suche={suche} onWahl={onWahl} />
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+interface Gruppe {
+  /** Name der Ebene der Welt (Haus und Stockwerk, wie die Welt sie nennt). */
+  titel: string | null
+  /** i: Nummer in der ganzen Liste, fuer steuer.springen. */
+  ziele: { i: number; name: string }[]
+}
+
+/** Teilt die Ziele in der gegebenen Reihenfolge in Gruppen: wechselt die
+ *  Ebene, beginnt eine neue, mit dem Namen der Ebene als Ueberschrift. Aus
+ *  den Namen wird nichts gelesen. Suche: jedes Wort muss im Namen stehen,
+ *  gross oder klein ist egal. */
+function gruppieren(ziele: Sprungziel3D[], ebenen: string[], suche: string): Gruppe[] {
+  const woerter = suche.toLocaleLowerCase().split(/\s+/).filter(Boolean)
+  const out: Gruppe[] = []
+  let ebeneVorher: number | null = null
+  ziele.forEach((z, i) => {
+    const name = z.name.toLocaleLowerCase()
+    if (!woerter.every((w) => name.includes(w))) return
+    if (out.length === 0 || z.ebene !== ebeneVorher) {
+      out.push({ titel: ebenen[z.ebene] ?? null, ziele: [] })
+      ebeneVorher = z.ebene
+    }
+    out[out.length - 1].ziele.push({ i, name: z.name })
+  })
+  return out
+}
+
+/** Der Inhalt der Liste: ohne Ziele ein Hinweis, ohne Treffer ein anderer,
+ *  sonst die Gruppen. Eigene Komponente, damit sie ohne Browser geprueft
+ *  werden kann (scripts/siedlung-wohnungen-pruefen.mjs). */
+export function WohnungenListe({
+  ziele,
+  ebenen,
+  suche,
+  onWahl,
+}: {
+  ziele: Sprungziel3D[]
+  ebenen: string[]
+  suche: string
+  onWahl: (index: number) => void
+}) {
+  const { t } = useSprache()
+  const gruppen = useMemo(() => gruppieren(ziele, ebenen, suche), [ziele, ebenen, suche])
+  if (ziele.length === 0) {
+    return (
+      <p role="status" className="px-4 py-8 text-center text-muted">
+        {t('siedlung.wohnungen_leer')}
+      </p>
+    )
+  }
+  if (gruppen.length === 0) {
+    return (
+      <p role="status" className="px-4 py-8 text-center text-muted">
+        {t('siedlung.wohnungen_keine_treffer', { suche: suche.trim() })}
+      </p>
+    )
+  }
+  return (
+    <div className="pb-2">
+      {gruppen.map((g, gi) => (
+        <section key={gi} aria-label={g.titel ?? undefined}>
+          {g.titel ? (
+            <h3 dir="auto" className="t-sub sticky top-0 z-10 border-b border-line bg-surface px-4 pb-1.5 pt-3 font-bold">
+              {g.titel}
+            </h3>
+          ) : null}
+          <ul>
+            {g.ziele.map((z) => (
+              <li key={z.i}>
+                <button
+                  type="button"
+                  data-ziel={z.i}
+                  aria-label={t('siedlung.springen_zu', { name: z.name })}
+                  onClick={() => onWahl(z.i)}
+                  className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-start font-bold text-ink hover:bg-raised focus-visible:bg-raised focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ink"
+                >
+                  <DoorOpen size={18} className="shrink-0 text-muted" />
+                  <span dir="auto" className="min-w-0 flex-1 truncate">
+                    {z.name}
+                  </span>
+                  <span className="t-sub hidden lg:inline">{t('siedlung.springen')}</span>
+                  <ChevronRight size={18} className="spiegeln shrink-0 text-muted" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   )
 }
