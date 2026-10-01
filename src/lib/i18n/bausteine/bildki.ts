@@ -17,12 +17,12 @@ export const bildki: Woerterbuch = {
   },
   'bildki.seit': { de: 'Läuft seit', ar: 'يعمل منذ' },
   'bildki.dauer': {
-    de: 'Ein Foto dauert meist bis zu einer Minute. Lass die Seite so lange offen.',
-    ar: 'تستغرق الصورة عادةً حتى دقيقة واحدة. أبقِ الصفحة مفتوحة خلال ذلك.',
+    de: 'Ein Foto dauert höchstens 20 Sekunden.',
+    ar: 'تستغرق الصورة 20 ثانية على الأكثر.',
   },
   'bildki.erklaerung': {
-    de: 'Die Erkennung sieht sich das Foto an und schlägt vor, was darauf liegt. Nichts wird von allein eingetragen: du entscheidest Zeile für Zeile.',
-    ar: 'يفحص التعرّف الصورة ويقترح ما فيها. لا يُسجَّل شيء تلقائياً: أنت تقرر سطراً بسطر.',
+    de: 'Die Erkennung sieht sich das Foto an und trägt alles, was sie findet, gleich in die Inhaltsliste ein. Danach findest du es über die Suche. Was nicht stimmt, löschst du in der Liste.',
+    ar: 'يفحص التعرّف الصورة ويضيف كل ما يجده مباشرة إلى قائمة المحتويات. بعدها تجده عبر البحث. ما ليس صحيحاً تحذفه من القائمة.',
   },
 
   'bildki.keine_bilder': {
@@ -34,6 +34,10 @@ export const bildki: Woerterbuch = {
     ar: 'لم يُتعرَّف على شيء في هذه الصورة. عادةً تساعد صورة من مسافة أقرب أو بإضاءة أفضل.',
   },
   'bildki.bild_nummer': { de: 'Bild {n}', ar: 'الصورة {n}' },
+  'bildki.unvollstaendig': {
+    de: 'Nach 20 Sekunden war die Liste noch nicht fertig. Eingetragen ist, was bis dahin erkannt war. Für den Rest ein zweites Foto von näher dran machen.',
+    ar: 'لم تكتمل القائمة بعد 20 ثانية. أُضيف ما تم التعرّف عليه حتى ذلك الحين. للباقي التقط صورة ثانية من مسافة أقرب.',
+  },
 
   'bildki.uebernehmen': { de: 'Übernehmen', ar: 'اعتماد' },
   'bildki.alle_uebernehmen': { de: 'Alle gewählten übernehmen', ar: 'اعتماد كل المحدّد' },
@@ -115,8 +119,8 @@ export const bildki: Woerterbuch = {
     ar: 'كان في الصورة الكثير حتى قُطع الرد. صوّر الطبقة على جزأين.',
   },
   'bildki.fehler.zeit': {
-    de: 'Die Erkennung hat zu lange gebraucht. Versuch es gleich noch einmal.',
-    ar: 'استغرق التعرّف وقتاً طويلاً. حاول مرة أخرى بعد قليل.',
+    de: 'In 20 Sekunden kam keine Liste zurück. Versuch es gleich noch einmal, am besten mit einem Foto von näher dran.',
+    ar: 'لم تصل قائمة خلال 20 ثانية. حاول مرة أخرى بعد قليل، والأفضل بصورة من مسافة أقرب.',
   },
   'bildki.fehler.abgemeldet': {
     de: 'Deine Anmeldung ist abgelaufen. Melde dich neu an und versuch es dann noch einmal.',

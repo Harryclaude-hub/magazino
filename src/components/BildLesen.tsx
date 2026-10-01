@@ -19,6 +19,7 @@ import {
   BildFehler,
   MAX_BILDER_JE_LAUF,
   bilderLesen,
+  kiFassung,
   erkennungVerwerfen,
   lesbareFotos,
   restGuthaben,
@@ -264,6 +265,12 @@ export function BildLesen({
         art,
         lang,
         (fertig, gesamt) => setFortschritt({ fertig, gesamt }),
+        // Die kleine Fassung fuer die Erkennung, aus der schon signierten Adresse.
+        async (id) => {
+          const f = alle.find((x) => x.id === id)
+          const url = f ? fotoUrls.get(f.path) : undefined
+          return url ? await kiFassung(url) : null
+        },
       )
       /* Kam kein Aufruf durch, ist der Rest unbekannt, nicht null. Dann
        * frisch nachsehen, statt "0 frei" zu zeigen. */
@@ -298,6 +305,12 @@ export function BildLesen({
       const neu = zeilenAus(fertig, vorhandeneInhalte, reihenfolge, schichtVon)
       const neuVon = new Set(fertig.map((e) => e.photo_id))
       setZeilen((alt) => [...(alt ?? []).filter((z) => !neuVon.has(z.photoId)), ...neu])
+      if (fertig.some((e) => e.unvollstaendig)) toast(t('bildki.unvollstaendig'), 'info')
+      if (fertig.length > 0 && neu.length === 0) toast(t('bildki.kein_ergebnis'), 'info')
+      /* E75: was neu erkannt wurde, kommt gleich in die Liste und ist damit
+       * suchbar. Falsches loescht man dort; hier bleibt es nachlesbar. */
+      const auto = neu.filter((z) => z.gewaehlt && !z.schonDrin && z.text.trim())
+      if (auto.length > 0) await uebernehmen(auto)
     } catch (err) {
       if (err instanceof BildFehler) setFehler({ code: err.code, text: err.message })
       else setFehler({ code: 'unbekannt', text: err instanceof Error ? err.message : String(err) })
@@ -308,8 +321,8 @@ export function BildLesen({
     }
   }
 
-  async function uebernehmen() {
-    const gewaehlt = (zeilen ?? []).filter((z) => z.gewaehlt && z.text.trim())
+  async function uebernehmen(liste?: Zeile[]) {
+    const gewaehlt = (liste ?? zeilen ?? []).filter((z) => z.gewaehlt && z.text.trim())
     if (gewaehlt.length === 0) {
       toast(t('bildki.nichts_gewaehlt'), 'error')
       return
@@ -318,7 +331,10 @@ export function BildLesen({
     const neu: ItemContent[] = []
     const fehlgeschlagen: string[] = []
     let ohneAusschnitt = 0
-    for (const z of gewaehlt) {
+    /* Vier Zeilen gleichzeitig: zwanzig Dinge sollen nicht zwanzigmal
+     * nacheinander auf den Server warten. */
+    let naechste = 0
+    const eine = async (z: Zeile) => {
       const text = z.text.trim()
       try {
         // Der Name, wie er uebernommen wird, zaehlt immer zu den
@@ -361,6 +377,11 @@ export function BildLesen({
         fehlgeschlagen.push(err instanceof Error ? err.message : String(err))
       }
     }
+    await Promise.all(
+      Array.from({ length: Math.min(4, gewaehlt.length) }, async () => {
+        while (naechste < gewaehlt.length) await eine(gewaehlt[naechste++])
+      }),
+    )
     setBusy(false)
     if (ohneAusschnitt > 0) toast(tn('schichten.ausschnitt_fehlt', ohneAusschnitt), 'info')
     if (neu.length > 0) {

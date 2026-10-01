@@ -1,5 +1,6 @@
 import { supabase, errText } from './supabase'
 import { tg } from './i18n'
+import { compressImage } from './media'
 import type { ErkanntesDing, ItemPhoto, PhotoAnalyse } from './types'
 
 /* Bilderkennung.
@@ -7,10 +8,12 @@ import type { ErkanntesDing, ItemPhoto, PhotoAnalyse } from './types'
  * Der ganze Weg zur Erkennung laeuft ueber diese Datei. Der Schluessel
  * liegt auf dem Server, hier gibt es nur den Aufruf.
  *
- * Wichtig: was zurueckkommt, sind VORSCHLAEGE. Es wird nichts
- * eingetragen. Uebernommen wird Zeile fuer Zeile von Hand, denn ein
- * Vorschlag, der ungefragt in der Liste landet, ist spaeter nicht mehr
- * von einer Angabe zu unterscheiden, die ein Mensch gemacht hat.
+ * Was zurueckkommt, uebernimmt die Oberflaeche seit E75 gleich in die
+ * Inhaltsliste (Karam: scannen, Liste steht, suchbar). Jede Zeile traegt
+ * die Herkunft 'bild' und bleibt so von Hand Eingetragenem unterscheidbar.
+ *
+ * Zeit (E75): hoechstens 20 Sekunden je Foto. Die App schickt dafuer eine
+ * auf 1024 Pixel verkleinerte Fassung mit und wartet nicht laenger.
  */
 
 export type Erkennungsart = 'kiste' | 'moebel' | 'zimmer'
@@ -21,6 +24,8 @@ export interface BildErgebnis {
   /** true heisst: kam aus dem Speicher und hat nichts gekostet. */
   aus_speicher: boolean
   dinge: ErkanntesDing[]
+  /** Die 20 Sekunden waren um, bevor die Liste fertig war (E75). */
+  unvollstaendig?: boolean
   fehler?: string
   /** Kennung des Fehlers, fuer einen eigenen Satz (bildki.fehler.*). */
   code?: string
@@ -55,10 +60,37 @@ export class BildFehler extends Error {
  *  dieselbe Zahl, bekommt aber jedes Foto einzeln (siehe bilderLesen). */
 export const MAX_BILDER_JE_LAUF = 4
 
-/** So viele Fotos werden gleichzeitig gelesen. Eins: zwei gleichzeitige
- *  Aufrufe koennen bei Supabase auf demselben Arbeiter landen und sich
- *  dessen 150 Sekunden teilen. Nacheinander ist jedes Foto sicher. */
-const GLEICHZEITIG = 1
+/** So viele Fotos werden gleichzeitig gelesen. Seit E75 braucht ein
+ *  Aufruf hoechstens 20 Sekunden, da reichen auch geteilte 150 Sekunden
+ *  eines Supabase-Arbeiters: alle auf einmal, damit vier Fotos nicht 80
+ *  Sekunden dauern. */
+const GLEICHZEITIG = 4
+
+/** So lange wartet die App auf ein Foto, dann gilt es als zu langsam. */
+const WARTEN_MS = 20_000
+
+/** Kantenlaenge der Fassung, die zur Erkennung geht. Kleiner liest das
+ *  Modell schneller, und Dinge in einer Kiste sind auch so gut zu sehen. */
+const KI_PIXEL = 1024
+
+/** Ein Foto als kleine JPEG-Fassung (data:-Adresse). null, wenn es nicht
+ *  geht; dann nimmt die Erkennung das gespeicherte Foto. */
+export async function kiFassung(url: string): Promise<string | null> {
+  try {
+    const roh = await fetch(url)
+    if (!roh.ok) return null
+    const blob = await roh.blob()
+    const klein = await compressImage(new File([blob], 'foto.jpg', { type: blob.type || 'image/jpeg' }), KI_PIXEL, 0.8)
+    return await new Promise<string | null>((res) => {
+      const leser = new FileReader()
+      leser.onload = () => res(typeof leser.result === 'string' ? leser.result : null)
+      leser.onerror = () => res(null)
+      leser.readAsDataURL(klein)
+    })
+  } catch {
+    return null
+  }
+}
 
 /** Kennungen, die Supabase selbst schickt, wenn es eine Funktion wegen
  *  Zeit oder Rechenlast beendet. Sie stehen im Koerper als code. */
@@ -141,11 +173,20 @@ async function einBild(
   photoId: string,
   was: Erkennungsart,
   sprache: 'de' | 'ar',
+  bild: string | null,
 ): Promise<ErkennungsAntwort> {
   const { data, error } = await supabase.functions.invoke('bild-analyse', {
-    body: { project_id: projectId, photo_ids: [photoId], was, sprache },
+    body: { project_id: projectId, photo_ids: [photoId], was, sprache, ...(bild ? { bild } : {}) },
+    signal: AbortSignal.timeout(WARTEN_MS),
   })
-  if (error) throw await alsBildFehler(error)
+  if (error) {
+    const name = (error as { name?: string; context?: unknown }).name
+    const ctx = (error as { context?: unknown }).context
+    if (name === 'AbortError' || name === 'TimeoutError' || (ctx instanceof DOMException && ctx.name === 'TimeoutError')) {
+      throw new BildFehler('zeit', satzFuer('zeit') ?? errText(error))
+    }
+    throw await alsBildFehler(error)
+  }
   return data as ErkennungsAntwort
 }
 
@@ -173,6 +214,8 @@ export async function bilderLesen(
   was: Erkennungsart,
   sprache: 'de' | 'ar',
   onFortschritt?: (fertig: number, gesamt: number) => void,
+  /** Liefert die kleine Fassung eines Fotos (kiFassung), wenn moeglich. */
+  fassung?: (photoId: string) => Promise<string | null>,
 ): Promise<ErkennungsAntwort> {
   if (photoIds.length === 0) {
     throw new BildFehler('leer', tg('bildki.keine_bilder'))
@@ -198,7 +241,7 @@ export async function bilderLesen(
     while (stand.abbruch === null && naechstes < liste.length) {
       const id = liste[naechstes++]
       try {
-        const a = await einBild(projectId, id, was, sprache)
+        const a = await einBild(projectId, id, was, sprache, fassung ? await fassung(id) : null)
         gesamt.ergebnisse.push(...a.ergebnisse)
         gesamt.uebergangen.push(...a.uebergangen)
         gesamt.uebersprungen_wegen_grenze += a.uebersprungen_wegen_grenze

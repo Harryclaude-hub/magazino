@@ -503,3 +503,16 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   rechte Wand frei zum Arbeiten, nur drei EKET in Kopfhoehe. Flurende:
   PAX 75 + 50 ueber die ganze Breite ohne Luecke (Flur laut Plan 125).
   WC-Handwaschbecken richtig herum an der rechten Wand.
+- **E75 Bilderkennung in hoechstens 20 Sekunden:** Die beiden Versuche
+  bis dahin scheiterten an der Zeit (OVH schrieb rund 70 Zeichen je
+  Sekunde, 118 s fuer eine Liste). Neu: die App schickt eine auf 1024
+  Pixel verkleinerte Fassung mit, das Modell antwortet in kurzen Zeilen
+  (menge|Deutsch|Arabisch|Rahmen|Suchwoerter|Hinweis) statt JSON, nach
+  4,5 s ohne erstes Ding laeuft das zweite Modell parallel mit, und nach
+  16,5 s gilt, was ganz geschrieben ist (die App sagt dann, dass
+  vielleicht etwas fehlt). Die App wartet hoechstens 20 s je Foto und
+  liest bis zu vier Fotos gleichzeitig. Was erkannt wird, kommt sofort in
+  die Inhaltsliste (Herkunft 'bild') und ist damit suchbar; falsche
+  Zeilen loescht man in der Liste. Dienst und Modelle bleiben ueber
+  Geheimnisse tauschbar, neu auch BILD_SCHLUESSEL fuer einen anderen
+  Anbieter mit derselben Schnittstelle.
