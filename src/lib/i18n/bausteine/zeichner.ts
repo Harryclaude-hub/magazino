@@ -431,6 +431,7 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.katalog.teppich': { de: 'Teppich', ar: 'سجادة' },
   'zeichner.katalog.spiegel': { de: 'Spiegel', ar: 'مرآة' },
   'zeichner.teppiche': { de: 'Teppiche', ar: 'السجاد' },
+  'zeichner.deko': { de: 'Deko', ar: 'الديكور' },
   'zeichner.katalog.badematte': { de: 'Badematte (Teppich)', ar: 'سجادة حمام' },
   'zeichner.katalog.stehlampe': { de: 'Stehlampe', ar: 'مصباح أرضي' },
   'zeichner.katalog.pflanze': { de: 'Pflanze', ar: 'نبتة' },

@@ -63,14 +63,36 @@ export type MoebelArt =
 
 /** Reihenfolge zaehlt: das Genauere zuerst (Geschirrspueler vor Spuele,
  *  Waschtisch vor Tisch, Couchtisch vor Couch, Buerostuhl vor Stuhl,
- *  Kinderbett und Nachttisch vor Bett). */
+ *  Kinderbett und Nachttisch vor Bett).
+ *
+ *  Deko und Spielzeug (E82) stehen vor den allgemeinen Moebeln, deren
+ *  Woerter in ihren Namen stecken: Sofakissen (sofa), Kinderkueche
+ *  (kueche), Blumenkasten (blume), Buecher auf dem Tisch (tisch). Nicht
+ *  ganz vorn: Buecher erst nach Schreibtisch und Buerostuhl (arabisch
+ *  "مكتب" enthaelt "كتب"), Korb ganz hinten (arabisch "مغسلة" enthaelt
+ *  "سلة", Korbsessel und Korbstuhl bleiben Sessel und Stuhl). Nie das
+ *  blosse "bild", das stuende auch im Bildschirm. Der Sockel (ENHET unter
+ *  der Waschmaschine) frueh, damit "Sockel Waschmaschine" ein Sockel
+ *  bleibt. scripts/szene-pruefen.mjs prueft die Namen der Wohnung. */
 const WOERTER: [MoebelArt, string[]][] = [
   // Kein Moebel: ein Stueck Wand im Raum (Schacht, Pfeiler), E73.
   ['mauer', ['mauervorsprung', 'wandvorsprung', 'mauerstück', 'mauerstueck', 'بروز جدار']],
   ['spiegel', ['spiegel', 'مرآة']],
+  ['sockel', ['sockel', 'قاعدة']],
   ['tv_board', ['tv-board', 'tv-bank', 'tvboard', 'lowboard', 'fernsehschrank', 'طاولة تلفاز']],
   ['essgruppe', ['essgruppe', 'essbereich', 'مجموعة طعام']],
   ['haengelampe', ['hängeleuchte', 'haengeleuchte', 'hängelampe', 'haengelampe', 'pendelleuchte', 'pendellampe', 'مصباح معلق']],
+  // E82: Deko und Spielzeug, vor Bank, Sofa, Bett, Kueche, Pflanze und Tisch.
+  ['kissen', ['zierkissen', 'sofakissen', 'kissen', 'وسادة']],
+  ['wolldecke', ['wolldecke', 'plaid', 'kuscheldecke', 'بطانية']],
+  ['spielzeugkiste', ['spielzeugkiste', 'spielzeugtruhe', 'spielzeugkorb', 'صندوق ألعاب']],
+  ['spielkueche', ['spielküche', 'spielkueche', 'kinderküche', 'kinderkueche', 'مطبخ ألعاب']],
+  ['kuscheltier', ['kuscheltier', 'teddy', 'plüschtier', 'plueschtier', 'دمية محشوة']],
+  ['bausteine', ['bausteine', 'bauklötze', 'baukloetze', 'holzklötze', 'holzkloetze', 'مكعبات']],
+  ['obstschale', ['obstschale', 'obstkorb', 'وعاء فاكهة']],
+  ['blumenkasten', ['blumenkasten', 'balkonkasten', 'kräuterkasten', 'kraeuterkasten', 'صندوق زهور']],
+  ['vorhang', ['vorhang', 'vorhänge', 'vorhaenge', 'gardine', 'ستارة']],
+  ['bild', ['wandbild', 'bilderrahmen', 'poster', 'kunstdruck', 'لوحة']],
   ['bank', ['sitzbank', 'eckbank', 'wandbank', 'مقعد طويل']],
   ['backofen', ['backofen', 'ofenschrank', 'فرن']],
   ['hochschrank', ['hochschrank', 'einbaukühlschrank', 'خزانة عالية']],
@@ -79,14 +101,15 @@ const WOERTER: [MoebelArt, string[]][] = [
   ['schreibtisch', ['schreibtisch', 'طاولة مكتب']],
   ['esstisch_rund', ['runder', 'مستديرة']],
   ['buerostuhl', ['bürostuhl', 'buerostuhl', 'drehstuhl', 'كرسي مكتب']],
+  ['buecher', ['bücherstapel', 'buecherstapel', 'bücher', 'buecher', 'كتب']],
   ['sessel', ['sessel', 'كرسي بذراعين']],
-  ['kinderbett', ['kinderbett', 'babybett', 'سرير أطفال']],
+  ['kinderbett', ['kinderbett', 'babybett', 'juniorbett', 'سرير أطفال']],
   ['gefrierschrank', ['gefrierschrank', 'gefriertruhe', 'tiefkühl', 'مجمد']],
   ['schuhschrank', ['schuhschrank', 'schuhregal', 'خزانة أحذية']],
   ['garderobe', ['garderobe', 'علاقة ملابس']],
   ['sideboard', ['sideboard', 'anrichte', 'خزانة جانبية']],
   ['stehlampe', ['stehlampe', 'lampe', 'مصباح']],
-  ['pflanze', ['pflanze', 'blume', 'نبتة']],
+  ['pflanze', ['pflanze', 'blume', 'ficus', 'monstera', 'efeutute', 'bogenhanf', 'grünlilie', 'gruenlilie', 'zimmerpflanze', 'نبتة']],
   ['teppich', ['teppich', 'läufer', 'laeufer', 'badematte', 'fußmatte', 'fussmatte', 'سجادة']],
   ['klavier', ['klavier', 'piano', 'بيانو']],
   ['fahrrad', ['fahrrad', 'دراجة']],
@@ -107,6 +130,7 @@ const WOERTER: [MoebelArt, string[]][] = [
   ['kommode', ['kommode', 'خزانة أدراج']],
   ['tisch', ['tisch', 'طاولة']],
   ['stuhl', ['stuhl', 'كرسي']],
+  ['korb', ['aufbewahrungskorb', 'korb', 'سلة']],
 ]
 
 /** Deko und Spielzeug (E82): eine eigene Ebene, die sich in 2D und 3D
@@ -132,6 +156,14 @@ export function moebelArt(name: string): MoebelArt | null {
     if (woerter.some((w) => n.includes(w))) return art
   }
   return null
+}
+
+/** Gehoert das Objekt zur Deko-Ebene (E82)? Nur Moebel: ein Regal mit
+ *  "Buecher" im Namen bleibt ein Regal und wird nie ausgeblendet. */
+export function istDeko(o: Pick<Objekt, 'art' | 'name'>): boolean {
+  if (o.art !== 'moebel') return false
+  const a = moebelArt(o.name ?? '')
+  return a !== null && DEKO_ARTEN.has(a)
 }
 
 /** Die Kaesten einer Sitzbank in ihren lokalen Koordinaten: ein Rechteck,

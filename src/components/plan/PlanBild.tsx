@@ -14,6 +14,7 @@ import type { GrundrissDaten, Objekt, Oeffnung, PlanKiste, PlanLinie, PlanSymbol
 import { fuellFarbe } from '../../lib/fuellstand'
 import { cx } from '../../lib/util'
 import {
+  autoSchalter,
   datenBox,
   flaecheQm,
   innenNormale,
@@ -25,9 +26,11 @@ import {
   raumTitel,
   symbolAnWand,
   trefferAn,
+  type AutoSchalter,
   type PlanTreffer,
 } from './hilfe'
 import { objektName } from './lage'
+import { istDeko } from './moebelArt'
 import { MoebelSymbol, moebelArt } from './moebelSymbol'
 import { radArt, radFaktor } from './ansicht'
 
@@ -485,6 +488,8 @@ export interface PlanEbenenProps {
   beschriftung?: boolean
   /** Teppiche zeigen (Standard) oder ausblenden (E74). */
   teppiche?: boolean
+  /** Deko und Spielzeug zeigen (Standard) oder ausblenden (E82). */
+  deko?: boolean
 }
 
 /** Alle Ebenen ohne eigenes svg, fuer PlanBild und den Zeichner. */
@@ -513,23 +518,46 @@ const LinienEbene = memo(function LinienEbene({ linien }: { linien: PlanLinie[] 
 /** Steckdosen, Lichter, Schalter (0037): kleine Zeichen, am Bildschirm
  *  immer gleich gross. Steckdose: Kreis mit zwei Loechern, Licht: Kreis
  *  mit Kreuz, Schalter: kleiner Punkt mit Hebel, ruhig grau (E74).
- *  Steckdosen und Schalter sitzen an der naechsten Wand (symbolAnWand). */
+ *  Steckdosen und Schalter sitzen an der naechsten Wand (symbolAnWand).
+ *  Automatische Schalter (E82, Raeume ohne Schalter) wie ein Schalter,
+ *  aber blass und gestrichelt; sie stehen nicht im Plan und lassen sich
+ *  nicht anfassen. */
 const SymbolEbene = memo(function SymbolEbene({
   symbole,
+  auto,
   massstab,
   raeume,
   oeffnungen,
 }: {
   symbole: PlanSymbol[] | undefined
+  auto: AutoSchalter[]
   massstab: number
   raeume: Raum[]
   oeffnungen: Oeffnung[]
 }) {
-  if (!symbole?.length) return null
+  if (!symbole?.length && !auto.length) return null
   const r = px(massstab, 8)
   return (
     <g style={{ stroke: 'var(--plan-strom)' }} strokeWidth={px(massstab, 1.8)} fill="none" strokeLinecap="round">
-      {symbole.map((roh) => {
+      {auto.map((roh) => {
+        const wand = symbolAnWand([roh.x, roh.y], { raeume, oeffnungen })
+        const x = wand ? wand.punkt[0] + wand.innen[0] * r * 0.5 : roh.x
+        const y = wand ? wand.punkt[1] + wand.innen[1] * r * 0.5 : roh.y
+        return (
+          <g
+            key={roh.id}
+            style={{ stroke: 'var(--plan-schalter)' }}
+            strokeWidth={px(massstab, 1.2)}
+            strokeDasharray={`${px(massstab, 2)} ${px(massstab, 1.6)}`}
+            opacity={0.55}
+            pointerEvents="none"
+          >
+            <circle cx={x} cy={y} r={r * 0.32} style={{ fill: 'var(--plan-boden)' }} />
+            <line x1={x} y1={y} x2={x + r * 0.8} y2={y - r * 0.8} />
+          </g>
+        )
+      })}
+      {(symbole ?? []).map((roh) => {
         // An die Wand geruecktes Zeichen, knapp davor, damit es die Wand beruehrt.
         const wand = roh.art === 'licht' ? null : symbolAnWand([roh.x, roh.y], { raeume, oeffnungen })
         const abstand = roh.art === 'schalter' ? r * 0.5 : r
@@ -566,14 +594,18 @@ const SymbolEbene = memo(function SymbolEbene({
   )
 })
 
-export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, beschriftung = true, teppiche = true }: PlanEbenenProps) {
+export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, beschriftung = true, teppiche = true, deko = true }: PlanEbenenProps) {
   // Teppiche zuunterst, Haengendes (Oberschraenke, Lampen) zuoberst, damit
-  // nichts verdeckt wird (E74); Teppiche lassen sich ausblenden.
+  // nichts verdeckt wird (E74); Teppiche und Deko (E82) lassen sich ausblenden.
   const objekte = useMemo(() => {
     const stufe = (o: Objekt) => (moebelArt(o.name ?? '') === 'teppich' ? 0 : (o.boden_cm ?? 0) > 0 ? 2 : 1)
-    const liste = teppiche ? daten.objekte : daten.objekte.filter((o) => stufe(o) !== 0)
+    const liste = teppiche && deko ? daten.objekte : daten.objekte.filter((o) => (teppiche || stufe(o) !== 0) && (deko || !istDeko(o)))
     return [...liste].sort((a, b) => stufe(a) - stufe(b))
-  }, [daten.objekte, teppiche])
+  }, [daten.objekte, teppiche, deko])
+  // Raeume ohne Lichtschalter bekommen einen automatischen (E82), wie in 3D.
+  const { raeume, oeffnungen } = daten
+  const symbole = daten.grundriss.symbole
+  const auto = useMemo(() => autoSchalter({ raeume, oeffnungen, grundriss: { symbole } }), [raeume, oeffnungen, symbole])
   const hervorZiel = useMemo<PlanTreffer | null>(() => {
     if (!hervor) return null
     if (daten.kisten.some((k) => k.id === hervor)) return { art: 'kiste', id: hervor }
@@ -589,7 +621,7 @@ export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, be
       <WandEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       <OeffnungEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       <LinienEbene linien={daten.grundriss.linien} />
-      <SymbolEbene symbole={daten.grundriss.symbole} massstab={massstab} raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
+      <SymbolEbene symbole={daten.grundriss.symbole} auto={auto} massstab={massstab} raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       {beschriftung ? <BeschriftungEbene raeume={daten.raeume} massstab={massstab} /> : null}
       {/* Die Klassen sind nur Haken fuer die Designschicht (design/plan.css):
           weiche Auswahl und pulsierender Ring. Ohne sie bleibt alles wie es ist. */}
@@ -612,7 +644,7 @@ export interface PlanBildProps {
   ausschnitt?: { raumId: string } | 'alles'
   hervor?: string | null
   auswahl?: PlanTreffer | null
-  ebenen?: { kisten?: boolean; beschriftung?: boolean; teppiche?: boolean }
+  ebenen?: { kisten?: boolean; beschriftung?: boolean; teppiche?: boolean; deko?: boolean }
   onTipp?: (p: Punkt, treffer: PlanTreffer | null) => void
   /** Hoechstens so hoch (CSS), die Breite folgt dem Platz. */
   maxHoehe?: string
@@ -862,6 +894,7 @@ export function PlanBild({
           kisten={ebenen?.kisten}
           beschriftung={ebenen?.beschriftung}
           teppiche={ebenen?.teppiche}
+          deko={ebenen?.deko}
         />
         {zusatz ? zusatz(massstab) : null}
       </svg>
