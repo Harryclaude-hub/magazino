@@ -715,3 +715,62 @@ export const TAG_COLORS = [
   '#A16207',
   '#0F766E',
 ]
+
+/* ------------------------------------------------------------ Siedlung (E83)
+ * Eine Siedlung ist ein eigener Bereich neben den Umzuegen: die Haeuser
+ * rundherum in 3D, eine eigene Wohnung darin. Die Daten liegen nur in der
+ * Datenbank (Migration 0044), nie im Code: Adresse und Stockwerk sind
+ * privat. Koordinaten in Metern, lokal um den Mittelpunkt (lat, lon):
+ * x nach Osten, z nach Sueden (wie der Plan: y nach unten), y nach oben. */
+
+export type SiedlungStil = 'weiss_loggia' | 'holz' | 'putz' | 'grau'
+
+export interface SiedlungGebaeude {
+  id: string
+  /** Wie man das Haus nennt (Haus A, Nr. 1a ...). */
+  name: string
+  /** Umriss im Uhrzeigersinn oder dagegen, Meter. */
+  umriss: [number, number][]
+  /** Geschosse ueber dem Boden, Erdgeschoss mitgezaehlt (EG + 4 = 5). */
+  geschosse: number
+  /** Hoehe eines Geschosses von Boden zu Boden, Meter (meist 3,0). */
+  geschossHoehe: number
+  stil: SiedlungStil
+  /** Begruentes Flachdach, mit Photovoltaik. */
+  dachGruen: boolean
+  pv: boolean
+  /** Herkunft, etwa 'osm:way/123456789'. */
+  quelle: string | null
+}
+
+/** Wo die eigene Wohnung (ein Grundriss aus einem Umzug) in der Siedlung
+ *  liegt: Haus, Geschoss (0 = Erdgeschoss, 2 = 2. Stock), und wo der
+ *  Ursprung des Plans (0,0 cm) in Metern liegt, gedreht um drehung Grad. */
+export interface SiedlungWohnung {
+  grundrissId: string
+  gebaeudeId: string
+  geschoss: number
+  x: number
+  z: number
+  drehung: 0 | 90 | 180 | 270
+}
+
+/** Flaechen und Dinge draussen (Spielplatz, Tiefgarage, Wege), Meter. */
+export interface SiedlungAussen {
+  spielplatz: [number, number][] | null
+  tiefgarage: { x: number; z: number; breite: number; laenge: number; drehung: number } | null
+  wege: [number, number][][]
+}
+
+export interface Siedlung {
+  id: string
+  owner_id: string
+  name: string
+  lat: number
+  lon: number
+  gebaeude: SiedlungGebaeude[]
+  wohnung: SiedlungWohnung | null
+  aussen: SiedlungAussen
+  created_at: string
+  updated_at: string
+}

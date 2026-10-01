@@ -38,3 +38,48 @@ export interface Figur3D {
   auge(haltung: Haltung): number
   dispose(): void
 }
+
+/* ------------------------------------------------------------ E83: Siedlung */
+
+/** Ein Rechteck, das beim Begehen aufhaelt (Welt, Meter): Mitte, Laenge
+ *  entlang x vor der Drehung, Tiefe entlang z, Drehung um die Hochachse. */
+export interface Hindernis3D {
+  x: number
+  z: number
+  laenge: number
+  tiefe: number
+  drehY: number
+}
+
+/** Eine begehbare Ebene ausserhalb der eigenen Wohnung: ein Geschoss im
+ *  Haus (Gang, Stiegenhaus, Aufzug) oder das Gelaende draussen. y ist die
+ *  Bodenhoehe in Metern (die Wohnung liegt immer bei 0). Auf Ebene 0 gelten
+ *  zusaetzlich die Hindernisse der Wohnung selbst. */
+export interface Ebene3D {
+  id: string
+  /** Fuer Knoepfe und Ansagen, etwa 'EG', '1', '2', 'Garten'. */
+  name: string
+  y: number
+  hindernisse: Hindernis3D[]
+}
+
+/** Antippbare Dinge ausserhalb der Szene der Wohnung (Aufzugknoepfe,
+ *  Haustueren der Siedlung). Der Motor prueft sie beim Antippen zuerst. */
+export interface Interaktiv3D {
+  objekte: Object3D[]
+  tippen(o: Object3D): void
+}
+
+/** Was eine Aussenwelt (aussen3d.ts oder siedlung3d.ts) an Raum3D gibt. */
+export interface Welt3D {
+  gruppe: Object3D
+  nebel: import('three').Fog | null
+  himmel: string | null
+  /** Begehbare Ebenen (Siedlung: Geschosse und Gelaende), sonst leer. */
+  ebenen: Ebene3D[]
+  /** Aufzugknoepfe und Aehnliches, sonst null. */
+  interaktiv: Interaktiv3D | null
+  /** Jedes Bild (beim Begehen): Aufzugtueren, Kabine. true = es bewegt sich noch. */
+  schritt?(dt: number, kameraY: number): boolean
+  dispose(): void
+}
