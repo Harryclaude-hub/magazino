@@ -7,6 +7,12 @@
 // keiner anderen auf; die Ebene der Wohnung hat die Wohnung dazu, auch
 // nach einem Neubau und nach neuen Ebenen), die naechste Ebene nach der
 // Hoehe, kaputte Zahlen und das Mitfahren im Aufzug.
+// E84: zwei erfundene Haeuser mit Geschossen gleicher Hoehe. Jede Ebene
+// hat ihr eigenes Raster (auch bei gleicher Hoehe), die Ebene der Wohnung
+// behaelt die Wohnung, nach einer Fahrt gilt das Ziel (ankunftsEbene aus
+// motor.ts), mit faehrt nur, wer in der Kabine steht (inKabine), und eine
+// neue Welt findet die Ebene ueber ihre Kennung wieder (ebeneWiederfinden).
+// motor.ts laedt dafuer three, aber keinen Browser.
 // Aufruf im Projektordner: node scripts/kollision-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import {
@@ -19,6 +25,7 @@ import {
   TEILSCHRITT_M,
   wohnungsEbene,
 } from '../src/components/plan3d/kollision.ts'
+import { ankunftsEbene, ebeneWiederfinden, inKabine } from '../src/components/plan3d/motor.ts'
 
 let fehler = 0
 function nahe(name, ist, soll, tol = 1e-6) {
@@ -580,6 +587,192 @@ function ebenenDaten(gang = GANG) {
   wahr('Motor: jetzt im EG', eb.index === 0 && eb.boden() === -9)
   wahr('Motor: Gang haelt im EG nicht auf', eb.aktiv.frei(3, -2, R))
   wahr('Motor: Hof haelt im EG auf', !eb.aktiv.frei(3, -1, R))
+}
+
+/* ============================== Gleiche Hoehen in mehreren Haeusern (E84) */
+
+/* Zwei erfundene Haeuser, Geschosse je 3 m: Haus A mit der Wohnung im
+ * 1. Geschoss (Boden 0), Haus B 30 m weiter oestlich. Jede Ebene hat den
+ * Gang ihres Hauses. B1 steht VOR der Wohnung in der Liste und gleich hoch:
+ * nach der Hoehe allein kaeme man ins falsche Haus. */
+const GANG_A = { x: 3, z: -2, laenge: 10, tiefe: 0.2, drehY: 0 }
+const GANG_B = { x: 33, z: -2, laenge: 10, tiefe: 0.2, drehY: 0 }
+function zweiHaeuser() {
+  return [
+    { id: 'b-1', name: 'B 1', y: 0, hindernisse: [GANG_B] },
+    { id: 'a-0', name: 'A 0', y: -3, hindernisse: [GANG_A] },
+    { id: 'wohnung', name: 'A 1', y: 0, hindernisse: [GANG_A] },
+    { id: 'a-2', name: 'A 2', y: 3, hindernisse: [GANG_A] },
+    { id: 'b-0', name: 'B 0', y: -3, hindernisse: [GANG_B] },
+    { id: 'b-2', name: 'B 2', y: 3, hindernisse: [GANG_B] },
+    { id: 'garten', name: 'Garten', y: -3, hindernisse: [] },
+  ]
+}
+const B1 = 0
+const A0 = 1
+const WO = 2
+const A2 = 3
+const B0 = 4
+const B2 = 5
+
+/* Ein Raster je Index, auch bei gleicher Hoehe; die Wohnung behaelt ihres. */
+{
+  const wohnung = new Hindernisse(1)
+  wohnungBauen(wohnung)
+  const eb = new Ebenen(wohnung, 1)
+  eb.wohnungFertig()
+  eb.setzen(zweiHaeuser())
+  wahr('E84: Wohnung ueber die Kennung, nicht die erste bei 0', eb.wohnIndex === WO && eb.index === WO && eb.aktiv === wohnung)
+  const raster = new Set(eb.liste.map((e) => e.raster))
+  wahr('E84: sieben Ebenen, sieben Raster', eb.liste.length === 7 && raster.size === 7)
+  wahr('E84: nur die Wohnung benutzt das Raster der Wohnung', eb.liste.filter((e) => e.raster === wohnung).length === 1)
+  // Ebene der Wohnung: Wand der Wohnung und Gang A, nicht Gang B.
+  wahr('E84 Wohnung: Wand der Wohnung haelt auf', !eb.aktiv.frei(4, 0.1, R))
+  wahr('E84 Wohnung: Gang A haelt auf', !eb.aktiv.frei(3, -2, R))
+  wahr('E84 Wohnung: Gang B haelt nicht auf', eb.aktiv.frei(33, -2, R))
+  // B1, gleich hoch: Gang B, nicht die Wohnung und nicht Gang A.
+  wahr('E84: nach B1', eb.wechseln(B1) && !eb.aufWohnung && eb.boden() === 0)
+  wahr('E84 B1: Gang B haelt auf', !eb.aktiv.frei(33, -2, R))
+  wahr('E84 B1: Wand der Wohnung haelt nicht auf', eb.aktiv.frei(4, 0.1, R))
+  wahr('E84 B1: Gang A haelt nicht auf', eb.aktiv.frei(3, -2, R))
+  // A2 und B2, gleich hoch: jedes Haus nur sein Gang.
+  eb.wechseln(A2)
+  wahr('E84 A2: nur Gang A', !eb.aktiv.frei(3, -2, R) && eb.aktiv.frei(33, -2, R))
+  eb.wechseln(B2)
+  wahr('E84 B2: nur Gang B', !eb.aktiv.frei(33, -2, R) && eb.aktiv.frei(3, -2, R))
+  // Neubau der Wohnung: ihre Ebene hat wieder Wohnung plus Gang A.
+  wohnungBauen(wohnung)
+  eb.wohnungFertig()
+  wahr('E84 Neubau: Wohnung plus Gang A', wohnung.groesse === 5 && !wohnung.frei(3, -2, R) && wohnung.frei(33, -2, R))
+}
+
+/* Nach der Fahrt gilt das Ziel, nicht die erste Ebene gleicher Hoehe. */
+{
+  const wohnung = new Hindernisse(1)
+  wohnungBauen(wohnung)
+  const eb = new Ebenen(wohnung, 1)
+  eb.wohnungFertig()
+  eb.setzen(zweiHaeuser())
+  eb.wechseln(B0)
+  wahr('Ankunft: Ziel B2 statt A2', ankunftsEbene(eb, B2, 3) === B2 && eb.naechste(3) === A2)
+  wahr('Ankunft: Ziel A2', ankunftsEbene(eb, A2, 3) === A2)
+  wahr('Ankunft: Ziel Wohnung statt B1', ankunftsEbene(eb, WO, 0) === WO && eb.naechste(0) === B1)
+  nahe('Ankunft: knapp neben dem Boden zaehlt', ankunftsEbene(eb, B2, 3 + AUFZUG_BODEN_M - 0.01), B2)
+  // Am Start geblieben (beim Schliessen der Tueren hinaus): bleibt in B0,
+  // auch wenn A0 gleich hoch ist und vorne steht.
+  wahr('Ankunft: hinausgegangen, Ziel zu weit weg', ankunftsEbene(eb, B2, -3) === B0)
+  wahr('Ankunft: ueber 0,5 m daneben zaehlt das Ziel nicht', ankunftsEbene(eb, B2, 3 + AUFZUG_BODEN_M + 0.01) !== B2)
+  // Ohne gueltiges Ziel: naechster Boden, bei gleicher Hoehe die bisherige.
+  for (const z of [-1, 99, 1.5, NaN, Infinity]) {
+    wahr(`Ankunft: Ziel ${z} gilt nicht, bleibt B0`, ankunftsEbene(eb, z, -3) === B0)
+  }
+  wahr('Ankunft: ohne Ziel nach oben: die erste in 3 m', ankunftsEbene(eb, -1, 3) === A2)
+  eb.wechseln(B2)
+  wahr('Ankunft: ohne Ziel, gleich hoch wie die bisherige: bleibt', ankunftsEbene(eb, -1, 3) === B2)
+  // Ziel auf einer kaputten Ebene: der naechste Boden.
+  const kaputt = zweiHaeuser()
+  kaputt[B2] = { ...kaputt[B2], y: NaN }
+  eb.setzen(kaputt)
+  eb.wechseln(B0)
+  wahr('Ankunft: Ziel kaputt, die erste in 3 m', ankunftsEbene(eb, B2, 3) === A2)
+}
+
+/* Wie im Motor: in Haus B von B0 nach B2 fahren; danach gilt das Raster von B2. */
+{
+  const wohnung = new Hindernisse(1)
+  wohnungBauen(wohnung)
+  const eb = new Ebenen(wohnung)
+  eb.wohnungFertig()
+  eb.setzen(zweiHaeuser())
+  eb.wechseln(B0)
+  const m = new Mitfahrt()
+  let boden = eb.boden()
+  for (let i = 0; i <= 30; i++) {
+    const y = -3 + 0.2 * i
+    if (m.schritt(y, 33, -1, boden, true) === 1 && m.mit) boden = y
+  }
+  wahr('Motor E84: Fahrt zu Ende', m.schritt(null, 33, -1, boden, true) === 2)
+  nahe('Motor E84: oben angekommen', boden, 3, 1e-9)
+  eb.wechseln(ankunftsEbene(eb, B2, boden))
+  wahr('Motor E84: jetzt in B2', eb.index === B2 && eb.liste[eb.index].id === 'b-2')
+  wahr('Motor E84: Gang B haelt auf, Gang A nicht', !eb.aktiv.frei(33, -2, R) && eb.aktiv.frei(3, -2, R))
+}
+
+/* Mit faehrt nur, wer in der Kabine steht (Motor: stehend und inKabine). */
+{
+  const KAB = [32, -1.4, 33.4, 0]
+  wahr('Kabine: Mitte drin', inKabine(KAB, 32.7, -0.7))
+  wahr('Kabine: in der Tuer (Rand ein Koerperradius)', inKabine(KAB, 32.7, 0 + R - 0.01))
+  wahr('Kabine: davor im Gang nicht', !inKabine(KAB, 32.7, 0 + R + 0.01))
+  wahr('Kabine: anderes Haus, gleiche Hoehe, nicht', !inKabine(KAB, 2.7, -0.7))
+  wahr('Kabine: Ecken vertauscht zaehlen gleich', inKabine([33.4, 0, 32, -1.4], 32.7, -0.7) && !inKabine([33.4, 0, 32, -1.4], 2.7, -0.7))
+  wahr('Kabine: ohne Angabe wie E83 (ja)', inKabine(null, 2.7, -0.7) && inKabine(undefined, 2.7, -0.7))
+  wahr('Kabine: kaputte Angabe wie E83 (ja)', inKabine([1, 2, 3], 9, 9) && inKabine([0, 0, NaN, 1], 9, 9) && inKabine([[0, 0, 1, 1]], 9, 9))
+
+  // Fahrt in Haus B von B0 nach B2. Wer in Haus A auf gleicher Hoehe (A0)
+  // steht, faehrt nicht mit und bleibt in A0.
+  const wohnung = new Hindernisse(1)
+  wohnungBauen(wohnung)
+  const eb = new Ebenen(wohnung)
+  eb.wohnungFertig()
+  eb.setzen(zweiHaeuser())
+  eb.wechseln(A0)
+  const m = new Mitfahrt()
+  let boden = eb.boden()
+  for (let i = 0; i <= 30; i++) {
+    const y = -3 + 0.2 * i
+    if (m.schritt(y, 2.7, -0.7, boden, inKabine(KAB, 2.7, -0.7)) === 1 && m.mit) boden = y
+  }
+  wahr('anderes Haus: Ende ohne Mitfahren', m.schritt(null, 2.7, -0.7, boden, true) === 0)
+  nahe('anderes Haus: Boden bleibt', boden, -3)
+  // Ohne den Grundriss (E83) waere man mitgefahren.
+  const alt = new Mitfahrt()
+  alt.schritt(-3, 2.7, -0.7, -3, true)
+  wahr('anderes Haus: nach E83 haette man mitgefahren', alt.mit)
+  // Aus der Kabine hinaus, waehrend die Tueren schliessen: ausgestiegen, und
+  // nach der Fahrt gilt die Startebene, nicht das Ziel.
+  eb.wechseln(B0)
+  boden = eb.boden()
+  m.schritt(-3, 32.7, -0.7, boden, inKabine(KAB, 32.7, -0.7))
+  wahr('hinaus: erst mit', m.mit)
+  m.schritt(-3, 32.7, 0.6, boden, inKabine(KAB, 32.7, 0.6))
+  wahr('hinaus: ausgestiegen', !m.mit && m.an)
+  for (let i = 1; i <= 30; i++) m.schritt(-3 + 0.2 * i, 32.7, 0.6, boden, inKabine(KAB, 32.7, 0.6))
+  wahr('hinaus: Ende zaehlt als gefahren', m.schritt(null, 32.7, 0.6, boden, true) === 2)
+  wahr('hinaus: bleibt in B0', ankunftsEbene(eb, B2, boden) === B0)
+}
+
+/* Neue Welt beim Begehen: dieselbe Ebene ueber ihre Kennung. */
+{
+  const wohnung = new Hindernisse(1)
+  wohnungBauen(wohnung)
+  const eb = new Ebenen(wohnung)
+  eb.wohnungFertig()
+  eb.setzen(zweiHaeuser())
+  const merk = (id, index, y, wo = false) => ({ id, index, y, wohnung: wo })
+  wahr('Wiederfinden: gleicher Index, gleiche Kennung', ebeneWiederfinden(eb, merk('b-2', B2, 3)) === B2)
+  // Unbekannte Kennung bei 0: B1 steht vorne, aber die aktive (Wohnung) ist gleich hoch.
+  wahr('Wiederfinden: unbekannt bei 0 bleibt die Wohnung', ebeneWiederfinden(eb, merk('weg', 9, 0)) === WO && eb.naechste(0) === B1)
+  // Andere Reihenfolge in der neuen Welt: die Kennung zaehlt, nicht der Index.
+  const umgedreht = zweiHaeuser().reverse()
+  eb.setzen(umgedreht)
+  const b0 = umgedreht.findIndex((e) => e.id === 'b-0')
+  // Dort steht der Garten als erste in -3 m vorne: die Hoehe allein gaebe ihn.
+  wahr('Wiederfinden: Kennung an neuem Index', ebeneWiederfinden(eb, merk('b-0', B0, -3)) === b0 && b0 !== B0 && eb.naechste(-3) !== b0)
+  wahr('Wiederfinden: Wohnung bleibt Wohnung', ebeneWiederfinden(eb, merk('wohnung', WO, 0, true)) === eb.wohnIndex && eb.liste[eb.wohnIndex].id === 'wohnung')
+  wahr('Wiederfinden: Wohnung allein wird die Wohnungsebene', ebeneWiederfinden(eb, merk(null, -1, 0, true)) === eb.wohnIndex)
+  // Unbekannte Kennung in 3 m: der naechste Boden (die Wohnung liegt tiefer).
+  const erste3 = umgedreht.findIndex((e) => e.y === 3)
+  wahr('Wiederfinden: unbekannt in 3 m: die erste dort', ebeneWiederfinden(eb, merk('weg', 9, 3)) === erste3)
+  // Kennung nur auf einer kaputten Ebene: der naechste Boden.
+  const kaputt = zweiHaeuser()
+  kaputt[B2] = { ...kaputt[B2], y: NaN }
+  eb.setzen(kaputt)
+  wahr('Wiederfinden: Kennung kaputt, die erste in 3 m', ebeneWiederfinden(eb, merk('b-2', B2, 3)) === A2)
+  // Welt ohne Ebene bei 0: die Wohnung allein.
+  eb.setzen([{ id: 'b-2', name: 'B 2', y: 3, hindernisse: [GANG_B] }])
+  wahr('Wiederfinden: ohne 0 ist die Wohnung -1', ebeneWiederfinden(eb, merk('wohnung', WO, 0, true)) === -1 && eb.gibt(-1))
+  wahr('Wiederfinden: ohne 0, B2 einzeln', ebeneWiederfinden(eb, merk('b-2', B2, 3)) === 0)
 }
 
 if (fehler) {
