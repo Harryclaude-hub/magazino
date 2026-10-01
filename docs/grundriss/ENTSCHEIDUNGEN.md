@@ -610,3 +610,34 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   gleich nachbauen. Die Moebel sind aus Bausteinen zusammengesetzt; die
   echten 3D-Modelle gehoeren IKEA und sind nicht frei zu verwenden. Vom
   Link kommen weiter Masse, Farbe und Material.
+- **E82 3D-Wohnung zum Erleben:** KI liest zurueckhaltender (nur klar
+  Erkanntes, jedes Ding einmal, lesbare Produktnamen; doppelt Genanntes
+  wird zusammengefasst). Gebaut in sechs Paketen mit einem gemeinsamen
+  Vertrag (vertrag3d.ts, neue Felder an Quader und Teil):
+  Motor: eine Bildschleife, die ruht, wenn nichts passiert; beim Begehen
+  feste Aufloesung, weiches Anfahren und Bremsen, Kollision als Kreis gegen
+  Grundrisse (kollision.ts) mit Gleiten an jeder Wand; Hinsetzen und
+  Hinlegen (Tipp irgendwo auf das Moebel nimmt den naechsten Platz),
+  kleine Dinge aufheben und ablegen (nur fuer die Sitzung), Fernseher und
+  Wasserhahn schalten, Spiegel spiegeln echt (die zwei naechsten), Tueren
+  mit silberner Klinke und Schluessel (abschliessen per Tipp), zwei alte
+  Fehler behoben (Schublade sprang zum Ursprung, Tueren vergassen ihren
+  Stand). Szene: alle Tuerteile in der Stellung zu beschrieben,
+  automatische Lichtschalter fuer Raeume ohne Schalter (2D blass), Balkon
+  mit Pfosten, rundem Handlauf, Platte und Dielen und Wandleuchte, offene
+  Kiste aus Pappe mit Klappen, Deko-Ebene zum Ausblenden in 2D und 3D,
+  neue Moebelarten (Spielzeug, Bild, Kissen, Decke, Korb, Vorhang,
+  Obstschale, Blumenkasten, Sockel). Moebel: Stuehle wie STOCKHOLM mit
+  geneigter Lehne, Kueche hohl mit Brettern und Geschirr, Griffe, echte
+  Spuele mit Hahn und Wasser, Kochfeld, Haube, Kuehlschrank innen,
+  Geraete auf der Arbeitsplatte, Bad mit Becken, WC, Wanne, Fernseher mit
+  Bild, Juniorbett. Aussenwelt (aussen3d.ts, umgebungRahmen.ts): Himmel,
+  Wiese, Weg, Strasse, Baeume, Hecken, Nachbarhaeuser, Bank; Treppenhaus
+  und Keller bleiben frei. Leute: Figur je Person (Einstellungen, Migration
+  0043: profiles.avatar3d mit Pruefung in der Datenbank), wer gleichzeitig
+  im selben Umzug geht, erscheint als Figur (privater Realtime-Kanal
+  wohnung:<Umzug>, nur Mitglieder), Sprechen mit Mikrofon, lauter je
+  naeher (WebRTC von Geraet zu Geraet, ohne TURN-Server scheitert es in
+  manchen Mobilfunknetzen). Kiste antippen zeigt ihre Karte mit Zurueck zur
+  Begehung und Kiste oeffnen; Esc der Reihe nach. Nicht moeglich: Moebel
+  Stueck fuer Stueck wie IKEA; die echten 3D-Modelle gehoeren IKEA.
