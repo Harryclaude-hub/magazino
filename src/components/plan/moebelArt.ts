@@ -46,6 +46,20 @@ export type MoebelArt =
   | 'haengelampe'
   | 'mauer'
   | 'spiegel'
+  /* E82: Deko, Spielzeug, Stoffe, Sockel */
+  | 'spielzeugkiste'
+  | 'kuscheltier'
+  | 'bausteine'
+  | 'spielkueche'
+  | 'buecher'
+  | 'bild'
+  | 'kissen'
+  | 'wolldecke'
+  | 'korb'
+  | 'vorhang'
+  | 'obstschale'
+  | 'blumenkasten'
+  | 'sockel'
 
 /** Reihenfolge zaehlt: das Genauere zuerst (Geschirrspueler vor Spuele,
  *  Waschtisch vor Tisch, Couchtisch vor Couch, Buerostuhl vor Stuhl,
@@ -94,6 +108,23 @@ const WOERTER: [MoebelArt, string[]][] = [
   ['tisch', ['tisch', 'طاولة']],
   ['stuhl', ['stuhl', 'كرسي']],
 ]
+
+/** Deko und Spielzeug (E82): eine eigene Ebene, die sich in 2D und 3D
+ *  ausblenden laesst wie die Teppiche. */
+export const DEKO_ARTEN: ReadonlySet<MoebelArt> = new Set<MoebelArt>([
+  'spielzeugkiste',
+  'kuscheltier',
+  'bausteine',
+  'spielkueche',
+  'buecher',
+  'bild',
+  'kissen',
+  'wolldecke',
+  'korb',
+  'vorhang',
+  'obstschale',
+  'blumenkasten',
+])
 
 export function moebelArt(name: string): MoebelArt | null {
   const n = name.toLowerCase()

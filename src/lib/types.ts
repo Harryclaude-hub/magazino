@@ -17,8 +17,26 @@ export interface Profile {
   display_name: string | null
   email: string | null
   avatar_path: string | null
+  /** Aussehen der Figur in der 3D-Wohnung (E82, Migration 0043). */
+  avatar3d?: Avatar3D | null
   created_at: string
   updated_at: string
+}
+
+/** Aussehen einer Figur in 3D (E82). Farben als #rrggbb. Die Datenbank
+ *  prueft dieselben Felder (avatar3d_gueltig, 0043). */
+export interface Avatar3D {
+  v: 1
+  haut: string
+  haare: string
+  haarform: 'kurz' | 'lang' | 'zopf' | 'glatze' | 'locken'
+  oben: string
+  unten: string
+  schuhe: string
+  /** Koerpergroesse 140 bis 210 cm, ohne Angabe 175. */
+  groesse_cm?: number
+  statur?: 'schmal' | 'mittel' | 'breit'
+  brille?: boolean
 }
 
 export interface Project {

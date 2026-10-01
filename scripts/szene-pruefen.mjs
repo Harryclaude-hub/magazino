@@ -69,6 +69,23 @@ const F = {
   glas: '#9fc3d9',
   schalter3d: '#f6f4ef',
   spiegel: '#c3d0d6',
+  griff: '#c9ced4',
+  wasser: '#9fd3ee',
+  bildschirm: '#14161a',
+  rasen: '#7f9a5c',
+  weg: '#b9b2a4',
+  baum: '#4f7340',
+  stamm: '#6b5340',
+  hecke: '#5d7f47',
+  himmelOben: '#9cc3e4',
+  himmelUnten: '#e4ecef',
+  fassade: '#e9e4da',
+  pappe: '#c49a6c',
+  leinen: '#e2dccf',
+  spielRot: '#d0573f',
+  spielBlau: '#4f7fb8',
+  spielGelb: '#e3b341',
+  spielGruen: '#6aa060',
 }
 
 function raum(id, punkte, extra = {}) {

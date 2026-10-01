@@ -32,6 +32,16 @@ export interface MoebelFarben {
   glas: string
   wand3d: string
   spiegel: string
+  /* E82 */
+  griff: string
+  wasser: string
+  bildschirm: string
+  pappe: string
+  leinen: string
+  spielRot: string
+  spielBlau: string
+  spielGelb: string
+  spielGruen: string
 }
 
 /** Ein Quader im Moebel: x0..x1, y0..y1 (lokal), z0..z1 (Hoehe), cm. */
@@ -61,9 +71,28 @@ export interface Teil {
    *  oeffnet nach auf (+1/-1 entlang der kurzen Seite). Schublade: faehrt
    *  weit cm nach auf; alle Teile derselben gruppe fahren mit. */
   front?: Front
+  /* ------------------------------------------------------------ E82 */
+  /** Hier kann man sitzen oder liegen; die Oberseite des Teils ist die
+   *  Flaeche. blick lokal: 'vorn' = +y (weg von der Wand), 'hinten' = -y,
+   *  'links' = -x, 'rechts' = +x. */
+  platz?: { art: 'sitz' | 'liegen'; blick: 'vorn' | 'hinten' | 'links' | 'rechts' }
+  /** Kleines Ding zum Aufheben; Teile mit demselben Namen gehoeren zusammen. */
+  ding?: string
+  /** Teil eines Geraets (Quader.geraet); nr trennt mehrere Geraete in einem Moebel. */
+  geraet?: { art: 'tv' | 'wasser'; teil: 'koerper' | 'an' | 'aus'; nr?: number }
+  /** Spiegelflaeche, die Vorderseite zeigt nach lokal +y. */
+  spiegel?: true
+  /** Geneigt um die eigene Mitte, Grad: laengs = um die lokale x-Achse
+   *  (Lehne nach hinten), quer = um die lokale y-Achse. */
+  kipp?: { laengs?: number; quer?: number }
 }
 
-export type Front = { art: 'tuer'; angel: 'min' | 'max'; auf: 1 | -1 } | { art: 'schub'; auf: 1 | -1; weit: number; gruppe: number }
+/** Tuer: gruppe verbindet sie mit ihrem Griff (art 'griff', gleiche
+ *  gruppe), der dann mit ihr dreht (E82). */
+export type Front =
+  | { art: 'tuer'; angel: 'min' | 'max'; auf: 1 | -1; gruppe?: number }
+  | { art: 'schub'; auf: 1 | -1; weit: number; gruppe: number }
+  | { art: 'griff'; gruppe: number }
 
 /** Farbe heller (faktor > 1) oder dunkler (< 1). */
 export function ton(hex: string, faktor: number): string {
@@ -93,7 +122,7 @@ function spiegler(o: O) {
   const sy = e === 'ru' || e === 'lu'
   return (t: Teil): Teil => {
     let front = t.front
-    if (front) {
+    if (front && front.art !== 'griff') {
       // Lange Seite entlang x: sx dreht die Angel, sy die Richtung; sonst umgekehrt.
       const breitX = t.x1 - t.x0 >= t.y1 - t.y0
       const lang = breitX ? sx : sy

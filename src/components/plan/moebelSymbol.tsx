@@ -268,6 +268,21 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
         { art: 'zug', p: [[r + 2, T / 2], [B / 2, T * 0.2], [B - r - 2, T / 2]], zu: false },
       ]
     }
+    // E82: Zeichen folgen (Vertrag, der Umriss reicht vorerst).
+    case 'spielzeugkiste':
+    case 'kuscheltier':
+    case 'bausteine':
+    case 'spielkueche':
+    case 'buecher':
+    case 'bild':
+    case 'kissen':
+    case 'wolldecke':
+    case 'korb':
+    case 'vorhang':
+    case 'obstschale':
+    case 'blumenkasten':
+    case 'sockel':
+      return []
   }
 }
 

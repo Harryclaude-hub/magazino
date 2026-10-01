@@ -57,6 +57,24 @@ export interface Farben3D {
   /** Schalter- und Steckdosenplatte, Spiegel (E74). */
   schalter3d: string
   spiegel: string
+  /* E82: Griffe, Wasser, Bildschirm, Aussenwelt, Kistenpappe, Stoffe, Spielzeug. */
+  griff: string
+  wasser: string
+  bildschirm: string
+  rasen: string
+  weg: string
+  baum: string
+  stamm: string
+  hecke: string
+  himmelOben: string
+  himmelUnten: string
+  fassade: string
+  pappe: string
+  leinen: string
+  spielRot: string
+  spielBlau: string
+  spielGelb: string
+  spielGruen: string
 }
 
 /** Welches Token hinter welcher Farbe steht (src/index.css). */
@@ -98,6 +116,23 @@ export const FARB_TOKENS: Record<keyof Farben3D, string> = {
   glas: '--plan3d-glas',
   schalter3d: '--plan3d-schalter',
   spiegel: '--plan3d-spiegel',
+  griff: '--plan3d-griff',
+  wasser: '--plan3d-wasser',
+  bildschirm: '--plan3d-bildschirm',
+  rasen: '--plan3d-rasen',
+  weg: '--plan3d-weg',
+  baum: '--plan3d-baum',
+  stamm: '--plan3d-stamm',
+  hecke: '--plan3d-hecke',
+  himmelOben: '--plan3d-himmel-oben',
+  himmelUnten: '--plan3d-himmel-unten',
+  fassade: '--plan3d-fassade',
+  pappe: '--plan3d-pappe',
+  leinen: '--plan3d-leinen',
+  spielRot: '--plan3d-spiel-rot',
+  spielBlau: '--plan3d-spiel-blau',
+  spielGelb: '--plan3d-spiel-gelb',
+  spielGruen: '--plan3d-spiel-gruen',
 }
 
 export type Rolle =
@@ -117,6 +152,11 @@ export type Rolle =
   | 'front'
   | 'leuchte'
   | 'schalter'
+  /* E82 */
+  | 'griff' // Tuerklinke, Rosette, Griffleiste: dreht mit seiner Tuer, kein Hindernis
+  | 'schluessel' // Schluessel im Tuerschloss: Antippen schliesst ab und auf
+  | 'spiegel' // Spiegelflaeche (normale zeigt nach vorn)
+  | 'ding' // kleines Ding zum Aufheben (ding), kein Hindernis
 
 export type Vec3 = [number, number, number]
 
@@ -155,10 +195,32 @@ export interface Quader {
   /** Schublade: faehrt um weg (Meter, x und z) heraus; alle Teile mit
    *  derselben id fahren zusammen. E68. */
   schub?: { id: string; weg: [number, number] }
+  /* ------------------------------------------------------------ E82 */
+  /** Hinsetzen oder Hinlegen: punkt ist die Mitte der Sitz- oder
+   *  Liegeflaeche oben (Meter, Welt), blick die Blickrichtung als drehY
+   *  (0 = Blick nach -z, wie die Kamera). Antippen beim Begehen setzt oder
+   *  legt einen dorthin. */
+  platz?: { art: 'sitz' | 'liegen'; punkt: Vec3; blick: number }
+  /** Kleines Ding zum Aufheben. Alle Teile mit derselben Kennung gehen
+   *  zusammen. Nur fuer die Sitzung, nichts wird gespeichert. */
+  ding?: string
+  /** Teil eines Geraets. Alle Teile mit derselben id gehoeren zu einem
+   *  Geraet; Antippen eines davon schaltet es. teil: 'koerper' immer zu
+   *  sehen, 'an' nur eingeschaltet (Wasserstrahl, leuchtendes Bild), 'aus'
+   *  nur ausgeschaltet (schwarzer Bildschirm). 'an' ist nie ein Hindernis. */
+  geraet?: { id: string; art: 'tv' | 'wasser'; teil: 'koerper' | 'an' | 'aus' }
+  /** Nur bei rolle 'spiegel': Richtung der Vorderseite (x, z), Laenge 1. */
+  normale?: [number, number]
+  /** Geneigt um die eigene Mitte, Radiant, nach drehY (Euler 'YXZ'):
+   *  x kippt um die Welt-x-Achse des ungedrehten Teils, z um seine z-Achse. */
+  kipp?: { x: number; z: number }
 }
 
 export type Form3D = { art: 'zylinder'; oben: number; achse: 'x' | 'y' | 'z' } | { art: 'kugel' }
 
+/** E82: Alle Teile mit tuer (Blatt, Klinke, Rosette, Schluessel, Griff
+ *  einer Moebeltuer) sind in der Stellung zu beschrieben (mitte, drehY).
+ *  Der Motor dreht jedes Teil mit derselben id um die Angel um (w - zu). */
 export interface TuerDreh {
   id: string
   angel: [number, number]
@@ -189,6 +251,11 @@ export interface SzeneOptionen {
   markiert?: string | null
   /** Teppiche zeigen (Standard) oder ausblenden (E74). */
   teppiche?: boolean
+  /** Deko zeigen (Standard) oder ausblenden (E82), siehe DEKO_ARTEN. */
+  deko?: boolean
+  /** Diese Kiste (Item-Id) offen zeigen: Pappe mit aufgeklappten Klappen
+   *  und Inhalt angedeutet (E82). */
+  offeneKiste?: string | null
 }
 
 /** Wandstaerke in cm, wie in 2D (PlanBild). */

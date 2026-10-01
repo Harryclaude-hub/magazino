@@ -129,7 +129,7 @@ function anweisung(was: Was, _sprache: Sprache): string {
         : [
             'Auf dem Bild ist eine Umzugskiste (Karton, Kiste, Box, Korb, Wanne oder Tasche). Es zählt NUR, was IN dieser Kiste liegt.',
             'Schritt 1: Finde die Kiste. Die ERSTE Zeile ist genau: KISTE|x1,y1,x2,y2 mit dem Rahmen um die Öffnung der Kiste. Sind mehrere Kisten zu sehen, nimm die größte in der Mitte. Ist gar keine Kiste zu sehen, schreibe KISTE|keine.',
-            'Schritt 2: Nenne JEDEN Gegenstand, der in dieser Kiste liegt, auch kleine.',
+            'Schritt 2: Nenne die Gegenstände, die du in dieser Kiste klar erkennst, auch kleine, wenn sie deutlich zu sehen sind.',
             'NICHT nennen: die Kiste selbst, Deckel, Klebeband, Aufkleber, Etikett, Polster, Zeitungspapier, Luftpolsterfolie, und alles außerhalb der Kiste: Boden, Tisch, Möbel, Wand, Hände, Füße, Menschen, Tiere, andere Kisten und was daneben liegt.',
           ]
   return [
@@ -145,6 +145,11 @@ function anweisung(was: Was, _sprache: Sprache): string {
     'Gleiche Dinge zusammen: zehn Bücher sind eine Zeile mit menge 10.',
     'Hinweis nur, wenn es beim Tragen zählt (zerbrechlich, schwer), sonst leer.',
     'Zähle nur, was du wirklich siehst.',
+    // E82: lieber weglassen als raten (Karam: nicht übertreiben, nur die Produkte ablesen).
+    'Nichts erfinden und nichts vermuten: was verdeckt, unscharf oder nur zu ahnen ist, lässt du weg. Lieber eine Zeile zu wenig als eine falsche.',
+    'Jedes Ding genau einmal. Teile eines Dings (Deckel, Kappe, Etikett, Verpackung) sind keine eigenen Zeilen.',
+    'Keine Sammelzeilen wie Verschiedenes, Kleinkram oder Sachen.',
+    'Ist ein Produktname oder eine Marke lesbar, heißt die Zeile so (zum Beispiel Nivea Creme), sonst der einfache Name des Dings.',
   ].join('\n')
 }
 
@@ -303,7 +308,12 @@ function dingeAus(inhalt: string, sprache: Sprache, ende: boolean): Ding[] {
       suchwoerter: (teile[4] ?? '').split(/[,،;]/).map((w) => w.trim()),
       hinweis: teile[5] ?? null,
     })
-    if (d && inDerKiste(d, kiste)) out.push(d)
+    if (d && inDerKiste(d, kiste)) {
+      // Dasselbe Ding zweimal genannt (E82): eine Zeile, Mengen zusammen.
+      const gleich = out.find((x) => x.text.toLocaleLowerCase() === d.text.toLocaleLowerCase())
+      if (gleich) gleich.menge = Math.min(999, gleich.menge + d.menge)
+      else out.push(d)
+    }
     if (out.length >= 60) break
   }
   return out

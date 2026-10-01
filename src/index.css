@@ -144,6 +144,25 @@
   --plan3d-glas: #9fc3d9;
   --plan3d-schalter: #f6f4ef;
   --plan3d-spiegel: #c3d0d6;
+  /* E82: Klinken silbern, Wasser, Bildschirm, Aussenwelt, Pappe, Leinen,
+     Spielzeug in gedaempften Farben (Holzspielzeug, nicht grell). */
+  --plan3d-griff: #c9ced4;
+  --plan3d-wasser: #9fd3ee;
+  --plan3d-bildschirm: #14161a;
+  --plan3d-rasen: #7f9a5c;
+  --plan3d-weg: #b9b2a4;
+  --plan3d-baum: #4f7340;
+  --plan3d-stamm: #6b5340;
+  --plan3d-hecke: #5d7f47;
+  --plan3d-himmel-oben: #9cc3e4;
+  --plan3d-himmel-unten: #e4ecef;
+  --plan3d-fassade: #e9e4da;
+  --plan3d-pappe: #c49a6c;
+  --plan3d-leinen: #e2dccf;
+  --plan3d-spiel-rot: #d0573f;
+  --plan3d-spiel-blau: #4f7fb8;
+  --plan3d-spiel-gelb: #e3b341;
+  --plan3d-spiel-gruen: #6aa060;
   color-scheme: light;
 }
 
