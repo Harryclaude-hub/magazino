@@ -88,7 +88,24 @@
  * sprungziele: je Wohnung mit Eingang 0,8 m vor ihrer Tuer mit Blick
  * darauf, je Haus vor der Haustuer, der Spielplatz. Der Motor ruft jedes
  * Bild beim Begehen kamera(x, y, z) mit der Kamera in Weltmetern, beim
- * Verlassen des Begehens kamera(NaN, NaN, NaN). */
+ * Verlassen des Begehens kamera(NaN, NaN, NaN).
+ *
+ * Gemeinsam (E86): Gaeste sehen die Siedlung ohne die eingerichtete
+ * Wohnung des Besitzers. Sie bekommen dieselbe siedlung.wohnung, aber
+ * wohnungRahmen null. Die Lage (Drehung, Verschiebung, Absenkung) haengt
+ * nur an siedlung.wohnung, so stehen alle in derselben Welt; nur ohne
+ * siedlung.wohnung steht die Siedlung mittig. Ohne Rahmen wird nichts
+ * ausgespart: die Fassade bleibt zu, die geplante (leere) Wohnung aus
+ * siedlung.innen bleibt stehen, und die Ebene dieses Geschosses heisst wie
+ * jede andere ('geschoss-<k>', 'boden' oder '<gebaeudeId>:<k>'); 'wohnung'
+ * heisst sie nur mit Rahmen. Das erste Sprungziel heisst immer 'Start':
+ * vor der Haustuer des Hauses der Wohnung (sonst des ersten Hauses mit
+ * Eingang, sonst auf dem Gehsteig vor der Mitte), dort beginnen Gaeste.
+ * karte: Umrisse fuer die Minikarte in Weltmetern (x, z), siehe Karte3D;
+ * Flaechen in der Reihenfolge zum Malen (Strasse und Parkplatz, Gaerten,
+ * Wege, Spielplatz), Wege aus aussen.wege mit 1,5 m Puffer je Seite, die
+ * Strasse nur so lang wie die Karte breit, der Rahmen mit 5 m Rand um
+ * alles. Sie haengt nicht am Rahmen der Wohnung. */
 import {
   BackSide,
   BoxGeometry,
@@ -116,12 +133,14 @@ import {
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import type { Siedlung, SiedlungGebaeude, SiedlungInnenHaus, SiedlungStil } from '../../lib/types'
 import type { Farben3D } from './szene.ts'
-import type { Ebene3D, Hindernis3D, Interaktiv3D, Sprungziel3D, Welt3D } from './vertrag3d.ts'
+import type { Ebene3D, Hindernis3D, Interaktiv3D, Karte3D, Sprungziel3D, Welt3D } from './vertrag3d.ts'
 
 export interface SiedlungOptionen {
   siedlung: Siedlung
   farben: Farben3D
-  /** Umriss der eigenen Wohnung in Weltmetern (x0, z0, x1, z1) um die Fassade dort auszusparen; null ohne Wohnung. */
+  /** Umriss der eigenen Wohnung in Weltmetern (x0, z0, x1, z1) um die
+   *  Fassade dort auszusparen. null ohne Wohnung und fuer Gaeste (E86):
+   *  die Lage bleibt die von siedlung.wohnung, ausgespart wird nichts. */
   wohnungRahmen: [number, number, number, number] | null
 }
 
@@ -140,7 +159,10 @@ export interface SiedlungWelt3D extends Welt3D {
    *  Inneres (beim ersten Mal gebaut) statt der Fassade. NaN (etwa beim
    *  Verlassen des Begehens): nur Fassaden. */
   kamera(x: number, y: number, z: number): void
+  /** Das erste heisst 'Start' (E86). */
   sprungziele: Sprungziel3D[]
+  /** Fuer die Minikarte (E86), immer da. */
+  karte: Karte3D
 }
 
 /* ------------------------------------------------ Zahlen */
@@ -180,6 +202,9 @@ const GEHSTEIG = 2.0
 const BORD = 0.15
 const FAHRBAHN = 6.5
 const WEG_BREIT = 1.8
+/** Minikarte (E86): Rand um alles, Puffer der Wege je Seite (Meter). */
+const KARTE_RAND = 5
+const KARTE_WEG = 1.5
 const EPS = 1e-6
 
 /* Kern aus Aufzug und Stiegenhaus am Ende des Laubengangs: x laengs des
@@ -1935,6 +1960,10 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
         y1: absenk + gh - 0.05,
       }
     : null
+  /** Die eingerichtete Wohnung steht in der Szene (Besitzer mit Rahmen).
+   *  Gaeste (E86) haben siedlung.wohnung, aber keinen Rahmen: gleiche
+   *  Lage, nichts ausgespart, keine Ebene 'wohnung'. */
+  const wohnungDa = !!eigen && !!rahmenLokal
 
   /* ------------------------------------------------ Innen (E84) */
   /* Haeuser mit Plaenen: Geschosse, Waende, Tueren, Aufzug und Hindernisse
@@ -2540,6 +2569,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
               kq(gelaende, k, t - 0.8, t + 0.8, 0, lang, GEH - 0.05, GEH, F.pflaster, null)
               belegen(form)
               eingaenge.push(form)
+              karteWege.push(form)
             }
           }
         }
@@ -2677,6 +2707,10 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   const kernHindernisse: KRechteck[] = []
   const saeulen: KRechteck[] = []
   const eingaenge: P[][] = []
+  /** Fuer die Minikarte (E86), lokal: Wege von Haustueren zum Gehsteig,
+   *  Asphalt von Parkplatz und Zufahrt. */
+  const karteWege: P[][] = []
+  const karteAsphalt: P[][] = []
   /** Wo man vor der Haustuer steht und wohin man schaut (lokal), je Haus. */
   const eingangSprung = new Map<string, { p: P; blick: P }>()
 
@@ -3309,6 +3343,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       const k = r.k
       parkplaetze = Math.round(r.t1 / 2.5)
       kq(gelaende, k, 0, r.t1, 0, r.s1, -0.12, -0.025, F.asphalt, sch)
+      karteAsphalt.push(rechteckForm(r))
       for (let i = 0; i <= parkplaetze; i++) kq(gelaende, k, i * 2.5 - 0.05, i * 2.5 + 0.05, 0.3, 5.0, -0.12, -0.02, F.weiss, sch)
       kq(gelaende, k, 0, r.t1, -0.15, 0, -0.12, 0.08, F.bord, sch)
       for (let i = 0; i < parkplaetze; i++) {
@@ -3330,6 +3365,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
           kq(gelaende, k, zr.t0, zr.t1, zr.s0, zr.s1, -0.12, -0.025, F.asphalt, sch)
           belegen(form)
           eingaenge.push(form)
+          karteAsphalt.push(form)
         }
       }
     }
@@ -3785,11 +3821,13 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   /** Die Ebene draussen (Garten, Spielplatz, Haustueren). */
   let gartenIndex = 0
   if (!innenListe.length) {
-    /* Wie bisher (E83): die Geschosse des eigenen Hauses, zuletzt der Garten. */
+    /* Wie bisher (E83): die Geschosse des eigenen Hauses, zuletzt der Garten.
+     * Ohne Rahmen (Gaeste, E86) heisst auch das Geschoss der Wohnung
+     * 'geschoss-<k>'. */
     if (eigen) {
       const h = eigen
       for (let k = 0; k < h.n; k++) {
-        const istWohnung = k === geschoss
+        const istWohnung = wohnungDa && k === geschoss
         const liste = huellWaende(h, k)
         liste.push(...(gangHindernisse[k] ?? []), ...kernHindernisse)
         if (k === 0) liste.push(...saeulen, ...garten)
@@ -3811,14 +3849,15 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     /* Mit Plaenen (E84): zuerst eine Ebene fuer den Boden (der Garten und
      * alle Erdgeschosse, so geht man durch die Haustuer hinein), dann je
      * Haus seine Obergeschosse: das eigene Haus zuerst, dann die Haeuser
-     * mit Plaenen. Liegt die Wohnung im EG, ist der Boden ihre Ebene. */
+     * mit Plaenen. Liegt die Wohnung im EG, ist der Boden ihre Ebene (nur
+     * mit Rahmen; Gaeste haben dort 'boden' und '<gebaeudeId>:<k>'). */
     const unten: KRechteck[] = [...garten]
     if (eigen && !eigenInnen) unten.push(...huellWaende(eigen, 0), ...(gangHindernisse[0] ?? []), ...kernHindernisse, ...saeulen)
     for (const ih of innenListe) {
       const g0 = ih.nachK.get(0)
       unten.push(...(g0 ? g0.hindernisse : huellWaende(ih.h, 0)))
     }
-    const bodenWohnung = !!eigen && geschoss === 0
+    const bodenWohnung = wohnungDa && geschoss === 0
     ebenen.push({
       id: bodenWohnung ? 'wohnung' : 'boden',
       name: 'EG',
@@ -3827,7 +3866,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     })
     for (const h of haeuser) ebeneIndex.set(`${h.g.id}|0`, 0)
     const dazu = (h: Haus, k: number, liste: KRechteck[]) => {
-      const istWohnung = h === eigen && k === geschoss
+      const istWohnung = wohnungDa && h === eigen && k === geschoss
       ebeneIndex.set(`${h.g.id}|${k}`, ebenen.length)
       ebenen.push({
         id: istWohnung ? 'wohnung' : `${h.g.id}:${k}`,
@@ -4379,11 +4418,14 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   const sprungziele: Sprungziel3D[] = []
   /** Lokale Richtung in die Welt (ohne Verschiebung). */
   const richtungWelt = (d: P): P => [cs * d[0] + sn * d[1], -sn * d[0] + cs * d[1]]
-  const ziel = (name: string, ebene: number, p: P, blick: P) => {
-    if (ebene < 0 || ebene >= ebenen.length) return
+  const zielVon = (name: string, ebene: number, p: P, blick: P): Sprungziel3D => {
     const w = nachWelt(p)
     const d = richtungWelt(blick)
-    sprungziele.push({ name, ebene, x: w[0], z: w[1], gier: Math.atan2(-d[0], -d[1]) })
+    return { name, ebene, x: w[0], z: w[1], gier: Math.atan2(-d[0], -d[1]) }
+  }
+  const ziel = (name: string, ebene: number, p: P, blick: P) => {
+    if (ebene < 0 || ebene >= ebenen.length) return
+    sprungziele.push(zielVon(name, ebene, p, blick))
   }
   // Jede Wohnung mit Eingang: vor ihrer Tuer, mit Blick zur Tuer.
   for (const ih of innenListe) {
@@ -4417,7 +4459,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     }
   }
   // Jedes Haus: vor der Haustuer (mit Plaenen die echte, sonst vor dem Aufzug).
-  for (const h of haeuser) {
+  const hausEingang = (h: Haus): void => {
     const name = `Eingang ${hausName(h)}`
     const ih = innenNach.get(h.g.id)
     if (ih) {
@@ -4427,19 +4469,26 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
         const m = kp(l.w.k, (l.ta + l.tb) / 2, 0)
         const n = l.w.k.n
         ziel(name, 0, [m[0] + n[0] * SPRUNG_HAUS, m[1] + n[1] * SPRUNG_HAUS], [-n[0], -n[1]])
-        continue
+        return
       }
       if (A && A.halte.includes(0)) {
         ziel(name, 0, kp(A.k, A.breit / 2, -1.2), A.k.n)
-        continue
+        return
       }
     }
     if (h === eigen && gang && mitKern) {
       ziel(name, ebeneVon(h.g.id, 0), kp(gang, kt(1.15), 0.5), gang.n)
-      continue
+      return
     }
     const e = eingangSprung.get(h.g.id)
     if (e) ziel(name, gartenIndex, e.p, e.blick)
+  }
+  /** Index des Sprungziels vor der Haustuer, je Haus mit einem. */
+  const eingangIndex = new Map<Haus, number>()
+  for (const h of haeuser) {
+    const vorher = sprungziele.length
+    hausEingang(h)
+    if (sprungziele.length > vorher) eingangIndex.set(h, vorher)
   }
   // Der Spielplatz: an seinem Rand, der der Siedlung am naechsten liegt.
   if (spielPoly) {
@@ -4461,6 +4510,57 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       break
     }
   }
+  // Start (E86), immer zuerst: vor der Haustuer des Hauses der Wohnung,
+  // sonst des ersten Hauses mit Eingang, sonst auf dem Gehsteig vor der
+  // Mitte der Siedlung mit Blick zu ihr. Haengt nicht am Rahmen.
+  {
+    const i = (eigen ? eingangIndex.get(eigen) : undefined) ?? haeuser.map((h) => eingangIndex.get(h)).find((x) => x !== undefined)
+    const start =
+      i !== undefined
+        ? { ...sprungziele[i], name: 'Start' }
+        : zielVon('Start', gartenIndex, kp(sk, lmitte, strasseQ0 + GEHSTEIG / 2), [-q[0], -q[1]])
+    sprungziele.unshift(start)
+  }
+
+  /* ------------------------------------------------ Karte (E86) */
+  /* Fuer die Minikarte: jedes Haus mit Namen und die Flaechen, zuerst lokal
+   * gesammelt, in der Reihenfolge zum Malen. Der Rahmen umfasst alles
+   * ausser der Laenge der Strasse (sie laeuft 400 m), dazu ihr Band quer,
+   * und 5 m Rand; danach laeuft die Strasse genau ueber die Breite der
+   * Karte. Nichts davon haengt an wohnungRahmen. */
+  type KartenArt = Karte3D['flaechen'][number]['art']
+  const karteLokal: { art: KartenArt; punkte: P[] }[] = []
+  for (const f of karteAsphalt) karteLokal.push({ art: 'strasse', punkte: f })
+  for (const ih of innenListe) {
+    for (const f of ih.nachK.get(0)?.flaechen ?? []) if (f.art === 'draussen') karteLokal.push({ art: 'garten', punkte: f.poly })
+  }
+  // Wege mit Puffer je Seite; an Knicken um den Puffer verlaengert (keine
+  // Kerbe), an den freien Enden buendig.
+  for (const w of wege) {
+    for (let i = 0; i + 1 < w.length; i++) {
+      const k = kanteVon(w[i], w[i + 1])
+      if (k.laenge < 0.05) continue
+      const t0 = i > 0 ? -KARTE_WEG : 0
+      const t1 = k.laenge + (i + 2 < w.length ? KARTE_WEG : 0)
+      karteLokal.push({ art: 'weg', punkte: rechteckForm({ k, t0, t1, s0: -KARTE_WEG, s1: KARTE_WEG }) })
+    }
+  }
+  for (const f of karteWege) karteLokal.push({ art: 'weg', punkte: f })
+  if (spielPoly) karteLokal.push({ art: 'spielplatz', punkte: spielPoly })
+  /** Die Strasse ueber die Breite des Kastens r (lokal; l ist eine Achse). */
+  const strasseIn = (r: Kasten): P[] => {
+    const t = [r[0] * l[0] + r[1] * l[1], r[2] * l[0] + r[3] * l[1]]
+    return rechteckForm({ k: sk, t0: Math.min(...t), t1: Math.max(...t), s0: strasseQ0, s1: strasseQ1 })
+  }
+  let kr = kastenVon([...alle, ...karteLokal.flatMap((f) => f.punkte)])
+  kr = kastenVon([[kr[0], kr[1]], [kr[2], kr[3]], ...strasseIn(kr)])
+  kr = [kr[0] - KARTE_RAND, kr[1] - KARTE_RAND, kr[2] + KARTE_RAND, kr[3] + KARTE_RAND]
+  karteLokal.unshift({ art: 'strasse', punkte: strasseIn(kr) })
+  const karte: Karte3D = {
+    rahmen: rechteckWelt([kr[0], kr[1]], [kr[2], kr[3]]),
+    haeuser: haeuser.map((h) => ({ name: hausName(h), punkte: h.poly.map(nachWelt) })),
+    flaechen: karteLokal.map((f) => ({ art: f.art, punkte: f.punkte.map(nachWelt) })),
+  }
 
   gruppe.userData = {
     baeume,
@@ -4481,6 +4581,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     ebenen,
     interaktiv,
     sprungziele,
+    karte,
     schritt,
     fahrt,
     kamera,
