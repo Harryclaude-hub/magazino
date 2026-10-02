@@ -1778,3 +1778,24 @@ export async function siedlungImportieren(
     return { siedlung, deko: { fehler: err instanceof Error ? err.message : String(err) } }
   }
 }
+
+// STUB E86 - wird beim Zusammenfuehren ersetzt
+// Nur damit die Oberflaeche (SiedlungAnsicht, SiedlungLeute) fuer sich
+// gebaut werden kann; die echten Abfragen bringt das Datenpaket von E86.
+// Bis dahin meldet jeder Aufruf einen sichtbaren Fehler statt still nichts.
+export async function siedlungMitglieder(siedlungId: string): Promise<import('./types').SiedlungMitglied[]> {
+  void siedlungId
+  throw new Error('siedlungMitglieder fehlt noch (E86, Datenpaket)')
+}
+// STUB E86 - wird beim Zusammenfuehren ersetzt
+export async function siedlungEinladen(siedlungId: string, wer: string): Promise<import('./types').SiedlungEinladung> {
+  void siedlungId
+  void wer
+  throw new Error('siedlungEinladen fehlt noch (E86, Datenpaket)')
+}
+// STUB E86 - wird beim Zusammenfuehren ersetzt
+export async function siedlungEntfernen(siedlungId: string, userId: string): Promise<void> {
+  void siedlungId
+  void userId
+  throw new Error('siedlungEntfernen fehlt noch (E86, Datenpaket)')
+}

@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowDownToLine, ArrowUpFromLine, Clock, Crosshair, Eye, Flower2, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, Map as KarteIcon, Maximize2, Mic, MicOff, Minimize2, Moon, Rotate3d, SlidersHorizontal, Square, Sun, Users, X } from 'lucide-react'
 import { displayNameOf, useAuth } from '../../lib/auth'
@@ -6,7 +6,7 @@ import { standardLook } from '../../lib/avatar'
 import { wohnungBeitreten, type WohnungVerbindung } from '../../lib/anwesenheit'
 import { useSprache } from '../../lib/i18n'
 import { Sprechen, type SprechZustand } from '../../lib/sprechen'
-import type { GrundrissDaten } from '../../lib/types'
+import type { Avatar3D, GrundrissDaten } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { useProjektOptional } from '../../pages/ProjectLayout'
 import { Button, useToast } from '../ui'
@@ -16,10 +16,11 @@ import { baueFigur } from './avatar3d'
 import KistenKarte from './KistenKarte'
 import { motorStarten, type Blick, type Figur3D, type Haltung, type Motor, type Pose3D, type Treffer3D } from './motor'
 import { Knueppel } from './Knueppel'
+import Minikarte, { abstandZumUmriss, HAUS_RAND_M, sprungImHaus, type MinikarteLage, type MinikartePerson } from './Minikarte'
 import { farbenLesen } from './farben3d'
 import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
 import { umgebungAus } from './umgebungRahmen'
-import type { Ebene3D, Sprungziel3D, Welt3D } from './vertrag3d'
+import type { Ebene3D, Karte3D, Sprungziel3D, Welt3D } from './vertrag3d'
 
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
  *
@@ -54,6 +55,16 @@ import type { Ebene3D, Sprungziel3D, Welt3D } from './vertrag3d'
  * Haeuser mit Plan). Raum3D meldet sie der Seite (onSprungziele), und
  * steuer.springen(i) bringt einen beim Begehen dorthin; wer gerade nicht
  * geht, beginnt das Begehen dort.
+ *
+ * E86: Die Siedlung ist gemeinsam. Mit live geht Raum3D beim Begehen in
+ * den Kanal der Siedlung statt in den des Umzugs: wer gleichzeitig dort
+ * geht, erscheint als Figur (Name und Aussehen aus live.leute), Sprechen
+ * wie in der Wohnung (der Abstand zaehlt hier auch in der Hoehe, also
+ * ueber Stockwerke), Zahl der Leute und Fehler unten rechts. Bringt die
+ * Welt eine Karte mit (Welt3D.karte), steht unten rechts die Minikarte
+ * (Minikarte.tsx), ueber den Knoepfen und auch im Vollbild; Antippen eines
+ * Hauses fuehrt zu seinem naechsten Sprungziel. Die Lage fuer die Karte
+ * liegt in Refs, Raum3D zeichnet dafuer nicht neu.
  *
  * Die Farben kommen aus den Tokens (getComputedStyle) und werden bei
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
@@ -131,7 +142,20 @@ export interface Raum3DProps {
   onSprungziele?: (ziele: Sprungziel3D[], ebenen: string[]) => void
   /** Griff fuer Knoepfe ausserhalb (Kopfzeile der Siedlung). */
   steuer?: Ref<Raum3DSteuer>
+  /** Gemeinsam in der Siedlung (E86): Kanal 'siedlung:<Kennung>', die
+   *  eigene Kennung und wer dazugehoert (Name, Aussehen; fehlt jemand,
+   *  steht '?' und eine Standardfigur da). Beim Begehen geht Raum3D damit
+   *  live, ohne Umzug. null oder fehlt: wie bisher, live nur im eigenen
+   *  Umzug (E82). Die Liste darf sich aendern, die Verbindung bleibt. */
+  live?: Raum3DLive | null
   className?: string
+}
+
+/** Siehe Raum3DProps.live (E86). */
+export interface Raum3DLive {
+  kanal: string
+  uid: string
+  leute: { uid: string; name: string; look: Avatar3D | null }[]
 }
 
 
@@ -152,6 +176,28 @@ function farbeFuer(uid: string): string {
   return farben[h % farben.length]
 }
 
+/** Die Karte der Welt (E86), nur wenn sie brauchbar ist: Rahmen aus vier
+ *  Zahlen, Haeuser und Flaechen mit Punkten aus je zwei Zahlen. Sonst null
+ *  und ein Hinweis in der Konsole; die Minikarte bleibt dann weg. */
+function karteLesen(k: Karte3D | undefined): Karte3D | null {
+  if (!k) return null
+  const zahl = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
+  const punkte = (l: unknown) => Array.isArray(l) && l.every((q) => Array.isArray(q) && q.length === 2 && zahl(q[0]) && zahl(q[1]))
+  const ok =
+    Array.isArray(k.rahmen) &&
+    k.rahmen.length === 4 &&
+    k.rahmen.every(zahl) &&
+    Array.isArray(k.haeuser) &&
+    k.haeuser.every((h) => !!h && typeof h.name === 'string' && punkte(h.punkte)) &&
+    Array.isArray(k.flaechen) &&
+    k.flaechen.every((f) => !!f && punkte(f.punkte))
+  if (!ok) {
+    console.warn('[3d] Karte der Welt unbrauchbar, die Minikarte bleibt weg')
+    return null
+  }
+  return k
+}
+
 /** Kiste -> Objekt, auf oder in dem ihr Stapel steht (ueber Kisten hinweg). */
 function traegerKarte(daten: GrundrissDaten): Map<string, string> {
   const nachId = new Map(daten.kisten.map((k) => [k.id, k]))
@@ -170,7 +216,21 @@ function traegerKarte(daten: GrundrissDaten): Map<string, string> {
   return out
 }
 
-export default function Raum3D({ daten, raumId = null, hervor = null, markiert = null, onSchliessen, onObjektZiehen, onTippen, welt, onEbene, onSprungziele, steuer, className }: Raum3DProps) {
+export default function Raum3D({
+  daten,
+  raumId = null,
+  hervor = null,
+  markiert = null,
+  onSchliessen,
+  onObjektZiehen,
+  onTippen,
+  welt,
+  onEbene,
+  onSprungziele,
+  steuer,
+  live: gemeinsam = null,
+  className,
+}: Raum3DProps) {
   const { t } = useSprache()
   const nav = useNavigate()
   const toast = useToast()
@@ -414,6 +474,9 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   useLayoutEffect(() => {
     sprungRueck.current = onSprungziele
   })
+  // Die Karte der Welt fuer die Minikarte (E86), dazu je Haus, ob es ein
+  // Sprungziel hat, und der Boden jeder Ebene (zum Waehlen des Ziels).
+  const [lageKarte, setLageKarte] = useState<{ karte: Karte3D; springbar: boolean[]; ebenenY: number[] } | null>(null)
   useEffect(() => {
     const m = motor.current
     if (!m || geht !== 'ja' || !welt) return
@@ -432,6 +495,15 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     mw.ebeneJetzt?.((e) => setEbeneLage({ name: ebenenName(e, w.ebenen), liste }))
     sprungziele.current = w.sprungziele ?? []
     sprungRueck.current?.(sprungziele.current, w.ebenen.map((x) => x.name))
+    const k = karteLesen(w.karte)
+    if (k) {
+      const ziele = sprungziele.current
+      setLageKarte({
+        karte: k,
+        springbar: k.haeuser.map((h) => ziele.some((z) => abstandZumUmriss([z.x, z.z], h.punkte) <= HAUS_RAND_M)),
+        ebenenY: w.ebenen.map((x) => x.y),
+      })
+    }
     return () => {
       sprungziele.current = []
       mw.ebeneJetzt?.(null)
@@ -439,6 +511,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
       else m.umgebung(null)
       w.dispose()
       setEbeneLage(null)
+      setLageKarte(null)
     }
   }, [welt, farben, geht])
   const ebeneJetzt = gehen ? (ebeneLage?.name ?? null) : null
@@ -464,9 +537,9 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   }
 
   // Knoepfe der Siedlung (E83). Zur Wohnung: neu anfangen, auch mitten im
-  // Gehen; der Motor setzt dabei die Ebene der Wohnung (Boden bei 0).
-  useImperativeHandle(
-    steuer,
+  // Gehen; der Motor setzt dabei die Ebene der Wohnung (Boden bei 0). Der
+  // Griff dient auch der Minikarte (E86), darum erst als eigener Wert.
+  const griff = useMemo<Raum3DSteuer>(
     () => ({
       zurWohnung() {
         const m = motor.current
@@ -507,6 +580,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     }),
     [geht, daten, raumId],
   )
+  useImperativeHandle(steuer, () => griff, [griff])
 
   // Begehen an und aus; der Motor merkt sich die Kamera von vorher.
   useEffect(() => {
@@ -545,14 +619,30 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   }, [])
 
   // ------------------------------------------------ Mitspieler und Sprechen
-  // Nur beim Begehen und nur im eigenen Umzug: wer gleichzeitig geht, sieht
-  // die anderen als Figur; Ton nur mit eingeschaltetem Mikrofon (E82).
+  // Nur beim Begehen: im eigenen Umzug (E82) oder, mit live, in der
+  // gemeinsamen Siedlung (E86). Wer gleichzeitig geht, sieht die anderen
+  // als Figur; Ton nur mit eingeschaltetem Mikrofon.
   const uid = user?.id ?? null
   const projectId = daten.grundriss.project_id
-  const live = gehen && geht === 'ja' && !!uid && !!projekt && projekt.project.id === projectId
-  const mitgliederRef = useRef(projekt?.members ?? [])
+  const liveKanal = gemeinsam?.kanal ?? null
+  const liveUid = gemeinsam ? gemeinsam.uid : uid
+  const live =
+    gehen && geht === 'ja' && (gemeinsam ? !!gemeinsam.uid : !!uid && !!projekt && projekt.project.id === projectId)
+  /** Name und Aussehen einer Person: aus live.leute (Siedlung) oder aus
+   *  den Mitgliedern des Umzugs. In einer Ref, damit eine neue Liste die
+   *  Verbindung nicht neu aufbaut. */
+  const werRef = useRef<(u: string) => { name: string; look: Avatar3D | null }>(() => ({ name: '?', look: null }))
   useLayoutEffect(() => {
-    mitgliederRef.current = projekt?.members ?? []
+    const liste = gemeinsam?.leute ?? null
+    const mitglieder = projekt?.members ?? []
+    werRef.current = (u) => {
+      if (liste) {
+        const l = liste.find((x) => x.uid.toLowerCase() === u)
+        return { name: l?.name || '?', look: l?.look ?? null }
+      }
+      const prof = mitglieder.find((x) => x.user_id === u)?.profile ?? null
+      return { name: displayNameOf(prof, '?'), look: prof?.avatar3d ?? null }
+    }
   })
   const [leuteDa, setLeuteDa] = useState<string[]>([])
   const [sprech, setSprech] = useState<SprechZustand | null>(null)
@@ -561,34 +651,77 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   const [wohnungFehler, setWohnungFehler] = useState<string | null>(null)
   const sprechenRef = useRef<Sprechen | null>(null)
   const figuren = useRef(new Map<string, Figur3D>())
+  /** Figuren neu bauen, deren Name oder Aussehen sich geaendert hat. */
+  const figurenNeu = useRef<(() => void) | null>(null)
+
+  // Eigene Stellung beim Begehen (E86): ein Abnehmer am Motor, verteilt an
+  // die Verbindung und die Minikarte; die letzte bleibt fuer die Karte da.
+  const eigeneLetzte = useRef<Pose3D | null>(null)
+  const poseHoerer = useRef(new Set<(p: Pose3D) => void>())
+  const brauchtPose = live || !!lageKarte
   useEffect(() => {
     const m = motor.current
-    if (!live || !m || !uid) return
-    const grundrissId = daten.grundriss.id
+    if (!m || !gehen || geht !== 'ja' || !brauchtPose) return
+    const hoerer = poseHoerer.current
+    m.eigenePose((p) => {
+      eigeneLetzte.current = p
+      for (const f of hoerer) f(p)
+    })
+    return () => {
+      m.eigenePose(null)
+      eigeneLetzte.current = null
+    }
+  }, [gehen, geht, brauchtPose])
+  // Wo die anderen stehen, fuer die Minikarte (gehoert der Verbindung).
+  const andereRef = useRef<ReadonlyMap<string, Pose3D>>(new Map())
+
+  useEffect(() => {
+    const m = motor.current
+    if (!live || !m || !liveUid) return
+    // In der Siedlung tragen alle die Kennung der Siedlung als Grundriss,
+    // sonst saehen sie sich nicht (anwesenheit.ts vergleicht ihn).
+    const raum = liveKanal ? liveKanal.slice(liveKanal.indexOf(':') + 1).toLowerCase() : null
+    const grundrissId = raum ?? daten.grundriss.id
     const figurenKarte = figuren.current
     const eigene = { p: null as Pose3D | null }
     const fremde = new Map<string, Pose3D>()
-    const abstand = (a: Pose3D, b: Pose3D) => Math.hypot(a.x - b.x, a.z - b.z)
+    andereRef.current = fremde
+    // Wohnung: ein Stockwerk, der Abstand am Boden reicht. Siedlung: auch
+    // die Hoehe, sonst hoerte man sich durch die Decke.
+    const abstand = raum
+      ? (a: Pose3D, b: Pose3D) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+      : (a: Pose3D, b: Pose3D) => Math.hypot(a.x - b.x, a.z - b.z)
     let verbindung: WohnungVerbindung | null = null
-    const sprechen = new Sprechen({ signal: (an, d) => verbindung?.signal(an, d) }, uid)
+    const sprechen = new Sprechen({ signal: (an, d) => verbindung?.signal(an, d) }, liveUid)
     sprechen.on('zustand', setSprech)
     sprechenRef.current = sprechen
+    const zeichen = new Map<string, string>()
+    let hierJetzt: string[] = []
     const figurenSetzen = (uids: string[]) => {
+      hierJetzt = uids
       const karte = figurenKarte
-      for (const u of [...karte.keys()]) if (!uids.includes(u)) karte.delete(u)
-      for (const u of uids) {
-        if (karte.has(u)) continue
-        const mit = mitgliederRef.current.find((x) => x.user_id === u)
-        const prof = mit?.profile ?? null
-        karte.set(u, baueFigur(prof?.avatar3d ?? standardLook(u), displayNameOf(prof, '?'), farbeFuer(u)))
+      for (const u of [...karte.keys()]) {
+        if (uids.includes(u)) continue
+        karte.delete(u)
+        zeichen.delete(u)
       }
-      // Der Motor gibt Figuren frei, die nicht mehr in der Liste stehen.
+      for (const u of uids) {
+        const wer = werRef.current(u)
+        const z = `${wer.name}|${JSON.stringify(wer.look)}`
+        if (karte.has(u) && zeichen.get(u) === z) continue
+        karte.set(u, baueFigur(wer.look ?? standardLook(u), wer.name, farbeFuer(u)))
+        zeichen.set(u, z)
+      }
+      // Der Motor gibt Figuren frei, die nicht mehr in der Liste stehen
+      // oder durch eine neue ersetzt sind (die Stellung bleibt).
       m.leute([...karte].map(([u, figur]) => ({ uid: u, figur })))
     }
+    figurenNeu.current = () => figurenSetzen(hierJetzt)
     verbindung = wohnungBeitreten({
-      projectId,
+      projectId: raum ?? projectId,
       grundrissId,
-      uid,
+      uid: liveUid,
+      ...(liveKanal ? { kanal: liveKanal } : {}),
       onWer: (leute) => {
         const hier = leute.filter((l) => l.grundrissId === grundrissId).map((l) => l.uid)
         // Synchron, damit fruehe Signale nicht verloren gehen (sprechen.ts).
@@ -609,17 +742,23 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
       },
       onVerbunden: () => setWohnungFehler(null),
     })
-    m.eigenePose((p) => {
+    const aufPose = (p: Pose3D) => {
       eigene.p = p
       verbindung?.pose(p)
       for (const [u, q] of fremde) sprechen.lautstaerke(u, abstand(p, q))
-    })
+    }
+    const hoerer = poseHoerer.current
+    hoerer.add(aufPose)
+    // Die Stellung, die der Motor beim Start schon gemeldet hat, gleich nach.
+    if (eigeneLetzte.current) aufPose(eigeneLetzte.current)
     return () => {
-      m.eigenePose(null)
+      hoerer.delete(aufPose)
+      figurenNeu.current = null
       sprechen.beenden()
       verbindung?.verlassen()
       sprechenRef.current = null
       figurenKarte.clear()
+      andereRef.current = new Map()
       m.leute([])
       setSprech(null)
       setLeuteDa([])
@@ -627,7 +766,31 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
     }
     // toast ist stabil genug; ein neuer Wert soll die Verbindung nicht neu aufbauen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, uid, projectId, daten.grundriss.id])
+  }, [live, liveUid, liveKanal, projectId, daten.grundriss.id])
+  // Neue Namen oder Figuren (etwa nach dem Einladen, E86): nur die
+  // betroffenen Figuren neu, die Verbindung bleibt.
+  const leuteZeichen = useMemo(
+    () => (gemeinsam ? JSON.stringify(gemeinsam.leute.map((l) => [l.uid, l.name, l.look])) : ''),
+    [gemeinsam],
+  )
+  useEffect(() => {
+    figurenNeu.current?.()
+  }, [leuteZeichen])
+
+  // Minikarte (E86): liest die Lage aus den Refs, Raum3D zeichnet dafuer nicht neu.
+  const kartenLage = useCallback((): MinikarteLage => ({ eigene: eigeneLetzte.current, andere: andereRef.current }), [])
+  const kartenLeute = useMemo<MinikartePerson[]>(
+    () => (gemeinsam?.leute ?? []).map((l) => ({ uid: l.uid.toLowerCase(), name: l.name, farbe: farbeFuer(l.uid.toLowerCase()) })),
+    [gemeinsam],
+  )
+  const hausAntippen = (haus: number, x: number, z: number) => {
+    const k = lageKarte
+    const h = k?.karte.haeuser[haus]
+    if (!k || !h) return
+    const i = sprungImHaus(h.punkte, sprungziele.current, k.ebenenY, [x, z], eigeneLetzte.current?.y ?? null)
+    // Kein Ziel in diesem Haus: nichts.
+    if (i !== null) griff.springen(i)
+  }
 
   // Die eigene Figur, nur im Spiegel zu sehen (E82).
   useEffect(() => {
@@ -642,6 +805,19 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
   }, [gehen, geht, uid, profile])
 
   const karteKiste = karte ? (daten.kisten.find((k) => k.id === karte) ?? null) : null
+  // Die Minikarte (E86): nur mit einer Karte der Welt und nicht, solange
+  // die Karte einer Kiste offen ist.
+  const minikarte =
+    geht === 'ja' && lageKarte && !karte ? (
+      <Minikarte
+        karte={lageKarte.karte}
+        lage={kartenLage}
+        leute={kartenLeute}
+        ebene={ebeneJetzt}
+        springbar={lageKarte.springbar}
+        onHaus={hausAntippen}
+      />
+    ) : null
   const karteRaum = karteKiste?.platz_raum_id ? daten.raeume.find((r) => r.id === karteKiste.platz_raum_id) : null
 
   return (
@@ -808,10 +984,11 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
             <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] start-[calc(env(safe-area-inset-left,0px)+1rem)]">
               <Knueppel name={t('plan3d.knueppel')} onLage={(x, y) => motor.current?.gehenStick(x, y)} />
             </div>
-            {/* Rechts unten (E82): aufstehen, ablegen, Mikrofon, wer da ist. */}
+            {/* Rechts unten (E82): aufstehen, ablegen, Mikrofon, wer da ist;
+                darueber die Minikarte (E86), so deckt sie keinen Knopf zu. */}
             {/* Der Behaelter erbt ltr (end- bleibt rechts, nicht auf dem Knueppel);
                 nur die Texte richten sich nach ihrer Sprache (E82, Pruefung). */}
-            <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] end-[calc(env(safe-area-inset-right,0px)+1rem)] flex max-w-[60%] flex-col items-end gap-2">
+            <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] end-[calc(env(safe-area-inset-right,0px)+1rem)] z-20 flex max-w-[60%] flex-col items-end gap-2">
               {sprech?.tonGesperrt && leuteDa.length > 0 ? (
                 <p dir="auto" className="rounded-xl border border-line bg-surface/95 px-3 py-2 text-sm font-bold text-ink shadow">{t('plan3d.ton_tippen')}</p>
               ) : null}
@@ -821,6 +998,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
               {live && wohnungFehler ? (
                 <p dir="auto" className="rounded-xl border border-danger bg-surface/95 px-3 py-2 text-sm font-bold text-danger shadow" role="alert">{wohnungFehler}</p>
               ) : null}
+              {minikarte}
               {haltung !== 'stehen' ? (
                 <Button size="sm" onClick={() => motor.current?.aufstehen()}>
                   <ArrowUpFromLine size={17} /> <span dir="auto">{t('plan3d.aufstehen')}</span>
@@ -835,8 +1013,8 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
                 <div className="flex items-center gap-1.5">
                   <span
                     className="flex h-10 items-center gap-1 rounded-knopf border-2 border-line bg-surface/95 px-2.5 text-sm font-bold text-ink shadow"
-                    title={t('plan3d.leute_da', { n: leuteDa.length })}
-                    aria-label={t('plan3d.leute_da', { n: leuteDa.length })}
+                    title={t(gemeinsam ? 'siedlung.leute_da' : 'plan3d.leute_da', { n: leuteDa.length })}
+                    aria-label={t(gemeinsam ? 'siedlung.leute_da' : 'plan3d.leute_da', { n: leuteDa.length })}
                   >
                     <Users size={16} /> <span className="t-serial">{leuteDa.length}</span>
                   </span>
@@ -845,7 +1023,7 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
                     variant={sprech?.mikrofon ? 'aktiv' : 'outline'}
                     aria-pressed={!!sprech?.mikrofon}
                     aria-label={t(sprech?.mikrofon ? 'plan3d.mikro_aus' : 'plan3d.mikro_an')}
-                    title={t('plan3d.mikro_hilfe')}
+                    title={t(gemeinsam ? 'siedlung.mikro_hilfe' : 'plan3d.mikro_hilfe')}
                     // Direkt im Klick: der Browser gibt nur so Mikrofon und Ton frei.
                     onClick={() => void sprechenRef.current?.mikrofon(!sprech?.mikrofon)}
                     className="h-10 w-10 justify-center px-0"
@@ -859,6 +1037,13 @@ export default function Raum3D({ daten, raumId = null, hervor = null, markiert =
         ) : geht === 'ja' && leer && !eigeneWelt ? (
           <div dir="auto" className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
             <p className="rounded-xl border border-line bg-surface px-3 py-2 text-muted">{t('plan3d.leer')}</p>
+          </div>
+        ) : null}
+        {/* Ohne Begehen steht die Minikarte allein rechts unten (E86);
+            Antippen eines Hauses beginnt das Begehen dort. */}
+        {geht === 'ja' && !gehen && minikarte ? (
+          <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] end-[calc(env(safe-area-inset-right,0px)+1rem)] z-20">
+            {minikarte}
           </div>
         ) : null}
         {/* Eigene Welt (E83): Fehler beim Bauen, und beim Begehen das

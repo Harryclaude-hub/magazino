@@ -200,4 +200,105 @@ export const siedlungWoerter: Woerterbuch = {
   },
   'siedlung.springen': { de: 'Hingehen', ar: 'انتقال' },
   'siedlung.springen_zu': { de: 'Zu {name} gehen', ar: 'الانتقال إلى {name}' },
+
+  // ------------------------------------------ Gemeinsame Siedlung (E86)
+  // Leute einladen, entfernen, verlassen
+  'siedlung.leute': { de: 'Leute', ar: 'الأشخاص' },
+  'siedlung.leute_hilfe': {
+    de: 'Leute einladen und sehen, wer dabei ist',
+    ar: 'ادعُ أشخاصًا وشاهد من هو معك',
+  },
+  'siedlung.leute_titel': { de: 'Leute in der Siedlung', ar: 'الأشخاص في المجمّع السكني' },
+  'siedlung.leute_fehler_kurz': {
+    de: 'Die Leute konnten nicht geladen werden. Tippe hier für Details.',
+    ar: 'تعذّر تحميل الأشخاص. اضغط هنا للتفاصيل.',
+  },
+  'siedlung.zu_gast': { de: 'Du bist hier zu Gast', ar: 'أنت ضيف هنا' },
+  'siedlung.einladen_titel': { de: 'Jemanden einladen', ar: 'دعوة شخص' },
+  'siedlung.einladen_feld': { de: 'E-Mail oder Name', ar: 'البريد الإلكتروني أو الاسم' },
+  'siedlung.einladen_hinweis': {
+    de: 'Die Person braucht ein Kistly-Konto. Ein Name geht nur, wenn ihn genau eine Person hat; sonst nimm die E-Mail.',
+    ar: 'يحتاج الشخص إلى حساب في Kistly. يصلح الاسم فقط إذا كان لشخص واحد بالضبط؛ وإلا فاستخدم البريد الإلكتروني.',
+  },
+  'siedlung.einladen': { de: 'Einladen', ar: 'دعوة' },
+  'siedlung.einladen_leer': { de: 'Gib eine E-Mail oder einen Namen ein.', ar: 'أدخل بريدًا إلكترونيًا أو اسمًا.' },
+  'siedlung.einladen_fehler': { de: 'Einladen ging nicht: {grund}', ar: 'تعذّرت الدعوة: {grund}' },
+  'siedlung.einladung_ok': {
+    de: '{name} ist jetzt dabei und kann die Siedlung öffnen.',
+    ar: '{name} أصبح معك ويمكنه فتح المجمّع السكني.',
+  },
+  'siedlung.einladung_nicht_gefunden': {
+    de: 'Niemand mit dieser E-Mail oder diesem Namen gefunden. Die Person braucht ein Kistly-Konto.',
+    ar: 'لم يُعثر على أحد بهذا البريد الإلكتروني أو بهذا الاسم. يحتاج الشخص إلى حساب في Kistly.',
+  },
+  'siedlung.einladung_mehrdeutig': {
+    de: 'Diesen Namen haben mehrere Leute. Nimm bitte die E-Mail-Adresse.',
+    ar: 'هذا الاسم لدى أكثر من شخص. من فضلك استخدم البريد الإلكتروني.',
+  },
+  'siedlung.einladung_schon_drin': { de: 'Diese Person ist schon dabei.', ar: 'هذا الشخص موجود بالفعل.' },
+  'siedlung.einladung_selbst': { de: 'Das bist du selbst.', ar: 'هذا أنت.' },
+  'siedlung.einladung_zu_viele': {
+    de: 'Das geht gerade nicht: zu viele Leute oder zu viele Versuche. Entferne jemanden oder versuch es später noch einmal.',
+    ar: 'غير ممكن الآن: عدد كبير جدًا من الأشخاص أو المحاولات. أزل أحدًا أو حاول مرة أخرى لاحقًا.',
+  },
+  'siedlung.mitglieder': { de: 'Dabei', ar: 'المشاركون' },
+  'siedlung.mitglieder_laedt': { de: 'Leute werden geladen', ar: 'جارٍ تحميل الأشخاص' },
+  'siedlung.mitglieder_leer': {
+    de: 'Noch niemand eingeladen. Wer dabei ist, geht mit dir durch die Siedlung, und ihr hört euch.',
+    ar: 'لم تدعُ أحدًا بعد. من ينضم يتجوّل معك في المجمّع ويسمع أحدكما الآخر.',
+  },
+  'siedlung.rolle_besitzer': { de: 'Besitzer', ar: 'المالك' },
+  'siedlung.rolle_gast': { de: 'Gast', ar: 'ضيف' },
+  'siedlung.du': { de: 'Du', ar: 'أنت' },
+  'siedlung.entfernen': { de: 'Entfernen', ar: 'إزالة' },
+  'siedlung.entfernen_name': { de: '{name} entfernen', ar: 'إزالة {name}' },
+  'siedlung.entfernen_frage': {
+    de: '{name} entfernen? Die Person kann die Siedlung dann nicht mehr öffnen.',
+    ar: 'إزالة {name}؟ لن يتمكن هذا الشخص بعدها من فتح المجمّع السكني.',
+  },
+  'siedlung.entfernt': { de: '{name} ist nicht mehr dabei.', ar: '{name} لم يعد مشاركًا.' },
+  'siedlung.gast_hinweis': {
+    de: 'Du bist Gast in dieser Siedlung. Einladen kann nur, wem sie gehört.',
+    ar: 'أنت ضيف في هذا المجمّع السكني. الدعوة متاحة لمالكه فقط.',
+  },
+  'siedlung.verlassen': { de: 'Siedlung verlassen', ar: 'مغادرة المجمّع السكني' },
+  'siedlung.verlassen_frage': {
+    de: '„{name}“ verlassen? Du kannst die Siedlung dann erst wieder öffnen, wenn du neu eingeladen wirst.',
+    ar: 'مغادرة «{name}»؟ لن تتمكن من فتح المجمّع السكني مجددًا إلا إذا دُعيت من جديد.',
+  },
+  'siedlung.verlassen_ok': { de: 'Du hast die Siedlung verlassen.', ar: 'لقد غادرت المجمّع السكني.' },
+  'siedlung.aktion_fehler': { de: 'Das ging nicht: {grund}', ar: 'لم ينجح ذلك: {grund}' },
+
+  // Zusammen in 3D: wer da ist, Sprechen, Verbindung
+  'siedlung.leute_da': { de: 'Mit dir in der Siedlung: {n}', ar: 'معك في المجمّع السكني: {n}' },
+  'siedlung.mikro_hilfe': {
+    de: 'Mit Mikrofon hören dich alle, die gerade auch durch die Siedlung gehen, lauter, je näher sie stehen.',
+    ar: 'مع الميكروفون يسمعك كل من يتجوّل في المجمّع الآن، وبصوت أعلى كلما اقتربوا.',
+  },
+  'siedlung.live_anmeldung': {
+    de: 'Verbindung zur Siedlung nicht aufgebaut: {grund}',
+    ar: 'لم يتم الاتصال بالمجمّع السكني: {grund}',
+  },
+  'siedlung.live_kanal': {
+    de: 'Die Verbindung zu den anderen in der Siedlung ist gestört. Du siehst sie gerade nicht.',
+    ar: 'الاتصال بالآخرين في المجمّع السكني متعطل. لا يمكنك رؤيتهم الآن.',
+  },
+  'siedlung.live_zeit': {
+    de: 'Die anderen in der Siedlung antworten nicht. Es wird weiter versucht.',
+    ar: 'الآخرون في المجمّع السكني لا يستجيبون. تتم المحاولة من جديد.',
+  },
+  'siedlung.live_zu': {
+    de: 'Die Verbindung zu den anderen in der Siedlung wurde beendet.',
+    ar: 'انتهى الاتصال بالآخرين في المجمّع السكني.',
+  },
+
+  // Minikarte
+  'siedlung.minikarte': { de: 'Karte', ar: 'الخريطة' },
+  'siedlung.minikarte_bild': {
+    de: 'Karte der Siedlung von oben, Norden ist oben. Tippe auf ein Haus, um hinzugehen.',
+    ar: 'خريطة المجمّع السكني من الأعلى، الشمال في الأعلى. اضغط على مبنى للانتقال إليه.',
+  },
+  'siedlung.minikarte_zu': { de: 'Karte einklappen', ar: 'طي الخريطة' },
+  'siedlung.minikarte_auf': { de: 'Karte zeigen', ar: 'إظهار الخريطة' },
+  'siedlung.minikarte_du': { de: 'Du', ar: 'أنت' },
 }

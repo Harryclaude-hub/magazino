@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Building2, ChevronRight, DoorOpen, House, Map as KarteIcon, Search, X } from 'lucide-react'
+import { AlertTriangle, Building2, ChevronRight, DoorOpen, House, Map as KarteIcon, Search, Users, X } from 'lucide-react'
 import { AppHeader } from '../components/AppShell'
 import { Ansicht3D } from '../components/plan3d/oeffnen'
-import type { Raum3DSteuer } from '../components/plan3d/Raum3D'
+import type { Raum3DLive, Raum3DSteuer } from '../components/plan3d/Raum3D'
 import type { Farben3D } from '../components/plan3d/szene'
 import { umgebungAus } from '../components/plan3d/umgebungRahmen'
 import type { Sprungziel3D, Welt3D } from '../components/plan3d/vertrag3d'
+import SiedlungLeute from '../components/SiedlungLeute'
 import { Button, Empty, ErrorBox, IconButton, Input, Loading } from '../components/ui'
-import { ladeGrundriss, ladeSiedlung } from '../lib/api'
+import { ladeGrundriss, ladeSiedlung, siedlungMitglieder } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { useSprache } from '../lib/i18n'
 import { siedlungWoerter } from '../lib/i18n/bausteine/siedlung'
 import { woerterNachladen } from '../lib/i18n/woerter'
@@ -38,7 +40,18 @@ woerterNachladen(siedlungWoerter)
  * Leiste am Rand); Tippen schliesst sie und bringt einen beim Begehen
  * dorthin. Solange die Welt nicht gebaut ist, ist der Knopf aus; hat sie
  * keine Ziele, steht in der Liste ein Hinweis. Der Name oben ist der
- * gespeicherte Name der Siedlung, nie ein fester Text. */
+ * gespeicherte Name der Siedlung, nie ein fester Text.
+ *
+ * E86: Die Siedlung ist gemeinsam. Der Besitzer laedt registrierte Leute
+ * ein (Knopf "Leute", SiedlungLeute.tsx); Gaeste kommen ueber dieselbe
+ * Seite herein (listSiedlungen gibt ihnen die Siedlung). Wer gerade da
+ * ist, geht in 3D als Figur mit und ist zu hoeren (Raum3D, live), sobald
+ * ausser einem selbst noch jemand dazugehoert. Die eingerichtete Wohnung
+ * des Besitzers liegt in seinem Umzug: ein Gast, der sie nicht laden darf,
+ * sieht die Siedlung ohne sie (kein Fehler, das ist so gewollt), mit allen
+ * Haeusern und den geplanten Wohnungen. Die Lage der Wohnung bleibt dabei
+ * stehen: sie legt den Ursprung der Welt fest, und alle muessen dieselben
+ * Weltkoordinaten haben, sonst stuenden die Figuren woanders. */
 
 /** Ohne eigene Wohnung: eine leere Szene, nur die Welt drumherum. */
 const OHNE_WOHNUNG: GrundrissDaten = {
@@ -56,14 +69,30 @@ export default function SiedlungAnsicht() {
   const { t } = useSprache()
   const nav = useNavigate()
   const { sid = '' } = useParams()
+  const { user } = useAuth()
+  const ich = user?.id ?? null
 
   const zustand = useAsync(async () => {
     const siedlung = await ladeSiedlung(sid)
     if (!siedlung) return null
-    if (!siedlung.wohnung) return { siedlung, daten: null, wohnungFehlt: false }
+    const besitzer = !!ich && siedlung.owner_id === ich
+    if (!siedlung.wohnung) return { siedlung, besitzer, daten: null, wohnungFehlt: false }
+    if (!besitzer) {
+      // Gast (E86): die Wohnung gehoert in den Umzug des Besitzers. Darf
+      // man sie nicht laden, geht es ohne sie weiter, ohne Fehlerzustand.
+      try {
+        const daten = await ladeGrundriss(siedlung.wohnung.grundrissId)
+        return { siedlung, besitzer, daten, wohnungFehlt: false }
+      } catch (err) {
+        console.info('[siedlung] Wohnung des Besitzers nicht sichtbar, weiter ohne:', err instanceof Error ? err.message : err)
+        return { siedlung, besitzer, daten: null, wohnungFehlt: false }
+      }
+    }
     const daten = await ladeGrundriss(siedlung.wohnung.grundrissId)
-    return { siedlung, daten, wohnungFehlt: !daten }
-  }, [sid])
+    return { siedlung, besitzer, daten, wohnungFehlt: !daten }
+  }, [sid, ich])
+  // Wer dazugehoert (E86): fuer die Figuren in 3D und den Dialog "Leute".
+  const mitglieder = useAsync(() => siedlungMitglieder(sid), [sid])
 
   // Der Bau der Haeuser (mit three) laedt gleichzeitig mit den Daten.
   const [teil, setTeil] = useState<TeilLaden>({ art: 'laedt' })
@@ -80,11 +109,17 @@ export default function SiedlungAnsicht() {
 
   const ergebnis = zustand.data
   const daten = ergebnis?.daten ?? null
-  // Fehlt der Grundriss, wird die Siedlung ohne Wohnung gezeigt.
-  const siedlung = useMemo(
-    () => (ergebnis ? (ergebnis.daten ? ergebnis.siedlung : { ...ergebnis.siedlung, wohnung: null }) : null),
-    [ergebnis],
-  )
+  const besitzer = ergebnis?.besitzer ?? false
+  // Fehlt der Grundriss, wird die Siedlung ohne Wohnung gezeigt; die Lage
+  // der Wohnung bleibt (gleiche Weltkoordinaten fuer alle, E86). Nur wenn
+  // ihr Haus fehlt, faellt sie weg, sonst liesse sich die Welt nicht bauen.
+  const siedlung = useMemo(() => {
+    if (!ergebnis) return null
+    const s = ergebnis.siedlung
+    const w = s.wohnung
+    if (!w || ergebnis.daten || s.gebaeude.some((g) => g.id === w.gebaeudeId)) return s
+    return { ...s, wohnung: null }
+  }, [ergebnis])
   const wohnungRahmen = useMemo(
     () => (daten ? (umgebungAus({ raeume: daten.raeume, oeffnungen: daten.oeffnungen })?.rahmen ?? null) : null),
     [daten],
@@ -113,12 +148,17 @@ export default function SiedlungAnsicht() {
   const [listeFuer, setListeFuer] = useState<unknown>(null)
   const listeAuf = !!sprung && listeFuer === welt
   const listeZu = useCallback(() => setListeFuer(null), [])
+  // Dialog "Leute" (E86).
+  const [leuteAuf, setLeuteAuf] = useState(false)
+  const leuteZu = useCallback(() => setLeuteAuf(false), [])
   const hingehen = useCallback((i: number) => {
     setListeFuer(null)
     steuer.current?.springen(i)
   }, [])
 
-  const wohnung = siedlung?.wohnung ?? null
+  // Die eigene Wohnung zum Hingehen und fuer die Zeile oben: nur, wenn ihr
+  // Grundriss da ist (beim Gast meist nicht).
+  const wohnung = daten ? (siedlung?.wohnung ?? null) : null
   const haus = wohnung ? siedlung?.gebaeude.find((g) => g.id === wohnung.gebaeudeId) : undefined
   const stock = wohnung ? (wohnung.geschoss === 0 ? t('siedlung.geschoss_eg') : t('siedlung.geschoss_n', { n: wohnung.geschoss })) : null
   // Unter dem Namen: beim Gehen das Stockwerk, sonst Haus und Stockwerk der
@@ -127,8 +167,24 @@ export default function SiedlungAnsicht() {
     ? t('siedlung.ebene_jetzt', { name: ebene })
     : wohnung && haus && stock
       ? t('siedlung.haus_stock', { haus: haus.name, stock })
-      : null
+      : siedlung && !besitzer
+        ? t('siedlung.zu_gast')
+        : null
   const bereit = Boolean(welt) && !!siedlung
+
+  // Zusammen in 3D (E86): live, sobald ausser einem selbst noch jemand
+  // dazugehoert; laesst sich die Liste nicht laden, trotzdem (der Kanal
+  // laesst ohnehin nur Mitglieder hinein, Fehler zeigt Raum3D).
+  const siedlungId = siedlung?.id ?? null
+  const leute = useMemo(
+    () => (mitglieder.data ?? []).filter((m) => m.user_id !== ich).map((m) => ({ uid: m.user_id, name: m.name, look: m.avatar3d })),
+    [mitglieder.data, ich],
+  )
+  const mitAnderen = leute.length > 0 || !!mitglieder.error
+  const live = useMemo<Raum3DLive | null>(
+    () => (siedlungId && ich && mitAnderen ? { kanal: `siedlung:${siedlungId}`, uid: ich, leute } : null),
+    [siedlungId, ich, mitAnderen, leute],
+  )
 
   return (
     // Die Hoehe laesst der unteren Leiste (Handy) und der Suchzeile (Computer)
@@ -140,10 +196,26 @@ export default function SiedlungAnsicht() {
         back="/app"
         sticky={false}
         actions={
-          bereit ? (
+          siedlung ? (
             <>
-              {/* Zuerst: am Handy bleibt nur der erste Knopf sichtbar, der Rest
-                  steht unter "Mehr". Aus, bis die Welt gebaut ist. */}
+              {/* Zuerst die Leute (E86): am Handy bleibt nur der erste Knopf
+                  sichtbar, der Rest steht unter "Mehr". Mit der Zahl der
+                  anderen; laesst sich die Liste nicht laden, ein Warnzeichen. */}
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={t('siedlung.leute')}
+                title={mitglieder.error ? t('siedlung.leute_fehler_kurz') : t('siedlung.leute_hilfe')}
+                aria-haspopup="dialog"
+                aria-expanded={leuteAuf}
+                onClick={() => setLeuteAuf(true)}
+              >
+                <Users size={18} />
+                <span className="hidden sm:inline">{t('siedlung.leute')}</span>
+                {leute.length > 0 ? <span className="t-serial">{leute.length}</span> : null}
+                {mitglieder.error ? <AlertTriangle size={15} className="text-danger" aria-hidden="true" /> : null}
+              </Button>
+              {/* Wohnungen: aus, bis die Welt gebaut ist. */}
               <Button
                 size="sm"
                 variant="outline"
@@ -191,6 +263,17 @@ export default function SiedlungAnsicht() {
       {sprung && listeAuf ? (
         <WohnungenBlatt ziele={sprung.liste} ebenen={sprung.ebenen} onWahl={hingehen} onClose={listeZu} />
       ) : null}
+      {siedlung && ich ? (
+        <SiedlungLeute
+          open={leuteAuf}
+          onClose={leuteZu}
+          siedlungId={siedlung.id}
+          siedlungName={siedlung.name}
+          ich={ich}
+          besitzer={besitzer}
+          mitglieder={mitglieder}
+        />
+      ) : null}
       <div className="flex min-h-0 flex-1 flex-col">
         {zustand.loading ? (
           <Loading label={t('siedlung.ansicht_laedt')} />
@@ -231,7 +314,7 @@ export default function SiedlungAnsicht() {
               </p>
             ) : null}
             <div className="min-h-0 flex-1">
-              <Ansicht3D daten={daten ?? OHNE_WOHNUNG} welt={welt} onEbene={setEbene} onSprungziele={zieleMelden} steuer={steuer} />
+              <Ansicht3D daten={daten ?? OHNE_WOHNUNG} welt={welt} onEbene={setEbene} onSprungziele={zieleMelden} steuer={steuer} live={live} />
             </div>
             {/* Pflichtangabe der Kartendaten (ODbL), unter dem Bild statt darauf. */}
             <p dir="ltr" className="shrink-0 border-t border-line bg-surface px-3 py-1 text-[0.6875rem] text-muted">
