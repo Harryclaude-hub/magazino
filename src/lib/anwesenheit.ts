@@ -23,7 +23,15 @@
  * Grenze, die man kennen muss: hinein kommt nur ein Mitglied des Umzugs,
  * aber die Kennung u in einer Nachricht setzt der Absender selbst. Ein
  * Mitglied koennte sich darin als ein anderes Mitglied ausgeben. Geschuetzt
- * ist der Umzug nach aussen, nicht jedes Mitglied vor jedem anderen. */
+ * ist der Umzug nach aussen, nicht jedes Mitglied vor jedem anderen.
+ *
+ * E86: Dieselbe Verbindung traegt auch die gemeinsame Siedlung. Mit kanal
+ * 'siedlung:<Siedlung>' laesst Realtime nur den Besitzer und die
+ * eingeladenen Gaeste hinein (eigene Regeln auf realtime.messages, aus dem
+ * Datenpaket von E86). Alles andere bleibt gleich; die Saetze fuer Fehler
+ * sprechen dann von der Siedlung statt von der Wohnung. Als grundrissId
+ * geben dort alle dieselbe Kennung (die der Siedlung), sonst saehen sie
+ * sich nicht. */
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { Pose3D } from '../components/plan3d/vertrag3d'
 import { istKennung, poseLesen, poseVerpacken } from './avatar'
@@ -44,6 +52,10 @@ export interface WohnungOptionen {
   projectId: string
   grundrissId: string
   uid: string
+  /** Name des Kanals (E86), sonst 'wohnung:<projectId>'. Erlaubt sind nur
+   *  'wohnung:<Kennung>' und 'siedlung:<Kennung>'; alles andere meldet sich
+   *  ueber onFehler und verbindet nicht. */
+  kanal?: string
   /** Wer ausser einem selbst gerade im Umzug in 3D ist, und in welchem
    *  Grundriss (null, wenn unbekannt). */
   onWer(leute: { uid: string; grundrissId: string | null }[]): void
@@ -72,16 +84,36 @@ const VORAUS_ABSENDER = 20
 
 const NICHTS: WohnungVerbindung = { pose() {}, signal() {}, verlassen() {} }
 
+/** Erlaubte Kanaele (E86): Wohnung eines Umzugs oder gemeinsame Siedlung. */
+const KANAL = /^(wohnung|siedlung):[0-9a-f-]{36}$/
+
+/** Der Name des Kanals: kanal (klein geschrieben), sonst
+ *  'wohnung:<projectId>'. null, wenn er nicht erlaubt ist. */
+export function kanalName(o: { projectId: string; kanal?: string }): string | null {
+  const name = o.kanal !== undefined ? String(o.kanal).toLowerCase() : `wohnung:${String(o.projectId).toLowerCase()}`
+  return KANAL.test(name) ? name : null
+}
+
+/** Saetze fuer Fehler je Art des Kanals. Die der Siedlung stehen in
+ *  bausteine/siedlung.ts, das mit der Seite der Siedlung laedt (nur sie
+ *  gibt einen solchen Kanal). */
+const SAETZE = {
+  wohnung: { anmeldung: 'fehler.wohnung_anmeldung', kanal: 'fehler.wohnung_kanal', zeit: 'fehler.wohnung_zeit', zu: 'fehler.wohnung_zu' },
+  siedlung: { anmeldung: 'siedlung.live_anmeldung', kanal: 'siedlung.live_kanal', zeit: 'siedlung.live_zeit', zu: 'siedlung.live_zu' },
+} as const
+
 export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
-  if (!istKennung(o.projectId) || !istKennung(o.grundrissId) || !istKennung(o.uid)) {
+  const name = kanalName(o)
+  const satz = name?.startsWith('siedlung:') ? SAETZE.siedlung : SAETZE.wohnung
+  if (!name || !istKennung(o.projectId) || !istKennung(o.grundrissId) || !istKennung(o.uid)) {
     // Programmfehler, aber sichtbar: ohne gueltige Kennungen kein Kanal.
-    console.warn('[wohnung] ungueltige Kennung fuer Umzug, Grundriss oder Nutzer')
-    queueMicrotask(() => o.onFehler(tg('fehler.wohnung_kanal')))
+    console.warn('[wohnung] ungueltiger Kanal oder ungueltige Kennung fuer Umzug, Grundriss oder Nutzer')
+    queueMicrotask(() => o.onFehler(tg(satz.kanal)))
     return NICHTS
   }
+  const thema: string = name
   const ich = o.uid.toLowerCase()
   const grundriss = o.grundrissId.toLowerCase()
-  const thema = `wohnung:${o.projectId.toLowerCase()}`
 
   let kanal: RealtimeChannel | null = null
   let aus = false
@@ -134,11 +166,11 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
     if (!k) return
     k.send({ type: 'broadcast', event, payload })
       .then((r) => {
-        if (r !== 'ok') melden(tg('fehler.wohnung_kanal'))
+        if (r !== 'ok') melden(tg(satz.kanal))
       })
       .catch((err: unknown) => {
         console.warn('[wohnung] Senden fehlgeschlagen:', err instanceof Error ? err.message : err)
-        melden(tg('fehler.wohnung_kanal'))
+        melden(tg(satz.kanal))
       })
   }
 
@@ -282,7 +314,7 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
       const alt = supabase.getChannels().find((c) => c.topic === `realtime:${thema}`)
       if (alt) await supabase.removeChannel(alt)
     } catch (err) {
-      melden(tg('fehler.wohnung_anmeldung', { grund: err instanceof Error ? err.message : String(err) }))
+      melden(tg(satz.anmeldung, { grund: err instanceof Error ? err.message : String(err) }))
       return
     }
     if (aus) return
@@ -304,11 +336,11 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
         o.onVerbunden?.()
         k.track({ g: grundriss })
           .then((r) => {
-            if (r !== 'ok') melden(tg('fehler.wohnung_kanal'))
+            if (r !== 'ok') melden(tg(satz.kanal))
           })
           .catch((e: unknown) => {
             console.warn('[wohnung] Anwesenheit nicht gemeldet:', e instanceof Error ? e.message : e)
-            melden(tg('fehler.wohnung_kanal'))
+            melden(tg(satz.kanal))
           })
         for (const x of warteschlange.splice(0)) versenden('rtc', x)
         erzwingen = true
@@ -317,9 +349,9 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
       }
       verbunden = false
       if (err) console.warn('[wohnung]', status, err.message)
-      if (status === 'CHANNEL_ERROR') melden(tg('fehler.wohnung_kanal'))
-      else if (status === 'TIMED_OUT') melden(tg('fehler.wohnung_zeit'))
-      else if (status === 'CLOSED') melden(tg('fehler.wohnung_zu'))
+      if (status === 'CHANNEL_ERROR') melden(tg(satz.kanal))
+      else if (status === 'TIMED_OUT') melden(tg(satz.zeit))
+      else if (status === 'CLOSED') melden(tg(satz.zu))
     })
   }
   void starten()
@@ -339,7 +371,7 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
       const nachricht = { u: ich, an: an.toLowerCase(), d: daten }
       if (!verbunden || !kanal) {
         if (warteschlange.length < WARTESCHLANGE) warteschlange.push(nachricht)
-        else melden(tg('fehler.wohnung_kanal'))
+        else melden(tg(satz.kanal))
         return
       }
       versenden('rtc', nachricht)
