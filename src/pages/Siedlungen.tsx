@@ -4,6 +4,7 @@ import { Building2, Upload } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { Button, Card, ErrorBox, Skelett, useToast } from '../components/ui'
 import { listSiedlungen, siedlungImportieren } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { useSprache } from '../lib/i18n'
 import { siedlungWoerter } from '../lib/i18n/bausteine/siedlung'
 import { woerterNachladen } from '../lib/i18n/woerter'
@@ -18,10 +19,15 @@ woerterNachladen(siedlungWoerter)
  * geht es sofort in die 3D-Ansicht. Ist noch keine da, laedt man sie
  * einmal aus einer Datei (siedlungImport.ts); die App traegt sie mit dem
  * eigenen Konto ein, ohne Befehle in der Datenbank. Neue Siedlungen anlegen
- * gibt es hier bewusst nicht. Laden, Fehler und leer sind drei Zustaende. */
+ * gibt es hier bewusst nicht. Laden, Fehler und leer sind drei Zustaende.
+ *
+ * E86: Die Liste enthaelt auch Siedlungen, in die man eingeladen ist. Die
+ * eigene geht vor; hat man keine, geht es in die, in die man eingeladen
+ * ist. Erst ohne beides kommt das Laden aus der Datei. */
 
 export default function Siedlungen() {
   const { t } = useSprache()
+  const { user } = useAuth()
   const toast = useToast()
   const liste = useAsync(listSiedlungen, [])
   const datei = useRef<HTMLInputElement>(null)
@@ -47,7 +53,7 @@ export default function Siedlungen() {
   }
 
   if (fertig) return <Navigate to={`/app/siedlung/${fertig}`} replace />
-  const erste = liste.data?.[0]
+  const erste = liste.data?.find((x) => x.owner_id === user?.id) ?? liste.data?.[0]
   if (!liste.loading && !liste.error && erste) return <Navigate to={`/app/siedlung/${erste.id}`} replace />
 
   return (

@@ -39,7 +39,7 @@ Karam, Eigentuemer von Kistly. Er spricht Deutsch, oft per Sprachnachricht
   die Bilderkennung). Keine zweite Abfrage in einer Seite.
 - `prefix`, `seq` und `code` einer Kiste vergibt nur die Datenbank.
 - Angewandte Migrationen werden nie geaendert, ein Fehler bekommt eine
-  neue Nummer. Angewandt sind 0001 bis 0045.
+  neue Nummer. Angewandt sind 0001 bis 0046.
 - Woerterbuecher in `src/lib/i18n/bausteine`: jeder Eintrag hat `de` UND
   `ar` mit denselben Platzhaltern. Arabisch laeuft von rechts nach links,
   Plaene und Karten werden nie gespiegelt, Seriennummern stehen immer
@@ -60,8 +60,9 @@ npm run build                     wie auf GitHub
 node scripts/woerter-pruefen.mjs  bekannt: 8 Meldungen bei *.eins
 node scripts/szene-pruefen.mjs    dazu geometrie-, zeichner-, kollision-,
                                   moebel-, aussen-, avatar-, osm-,
-                                  siedlung-, siedlung-ui-, siedlung-innen-
-                                  und siedlung-wohnungen-pruefen
+                                  siedlung-, siedlung-ui-, siedlung-innen-,
+                                  siedlung-wohnungen-, siedlung-gemeinsam-
+                                  und minikarte-pruefen
 Wo jemand wohnt (Siedlung, Adresse, Stockwerk), steht nie im Code, nur
 in der Datenbank.
 ```

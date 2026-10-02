@@ -451,6 +451,22 @@ export const fehler: Woerterbuch = {
     de: 'Ein Raum bleibt in seinem Grundriss.',
     ar: 'تبقى الغرفة في مخططها.',
   },
+  'fehler.db.siedlung.nur_besitzer': {
+    de: 'Das darf nur, wem die Siedlung gehört.',
+    ar: 'هذا مسموح فقط لمالك المجمّع السكني.',
+  },
+  'fehler.db.siedlung.kein_zugriff': {
+    de: 'Du bist in dieser Siedlung nicht eingeladen.',
+    ar: 'أنت غير مدعو إلى هذا المجمّع السكني.',
+  },
+  'fehler.db.siedlung.nicht_drin': {
+    de: 'Diese Person ist nicht mehr in der Siedlung.',
+    ar: 'هذا الشخص لم يعد في المجمّع السكني.',
+  },
+  'fehler.db.siedlung.zu_oft': {
+    de: 'Zu viele Einladungen in kurzer Zeit. Versuch es in einer Stunde wieder.',
+    ar: 'دعوات كثيرة في وقت قصير. حاول مرة أخرى بعد ساعة.',
+  },
   'fehler.db.grundriss.grundriss_fehlt': {
     de: 'Diesen Grundriss gibt es nicht mehr.',
     ar: 'هذا المخطط لم يعد موجودًا.',

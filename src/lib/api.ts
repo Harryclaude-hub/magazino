@@ -1762,7 +1762,11 @@ export async function siedlungImportieren(
   d: import('./siedlungImport').SiedlungDatei,
 ): Promise<{ siedlung: SiedlungZeile; deko: 'ok' | 'keine' | { fehler: string } }> {
   const gid = d.siedlung.wohnung?.grundrissId ?? null
-  const vorhanden = gid ? (await listSiedlungen()).find((x) => x.wohnung?.grundrissId === gid) : undefined
+  // Nur eine eigene ersetzen (E86: die Liste enthaelt auch fremde, in die
+  // man eingeladen ist).
+  const { data: auth } = await supabase.auth.getUser()
+  const uid = auth.user?.id ?? null
+  const vorhanden = gid && uid ? (await listSiedlungen()).find((x) => x.owner_id === uid && x.wohnung?.grundrissId === gid) : undefined
   const siedlung = await speichereSiedlung({ ...(vorhanden ? { id: vorhanden.id } : {}), ...d.siedlung })
   if (!d.deko) return { siedlung, deko: 'keine' }
   try {

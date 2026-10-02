@@ -462,7 +462,9 @@ function leute(props, sprache = 'de') {
   wahr('Seite: live an Ansicht3D', /<Ansicht3D[^>]*live=\{live\}/.test(seite))
   wahr('Seite: Kanal der Siedlung', seite.includes('kanal: `siedlung:${siedlungId}`'))
   wahr('Seite: Mitglieder aus api.ts', seite.includes('siedlungMitglieder(sid)') && /from '\.\.\/lib\/api'/.test(seite))
-  wahr('Seite: Gast ohne Fehlerzustand fuer die Wohnung', /if \(!besitzer\) \{[\s\S]*?catch \(err\) \{[\s\S]*?wohnungFehlt: false/.test(seite))
+  // Seit E86 laedt die Seite keinen Grundriss: die eingerichtete Wohnung
+  // gehoert in den Umzug, in der Siedlung ist sie fuer alle die geplante.
+  wahr('Seite: kein Grundriss in der Siedlung', !seite.includes('ladeGrundriss') && seite.includes('wohnungRahmen: null') && seite.includes('daten={OHNE_WOHNUNG}'))
   wahr('Seite: Lage der Wohnung bleibt ohne Grundriss', seite.includes('s.gebaeude.some((g) => g.id === w.gebaeudeId)'))
   wahr('Seite: Dialog Leute', /<SiedlungLeute[\s\S]*?besitzer=\{besitzer\}/.test(seite))
 

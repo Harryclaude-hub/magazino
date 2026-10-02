@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, Building2, ChevronRight, DoorOpen, House, Map as KarteIcon, Search, Users, X } from 'lucide-react'
+import { AlertTriangle, Building2, ChevronRight, DoorOpen, Search, Users, X } from 'lucide-react'
 import { AppHeader } from '../components/AppShell'
 import { Ansicht3D } from '../components/plan3d/oeffnen'
 import type { Raum3DLive, Raum3DSteuer } from '../components/plan3d/Raum3D'
 import type { Farben3D } from '../components/plan3d/szene'
-import { umgebungAus } from '../components/plan3d/umgebungRahmen'
 import type { Sprungziel3D, Welt3D } from '../components/plan3d/vertrag3d'
 import SiedlungLeute from '../components/SiedlungLeute'
 import { Button, Empty, ErrorBox, IconButton, Input, Loading } from '../components/ui'
-import { ladeGrundriss, ladeSiedlung, siedlungMitglieder } from '../lib/api'
+import { ladeSiedlung, siedlungMitglieder } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useSprache } from '../lib/i18n'
 import { siedlungWoerter } from '../lib/i18n/bausteine/siedlung'
@@ -51,9 +50,16 @@ woerterNachladen(siedlungWoerter)
  * sieht die Siedlung ohne sie (kein Fehler, das ist so gewollt), mit allen
  * Haeusern und den geplanten Wohnungen. Die Lage der Wohnung bleibt dabei
  * stehen: sie legt den Ursprung der Welt fest, und alle muessen dieselben
- * Weltkoordinaten haben, sonst stuenden die Figuren woanders. */
+ * Weltkoordinaten haben, sonst stuenden die Figuren woanders.
+ *
+ * Seit E86 (Entscheidung von Karam) gilt das fuer alle, auch fuer den
+ * Besitzer: Siedlung und eingerichtete Wohnung sind zwei getrennte Dinge.
+ * In der Siedlung ist die eigene Wohnung leer wie jede andere (die
+ * geplante aus innen); eingerichtet sieht man sie nur im Umzug, im
+ * Grundriss. Darum laedt diese Seite keinen Grundriss, und alle bekommen
+ * dieselbe Welt. Das Begehen beginnt am Sprungziel 'Start' (Raum3D). */
 
-/** Ohne eigene Wohnung: eine leere Szene, nur die Welt drumherum. */
+/** Keine Wohnung in der Szene: nur die Welt (die Siedlung) drumherum. */
 const OHNE_WOHNUNG: GrundrissDaten = {
   grundriss: { id: 'siedlung-ohne-wohnung', project_id: '', name: '', sort: 0, version: 0, created_at: '', updated_at: '' },
   raeume: [],
@@ -75,21 +81,7 @@ export default function SiedlungAnsicht() {
   const zustand = useAsync(async () => {
     const siedlung = await ladeSiedlung(sid)
     if (!siedlung) return null
-    const besitzer = !!ich && siedlung.owner_id === ich
-    if (!siedlung.wohnung) return { siedlung, besitzer, daten: null, wohnungFehlt: false }
-    if (!besitzer) {
-      // Gast (E86): die Wohnung gehoert in den Umzug des Besitzers. Darf
-      // man sie nicht laden, geht es ohne sie weiter, ohne Fehlerzustand.
-      try {
-        const daten = await ladeGrundriss(siedlung.wohnung.grundrissId)
-        return { siedlung, besitzer, daten, wohnungFehlt: false }
-      } catch (err) {
-        console.info('[siedlung] Wohnung des Besitzers nicht sichtbar, weiter ohne:', err instanceof Error ? err.message : err)
-        return { siedlung, besitzer, daten: null, wohnungFehlt: false }
-      }
-    }
-    const daten = await ladeGrundriss(siedlung.wohnung.grundrissId)
-    return { siedlung, besitzer, daten, wohnungFehlt: !daten }
+    return { siedlung, besitzer: !!ich && siedlung.owner_id === ich }
   }, [sid, ich])
   // Wer dazugehoert (E86): fuer die Figuren in 3D und den Dialog "Leute".
   const mitglieder = useAsync(() => siedlungMitglieder(sid), [sid])
@@ -108,27 +100,23 @@ export default function SiedlungAnsicht() {
   }, [versuch])
 
   const ergebnis = zustand.data
-  const daten = ergebnis?.daten ?? null
   const besitzer = ergebnis?.besitzer ?? false
-  // Fehlt der Grundriss, wird die Siedlung ohne Wohnung gezeigt; die Lage
-  // der Wohnung bleibt (gleiche Weltkoordinaten fuer alle, E86). Nur wenn
-  // ihr Haus fehlt, faellt sie weg, sonst liesse sich die Welt nicht bauen.
+  // Die Lage der Wohnung legt fuer alle denselben Ursprung der Welt fest
+  // (E86). Nur wenn ihr Haus fehlt, faellt sie weg, sonst liesse sich die
+  // Welt nicht bauen.
   const siedlung = useMemo(() => {
     if (!ergebnis) return null
     const s = ergebnis.siedlung
     const w = s.wohnung
-    if (!w || ergebnis.daten || s.gebaeude.some((g) => g.id === w.gebaeudeId)) return s
+    if (!w || s.gebaeude.some((g) => g.id === w.gebaeudeId)) return s
     return { ...s, wohnung: null }
   }, [ergebnis])
-  const wohnungRahmen = useMemo(
-    () => (daten ? (umgebungAus({ raeume: daten.raeume, oeffnungen: daten.oeffnungen })?.rahmen ?? null) : null),
-    [daten],
-  )
   const baue = teil.art === 'fertig' ? teil.teil.baueSiedlung : null
   // Stabil, damit Raum3D die Welt nur bei neuen Daten oder Farben neu baut.
+  // Ohne Rahmen: nichts wird ausgeschnitten, die Wohnung ist die geplante.
   const welt = useMemo(
-    () => (baue && siedlung ? (farben: Farben3D): Welt3D => baue({ siedlung, farben, wohnungRahmen }) : undefined),
-    [baue, siedlung, wohnungRahmen],
+    () => (baue && siedlung ? (farben: Farben3D): Welt3D => baue({ siedlung, farben, wohnungRahmen: null }) : undefined),
+    [baue, siedlung],
   )
 
   const steuer = useRef<Raum3DSteuer>(null)
@@ -156,9 +144,8 @@ export default function SiedlungAnsicht() {
     steuer.current?.springen(i)
   }, [])
 
-  // Die eigene Wohnung zum Hingehen und fuer die Zeile oben: nur, wenn ihr
-  // Grundriss da ist (beim Gast meist nicht).
-  const wohnung = daten ? (siedlung?.wohnung ?? null) : null
+  // Die eigene Wohnung fuer die Zeile oben, nur beim Besitzer.
+  const wohnung = besitzer ? (siedlung?.wohnung ?? null) : null
   const haus = wohnung ? siedlung?.gebaeude.find((g) => g.id === wohnung.gebaeudeId) : undefined
   const stock = wohnung ? (wohnung.geschoss === 0 ? t('siedlung.geschoss_eg') : t('siedlung.geschoss_n', { n: wohnung.geschoss })) : null
   // Unter dem Namen: beim Gehen das Stockwerk, sonst Haus und Stockwerk der
@@ -231,31 +218,6 @@ export default function SiedlungAnsicht() {
                 <DoorOpen size={18} />
                 <span className="hidden sm:inline">{t('siedlung.wohnungen')}</span>
               </Button>
-              {/* Von oben braucht die Wohnung als Rahmen; ohne sie dreht man selbst. */}
-              {wohnung ? (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    aria-label={t('siedlung.zur_wohnung')}
-                    title={t('siedlung.zur_wohnung')}
-                    onClick={() => steuer.current?.zurWohnung()}
-                  >
-                    <House size={18} />
-                    <span className="hidden sm:inline">{t('siedlung.zur_wohnung')}</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    aria-label={t('siedlung.von_oben')}
-                    title={t('siedlung.von_oben')}
-                    onClick={() => steuer.current?.vonOben()}
-                  >
-                    <KarteIcon size={18} />
-                    <span className="hidden sm:inline">{t('siedlung.von_oben')}</span>
-                  </Button>
-                </>
-              ) : null}
             </>
           ) : null
         }
@@ -308,13 +270,8 @@ export default function SiedlungAnsicht() {
           <Loading label={t('siedlung.ansicht_laedt')} />
         ) : (
           <>
-            {ergebnis?.wohnungFehlt ? (
-              <p role="status" className="shrink-0 border-b border-line bg-surface px-3 py-2 text-sm font-bold text-warn">
-                {t('siedlung.wohnung_fehlt')}
-              </p>
-            ) : null}
             <div className="min-h-0 flex-1">
-              <Ansicht3D daten={daten ?? OHNE_WOHNUNG} welt={welt} onEbene={setEbene} onSprungziele={zieleMelden} steuer={steuer} live={live} />
+              <Ansicht3D daten={OHNE_WOHNUNG} welt={welt} onEbene={setEbene} onSprungziele={zieleMelden} steuer={steuer} live={live} />
             </div>
             {/* Pflichtangabe der Kartendaten (ODbL), unter dem Bild statt darauf. */}
             <p dir="ltr" className="shrink-0 border-t border-line bg-surface px-3 py-1 text-[0.6875rem] text-muted">
@@ -492,13 +449,13 @@ export function WohnungenListe({
                 <button
                   type="button"
                   data-ziel={z.i}
-                  aria-label={t('siedlung.springen_zu', { name: z.name })}
+                  aria-label={t('siedlung.springen_zu', { name: z.name === 'Start' ? t('siedlung.start') : z.name })}
                   onClick={() => onWahl(z.i)}
                   className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-start font-bold text-ink hover:bg-raised focus-visible:bg-raised focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ink"
                 >
                   <DoorOpen size={18} className="shrink-0 text-muted" />
                   <span dir="auto" className="min-w-0 flex-1 truncate">
-                    {z.name}
+                    {z.name === 'Start' ? t('siedlung.start') : z.name}
                   </span>
                   <span className="t-sub hidden lg:inline">{t('siedlung.springen')}</span>
                   <ChevronRight size={18} className="spiegeln shrink-0 text-muted" />

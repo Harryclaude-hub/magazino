@@ -470,6 +470,8 @@ export default function Raum3D({
   // die Liste der Wohnungen an die Seite. Der Rueckruf in einer Ref, damit
   // ein neuer Wert die Welt nicht neu baut.
   const sprungziele = useRef<Sprungziel3D[]>([])
+  // Ein Sprung hat das Begehen gestartet (E86): dann nicht zum Start.
+  const zielGewaehlt = useRef(false)
   const sprungRueck = useRef(onSprungziele)
   useLayoutEffect(() => {
     sprungRueck.current = onSprungziele
@@ -572,6 +574,8 @@ export default function Raum3D({
         setKarte(null)
         setAufzugAuf(false)
         if (!gehenRef.current) {
+          // Das Ziel gilt, nicht der Start der Welt im Effekt darunter.
+          zielGewaehlt.current = true
           m.begehen(true, startPunkt(daten, raumId))
           setGehen(true)
         }
@@ -582,10 +586,21 @@ export default function Raum3D({
   )
   useImperativeHandle(steuer, () => griff, [griff])
 
-  // Begehen an und aus; der Motor merkt sich die Kamera von vorher.
+  // Begehen an und aus; der Motor merkt sich die Kamera von vorher. Ohne
+  // Raeume (Siedlung ohne Wohnung, E86) beginnt es am ersten Sprungziel der
+  // Welt ('Start', vor einem Hauseingang), nicht im Ursprung, der in einer
+  // Wand liegen kann; ausser es wurde gerade ein Ziel gewaehlt.
   useEffect(() => {
     if (geht !== 'ja') return
-    motor.current?.begehen(gehen, gehen ? startPunkt(daten, raumId) : null)
+    const m = motor.current
+    if (!m) return
+    const start = gehen ? startPunkt(daten, raumId) : null
+    m.begehen(gehen, start)
+    const gewaehlt = zielGewaehlt.current
+    zielGewaehlt.current = false
+    const erstes = sprungziele.current[0]
+    const mw = mitWelt(m)
+    if (gehen && !start && !gewaehlt && erstes && mw.springen) mw.springen(erstes.ebene, erstes.x, erstes.z, erstes.gier)
     // Nur beim Umschalten, nicht bei jeder Aenderung am Plan.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gehen, geht])

@@ -214,6 +214,7 @@ export const siedlungWoerter: Woerterbuch = {
     ar: 'تعذّر تحميل الأشخاص. اضغط هنا للتفاصيل.',
   },
   'siedlung.zu_gast': { de: 'Du bist hier zu Gast', ar: 'أنت ضيف هنا' },
+  'siedlung.start': { de: 'Start am Hauseingang', ar: 'البداية عند مدخل المبنى' },
   'siedlung.einladen_titel': { de: 'Jemanden einladen', ar: 'دعوة شخص' },
   'siedlung.einladen_feld': { de: 'E-Mail oder Name', ar: 'البريد الإلكتروني أو الاسم' },
   'siedlung.einladen_hinweis': {
