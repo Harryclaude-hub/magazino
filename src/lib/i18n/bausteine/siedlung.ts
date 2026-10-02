@@ -182,21 +182,22 @@ export const siedlungWoerter: Woerterbuch = {
   'siedlung.aufzug': { de: 'Aufzug: Stockwerk wählen', ar: 'المصعد: اختر الطابق' },
 
   // ------------------------------------------- Liste der Wohnungen (E84)
-  'siedlung.wohnungen': { de: 'Wohnungen', ar: 'الشقق' },
-  'siedlung.wohnungen_hilfe': {
-    de: 'Alle Wohnungen der Siedlung: antippen und hingehen',
-    ar: 'كل شقق المجمّع: اضغط وانتقل إليها',
+  // E87: die Liste heisst "Orte" (Wohnungen, Geschaefte, Feuerwehr, Spital).
+  'siedlung.orte': { de: 'Orte', ar: 'الأماكن' },
+  'siedlung.orte_hilfe': {
+    de: 'Wohnungen, Geschäfte und andere Orte: antippen und hingehen',
+    ar: 'الشقق والمحلات وأماكن أخرى: اضغط وانتقل إليها',
   },
-  'siedlung.wohnungen_laedt': { de: 'Die Häuser werden noch gebaut', ar: 'لا يزال بناء المباني جاريًا' },
-  'siedlung.wohnungen_suchen': { de: 'Nach Top suchen, etwa 12', ar: 'ابحث برقم الشقة، مثلًا 12' },
-  'siedlung.wohnungen_leer': {
-    de: 'In dieser Siedlung gibt es noch keine Wohnungen zum Hingehen.',
-    ar: 'لا توجد في هذا المجمّع شقق يمكن الانتقال إليها بعد.',
+  'siedlung.orte_laedt': { de: 'Die Häuser werden noch gebaut', ar: 'لا يزال بناء المباني جاريًا' },
+  'siedlung.orte_suchen': { de: 'Suchen, etwa Top 12 oder Feuerwehr', ar: 'ابحث، مثلًا الشقة 12 أو الإطفاء' },
+  'siedlung.orte_leer': {
+    de: 'In dieser Siedlung gibt es noch keine Orte zum Hingehen.',
+    ar: 'لا توجد في هذا المجمّع أماكن يمكن الانتقال إليها بعد.',
   },
-  'siedlung.wohnungen_keine_treffer': { de: 'Keine Wohnung passt zu „{suche}“.', ar: 'لا توجد شقة تطابق «{suche}».' },
+  'siedlung.orte_keine_treffer': { de: 'Kein Ort passt zu „{suche}“.', ar: 'لا يوجد مكان يطابق «{suche}».' },
   'siedlung.springen_hinweis': {
-    de: 'Tipp auf eine Wohnung, dann gehst du dort weiter.',
-    ar: 'اضغط على شقة لتتابع التجوّل من هناك.',
+    de: 'Tipp auf einen Ort, dann gehst du dort weiter.',
+    ar: 'اضغط على مكان لتتابع التجوّل من هناك.',
   },
   'siedlung.springen': { de: 'Hingehen', ar: 'انتقال' },
   'siedlung.springen_zu': { de: 'Zu {name} gehen', ar: 'الانتقال إلى {name}' },
@@ -302,4 +303,40 @@ export const siedlungWoerter: Woerterbuch = {
   'siedlung.minikarte_zu': { de: 'Karte einklappen', ar: 'طي الخريطة' },
   'siedlung.minikarte_auf': { de: 'Karte zeigen', ar: 'إظهار الخريطة' },
   'siedlung.minikarte_du': { de: 'Du', ar: 'أنت' },
+  'siedlung.minikarte_naeher': { de: 'Näher heran', ar: 'تقريب' },
+  'siedlung.minikarte_weiter': { de: 'Weiter weg', ar: 'تبعيد' },
+
+  // ---------------------------------- Stadtteil, Dinge, Wohnung (E87)
+  'siedlung.zu_unserer_wohnung': { de: 'Zu unserer Wohnung', ar: 'إلى شقتنا' },
+  'siedlung.zu_unserer_wohnung_hilfe': {
+    de: 'Zu eurer Wohnung in der Siedlung gehen (leer, wie geplant)',
+    ar: 'انتقل إلى شقتكم في المجمّع (فارغة كما في المخطط)',
+  },
+  'siedlung.eingerichtet': { de: 'Eingerichtet ansehen', ar: 'عرضها مفروشة' },
+  'siedlung.eingerichtet_hilfe': {
+    de: 'Die eingerichtete Wohnung im Umzug öffnen: Grundriss, dann 3D und Begehen',
+    ar: 'افتح الشقة المفروشة في النقلة: المخطط، ثم العرض الثلاثي الأبعاد والتجوّل',
+  },
+  'siedlung.dinge_laden_fehler': {
+    de: 'Wo Dinge und Autos zuletzt standen, konnte nicht geladen werden: {grund}',
+    ar: 'تعذّر تحميل آخر أماكن الأشياء والسيارات: {grund}',
+  },
+  'siedlung.dinge_speichern_fehler': {
+    de: 'Wo das Ding jetzt steht, wurde nicht gespeichert: {grund}',
+    ar: 'لم يُحفظ المكان الجديد للشيء: {grund}',
+  },
+
+  // ------------------------------- Aus Datei aktualisieren, Umgebung (E87)
+  'siedlung.aus_datei': { de: 'Aus Datei aktualisieren', ar: 'تحديث من ملف' },
+  'siedlung.aus_datei_hilfe': {
+    de: 'Die Siedlung aus einer neuen Datei (.json) laden, etwa mit der Umgebung. Sie ersetzt die Siedlung mit derselben Wohnung.',
+    ar: 'حمّل المجمّع السكني من ملف جديد (.json)، مثلًا مع المنطقة المحيطة. يحلّ محل المجمّع الذي فيه الشقة نفسها.',
+  },
+  'siedlung.aus_datei_laeuft': { de: 'Siedlung wird aktualisiert', ar: 'جارٍ تحديث المجمّع السكني' },
+  'siedlung.aktualisiert': { de: 'Siedlung aktualisiert', ar: 'تم تحديث المجمّع السكني' },
+  'siedlung.umgebung_fehler': { de: 'Die Umgebung konnte nicht gebaut werden', ar: 'تعذّر بناء المنطقة المحيطة' },
+  'siedlung.umgebung_fehler_grund': {
+    de: 'Die Umgebung konnte nicht gebaut werden: {grund}',
+    ar: 'تعذّر بناء المنطقة المحيطة: {grund}',
+  },
 }

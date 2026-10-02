@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Box } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
@@ -22,6 +22,10 @@ woerterNachladen(plan3dWoerter)
  * Ansicht3D reicht alle Angaben an Raum3D weiter, auch die der Siedlung
  * (E83): welt (eigene Aussenwelt), onEbene (Stockwerk beim Begehen) und
  * steuer (Zur Wohnung, Von oben). Ohne sie bleibt alles wie bisher.
+ *
+ * E87: Knopf3D kann gleich offen beginnen und dort gleich begehen
+ * (begehen, fuer den Grundriss mit ?begehen=1); startGehen geht dafuer an
+ * Raum3D, nur beim ersten Oeffnen.
  */
 
 type Props = Omit<Raum3DProps, 'className'>
@@ -71,13 +75,18 @@ export function Ansicht3D(props: Props) {
 }
 
 /** Knopf "In 3D ansehen" und das Fenster dazu, auf jedem Geraet. Am Handy
- *  fuellt das Fenster den ganzen Bildschirm. */
+ *  fuellt das Fenster den ganzen Bildschirm. E87: begehen oeffnet das
+ *  Fenster gleich und beginnt dort das Begehen, nur beim ersten Oeffnen
+ *  (gelesen beim Einbauen); onBegehen meldet, dass der Wunsch angenommen
+ *  ist. */
 export function Knopf3D({
   daten,
   raumId,
   hervor,
   className,
   tour,
+  begehen = false,
+  onBegehen,
 }: {
   daten: GrundrissDaten
   raumId?: string | null
@@ -85,21 +94,45 @@ export function Knopf3D({
   className?: string
   /** Name fuer die Fuehrung (data-tour). */
   tour?: string
+  /** Gleich offen und gleich begehen (E87, Grundriss mit ?begehen=1). */
+  begehen?: boolean
+  /** Der Wunsch begehen ist angenommen (die Seite vergisst ihn). */
+  onBegehen?: () => void
 }) {
   const { t } = useSprache()
-  const [offen, setOffen] = useState(false)
+  const [offen, setOffen] = useState(begehen)
+  const [startGehen, setStartGehen] = useState(begehen)
+  useWunschAngenommen(begehen, onBegehen)
+  const zu = () => {
+    setOffen(false)
+    setStartGehen(false)
+  }
   return (
     <>
       <Button data-tour={tour} variant="outline" className={className ?? 'w-full justify-center'} onClick={() => setOffen(true)}>
         <Box size={18} /> {t('plan3d.oeffnen')}
       </Button>
       {offen ? (
-        <Fenster3D titel={t('plan3d.titel')} onClose={() => setOffen(false)}>
-          <Ansicht3D daten={daten} raumId={raumId} hervor={hervor} onSchliessen={() => setOffen(false)} />
+        <Fenster3D titel={t('plan3d.titel')} onClose={zu}>
+          <Ansicht3D daten={daten} raumId={raumId} hervor={hervor} onSchliessen={zu} startGehen={startGehen} />
         </Fenster3D>
       ) : null}
     </>
   )
+}
+
+/** Meldet einmal nach dem Einbauen, dass ein Wunsch (begehen) angenommen
+ *  ist: die Seite vergisst ihn, die Komponente hat ihn in ihrem Zustand. */
+// eslint-disable-next-line react/only-export-components -- kleiner Haken fuer Knopf3D und Zeichner
+export function useWunschAngenommen(wunsch: boolean, angenommen: (() => void) | undefined): void {
+  const rueck = useRef(angenommen)
+  useEffect(() => {
+    rueck.current = angenommen
+  })
+  const [beimEinbauen] = useState(wunsch)
+  useEffect(() => {
+    if (beimEinbauen) rueck.current?.()
+  }, [beimEinbauen])
 }
 
 /** Grosses Fenster ueber der Seite. Escape schliesst, jedes Oeffnen

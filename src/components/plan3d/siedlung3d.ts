@@ -105,7 +105,39 @@
  * Flaechen in der Reihenfolge zum Malen (Strasse und Parkplatz, Gaerten,
  * Wege, Spielplatz), Wege aus aussen.wege mit 1,5 m Puffer je Seite, die
  * Strasse nur so lang wie die Karte breit, der Rahmen mit 5 m Rand um
- * alles. Sie haengt nicht am Rahmen der Wohnung. */
+ * alles. Sie haengt nicht am Rahmen der Wohnung.
+ *
+ * Begehbar (E87): Treppen in jedem Stiegenhaus als Treppe3D, zwei Laeufe
+ * je Geschoss mit Zwischenpodest; jedes Podest ist eine eigene Ebene
+ * '<gebaeudeId>:<k>.5', hinten an die Ebenen gehaengt (die Indizes davor
+ * bleiben). Im Kern des eigenen Hauses ohne Plaene sind es die Laeufe, die
+ * er immer schon zeigt; in Haeusern mit Plaenen legt treppeLegen sie in
+ * die Stiege (Antritt an der Seite zum Gang, sonst ein Podest davor). Eine
+ * Stiege ohne passende Treppe (zu schmal, zu kurz, ohne Gang) bleibt zu.
+ * Haeuser ohne Plaene fragen innenGenerator.ts nach erfundenen Wohnungen
+ * und werden dann gebaut wie Haeuser mit Plaenen (das eigene mit Kern und
+ * Laubengang als allgemeinen Flaechen). Die Autos am Parkplatz sind
+ * Fahrzeuge (fahrzeug3d.ts, 'siedlung:f<n>'), dazu etwa zehn Dinge zum
+ * Aufheben auf dem Spielplatz und in Gaerten ('siedlung:d<n>'), beide in
+ * Weltkoordinaten direkt in gruppe und ohne Hindernisse (die kennt der
+ * Motor). eigeneWohnung: ein freies Ziel in der geplanten Wohnung, in der
+ * die eigene liegt (nur ohne Rahmen). Mit siedlung.stadt baut stadt3d.ts
+ * die Umgebung: ihre Gruppe in gruppe, Gelaende (hoehe) und Hindernisse
+ * auf der Ebene des Bodens (Index 0, ohne Plaene mit eigenem Haus auch auf
+ * 'garten'; die eigenen Ziele draussen liegen dann auch auf Index 0), ihre
+ * Ebenen, Treppen, Fahrzeuge, Dinge und Sprungziele hinter den eigenen,
+ * die Karte vereint; version() zaehlt hoch, wenn die Stadt
+ * Neues hat, kamera() und schritt() reichen weiter. Die Hindernisse am
+ * Boden bleiben dasselbe Feld, solange die Stadt ihres behaelt (der Motor
+ * rastert sie dann nicht neu). Unter dem eigenen Grund (um Haeuser,
+ * Spielplatz und Wege) und in der Grube der Rampe zeichnet die Stadt kein
+ * Gelaende (aussparen). Niedriges draussen (Baenke, Sandkiste, Buesche,
+ * Hecken) hat eine Oberkante: hinaufsteigen oder -springen geht. Dann faellt die eigene
+ * weite Umgebung weg (Strasse, Hecken, Laternen, erfundene Nachbarn, Wiese
+ * bis 300 m), Dunst und Himmel reichen bis etwa 700 m. Laesst sich die
+ * Stadt nicht bauen, steht die Siedlung wie ohne und stadtFehler sagt
+ * warum. Ohne Stadt bleibt alles wie zuvor; scripts/siedlung-pruefen.mjs
+ * vergleicht dazu mit einem Abdruck des Stands vor E87. */
 import {
   BackSide,
   BoxGeometry,
@@ -131,9 +163,13 @@ import {
   type Object3D,
 } from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
-import type { Siedlung, SiedlungGebaeude, SiedlungInnenHaus, SiedlungStil } from '../../lib/types'
+import type { Siedlung, SiedlungGebaeude, SiedlungInnenGeschoss, SiedlungInnenHaus, SiedlungStil } from '../../lib/types'
+import { wohnhausInnen } from '../../lib/innenGenerator.ts'
+import { stadtPruefen } from '../../lib/stadt.ts'
+import { baueFahrzeug } from './fahrzeug3d.ts'
 import type { Farben3D } from './szene.ts'
-import type { Ebene3D, Hindernis3D, Interaktiv3D, Karte3D, Sprungziel3D, Welt3D } from './vertrag3d.ts'
+import { baueStadt, type StadtOptionen, type StadtWelt } from './stadt3d.ts'
+import type { Ebene3D, Fahrzeug3D, FahrzeugArt, Hindernis3D, Interaktiv3D, Karte3D, Sprungziel3D, Treppe3D, Welt3D, WeltDing3D } from './vertrag3d.ts'
 
 export interface SiedlungOptionen {
   siedlung: Siedlung
@@ -142,6 +178,10 @@ export interface SiedlungOptionen {
    *  Fassade dort auszusparen. null ohne Wohnung und fuer Gaeste (E86):
    *  die Lage bleibt die von siedlung.wohnung, ausgespart wird nichts. */
   wohnungRahmen: [number, number, number, number] | null
+  /** Nur fuer Pruefungen (E87): statt baueStadt aus stadt3d.ts. */
+  stadtBauen?: (o: StadtOptionen) => StadtWelt
+  /** Nur fuer Pruefungen (E87): statt wohnhausInnen aus innenGenerator.ts. */
+  innenErfinden?: typeof wohnhausInnen
 }
 
 /** Was baueSiedlung zurueckgibt: eine Welt3D mit Aufzuegen und Kamera. */
@@ -163,6 +203,22 @@ export interface SiedlungWelt3D extends Welt3D {
   sprungziele: Sprungziel3D[]
   /** Fuer die Minikarte (E86), immer da. */
   karte: Karte3D
+  /* E87 */
+  /** Index in sprungziele eines freien Ziels in der geplanten (leeren)
+   *  Wohnung, in der die eigene liegt (siedlung.wohnung), wenn kein
+   *  wohnungRahmen da ist; null ohne Wohnung oder mit Rahmen (dann zeigt
+   *  die Szene die eingerichtete Wohnung selbst, Ebene 'wohnung'). */
+  readonly eigeneWohnung: number | null
+  /** Treppen der Siedlung (Stiegenhaeuser), dahinter die der Stadt. */
+  readonly treppen: Treppe3D[]
+  /** Autos am Parkplatz, dahinter die der Stadt. */
+  readonly fahrzeuge: Fahrzeug3D[]
+  /** Dinge auf Spielplatz und in Gaerten, dahinter die der Stadt. */
+  readonly dinge: WeltDing3D[]
+  version(): number
+  /** Die Stadt ringsum (siedlung.stadt) liess sich nicht bauen: warum.
+   *  Dann steht die Siedlung wie ohne Stadt. Sonst null. */
+  readonly stadtFehler: string | null
 }
 
 /* ------------------------------------------------ Zahlen */
@@ -173,6 +229,19 @@ const NEBEL_FERN = 270
 /** Himmelskugel (folgt der Kamera, der Motor hat far 400) und Wiese. */
 const HIMMEL_R = 280
 const WIESE_R = 300
+/** Mit Stadt (E87): Sicht bis etwa 700 m, die Himmelskugel dahinter. Sie
+ *  schrumpft, wenn die Kamera nicht so weit sieht (far). */
+const NEBEL_STADT_NAH = 220
+const NEBEL_STADT_FERN = 700
+const HIMMEL_R_STADT = 760
+/** Mit Stadt: so weit reicht der eigene Grund (Wiese) ueber alles hinaus,
+ *  was die Siedlung baut, und so weit die eigenen Baeume (Meter). */
+const GRUND_RAND = 6
+const BAUM_RAND_STADT = 4
+/** Mit Stadt: um Haeuser, Spielplatz und Wege bis hier (Meter, kleiner als
+ *  GRUND_RAND, also ganz unter der eigenen Wiese) zeichnet die Stadt kein
+ *  Gelaende (StadtOptionen.aussparen). */
+const KERN_RAND = 2
 /** Oberkante jeder Gehflaeche (Gang, Wege, Stiegenhaus) unter ihrer Ebene. */
 const GEH = -0.02
 /** Wiese, darunter (die Gehflaechen liegen 2 cm darueber). */
@@ -228,6 +297,13 @@ const K_LAUF_B: [number, number] = [2.95, 4.15]
 /** Kabine aussen: x0, x1, s0, s1. */
 const KAB: [number, number, number, number] = [0.25, 2.05, 1.9, 4.1]
 const KAB_H = 2.3
+/** Treppen im Kern zum Begehen (E87): Auftritt der Stufen; jeder Lauf
+ *  (Treppe3D) beginnt einen halben Auftritt vor der ersten Stufe und endet
+ *  einen halben hinter der letzten, so laeuft seine Linie durch die Mitten
+ *  der Stufen (hoechstens eine halbe Steigung daneben). */
+const K_TRITT = 0.26
+const K_T0 = K_PODEST - K_TRITT / 2
+const K_T1 = K_LAUF + K_TRITT / 2
 
 const STILE: SiedlungStil[] = ['weiss_loggia', 'holz', 'putz', 'grau']
 
@@ -257,6 +333,10 @@ interface KRechteck {
   t1: number
   s0: number
   s1: number
+  /** E87: Oberkante (Meter ueber dem Boden) fuer Niedriges, auf das man
+   *  steigen oder springen kann (Bank, Sandkiste, Busch, Hecke); fehlt: wie
+   *  eine Wand (Hindernis3D.oben). */
+  oben?: number
 }
 
 /** Was frei bleibt: Rechteck im Plan und Hoehen, beides lokal. */
@@ -870,6 +950,21 @@ const DECK = 0.14
 const A_TUER = 0.9
 const A_WAND = 0.2
 const A_TUER_H = 2.1
+/** Treppen in Stiegenhaeusern mit Plaenen (E87): zwei Laeufe je Geschoss
+ *  nebeneinander mit Zwischenpodest. Steigung etwa, Auftritt hoechstens
+ *  und mindestens, Tiefe des Zwischenpodests mindestens, Laufbreite
+ *  mindestens, Rand zur Wand, Mittelwand (Meter). */
+const T_STEIGUNG = 0.175
+const T_TRITT_MAX = 0.29
+const T_TRITT_MIN = 0.17
+const T_PODEST = 1.0
+const T_LAUF_MIN = 0.5
+const T_RAND = 0.1
+const T_MITTE = 0.1
+/** Podest am Antritt, wenn der Gang nur seitlich anliegt: mindestens so
+ *  tief, und so viel Gang muss an ihm liegen (Meter). */
+const T_ANTRITT = 0.9
+const T_ZUGANG = 0.75
 
 const DREH: Record<number, P> = { 0: [1, 0], 90: [0, 1], 180: [-1, 0], 270: [0, -1] }
 
@@ -882,6 +977,8 @@ type Belag = 'eiche' | 'fliese' | 'deck' | 'beton' | 'pflaster' | 'rasen' | 'pla
 type MoebelArt = 'kueche' | 'hochschrank' | 'kuehlschrank' | 'theke' | 'wc' | 'becken' | 'wanne' | 'dusche' | 'waschmaschine' | 'stuetze'
 type LochArt = 'tuer' | 'eingang' | 'haustuer' | 'fenster' | 'durchgang'
 type WandTyp = 'innen' | 'trenn' | 'fassade' | 'aussen' | 'sicht'
+/** Dinge zum Aufheben (E87). */
+type DingArt = 'ball' | 'kuebel' | 'schaufel' | 'form' | 'sessel'
 const ARTEN_ALLGEMEIN: readonly string[] = ['stiege', 'aufzug', 'gang', 'laubengang']
 const ARTEN_OEFFNUNG: readonly string[] = ['tuer', 'fenster', 'durchgang']
 /** Diese Moebel stehen an der Wand: ihre Rueckseite sucht die naechste Wand. */
@@ -1006,6 +1103,9 @@ interface InnenHaus {
   zone: Kasten
   /** Gaerten und Terrassen im EG: wer dort steht, ist auch schon da. */
   vorne: P[][]
+  /** Allgemeine Flaechen ausserhalb des Umrisses (E87: Laubengang, Stiege
+   *  und Aufzug vor der Fassade): wer dort steht, ist auch schon da. */
+  anbau: P[][]
   /** Fassade, Fenster, Balkone: weg, solange man drin ist (das Dach bleibt). */
   huelle: Puffer
   huelleMesh: Mesh | null
@@ -1022,6 +1122,44 @@ interface InnenHaus {
   /** Glas und Aufzug sind gebaut. */
   teile: boolean
   lift: Lift | null
+  /** Treppen je Stiegenhaus (E87); fehlt eins, bleibt es zu. */
+  stiegen: Map<IFlaeche, Stiege>
+}
+
+/** Lage der Treppe in einem Stiegenhaus (E87), lokal: k beginnt an einer
+ *  Ecke, t laeuft vom Antritt (der Seite zum Gang) hinein, s quer (n zeigt
+ *  hinein). Bis p Podest auf Geschosshoehe, dann zwei Laeufe nebeneinander
+ *  mit je R Steigungen (steig) und Auftritt a: Haelfte 1 (s < B/2) hinauf
+ *  zum Zwischenpodest, Haelfte 2 (s > B/2) von dort zurueck hinauf zum
+ *  Antritt des naechsten Geschosses. Die Stufe i (1 bis R - 1) des ersten
+ *  Laufs liegt bei t = p + (i - 0,5) a bis p + (i + 0,5) a, das
+ *  Zwischenpodest ab p + (R - 0,5) a bis L. Jeder Lauf als Treppe3D: t von
+ *  p bis p + R a, seine Linie geht durch die Mitten der Stufen. */
+interface TreppenLage {
+  k: Kante
+  L: number
+  B: number
+  p: number
+  R: number
+  a: number
+  steig: number
+}
+
+/** Ein Stiegenhaus in einem Geschoss: seine Treppe, ob von hier ein Lauf
+ *  hinauf geht und ob einer von unten ankommt. */
+interface Stiege {
+  lage: TreppenLage
+  hoch: boolean
+  runter: boolean
+}
+
+/** Ein Lauf lokal (E87): Mitte, Richtung hinauf, Laenge, Breite. */
+interface Lauf {
+  c: P
+  u: P
+  laenge: number
+  breite: number
+  stufen: number
 }
 
 /** Ein Aufzug zur Laufzeit (am Laubengang oder in einem Haus mit Plaenen). */
@@ -1374,7 +1512,7 @@ function abstandUmriss(p: P, poly: P[]): number {
 /** Ein Geschoss planen: Waende (jede gemeinsame Kante nur einmal), Tueren
  *  und Fenster darin, Gelaender, Moebel an der Wand, Hindernisse. Rechnet
  *  nur Zahlen; gebaut wird spaeter (stockBauen). */
-function geschossPlanen(g: IGeschoss, h: Haus, aufzug: IAufzug | null): void {
+function geschossPlanen(g: IGeschoss, h: Haus, aufzug: IAufzug | null, stiegen: Map<IFlaeche, Stiege>): void {
   const fl = g.flaechen
   const k = g.k
   const yF = g.y
@@ -1530,11 +1668,16 @@ function geschossPlanen(g: IGeschoss, h: Haus, aufzug: IAufzug | null): void {
       g.hindernisse.push({ k: { a, u: m.u, n: m.v, laenge: m.b }, t0: 0, t1: m.b, s0: 0, s1: m.t })
     }
   }
-  /* Stiegen sind zu (man geht mit dem Aufzug), Schaechte haben Waende. */
+  /* Stiegen: begehbar, wenn es eine Treppe gibt (E87), sonst zu wie
+   * bisher (man geht mit dem Aufzug). Schaechte haben Waende. */
   for (const f of fl) {
     if (f.art === 'stiege') {
-      const b = kastenAn(f)
-      g.hindernisse.push({ k: b.k, t0: 0, t1: b.L, s0: 0, s1: b.B })
+      const st = stiegen.get(f)
+      if (st) g.hindernisse.push(...stiegeHindernisse(st))
+      else {
+        const b = kastenAn(f)
+        g.hindernisse.push({ k: b.k, t0: 0, t1: b.L, s0: 0, s1: b.B })
+      }
     } else if (f.art === 'aufzug' && !(aufzug && aufzug.halte.includes(k) && innen(mitteVon(f.poly), kastenPoly(aufzug)))) {
       // Ein zweiter Schacht ohne Kabine: rundum zu.
       const b = kastenAn(f)
@@ -1630,6 +1773,172 @@ function aufzugFinden(gs: IGeschoss[]): IAufzug | null {
     halte,
     kabine: sd.breit >= 1.5 && sd.tief >= 1.4,
   }
+}
+
+/* ------------------------------------------------ Treppen (E87) */
+
+/** Wie tief das Podest am Antritt der Treppe (Kante k, Stiegenhaus L x B)
+ *  sein muss, damit es im Geschoss g an Gang oder Laubengang grenzt: 0,
+ *  wenn der Gang vor beiden Laeufen liegt; sonst so tief, dass genug Gang
+ *  (T_ZUGANG) am Antritt oder an den Seiten des Podests liegt. null: kein
+ *  Gang in der Naehe. */
+function podestTiefe(k: Kante, L: number, B: number, g: IGeschoss): number | null {
+  const gang = g.flaechen.filter((x) => x.art === 'gang' || x.art === 'laubengang')
+  const vor = (q: P) => gang.some((x) => innen(q, x.poly))
+  const S = 0.25
+  let h1 = 0
+  let h2 = 0
+  for (let s = S / 2; s < B; s += S) {
+    if (!vor(kp(k, -0.3, s))) continue
+    if (s < B / 2) h1++
+    else h2++
+  }
+  if (h1 * S >= 0.6 && h2 * S >= 0.6) return 0
+  let n = h1 + h2
+  if (n * S >= T_ZUGANG) return T_ANTRITT
+  for (let t = S / 2; t < L; t += S) {
+    if (vor(kp(k, t, -0.3))) n++
+    if (vor(kp(k, t, B + 0.3))) n++
+    if (n * S >= T_ZUGANG) return Math.max(T_ANTRITT, t + S / 2)
+  }
+  return null
+}
+
+/** Die Treppe in einem Stiegenhaus legen (E87): von den vier Seiten die,
+ *  an der in allen Geschossen gs der Gang liegt, mit dem groessten
+ *  Auftritt (bei Gleichstand dem kleinsten Podest). null: zu schmal fuer
+ *  zwei Laeufe, zu kurz oder ohne Gang. */
+function treppeLegen(f: IFlaeche, gs: IGeschoss[], gh: number): TreppenLage | null {
+  const { k, L, B } = kastenAn(f)
+  const mu: P = [-k.u[0], -k.u[1]]
+  const mn: P = [-k.n[0], -k.n[1]]
+  const seiten: { k: Kante; L: number; B: number }[] = [
+    { k, L, B },
+    { k: { a: kp(k, L, B), u: mu, n: mn, laenge: L }, L, B },
+    { k: { a: kp(k, L, 0), u: k.n, n: mu, laenge: B }, L: B, B: L },
+    { k: { a: kp(k, 0, B), u: mn, n: k.u, laenge: B }, L: B, B: L },
+  ]
+  const R = Math.max(3, Math.round(gh / 2 / T_STEIGUNG))
+  let beste: TreppenLage | null = null
+  for (const x of seiten) {
+    if (x.B / 2 - T_RAND - T_MITTE / 2 < T_LAUF_MIN) continue
+    let p = 0
+    let ok = true
+    for (const g of gs) {
+      const pg = podestTiefe(x.k, x.L, x.B, g)
+      if (pg === null) {
+        ok = false
+        break
+      }
+      p = Math.max(p, pg)
+    }
+    if (!ok) continue
+    const a = Math.min(T_TRITT_MAX, (x.L - p - T_PODEST) / R)
+    if (!(a >= T_TRITT_MIN)) continue
+    if (!beste || a > beste.a + 1e-9 || (Math.abs(a - beste.a) <= 1e-9 && p < beste.p - 1e-9)) beste = { k: x.k, L: x.L, B: x.B, p, R, a, steig: gh / 2 / R }
+  }
+  return beste
+}
+
+/** Stiegen, die uebereinander liegen, bilden einen Stapel mit einer Lage
+ *  fuer alle seine Geschosse (E87). Ein Stapel aus einem Geschoss oder ohne
+ *  passende Lage hat keine Treppe (bleibt zu). gs: aufsteigend. */
+function stiegenPlanen(gs: IGeschoss[], gh: number): Map<IFlaeche, Stiege> {
+  const out = new Map<IFlaeche, Stiege>()
+  const nachK = new Map(gs.map((g) => [g.k, g]))
+  const gesehen = new Set<IFlaeche>()
+  for (const g of gs) {
+    for (const f of g.flaechen) {
+      if (f.art !== 'stiege' || gesehen.has(f)) continue
+      const stapel: { g: IGeschoss; f: IFlaeche }[] = [{ g, f }]
+      gesehen.add(f)
+      for (;;) {
+        const letzte = stapel[stapel.length - 1]
+        const oben = nachK.get(letzte.g.k + 1)
+        const m = mitteVon(letzte.f.poly)
+        const drueber = oben?.flaechen.find((x) => x.art === 'stiege' && !gesehen.has(x) && (innen(m, x.poly) || innen(mitteVon(x.poly), letzte.f.poly)))
+        if (!oben || !drueber) break
+        stapel.push({ g: oben, f: drueber })
+        gesehen.add(drueber)
+      }
+      const lage = stapel.length >= 2 ? treppeLegen(f, stapel.map((x) => x.g), gh) : null
+      if (lage) stapel.forEach((x, i) => out.set(x.f, { lage, hoch: i + 1 < stapel.length, runter: i > 0 }))
+    }
+  }
+  return out
+}
+
+/** Hindernisse einer Stiege in ihrem Geschoss (E87): frei sind das Podest
+ *  am Antritt und die Laeufe, die hier beginnen oder ankommen, betreten
+ *  nur ueber den Antritt; zu sind das Loch zum Zwischenpodest, die Seiten
+ *  und die Mittelwand, und eine Haelfte ohne Lauf. */
+function stiegeHindernisse(st: Stiege): KRechteck[] {
+  const { k, L, B, p, R, a } = st.lage
+  const e = p + R * a
+  const m = B / 2
+  const out: KRechteck[] = [
+    { k, t0: e, t1: L + 0.1, s0: -0.1, s1: B + 0.1 },
+    { k, t0: p, t1: e, s0: m - T_MITTE / 2, s1: m + T_MITTE / 2 },
+    { k, t0: p, t1: L, s0: -0.12, s1: T_RAND },
+    { k, t0: p, t1: L, s0: B - T_RAND, s1: B + 0.12 },
+  ]
+  if (!st.hoch) out.push({ k, t0: p, t1: e, s0: T_RAND, s1: m })
+  if (!st.runter) out.push({ k, t0: p, t1: e, s0: m, s1: B - T_RAND })
+  return out
+}
+
+/** Hindernisse auf der Ebene des Zwischenpodests (E87): rundum zu, frei
+ *  nur das Podest und die beiden Laeufe von seiner Seite her. */
+function podestHindernisse(l: TreppenLage): KRechteck[] {
+  const { k, L, B, p, R, a } = l
+  const e = p + R * a
+  const m = B / 2
+  return [
+    { k, t0: p - 0.5, t1: p, s0: -0.3, s1: B + 0.3 },
+    { k, t0: p, t1: e, s0: m - T_MITTE / 2, s1: m + T_MITTE / 2 },
+    { k, t0: p, t1: L + 0.3, s0: -0.3, s1: T_RAND },
+    { k, t0: p, t1: L + 0.3, s0: B - T_RAND, s1: B + 0.3 },
+    { k, t0: L - 0.1, t1: L + 0.3, s0: -0.3, s1: B + 0.3 },
+  ]
+}
+
+/** Die beiden Laeufe einer Treppe (E87): hinauf zum Zwischenpodest und
+ *  von dort weiter hinauf. */
+function laeufeVon(l: TreppenLage): [Lauf, Lauf] {
+  const { k, B, p, R, a } = l
+  const m = B / 2
+  const breite = m - T_MITTE / 2 - T_RAND
+  const tm = p + (R * a) / 2
+  return [
+    { c: kp(k, tm, T_RAND + breite / 2), u: k.u, laenge: R * a, breite, stufen: R },
+    { c: kp(k, tm, m + T_MITTE / 2 + breite / 2), u: [-k.u[0], -k.u[1]], laenge: R * a, breite, stufen: R },
+  ]
+}
+
+/** Lokal (Meter) -> Plan (cm) im Rahmen x, z, drehung, umgekehrt wie
+ *  innenLesen (Siedlung = (x, z) + R(drehung) * Plan / 100); auf mm. */
+function cmVon(x: number, z: number, drehung: number): (p: P) => [number, number] {
+  const [c, s] = DREH[drehung]
+  const mm = (v: number) => Math.round(v * 10) / 10
+  return (p: P) => {
+    const dx = p[0] - x
+    const dz = p[1] - z
+    return [mm(100 * (c * dx + s * dz)), mm(100 * (-s * dx + c * dz))]
+  }
+}
+
+/** Rahmen eines Geschosses fuer erfundene Wohnungen (E87): die x-Achse des
+ *  Plans laengs der laengsten Kante (auf 90 Grad gerundet), der Ursprung
+ *  so, dass der Umriss bei 0 beginnt. */
+function geschossRahmen(h: Haus): { x: number; z: number; drehung: 0 | 90 | 180 | 270 } {
+  let e = h.kanten[0]
+  for (const k of h.kanten) if (k.laenge > e.laenge) e = k
+  const viertel = (((Math.round(Math.atan2(e.u[1], e.u[0]) / (Math.PI / 2)) % 4) + 4) % 4) as 0 | 1 | 2 | 3
+  const drehung = ([0, 90, 180, 270] as const)[viertel]
+  const [c, s] = DREH[drehung]
+  const mx = Math.min(...h.poly.map((p) => c * p[0] + s * p[1]))
+  const my = Math.min(...h.poly.map((p) => -s * p[0] + c * p[1]))
+  return { x: c * mx - s * my, z: s * mx + c * my, drehung }
 }
 
 /* ------------------------------------------------ Farben */
@@ -1949,6 +2258,8 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     const e = [nachLokal([r[0], r[1]]), nachLokal([r[2], r[3]])]
     return [Math.min(e[0][0], e[1][0]), Math.min(e[0][1], e[1][1]), Math.max(e[0][0], e[1][0]), Math.max(e[0][1], e[1][1])]
   }
+  /** Lokale Richtung in die Welt (ohne Verschiebung). */
+  const richtungWelt = (d: P): P => [cs * d[0] + sn * d[1], -sn * d[0] + cs * d[1]]
 
   /* Die Aussparung fuer die Wohnung, lokal. */
   const rahmenWelt = o.wohnungRahmen ? ordnen(o.wohnungRahmen, 'wohnungRahmen') : null
@@ -1965,52 +2276,310 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
    *  Lage, nichts ausgespart, keine Ebene 'wohnung'. */
   const wohnungDa = !!eigen && !!rahmenLokal
 
-  /* ------------------------------------------------ Innen (E84) */
-  /* Haeuser mit Plaenen: Geschosse, Waende, Tueren, Aufzug und Hindernisse
-   * werden hier gerechnet (nur Zahlen); gebaut wird ein Haus erst, wenn
-   * die Kamera hineingeht (kamera()). Auf dem Geschoss der eigenen Wohnung
-   * fallen Wohnungen weg, die in ihrem Rechteck liegen. */
-  const innenListe: InnenHaus[] = []
-  const innenNach = new Map<string, InnenHaus>()
+  /* ------------------------------------------------ Strassenseite */
+  /* Die Seite der Siedlung (Ost, Sued, West, Nord), an der am meisten
+   * Fassade in einer Flucht steht. Dort liegt die Strasse (ohne Stadt). */
+  const SEITEN: { name: string; q: P }[] = [
+    { name: 'ost', q: [1, 0] },
+    { name: 'sued', q: [0, 1] },
+    { name: 'west', q: [-1, 0] },
+    { name: 'nord', q: [0, -1] },
+  ]
+  let seite = SEITEN[0]
+  let besteWertung = -1
+  for (const s of SEITEN) {
+    const c0 = Math.max(...alle.map((p) => p[0] * s.q[0] + p[1] * s.q[1]))
+    let w = 0
+    for (const h of haeuser) {
+      for (const k of h.kanten) {
+        const m = kp(k, k.laenge / 2, 0)
+        if (k.n[0] * s.q[0] + k.n[1] * s.q[1] > 0.97 && Math.abs(m[0] * s.q[0] + m[1] * s.q[1] - c0) <= 3) w += k.laenge
+      }
+    }
+    if (w > besteWertung + EPS) {
+      besteWertung = w
+      seite = s
+    }
+  }
+  const q = seite.q
+  const l: P = [-q[1], q[0]]
+  const qv = (p: P) => p[0] * q[0] + p[1] * q[1]
+  const lv = (p: P) => p[0] * l[0] + p[1] * l[1]
+  const c0 = Math.max(...alle.map(qv))
+  const qmin = Math.min(...alle.map(qv))
+  const lmin = Math.min(...alle.map(lv))
+  const lmax = Math.max(...alle.map(lv))
+  const lmitte = (lmin + lmax) / 2
+  /** Kante entlang der Strasse: t ist die Lage laengs, s der Abstand quer. */
+  const sk: Kante = { a: [0, 0], u: l, n: q, laenge: 0 }
+  const strasseQ0 = c0 + VORGARTEN
+  const strasseQ1 = strasseQ0 + 2 * GEHSTEIG + 2 * BORD + FAHRBAHN
+
+  /* ------------------------------------------------ Rampe (Lage) */
+  /* Die Grube der Tiefgarage; faellt weg, wenn sie die Wohnung trifft. */
+  let rampeLage: { rk: Kante; d: P; L: number; B: number; W: number; unten: number; grube: KRechteck } | null = null
+  let loch: P[] | null = null
+  if (rampe) {
+    const d: P = [Math.cos((rampe.drehung * Math.PI) / 180), Math.sin((rampe.drehung * Math.PI) / 180)]
+    const rk: Kante = { a: [rampe.x, rampe.z], u: d, n: [-d[1], d[0]], laenge: rampe.laenge }
+    const L = rampe.laenge
+    const B = rampe.breite
+    const T = Math.min(3.2, 0.16 * L)
+    const W = 0.25
+    const grube: KRechteck = { k: rk, t0: -L / 2, t1: L / 2 + W, s0: -B / 2 - W, s1: B / 2 + W }
+    const form = rechteckForm(grube)
+    const unten = -T - 0.02
+    if (!trifftKasten(sch, ...kastenVon(form), unten - 0.4, 1.2)) {
+      rampeLage = { rk, d, L, B, W, unten, grube }
+      loch = form
+    }
+  }
+
+  /* ------------------------------------------------ Laubengang und Kern (Lage) */
+  /* Der Gang liegt an der Kante des eigenen Hauses, die am meisten nach
+   * Norden zeigt, der Kern an dem Ende, das naeher an der Strasse liegt
+   * (oder am anderen, wenn dort etwas im Weg steht). Hat das eigene Haus
+   * Plaene (E84, auch erfundene, E87), kommen Gang, Stiege und Aufzug aus
+   * ihnen. */
+  const eigenPlaene = !!eigen && Array.isArray(sd.innen) && sd.innen.some((r) => !!r && r.gebaeudeId === eigen.g.id)
+  let gang: Kante | null = null
+  let kernEnde: 0 | 1 = 1
+  let mitKern = false
+  if (eigen && !eigenPlaene) {
+    let beste = -Infinity
+    for (const k of eigen.kanten) {
+      if (k.laenge < 4) continue
+      const w = -k.n[1] + k.laenge * 1e-4
+      if (w > beste) {
+        beste = w
+        gang = k
+      }
+    }
+    if (gang) {
+      const g = gang
+      const kernForm = (ende: 0 | 1) => {
+        const t0 = ende === 1 ? g.laenge - K_LAENGE : 0
+        return rechteckForm({ k: g, t0, t1: t0 + K_LAENGE, s0: K_S0, s1: K_S1 })
+      }
+      const ok = (ende: 0 | 1) => {
+        const f = kernForm(ende)
+        const andere = haeuser.filter((h) => h !== eigen).every((h) => abstandFormen(f, h.poly) >= 0.5)
+        const spiel = !spielPoly || abstandFormen(f, spielPoly) >= 0.5
+        const grube = !loch || abstandFormen(f, loch) >= 0.5
+        const xs = f.map((p) => p[0])
+        const zs = f.map((p) => p[1])
+        const wohnung = !sch || !trifftKasten(sch, Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs), -1, 999)
+        return { gut: andere && spiel && grube, wohnung }
+      }
+      const naeher: 0 | 1 = qv(kp(g, g.laenge, 0)) >= qv(kp(g, 0, 0)) ? 1 : 0
+      const reihe: (0 | 1)[] = [naeher, naeher === 1 ? 0 : 1]
+      const passend = reihe.find((e) => ok(e).gut && ok(e).wohnung) ?? reihe.find((e) => ok(e).wohnung)
+      if (g.laenge >= K_LAENGE + 2 && passend !== undefined) {
+        kernEnde = passend
+        mitKern = true
+      }
+    }
+  }
+  /** Laengs am Gang: x im Kern (vom aeusseren Ende) als t an der Gangkante. */
+  const kt = (x: number) => (gang && kernEnde === 1 ? gang.laenge - x : x)
+  const ktSpanne = (x0: number, x1: number): [number, number] => {
+    const a1 = kt(x0)
+    const b1 = kt(x1)
+    return [Math.min(a1, b1), Math.max(a1, b1)]
+  }
+
+  /* ------------------------------------------------ Innen (E84, E87) */
+  /* Haeuser mit Plaenen: Geschosse, Waende, Tueren, Treppen, Aufzug und
+   * Hindernisse werden hier gerechnet (nur Zahlen); gebaut wird ein Haus
+   * erst, wenn die Kamera hineingeht (kamera()). Auf dem Geschoss der
+   * eigenen Wohnung fallen Wohnungen weg, die in ihrem Rechteck liegen.
+   * Haeuser ohne Plaene bekommen erfundene Wohnungen (innenGenerator.ts),
+   * wenn er welche liefert; sonst bleiben sie wie bisher. */
+  const rohe: { roh: SiedlungInnenHaus; h: Haus; erfunden: boolean }[] = []
   if (sd.innen != null) {
     if (!Array.isArray(sd.innen)) throw new Error('Siedlung: innen ist keine Liste')
     for (const roh of sd.innen) {
       const h = roh ? haeuser.find((x) => x.g.id === roh.gebaeudeId) : undefined
       if (!roh || !h) throw new Error(`Siedlung: innen fuer ein Haus, das es nicht gibt (${String(roh?.gebaeudeId)})`)
-      if (innenNach.has(h.g.id)) throw new Error(`Siedlung: innen fuer ${h.g.name || h.g.id} doppelt`)
-      const geschosse = innenLesen(roh, h)
-      if (h === eigen && rahmenLokal) {
-        const g = geschosse.find((x) => x.k === geschoss)
-        if (g) eigeneWeg(g, rahmenLokal)
-      }
-      const aufzug = aufzugFinden(geschosse)
-      for (const g of geschosse) geschossPlanen(g, h, aufzug)
-      const vorne = (geschosse.find((g) => g.k === 0)?.flaechen ?? []).filter((f) => f.art === 'draussen' && !f.weg).map((f) => f.poly)
-      const [x0, z0, x1, z1] = kastenVon([...h.poly, ...vorne.flat()])
-      const ih: InnenHaus = {
-        h,
-        geschosse,
-        nachK: new Map(geschosse.map((g) => [g.k, g])),
-        aufzug,
-        zone: [x0 - ZONE_RAND, z0 - ZONE_RAND, x1 + ZONE_RAND, z1 + ZONE_RAND],
-        vorne,
-        huelle: new Puffer(),
-        huelleMesh: null,
-        gruppe: new Group(),
-        stock: new Map(),
-        offen: geschosse.map((g) => g.k),
-        halb: new Map(),
-        ms: new Map(),
-        teile: false,
-        lift: null,
-      }
-      ih.gruppe.name = `innen:${h.g.id}`
-      ih.gruppe.visible = false
-      innenListe.push(ih)
-      innenNach.set(h.g.id, ih)
+      if (rohe.some((x) => x.h === h)) throw new Error(`Siedlung: innen fuer ${h.g.name || h.g.id} doppelt`)
+      rohe.push({ roh, h, erfunden: false })
     }
   }
+  /** Erfundene Haeuser, die verworfen wurden (der Grund steht in der Konsole). */
+  let innenFehler = 0
+  {
+    const erfinden = o.innenErfinden ?? wohnhausInnen
+    for (const h of haeuser) {
+      if (rohe.some((x) => x.h === h)) continue
+      const fr = geschossRahmen(h)
+      const nachCm = cmVon(fr.x, fr.z, fr.drehung)
+      const kernCm: [number, number][][] = []
+      const gangCm: [number, number][][] = []
+      if (h === eigen && gang) {
+        gangCm.push(rechteckForm({ k: gang, t0: 0, t1: gang.laenge, s0: 0, s1: GANG }).map(nachCm))
+        if (mitKern) {
+          const [t0, t1] = ktSpanne(0, K_LAENGE)
+          kernCm.push(rechteckForm({ k: gang, t0, t1, s0: K_S0, s1: K_S1 }).map(nachCm))
+        }
+      }
+      let roh: SiedlungInnenHaus | null = null
+      try {
+        roh = erfinden({ gebaeudeId: h.g.id, x: fr.x, z: fr.z, drehung: fr.drehung, umrissCm: h.poly.map(nachCm), geschosse: h.n, kern: kernCm, gang: gangCm })
+      } catch (err) {
+        console.warn(`[siedlung] Wohnungen fuer ${h.g.name || h.g.id} nicht erfunden:`, err)
+        innenFehler++
+        continue
+      }
+      if (!roh) continue
+      if (roh.gebaeudeId !== h.g.id) {
+        console.warn(`[siedlung] Wohnungen fuer ${h.g.name || h.g.id} verworfen: falsches Haus (${String(roh.gebaeudeId)})`)
+        innenFehler++
+        continue
+      }
+      rohe.push({ roh: h === eigen && gang ? kernDazu(roh, gang) : roh, h, erfunden: true })
+    }
+  }
+  const innenListe: InnenHaus[] = []
+  const innenNach = new Map<string, InnenHaus>()
+  for (const { roh, h, erfunden } of rohe) {
+    let ih: InnenHaus
+    try {
+      ih = innenHausAus(roh, h)
+    } catch (err) {
+      // Echte Plaene werfen laut; erfundene fallen weg, das Haus bleibt zu.
+      if (!erfunden) throw err
+      console.warn(`[siedlung] erfundene Wohnungen fuer ${h.g.name || h.g.id} verworfen:`, err)
+      innenFehler++
+      continue
+    }
+    innenListe.push(ih)
+    innenNach.set(h.g.id, ih)
+  }
   const eigenInnen = eigen ? (innenNach.get(eigen.g.id) ?? null) : null
+  // Hat das eigene Haus jetzt (erfundene) Plaene, kommen Gang und Kern aus ihnen.
+  if (eigenInnen) {
+    gang = null
+    mitKern = false
+  }
+
+  /** Ein Haus mit Plaenen lesen und planen (nur Zahlen). */
+  function innenHausAus(roh: SiedlungInnenHaus, h: Haus): InnenHaus {
+    const geschosse = innenLesen(roh, h)
+    if (h === eigen && rahmenLokal) {
+      const g = geschosse.find((x) => x.k === geschoss)
+      if (g) eigeneWeg(g, rahmenLokal)
+    }
+    const aufzug = aufzugFinden(geschosse)
+    const stiegen = stiegenPlanen(geschosse, h.gh)
+    for (const g of geschosse) geschossPlanen(g, h, aufzug, stiegen)
+    const vorne = (geschosse.find((g) => g.k === 0)?.flaechen ?? []).filter((f) => f.art === 'draussen' && !f.weg).map((f) => f.poly)
+    const anbau = geschosse.flatMap((g) => g.flaechen.filter((f) => f.wohnung < 0 && !innen(mitteVon(f.poly), h.poly)).map((f) => f.poly))
+    const [x0, z0, x1, z1] = kastenVon([...h.poly, ...vorne.flat(), ...anbau.flat()])
+    const ih: InnenHaus = {
+      h,
+      geschosse,
+      nachK: new Map(geschosse.map((g) => [g.k, g])),
+      aufzug,
+      zone: [x0 - ZONE_RAND, z0 - ZONE_RAND, x1 + ZONE_RAND, z1 + ZONE_RAND],
+      vorne,
+      anbau,
+      huelle: new Puffer(),
+      huelleMesh: null,
+      gruppe: new Group(),
+      stock: new Map(),
+      offen: geschosse.map((g) => g.k),
+      halb: new Map(),
+      ms: new Map(),
+      teile: false,
+      lift: null,
+      stiegen,
+    }
+    ih.gruppe.name = `innen:${h.g.id}`
+    ih.gruppe.visible = false
+    return ih
+  }
+
+  /** Kern und Laubengang (E83) als allgemeine Flaechen in erfundene Plaene
+   *  des eigenen Hauses, wo dort noch keine solche liegt: so baut die
+   *  Pipeline der Plaene Stiege mit Treppe, Aufzug und Laubengang; das
+   *  Podest vor der Treppe gehoert zum Laubengang. */
+  function kernDazu(roh: SiedlungInnenHaus, g: Kante): SiedlungInnenHaus {
+    if (!Array.isArray(roh.geschosse) || ![0, 90, 180, 270].includes(roh.drehung) || !Number.isFinite(roh.x) || !Number.isFinite(roh.z)) return roh
+    const nachCm = cmVon(roh.x, roh.z, roh.drehung)
+    const [c, s] = DREH[roh.drehung]
+    const ausCm = (v: unknown): P | null =>
+      Array.isArray(v) && Number.isFinite(v[0]) && Number.isFinite(v[1]) ? [roh.x + (c * v[0] - s * v[1]) / 100, roh.z + (s * v[0] + c * v[1]) / 100] : null
+    const neu: { art: 'stiege' | 'aufzug' | 'laubengang'; punkte: P[] }[] = [{ art: 'laubengang', punkte: rechteckForm({ k: g, t0: 0, t1: g.laenge, s0: 0, s1: GANG }) }]
+    if (mitKern) {
+      const teil = (x0: number, x1: number, art: 'stiege' | 'aufzug' | 'laubengang') => {
+        const [t0, t1] = ktSpanne(x0, x1)
+        return { art, punkte: rechteckForm({ k: g, t0, t1, s0: K_S0, s1: K_S1 }) }
+      }
+      neu.push(teil(0, K_SCHACHT, 'aufzug'), teil(K_SCHACHT, K_PODEST, 'laubengang'), teil(K_PODEST, K_LAENGE, 'stiege'))
+    }
+    const geschosse: SiedlungInnenGeschoss[] = roh.geschosse.map((gs) => {
+      if (!gs || !Array.isArray(gs.allgemein)) return gs
+      // Gang und Kern, die der Generator als ganze Flaechen uebernommen hat
+      // ('gang' ueber dem Laubengang, 'stiege' ueber dem ganzen Kern),
+      // ersetzen die genauen Teile; sonst laegen Boeden doppelt (Flimmern)
+      // und die Treppe koennte im Schacht landen.
+      const behalten = gs.allgemein.filter((a) => {
+        if (!a || !Array.isArray(a.punkte) || a.punkte.length < 3) return true
+        if (a.art !== 'gang' && a.art !== 'stiege' && a.art !== 'aufzug' && a.art !== 'laubengang') return true
+        const poly = a.punkte.map(ausCm)
+        if (!poly.every((x) => x !== null)) return true
+        const p = poly as P[]
+        return !neu.some((n) => innen(mitteVon(n.punkte), p) || innen(mitteVon(p), n.punkte))
+      })
+      const schon = (n: { art: string; punkte: P[] }) =>
+        behalten.some((a) => {
+          if (!a || a.art !== n.art || !Array.isArray(a.punkte) || a.punkte.length < 3) return false
+          const poly = a.punkte.map(ausCm)
+          return poly.every((x) => x !== null) && innen(mitteVon(n.punkte), poly as P[])
+        })
+      const dazu = neu.filter((n) => !schon(n)).map((n) => ({ art: n.art, punkte: n.punkte.map(nachCm) }))
+      return dazu.length || behalten.length !== gs.allgemein.length ? { ...gs, allgemein: [...behalten, ...dazu] } : gs
+    })
+    return { ...roh, geschosse }
+  }
+
+  /* ------------------------------------------------ Stadt (E87) */
+  /* Die Umgebung aus siedlung.stadt: ihre Gruppe, ihre Hindernisse und ihr
+   * Gelaende auf der Ebene des Bodens (Kennung bodenId, immer Index 0),
+   * ihre Ebenen hinter den eigenen. Mit Stadt faellt die eigene weite
+   * Umgebung weg (Wiese bis 300 m, Strasse, Hecken, Laternen, erfundene
+   * Nachbarn); es bleibt der Grund der Siedlung. Unbrauchbare Daten:
+   * stadtFehler, und die Siedlung steht wie ohne Stadt. */
+  const bodenId = innenListe.length ? (wohnungDa && geschoss === 0 ? 'wohnung' : 'boden') : eigen ? (wohnungDa && geschoss === 0 ? 'wohnung' : 'geschoss-0') : 'garten'
+  let stadt: StadtWelt | null = null
+  let stadtFehler: string | null = null
+  if (sd.stadt != null) {
+    const probleme = stadtPruefen(sd.stadt)
+    if (probleme.length) stadtFehler = `Siedlung: die Stadt ist ungueltig (${probleme.slice(0, 3).join(', ')})`
+    else {
+      try {
+        const zuWelt = new Matrix4().makeRotationY(rad).setPosition(-(cs * wx + sn * wz), -absenk, -(-sn * wx + cs * wz))
+        // Kein Gelaende der Stadt, wo die Siedlung ihren Boden selbst zeichnet
+        // (um Haeuser, Spielplatz und Wege, innerhalb der eigenen Wiese, kein
+        // Flimmern) und in der Grube der Rampe (sonst laege es darueber).
+        const kern = kastenVon([...alle, ...(spielPoly ?? []), ...wege.flat(), ...(loch ?? [])])
+        const aussparen: [number, number][][] = [
+          [
+            [kern[0] - KERN_RAND, kern[1] - KERN_RAND],
+            [kern[2] + KERN_RAND, kern[1] - KERN_RAND],
+            [kern[2] + KERN_RAND, kern[3] + KERN_RAND],
+            [kern[0] - KERN_RAND, kern[3] + KERN_RAND],
+          ],
+        ]
+        if (loch) aussparen.push(loch.map((p): [number, number] => [p[0], p[1]]))
+        stadt = (o.stadtBauen ?? baueStadt)({ stadt: sd.stadt, farben: o.farben, zuWelt, bodenEbene: bodenId, bodenY: -absenk, aussparen })
+      } catch (err) {
+        stadtFehler = `Siedlung: die Stadt laesst sich nicht bauen (${err instanceof Error ? err.message : String(err)})`
+      }
+    }
+    if (stadtFehler) console.warn(`[siedlung] ${stadtFehler}`)
+  }
+  const stadtDa = stadt !== null
 
   const F = farbenAus(o.farben)
   const zz = zufallMit(
@@ -2049,45 +2618,8 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   /** Hindernisse draussen (lokal). */
   const garten: KRechteck[] = []
 
-  /* ------------------------------------------------ Strasse */
-  /* Die Seite der Siedlung (Ost, Sued, West, Nord), an der am meisten
-   * Fassade in einer Flucht steht. */
-  const SEITEN: { name: string; q: P }[] = [
-    { name: 'ost', q: [1, 0] },
-    { name: 'sued', q: [0, 1] },
-    { name: 'west', q: [-1, 0] },
-    { name: 'nord', q: [0, -1] },
-  ]
-  let seite = SEITEN[0]
-  let besteWertung = -1
-  for (const s of SEITEN) {
-    const c0 = Math.max(...alle.map((p) => p[0] * s.q[0] + p[1] * s.q[1]))
-    let w = 0
-    for (const h of haeuser) {
-      for (const k of h.kanten) {
-        const m = kp(k, k.laenge / 2, 0)
-        if (k.n[0] * s.q[0] + k.n[1] * s.q[1] > 0.97 && Math.abs(m[0] * s.q[0] + m[1] * s.q[1] - c0) <= 3) w += k.laenge
-      }
-    }
-    if (w > besteWertung + EPS) {
-      besteWertung = w
-      seite = s
-    }
-  }
-  const q = seite.q
-  const l: P = [-q[1], q[0]]
-  const qv = (p: P) => p[0] * q[0] + p[1] * q[1]
-  const lv = (p: P) => p[0] * l[0] + p[1] * l[1]
-  const c0 = Math.max(...alle.map(qv))
-  const qmin = Math.min(...alle.map(qv))
-  const lmin = Math.min(...alle.map(lv))
-  const lmax = Math.max(...alle.map(lv))
-  const lmitte = (lmin + lmax) / 2
-  /** Kante entlang der Strasse: t ist die Lage laengs, s der Abstand quer. */
-  const sk: Kante = { a: [0, 0], u: l, n: q, laenge: 0 }
-  const strasseQ0 = c0 + VORGARTEN
-  const strasseQ1 = strasseQ0 + 2 * GEHSTEIG + 2 * BORD + FAHRBAHN
-  {
+  /* ------------------------------------------------ Strasse (ohne Stadt) */
+  if (!stadtDa) {
     const t0 = lmitte - STRASSE_HALB
     const t1 = lmitte + STRASSE_HALB
     const baender: [number, number, number, Color][] = [
@@ -2102,17 +2634,8 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   }
 
   /* ------------------------------------------------ Rampe der Tiefgarage */
-  let loch: P[] | null = null
-  if (rampe) {
-    const d: P = [Math.cos((rampe.drehung * Math.PI) / 180), Math.sin((rampe.drehung * Math.PI) / 180)]
-    const rk: Kante = { a: [rampe.x, rampe.z], u: d, n: [-d[1], d[0]], laenge: rampe.laenge }
-    const L = rampe.laenge
-    const B = rampe.breite
-    const T = Math.min(3.2, 0.16 * L)
-    const W = 0.25
-    const grube: KRechteck = { k: rk, t0: -L / 2, t1: L / 2 + W, s0: -B / 2 - W, s1: B / 2 + W }
-    loch = rechteckForm(grube)
-    const unten = -T - 0.02
+  if (rampeLage) {
+    const { rk, d, L, B, W, unten, grube } = rampeLage
     // Fahrbahn: schraege Platte von oben (Gelaende) nach unten.
     const ax = normiert([d[0] * L, unten - GEH, d[1] * L])
     let az: V3 = [-d[1], 0, d[0]]
@@ -2122,22 +2645,20 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       ay = kreuz(az, ax)
     }
     const lang = Math.hypot(L, unten - GEH)
-    const m: V3 = [rampe.x - ay[0] * 0.125, (GEH + unten) / 2 - ay[1] * 0.125, rampe.z - ay[2] * 0.125]
-    if (!trifftKasten(sch, ...kastenVon(loch), unten - 0.4, 1.2)) {
-      gelaende.quader(m, ax, ay, az, lang, 0.25, B, F.asphalt)
-      // Boden vor dem Tor, Seitenwaende, Stirnwand mit Tor, Gelaender.
-      kq(gelaende, rk, L / 2 - 0.01, L / 2 + W, -B / 2, B / 2, unten - 0.3, unten, F.asphalt, null)
-      for (const s of [-1, 1]) {
-        const s0 = s < 0 ? -B / 2 - W : B / 2
-        kq(bauten, rk, -L / 2, L / 2 + W, s0, s0 + W, unten - 0.3, 0.95, F.beton, null)
-        gelaenderLinie(bauten, rk, -L / 2 + 0.1, L / 2 + W - 0.1, s0 + W / 2, 0.95, F.gelaender, null, 0.1, 0)
-      }
-      kq(bauten, rk, L / 2, L / 2 + W, -B / 2, B / 2, unten - 0.3, 0.95, F.beton, null)
-      kq(bauten, rk, L / 2 - 0.03, L / 2, -B / 2 + 0.3, B / 2 - 0.3, unten, unten + 2.3, F.schwarz, null)
-      gelaenderLinie(bauten, quer(rk, L / 2 + W / 2), -B / 2 - W, B / 2 + W, 0, 0.95, F.gelaender, null, 0.1, 0)
-      belegen(rechteckForm(wachsen(grube, 0.5)))
-      garten.push(grube)
-    } else loch = null
+    const m: V3 = [rk.a[0] - ay[0] * 0.125, (GEH + unten) / 2 - ay[1] * 0.125, rk.a[1] - ay[2] * 0.125]
+    gelaende.quader(m, ax, ay, az, lang, 0.25, B, F.asphalt)
+    // Boden vor dem Tor, Seitenwaende, Stirnwand mit Tor, Gelaender.
+    kq(gelaende, rk, L / 2 - 0.01, L / 2 + W, -B / 2, B / 2, unten - 0.3, unten, F.asphalt, null)
+    for (const s of [-1, 1]) {
+      const s0 = s < 0 ? -B / 2 - W : B / 2
+      kq(bauten, rk, -L / 2, L / 2 + W, s0, s0 + W, unten - 0.3, 0.95, F.beton, null)
+      gelaenderLinie(bauten, rk, -L / 2 + 0.1, L / 2 + W - 0.1, s0 + W / 2, 0.95, F.gelaender, null, 0.1, 0)
+    }
+    kq(bauten, rk, L / 2, L / 2 + W, -B / 2, B / 2, unten - 0.3, 0.95, F.beton, null)
+    kq(bauten, rk, L / 2 - 0.03, L / 2, -B / 2 + 0.3, B / 2 - 0.3, unten, unten + 2.3, F.schwarz, null)
+    gelaenderLinie(bauten, quer(rk, L / 2 + W / 2), -B / 2 - W, B / 2 + W, 0, 0.95, F.gelaender, null, 0.1, 0)
+    belegen(rechteckForm(wachsen(grube, 0.5)))
+    garten.push(grube)
   }
 
   /* ------------------------------------------------ Spielplatz */
@@ -2176,58 +2697,8 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     for (const w of wege) for (let i = 0; i + 1 < w.length; i++) d = Math.min(d, abstandFormen(form, [w[i], w[i + 1]]))
     return d
   }
-
-  /* ------------------------------------------------ Laubengang und Kern */
-  /* Der Gang liegt an der Kante des eigenen Hauses, die am meisten nach
-   * Norden zeigt, der Kern an dem Ende, das naeher an der Strasse liegt
-   * (oder am anderen, wenn dort etwas im Weg steht). Hat das eigene Haus
-   * Plaene (E84), kommen Gang, Stiege und Aufzug aus ihnen. */
-  let gang: Kante | null = null
-  let kernEnde: 0 | 1 = 1
-  let mitKern = false
-  if (eigen && !eigenInnen) {
-    let beste = -Infinity
-    for (const k of eigen.kanten) {
-      if (k.laenge < 4) continue
-      const w = -k.n[1] + k.laenge * 1e-4
-      if (w > beste) {
-        beste = w
-        gang = k
-      }
-    }
-    if (gang) {
-      const g = gang
-      const kernForm = (ende: 0 | 1) => {
-        const t0 = ende === 1 ? g.laenge - K_LAENGE : 0
-        return rechteckForm({ k: g, t0, t1: t0 + K_LAENGE, s0: K_S0, s1: K_S1 })
-      }
-      const ok = (ende: 0 | 1) => {
-        const f = kernForm(ende)
-        const andere = haeuser.filter((h) => h !== eigen).every((h) => abstandFormen(f, h.poly) >= 0.5)
-        const spiel = !spielPoly || abstandFormen(f, spielPoly) >= 0.5
-        const grube = !loch || abstandFormen(f, loch) >= 0.5
-        const xs = f.map((p) => p[0])
-        const zs = f.map((p) => p[1])
-        const wohnung = !sch || !trifftKasten(sch, Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs), -1, 999)
-        return { gut: andere && spiel && grube, wohnung }
-      }
-      const naeher: 0 | 1 = qv(kp(g, g.laenge, 0)) >= qv(kp(g, 0, 0)) ? 1 : 0
-      const reihe: (0 | 1)[] = [naeher, naeher === 1 ? 0 : 1]
-      const passend = reihe.find((e) => ok(e).gut && ok(e).wohnung) ?? reihe.find((e) => ok(e).wohnung)
-      if (g.laenge >= K_LAENGE + 2 && passend !== undefined) {
-        kernEnde = passend
-        mitKern = true
-      }
-      belegen(rechteckForm({ k: g, t0: -0.5, t1: g.laenge + 0.5, s0: 0, s1: mitKern ? K_S1 + 0.3 : GANG + 0.3 }))
-    }
-  }
-  /** Laengs am Gang: x im Kern (vom aeusseren Ende) als t an der Gangkante. */
-  const kt = (x: number) => (gang && kernEnde === 1 ? gang.laenge - x : x)
-  const ktSpanne = (x0: number, x1: number): [number, number] => {
-    const a1 = kt(x0)
-    const b1 = kt(x1)
-    return [Math.min(a1, b1), Math.max(a1, b1)]
-  }
+  /* Laubengang und Kern: ihr Platz ist belegt. */
+  if (gang) belegen(rechteckForm({ k: gang, t0: -0.5, t1: gang.laenge + 0.5, s0: 0, s1: mitKern ? K_S1 + 0.3 : GANG + 0.3 }))
 
   /* ------------------------------------------------ Haeuser */
   const fassadeVon = (h: Haus): Color =>
@@ -2705,6 +3176,11 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   /** Hindernisse je Geschoss des eigenen Hauses (ohne Waende und Garten). */
   const gangHindernisse: KRechteck[][] = []
   const kernHindernisse: KRechteck[] = []
+  /** Treppe im Kern (E87): Hindernisse je Geschoss, auf jedem
+   *  Zwischenpodest, und die beiden Laeufe (lokal, im Erdgeschoss). */
+  const kernStufen: KRechteck[][] = []
+  const kernPodest: KRechteck[] = []
+  const kernLaeufe: [Lauf, Lauf][] = []
   const saeulen: KRechteck[] = []
   const eingaenge: P[][] = []
   /** Fuer die Minikarte (E86), lokal: Wege von Haustueren zum Gehsteig,
@@ -2828,16 +3304,44 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       fenster(hinten, kt((K_PODEST + K_ZWISCHEN) / 2), y + 0.7, 2.6, 1.9)
       fenster(stirn, (K_S1 - K_S0) / 2, y + 0.9, 1.4, 1.6)
     }
-    /* Hindernisse des Kerns, in jedem Geschoss gleich. */
+    /* Hindernisse des Kerns, in jedem Geschoss gleich: Schacht, Rueck- und
+     * Stirnwand. */
     kernHindernisse.push(
       kr(0, K_WAND, K_S0, K_S1),
       kr(K_SCHACHT - K_WAND, K_SCHACHT, K_S0, K_S1),
       kr(0, K_SCHACHT, K_S1 - K_WAND, K_S1),
       kr(0, K_TUER0, K_S0, K_S0 + K_WAND),
       kr(K_TUER1, K_SCHACHT, K_S0, K_S0 + K_WAND),
-      kr(K_PODEST, K_LAENGE, K_S0, K_S1),
       kr(K_SCHACHT, K_LAENGE, K_S1 - K_WAND, K_S1),
+      kr(K_LAENGE - K_WAND, K_LAENGE, K_S0, K_S1),
     )
+    /* Die Treppe zum Begehen (E87): zwei Laeufe je Geschoss, Haelfte A
+     * (K_LAUF_A) hinauf zum Zwischenpodest, Haelfte B (K_LAUF_B) zurueck
+     * hinauf zum Geschosspodest des naechsten Geschosses. Im Geschoss frei:
+     * der Antritt am Geschosspodest; zu: das Loch zum Zwischenpodest, die
+     * Seiten (Gelaender zum Gang, Rueckwand), die Mittelwand, unten die
+     * Haelfte B (unter dem Lauf), oben die Haelfte A (kein Lauf hinauf). */
+    const [a0, a1] = K_LAUF_A
+    const [b0, b1] = K_LAUF_B
+    for (let k = 0; k < N; k++) {
+      const liste = [kr(K_T1, K_LAENGE, K_S0, K_S1), kr(K_T0, K_T1, a1, b0), kr(K_T0, K_LAENGE, K_S0 - 0.05, a0), kr(K_T0, K_LAENGE, b1, K_S1)]
+      if (k === N - 1) liste.push(kr(K_T0, K_T1, a0, a1))
+      if (k === 0) liste.push(kr(K_T0, K_T1, b0, b1))
+      kernStufen.push(liste)
+    }
+    // Auf dem Zwischenpodest rundum zu, frei nur die Laeufe von ihm aus.
+    kernPodest.push(
+      kr(K_T0 - 0.5, K_T0, K_S0 - 0.3, K_S1 + 0.1),
+      kr(K_T0, K_LAUF, a1, b0),
+      kr(K_T0 - 0.5, K_LAENGE + 0.1, K_S0 - 0.3, a0),
+      kr(K_T0 - 0.5, K_LAENGE + 0.1, b1, K_S1 + 0.3),
+      kr(K_ZWISCHEN, K_LAENGE + 0.3, K_S0 - 0.3, K_S1 + 0.3),
+    )
+    const lauf = (s0: number, s1: number, rauf: P): Lauf => {
+      const [t0, t1] = ktSpanne(K_T0, K_T1)
+      return { c: kp(g, (t0 + t1) / 2, (s0 + s1) / 2), u: rauf, laenge: K_T1 - K_T0, breite: s1 - s0, stufen: 9 }
+    }
+    kernLaeufe.push([lauf(a0, a1, ex), lauf(b0, b1, [-ex[0], -ex[1]])])
 
     /* Kabine: Boden, Waende, Decke mit Licht, Spiegel, Handlauf, Tafel mit
      * Knoepfen, zwei Tuerblaetter. Gebaut fuer das Erdgeschoss; das Mesh
@@ -3197,63 +3701,39 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     }
   }
 
-  /** Treppe in der Flaeche einer Stiege, von diesem Geschoss zum naechsten
-   *  (wenn es das gibt): lang genug ein gerader Lauf mit Podest oben, sonst
-   *  zwei Laeufe mit Zwischenpodest. Oben das Podest des Laufs von unten. */
-  function treppeBauen(p: Puffer, f: IFlaeche, g: IGeschoss, ih: InnenHaus): void {
-    const kasten = kastenAn(f)
-    const { L, B } = kasten
-    // Der Antritt liegt an dem Ende, vor dem Gang oder Laubengang liegen.
-    const vor = (q: P) => g.flaechen.some((x) => (x.art === 'gang' || x.art === 'laubengang') && innen(q, x.poly))
-    const k: Kante =
-      !vor(kp(kasten.k, -0.4, B / 2)) && vor(kp(kasten.k, L + 0.4, B / 2))
-        ? { a: kp(kasten.k, L, B), u: [-kasten.k.u[0], -kasten.k.u[1]], n: [-kasten.k.n[0], -kasten.k.n[1]], laenge: L }
-        : kasten.k
-    const gh = ih.h.gh
+  /** Treppe in der Flaeche einer Stiege (E87, siehe TreppenLage): im
+   *  Geschoss das Podest am Antritt, dann, wenn es hinauf geht, die beiden
+   *  Laeufe, das Zwischenpodest und die Mittelwand bis zum naechsten
+   *  Geschoss; im obersten ein Gelaender um das Loch ueber dem ersten
+   *  Lauf. Ohne Treppe (oder ohne Lauf von unten) ein Boden ueber das ganze
+   *  Stiegenhaus, im EG legt ihn bodenLegen. */
+  function treppeBauen(pf: Puffer, f: IFlaeche, g: IGeschoss, ih: InnenHaus): void {
     const yF = g.y
-    const hoch = ih.nachK.has(g.k + 1)
-    const vonUnten = g.k > 0 && ih.nachK.has(g.k - 1)
-    const kk = (t0: number, t1: number, s0: number, s1: number, y0: number, y1: number, c: Color) => kq(p, k, t0, t1, s0, s1, y0, y1, c, sch)
-    const gerade = L >= 3.6 || B < 1.8
-    const N = Math.max(4, Math.round(gh / 0.175))
-    const R = gerade ? Math.max(1, Math.min(L - 1, (N - 1) * 0.27)) : 0
-    if (gerade) {
-      if (vonUnten) kk(R, L, 0, B, yF - DECKE, yF, F.beton)
-      if (!hoch) return
-      const W = Math.min(B - 0.1, 1.3)
-      const rise = gh / N
-      const tritt = R / (N - 1)
-      for (let j = 1; j < N; j++) kk((j - 1) * tritt, j * tritt, 0.05, 0.05 + W, yF + j * rise - rise - 0.12, yF + j * rise, F.beton)
-      // Handlauf schraeg auf der offenen Seite.
-      const s = 0.05 + W - 0.03
-      const a = kp(k, 0, s)
-      const e = kp(k, R, s)
-      const lang = Math.hypot(R, gh)
-      const ax = normiert([e[0] - a[0], gh, e[1] - a[1]])
-      let az: V3 = [-k.u[1], 0, k.u[0]]
-      let ay = kreuz(az, ax)
-      if (ay[1] < 0) {
-        az = [-az[0], 0, -az[2]]
-        ay = kreuz(az, ax)
-      }
-      if (!trifftKasten(sch, Math.min(a[0], e[0]), Math.min(a[1], e[1]), Math.max(a[0], e[0]), Math.max(a[1], e[1]), yF, yF + gh + 1)) {
-        p.quader([(a[0] + e[0]) / 2, yF + gh / 2 + 0.9, (a[1] + e[1]) / 2], ax, ay, az, lang, 0.04, 0.04, F.gelaender)
-        for (const t of [0.1, R - 0.1]) kk(t - 0.02, t + 0.02, s - 0.02, s + 0.02, yF + (t / R) * gh, yF + (t / R) * gh + 0.9, F.gelaender)
+    const st = ih.stiegen.get(f)
+    if ((!st || !st.runter) && g.k > 0) flaecheOhne(pf, f.poly, yF, F.beton)
+    if (!st) return
+    const { k, L, B, p, R, a, steig } = st.lage
+    const kk = (t0: number, t1: number, s0: number, s1: number, y0: number, y1: number, c: Color) => kq(pf, k, t0, t1, s0, s1, y0, y1, c, sch)
+    const m = B / 2
+    const e = p + R * a
+    if (st.runter) kk(0, p + a / 2, 0, B, yF - 0.2, yF, F.beton)
+    if (!st.hoch) {
+      if (st.runter) {
+        bruestungBauen(pf, k, p, e, m, yF)
+        bruestungBauen(pf, quer(k, p), 0, m, 0, yF)
       }
       return
     }
-    // Zwei Laeufe: hin auf der einen Haelfte, Zwischenpodest, zurueck.
-    if (!hoch) return
-    const N2 = Math.max(3, Math.round(gh / 2 / 0.175))
-    const rise = gh / 2 / N2
-    const Rr = Math.max(1, L - 1.1)
-    const tritt = Rr / (N2 - 1)
-    for (let j = 1; j < N2; j++) {
-      kk((j - 1) * tritt, j * tritt, 0.05, B / 2 - 0.05, yF + j * rise - rise - 0.12, yF + j * rise, F.beton)
-      kk(Rr - j * tritt, Rr - (j - 1) * tritt, B / 2 + 0.05, B - 0.05, yF + gh / 2 + j * rise - rise - 0.12, yF + gh / 2 + j * rise, F.beton)
+    const gh = ih.h.gh
+    const [a0, a1] = [T_RAND, m - T_MITTE / 2]
+    const [b0, b1] = [m + T_MITTE / 2, B - T_RAND]
+    for (let i = 1; i < R; i++) {
+      const y = yF + i * steig
+      kk(p + (i - 0.5) * a, p + (i + 0.5) * a, a0, a1, y - steig - 0.12, y, F.beton)
+      kk(e - (i + 0.5) * a, e - (i - 0.5) * a, b0, b1, y + gh / 2 - steig - 0.12, y + gh / 2, F.beton)
     }
-    kk(Rr, L, 0.05, B - 0.05, yF + gh / 2 - 0.2, yF + gh / 2, F.beton)
-    kk(0, Rr, B / 2 - 0.05, B / 2 + 0.05, yF, yF + gh, F.wand)
+    kk(p + (R - 0.5) * a, L, T_RAND / 2, B - T_RAND / 2, yF + gh / 2 - 0.2, yF + gh / 2, F.beton)
+    kk(p, p + (R - 0.5) * a, a1, b0, yF, yF + gh, F.wand)
   }
 
   /** Gelaender innen, sparsam: Handlauf, Fuellung, Pfosten (statt Staeben). */
@@ -3305,6 +3785,8 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   /* ------------------------------------------------ Parkplatz */
   let parkplaetze = 0
   let autos = 0
+  /** Geparkte Autos (lokal, E87), gebaut werden sie mit der Welt. */
+  const geparkt: { c: P; vorne: P; farbe: string; art: FahrzeugArt }[] = []
   /** Bester Platz fuer n Stellplaetze (Reihe von n * 2,5 m, 11 m tief mit
    *  Fahrgasse): frei von allem, moeglichst mittig in der Siedlung. */
   const parkplatzSuchen = (n: number): KRechteck | null => {
@@ -3349,10 +3831,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       for (let i = 0; i < parkplaetze; i++) {
         if (zz() > 0.62) continue
         const farbe = [F.weiss, F.schwarz, F.metall, F.rot, F.blau, F.putzGrau][Math.floor(zz() * 6)]
-        if (auto(quer(k, (i + 0.5) * 2.5, 2.55), farbe)) {
-          garten.push({ k: quer(k, (i + 0.5) * 2.5, 2.55), t0: -2.2, t1: 2.2, s0: -0.95, s1: 0.95 })
-          autos++
-        }
+        if (parken(quer(k, (i + 0.5) * 2.5, 2.55), farbe, i % 3 === 2 ? 'kombi' : 'auto')) autos++
       }
       belegen(rechteckForm(wachsen(r, 0.5)))
       // Zufahrt zur Strasse, wenn der Weg frei ist (nur bei Lage laengs der Strasse).
@@ -3371,36 +3850,22 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     }
   }
 
-  /** Auto aus runden Quadern und Raedern, laengs der Kante k. */
-  function auto(k: Kante, farbe: Color): boolean {
-    const xs = [-2.2, 2.2].flatMap((t) => [-0.95, 0.95].map((s) => kp(k, t, s)))
+  /** Ein geparktes Auto (E87: zum Einsteigen, Fahrzeug3D) laengs der Kante
+   *  k, vorne zur Fahrgasse (+k.u), damit man vorwaerts ausparkt. Nicht im
+   *  Rechteck der Wohnung. Kein Hindernis: Fahrzeuge kennt der Motor. */
+  function parken(k: Kante, farbe: Color, art: FahrzeugArt): boolean {
+    const xs = [-2.4, 2.4].flatMap((t) => [-0.95, 0.95].map((s) => kp(k, t, s)))
     const x0 = Math.min(...xs.map((p) => p[0]))
     const x1 = Math.max(...xs.map((p) => p[0]))
     const z0 = Math.min(...xs.map((p) => p[1]))
     const z1 = Math.max(...xs.map((p) => p[1]))
     if (trifftKasten(sch, x0, z0, x1, z1, -0.1, 1.6)) return false
-    const ax: V3 = [k.u[0], 0, k.u[1]]
-    const az: V3 = [-k.u[1], 0, k.u[0]]
-    const rq = (t: number, y: number, sx: number, sy: number, sz: number, f: Color, r: number) => {
-      const c = kp(k, t, 0)
-      const geo = new RoundedBoxGeometry(1, 1, 1, 1, r)
-      const v = vorlageAusGeo(geo)
-      bauten.form(v, achsenMatrix([c[0], y, c[1]], ax, [0, 1, 0], az, sx, sy, sz), f)
-    }
-    rq(0, 0.62, 4.3, 0.72, 1.78, farbe, 0.16)
-    rq(-0.2, 1.22, 2.3, 0.52, 1.6, F.glasDunkel, 0.2)
-    for (const t of [-1.35, 1.35]) {
-      for (const s of [-0.78, 0.78]) {
-        const c = kp(k, t, s)
-        bauten.form(walze(), achsenMatrix([c[0], 0.32, c[1]], ax, az, [0, -1, 0], 0.32, 0.22, 0.32), F.schwarz)
-      }
-    }
+    geparkt.push({ c: k.a, vorne: k.u, farbe: `#${farbe.getHexString()}`, art })
     return true
   }
-
-  /* ------------------------------------------------ Hecken an der Strasse */
+  /* ------------------------------------------------ Hecken an der Strasse (ohne Stadt) */
   let hecken = 0
-  {
+  if (!stadtDa) {
     const q0 = strasseQ0 - 1.3
     const q1 = strasseQ0 - 0.5
     for (const h of haeuser) {
@@ -3437,8 +3902,9 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
           const xs = form.map((p) => p[0])
           const zs = form.map((p) => p[1])
           if (trifftKasten(sch, Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs), -0.1, 1.1)) continue
-          rundTeil(gruen, sk, r, -0.05, 1.0 + zz() * 0.15, F.hecke.clone().multiplyScalar(0.92 + zz() * 0.12), 0.28, 0.3)
-          garten.push(r)
+          const hoch = 1.0 + zz() * 0.15
+          rundTeil(gruen, sk, r, -0.05, hoch, F.hecke.clone().multiplyScalar(0.92 + zz() * 0.12), 0.28, 0.3)
+          garten.push({ ...r, oben: Math.round(hoch * 100) / 100 })
           belegen(form)
           hecken++
         }
@@ -3455,8 +3921,8 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     p.form(vorlageAusGeo(geo), achsenMatrix([c[0], (y0 + y1) / 2, c[1]], [k.u[0], 0, k.u[1]], [0, 1, 0], [-k.u[1], 0, k.u[0]], 1, 1, 1), f, schatten)
   }
 
-  /* ------------------------------------------------ Laternen */
-  {
+  /* ------------------------------------------------ Laternen (ohne Stadt) */
+  if (!stadtDa) {
     const qL = strasseQ0 + GEHSTEIG - 0.35
     for (let t = lmin - 6; t <= lmax + 6; t += 26) {
       const c = kp(sk, t, qL)
@@ -3469,9 +3935,9 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     }
   }
 
-  /* ------------------------------------------------ Nachbarhaeuser */
+  /* ------------------------------------------------ Nachbarhaeuser (ohne Stadt) */
   let nachbarn = 0
-  {
+  if (!stadtDa) {
     const haus2 = (r: KRechteck, stock: number) => {
       const form = rechteckForm(r)
       if (!frei(form, 3) || wegAbstand(form) < 3) return
@@ -3507,10 +3973,12 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   {
     const stamme: P[] = []
     const ziel = 26
-    const x0 = bx0 - 12
-    const x1 = bx1 + 12
-    const z0 = bz0 - 12
-    const z1 = bz1 + 12
+    // Mit Stadt nur auf dem Grund der Siedlung (E87).
+    const rand = stadtDa ? BAUM_RAND_STADT : 12
+    const x0 = bx0 - rand
+    const x1 = bx1 + rand
+    const z0 = bz0 - rand
+    const z1 = bz1 + rand
     for (let versuch = 0; versuch < 4000 && baeume < ziel; versuch++) {
       const p: P = [x0 + zz() * (x1 - x0), z0 + zz() * (z1 - z0)]
       const r0 = 1.5 + zz() * 1.1
@@ -3566,7 +4034,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       if (qv(p) > strasseQ0 - 1.4) continue
       if (trifftKasten(sch, p[0] - r, p[1] - r, p[0] + r, p[1] + r, -0.1, 1.2)) continue
       gruen.form(kugelGrob(), achsenMatrix([p[0], r * 0.55, p[1]], [1, 0, 0], [0, 1, 0], [0, 0, 1], r, r * 0.85, r), F.hecke.clone().lerp(F.laub[Math.floor(zz() * 4)], 0.25 * zz()), 0.3)
-      garten.push(kastenRechteck(p[0] - r * 0.8, p[1] - r * 0.8, p[0] + r * 0.8, p[1] + r * 0.8))
+      garten.push({ ...kastenRechteck(p[0] - r * 0.8, p[1] - r * 0.8, p[0] + r * 0.8, p[1] + r * 0.8), oben: Math.round(r * 1.4 * 100) / 100 })
       belegen(form)
       buesche++
     }
@@ -3585,7 +4053,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     const um = (Math.max(...us) + Math.min(...us)) / 2
     const vm = (Math.max(...vs) + Math.min(...vs)) / 2
     const gesetzt: P[][] = []
-    const platz = (lang: number, breit: number, kand: [number, number][]): Kante | null => {
+    const platz = (lang: number, breit: number, kand: [number, number][], oben?: number): Kante | null => {
       for (const [fu, fv] of kand) {
         for (const s of [1, 0.75, 0.5, 0.25, 0]) {
           const c: P = [mitte[0] + e[0] * (um + fu * hu * s) + f[0] * (vm + fv * hv * s), mitte[1] + e[1] * (um + fu * hu * s) + f[1] * (vm + fv * hv * s)]
@@ -3598,7 +4066,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
           const zs = form.map((p) => p[1])
           if (trifftKasten(sch, Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs), -0.1, 3.2)) continue
           gesetzt.push(form)
-          garten.push({ k, t0: -lang / 2, t1: lang / 2, s0: -breit / 2, s1: breit / 2 })
+          garten.push({ k, t0: -lang / 2, t1: lang / 2, s0: -breit / 2, s1: breit / 2, ...(oben !== undefined ? { oben } : {}) })
           return k
         }
       }
@@ -3664,12 +4132,17 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       n++
     }
     // Sandkiste.
-    const sk3 = platz(2.4, 2.4, [
-      [0, 0.45],
-      [0, -0.45],
-      [0, 0],
-      [0.3, 0.3],
-    ])
+    const sk3 = platz(
+      2.4,
+      2.4,
+      [
+        [0, 0.45],
+        [0, -0.45],
+        [0, 0],
+        [0.3, 0.3],
+      ],
+      0.3,
+    )
     if (sk3) {
       kq(gelaende, sk3, -1.08, 1.08, -1.08, 1.08, -0.05, 0.16, F.sand.clone().multiplyScalar(1.08), null)
       for (const [t0, t1, s0, s1] of [
@@ -3685,11 +4158,17 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       [0, -0.85],
       [0, 0.85],
     ] as [number, number][]) {
-      const kb = platz(1.8, 0.7, [
-        [fu, fv],
-        [fu + 0.4, fv * 0.8],
-        [fu - 0.4, fv * 0.8],
-      ])
+      // Auf die Sitzflaeche (0,47 m) kommt man hinauf.
+      const kb = platz(
+        1.8,
+        0.7,
+        [
+          [fu, fv],
+          [fu + 0.4, fv * 0.8],
+          [fu - 0.4, fv * 0.8],
+        ],
+        0.47,
+      )
       if (!kb) continue
       const zur = fv > 0 ? -1 : 1
       // Sitz, Lehne (hinten, weg von der Mitte), Fuesse.
@@ -3706,7 +4185,11 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     const cx = (bx0 + bx1) / 2
     const cz = (bz0 + bz1) / 2
     const halb = Math.max(bx1 - bx0, bz1 - bz0) / 2 + 50
-    const Z = Math.max(ZELLE_MIN, (2 * halb) / 70)
+    // Mit Stadt (E87) nur der Grund der Siedlung: ein Rechteck um alles,
+    // was sie baut; das Gelaende ringsum zeichnet die Stadt.
+    const um = stadtDa ? kastenVon(belegt.flatMap((b): P[] => [[b.r[0], b.r[1]], [b.r[2], b.r[3]]])) : null
+    const grund: Kasten | null = um ? [um[0] - GRUND_RAND, um[1] - GRUND_RAND, um[2] + GRUND_RAND, um[3] + GRUND_RAND] : null
+    const Z = grund ? Math.max(ZELLE_MIN, Math.max(grund[2] - grund[0], grund[3] - grund[1]) / 70) : Math.max(ZELLE_MIN, (2 * halb) / 70)
     const ph = [zz(), zz(), zz(), zz()].map((v) => v * Math.PI * 2)
     const welle = (x: number, z: number) =>
       0.5 * Math.sin(x * 0.13 + ph[0]) * Math.sin(z * 0.11 + ph[1]) + 0.3 * Math.sin((x - z) * 0.05 + ph[2]) + 0.2 * Math.sin((x + 0.6 * z) * 0.31 + ph[3])
@@ -3726,17 +4209,19 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       lochEbenen = lk.map((k) => [-k.n[0], -k.n[1], -(k.n[0] * k.a[0] + k.n[1] * k.a[1])])
     }
     const n = Math.ceil((2 * halb) / Z)
-    const x0 = cx - (n * Z) / 2
-    const z0 = cz - (n * Z) / 2
+    const nx = grund ? Math.max(1, Math.ceil((grund[2] - grund[0]) / Z)) : n
+    const nz = grund ? Math.max(1, Math.ceil((grund[3] - grund[1]) / Z)) : n
+    const x0 = grund ? grund[0] : cx - (n * Z) / 2
+    const z0 = grund ? grund[1] : cz - (n * Z) / 2
     const fan = (poly: P[]) => {
       for (let i = 1; i + 1 < poly.length; i++) boden.dreieck(poly[0], poly[i], poly[i + 1], WIESE_Y, ton(poly[0]), ton(poly[i]), ton(poly[i + 1]))
     }
     // Farben je Gitterpunkt einmal rechnen.
     const gitter: Color[] = []
-    for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) gitter.push(ton([x0 + i * Z, z0 + j * Z]))
-    const gf = (i: number, j: number) => gitter[i * (n + 1) + j]
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) gitter.push(ton([x0 + i * Z, z0 + j * Z]))
+    const gf = (i: number, j: number) => gitter[i * (nz + 1) + j]
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < nz; j++) {
         const zelle: P[] = [
           [x0 + i * Z, z0 + j * Z],
           [x0 + (i + 1) * Z, z0 + j * Z],
@@ -3760,8 +4245,8 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
         }
       }
     }
-    // Ring bis 300 m, etwas tiefer unter dem Raster.
-    const rIn = halb - 1
+    // Ring bis 300 m, etwas tiefer unter dem Raster (nicht mit Stadt).
+    const rIn = grund ? WIESE_R : halb - 1
     const ringe = [rIn]
     while (ringe[ringe.length - 1] < WIESE_R) ringe.push(Math.min(WIESE_R, ringe[ringe.length - 1] * 1.35))
     const TEILE = 64
@@ -3782,7 +4267,9 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   const ebenen: Ebene3D[] = []
   const nachHindernis = (h: KRechteck): Hindernis3D => {
     const m = nachWelt(kp(h.k, (h.t0 + h.t1) / 2, (h.s0 + h.s1) / 2))
-    return { x: m[0], z: m[1], laenge: h.t1 - h.t0, tiefe: h.s1 - h.s0, drehY: Math.atan2(-h.k.u[1], h.k.u[0]) + rad }
+    const out: Hindernis3D = { x: m[0], z: m[1], laenge: h.t1 - h.t0, tiefe: h.s1 - h.s0, drehY: Math.atan2(-h.k.u[1], h.k.u[0]) + rad }
+    if (h.oben !== undefined) out.oben = h.oben
+    return out
   }
   /** Ohne Aussparung: auf der Ebene der Wohnung bleibt ihr Rechteck frei. */
   const rahmenFrei = sch ? sch.r : null
@@ -3829,7 +4316,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       for (let k = 0; k < h.n; k++) {
         const istWohnung = wohnungDa && k === geschoss
         const liste = huellWaende(h, k)
-        liste.push(...(gangHindernisse[k] ?? []), ...kernHindernisse)
+        liste.push(...(gangHindernisse[k] ?? []), ...kernHindernisse, ...(kernStufen[k] ?? []))
         if (k === 0) liste.push(...saeulen, ...garten)
         const fertig = istWohnung ? liste.flatMap((x) => ohne(x, rahmenFrei)) : liste
         ebeneIndex.set(`${h.g.id}|${k}`, ebenen.length)
@@ -3852,7 +4339,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
      * mit Plaenen. Liegt die Wohnung im EG, ist der Boden ihre Ebene (nur
      * mit Rahmen; Gaeste haben dort 'boden' und '<gebaeudeId>:<k>'). */
     const unten: KRechteck[] = [...garten]
-    if (eigen && !eigenInnen) unten.push(...huellWaende(eigen, 0), ...(gangHindernisse[0] ?? []), ...kernHindernisse, ...saeulen)
+    if (eigen && !eigenInnen) unten.push(...huellWaende(eigen, 0), ...(gangHindernisse[0] ?? []), ...kernHindernisse, ...(kernStufen[0] ?? []), ...saeulen)
     for (const ih of innenListe) {
       const g0 = ih.nachK.get(0)
       unten.push(...(g0 ? g0.hindernisse : huellWaende(ih.h, 0)))
@@ -3875,13 +4362,65 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
         hindernisse: (istWohnung ? liste.flatMap((x) => ohne(x, rahmenFrei)) : liste).map(nachHindernis),
       })
     }
-    if (eigen && !eigenInnen) for (let k = 1; k < eigen.n; k++) dazu(eigen, k, [...huellWaende(eigen, k), ...(gangHindernisse[k] ?? []), ...kernHindernisse])
+    if (eigen && !eigenInnen) for (let k = 1; k < eigen.n; k++) dazu(eigen, k, [...huellWaende(eigen, k), ...(gangHindernisse[k] ?? []), ...kernHindernisse, ...(kernStufen[k] ?? [])])
     for (const ih of innenListe) {
       for (let k = 1; k < ih.h.n; k++) {
         const g = ih.nachK.get(k)
         if (g) dazu(ih.h, k, g.hindernisse)
         else if (ih.h === eigen && k === geschoss) dazu(ih.h, k, huellWaende(ih.h, k))
       }
+    }
+  }
+  /** Die Ebenen des Bodens (E87): Index 0, ohne Plaene mit eigenem Haus
+   *  auch der Garten (gleiche Hoehe, gleiche Hindernisse). Dorthin kommen
+   *  Gelaende und Hindernisse der Stadt. */
+  const bodenEbenen = gartenIndex !== 0 ? [0, gartenIndex] : [0]
+  /** Ebene der Ziele draussen: der Garten, mit Stadt immer Index 0, damit
+   *  von dort auch Treppen und Schwellen der Stadt erreichbar sind. */
+  const draussenIndex = stadtDa ? 0 : gartenIndex
+
+  /* Zwischenpodeste (E87): je Haus und Geschoss mit Treppe eine Ebene
+   * '<gebaeudeId>:<k>.5', hinten an (die Indizes davor bleiben), dazu die
+   * Laeufe als Treppe3D: hinauf vom Geschoss zum Podest, vom Podest zum
+   * naechsten Geschoss. */
+  const meineTreppen: Treppe3D[] = []
+  const laufWelt = (id: string, lf: Lauf, von: string, nach: string): Treppe3D => {
+    const c = nachWelt(lf.c)
+    const d = richtungWelt(lf.u)
+    return { id, x: c[0], z: c[1], laenge: lf.laenge, breite: lf.breite, drehY: Math.atan2(-d[1], d[0]), von, nach, stufen: lf.stufen }
+  }
+  const kennungVon = (h: Haus, k: number): string | null => ebenen[ebeneVon(h.g.id, k)]?.id ?? null
+  const podestEbene = (h: Haus, k: number, liste: KRechteck[], vorne: string): string => {
+    const id = `${h.g.id}:${k}.5`
+    ebenen.push({ id, name: `${vorne}Zwischenpodest ${ogName(k)}`, y: (k + 0.5) * h.gh - absenk, hindernisse: liste.map(nachHindernis) })
+    return id
+  }
+  if (eigen && kernLaeufe.length && !eigenInnen) {
+    const [hin, her] = kernLaeufe[0]
+    for (let k = 0; k + 1 < eigen.n; k++) {
+      const von = kennungVon(eigen, k)
+      const nach = kennungVon(eigen, k + 1)
+      if (!von || !nach) continue
+      const pid = podestEbene(eigen, k, kernPodest, innenListe.length ? `${hausName(eigen)} ` : '')
+      meineTreppen.push(laufWelt(`${eigen.g.id}:t${k}a`, hin, von, pid), laufWelt(`${eigen.g.id}:t${k}b`, her, pid, nach))
+    }
+  }
+  for (const ih of innenListe) {
+    for (const g of ih.geschosse) {
+      const hoch = g.flaechen.filter((f) => f.art === 'stiege').flatMap((f) => {
+        const st = ih.stiegen.get(f)
+        return st && st.hoch ? [st] : []
+      })
+      if (!hoch.length) continue
+      const von = kennungVon(ih.h, g.k)
+      const nach = kennungVon(ih.h, g.k + 1)
+      if (!von || !nach) continue
+      const pid = podestEbene(ih.h, g.k, hoch.flatMap((st) => podestHindernisse(st.lage)), `${hausName(ih.h)} `)
+      hoch.forEach((st, i) => {
+        const [hin, her] = laeufeVon(st.lage)
+        const nr = hoch.length > 1 ? `.${i}` : ''
+        meineTreppen.push(laufWelt(`${ih.h.g.id}:t${g.k}${nr}a`, hin, von, pid), laufWelt(`${ih.h.g.id}:t${g.k}${nr}b`, her, pid, nach))
+      })
     }
   }
 
@@ -3908,7 +4447,8 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   lage.matrixAutoUpdate = false
   gruppe.add(lage)
 
-  const himmelGeo = himmelKugel(F.oben, F.unten)
+  const himmelR = stadtDa ? HIMMEL_R_STADT : HIMMEL_R
+  const himmelGeo = himmelKugel(F.oben, F.unten, himmelR)
   geometrien.push(himmelGeo)
   const himmelMesh = new Mesh(himmelGeo, himmelMat)
   himmelMesh.name = 'himmel'
@@ -3917,7 +4457,10 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   himmelMesh.raycast = () => undefined
   himmelMesh.onBeforeRender = (_r, _s, kamera) => {
     const e = kamera.matrixWorld.elements
-    himmelMesh.matrixWorld.makeTranslation(e[12], e[13], e[14])
+    // Sieht die Kamera weniger weit als die Kugel reicht, schrumpft sie (E87).
+    const weit = (kamera as { far?: number }).far
+    const s = typeof weit === 'number' && weit > 0 ? Math.min(1, (weit * 0.95) / himmelR) : 1
+    himmelMesh.matrixWorld.makeScale(s, s, s).setPosition(e[12], e[13], e[14])
   }
   gruppe.add(himmelMesh)
 
@@ -3941,6 +4484,149 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     ih.gruppe.matrixAutoUpdate = false
     lage.add(ih.gruppe)
   }
+
+  /* ------------------------------------------------ Fahrzeuge und Dinge (E87) */
+  /* In Weltkoordinaten direkt in der Gruppe (der Motor setzt ihre Lage),
+   * auf der Ebene des Bodens. Kennungen stabil: 'siedlung:f<n>' in der
+   * Reihenfolge der Stellplaetze, 'siedlung:d<n>' in der Reihenfolge der
+   * Liste unten. Keine Hindernisse: bewegliche Dinge kennt der Motor. */
+  const bodenKennung = ebenen[0].id
+  const bodenY = ebenen[0].y
+  let fahrzeugFehler = 0
+  const meineFahrzeuge: Fahrzeug3D[] = []
+  geparkt.forEach((a, i) => {
+    const c = nachWelt(a.c)
+    const d = richtungWelt(a.vorne)
+    const gier = Math.atan2(-d[0], -d[1])
+    let f: Fahrzeug3D
+    try {
+      f = baueFahrzeug(a.art, a.farbe, `siedlung:f${i}`, { x: c[0], z: c[1], gier, ebene: bodenKennung })
+    } catch (err) {
+      console.warn('[siedlung] Auto nicht gebaut:', err)
+      fahrzeugFehler++
+      return
+    }
+    f.gruppe.position.set(c[0], bodenY, c[1])
+    f.gruppe.rotation.y = gier
+    f.gruppe.name = `fahrzeug:${f.id}`
+    gruppe.add(f.gruppe)
+    meineFahrzeuge.push(f)
+  })
+
+  const meineDinge: WeltDing3D[] = []
+  {
+    const zd = zufallMit(saatAus([...alle.flat(), 87]))
+    const boden0 = ebenen[0]
+    /** Platz fuer ein Ding (lokal, Radius r): frei von allem am Boden, nicht
+     *  im Haus, in der Grube, in der Wohnung oder auf der Strasse. */
+    const gesetzt: P[] = []
+    const passt = (p: P, r: number) => {
+      if (haeuser.some((h) => innen(p, h.poly) || abstandUmriss(p, h.poly) < r + 0.5)) return false
+      if (loch && (innen(p, loch) || abstandUmriss(p, loch) < r + 0.4)) return false
+      if (trifftKasten(sch, p[0] - r, p[1] - r, p[0] + r, p[1] + r, -0.1, 1.0)) return false
+      if (qv(p) > strasseQ0 - 0.8) return false
+      if (gesetzt.some((x) => Math.hypot(x[0] - p[0], x[1] - p[1]) < r + 0.6)) return false
+      const w = nachWelt(p)
+      return boden0.hindernisse.every((hd) => hindernisAbstand(hd, w[0], w[1]) > r + 0.25)
+    }
+    /** Ein Punkt in poly, wenigstens rand vom Rand entfernt, der passt. */
+    const inFlaeche = (poly: P[], rand: number, r: number): P | null => {
+      const [x0, z0, x1, z1] = kastenVon(poly)
+      for (let v = 0; v < 160; v++) {
+        const p: P = [x0 + zd() * (x1 - x0), z0 + zd() * (z1 - z0)]
+        if (innen(p, poly) && abstandUmriss(p, poly) >= rand && passt(p, r)) return p
+      }
+      return null
+    }
+    /** Sonst neben einem Haus, 1,6 bis 3,5 m vor einer Fassade. */
+    const nebenHaus = (r: number): P | null => {
+      for (let v = 0; v < 300; v++) {
+        const h = haeuser[Math.floor(zd() * haeuser.length)]
+        const k = h.kanten[Math.floor(zd() * h.kanten.length)]
+        if (k.laenge < 3 || (h === eigen && k === gang)) continue
+        const p = kp(k, 1 + zd() * (k.laenge - 2), 1.6 + zd() * 1.9)
+        if (passt(p, r)) return p
+      }
+      return null
+    }
+    const spielDa = !!spielPoly && spielgeraete > 0
+    const gaerten = innenListe.flatMap((ih) => (ih.nachK.get(0)?.flaechen ?? []).filter((f) => f.art === 'draussen' && !f.weg).map((f) => f.poly))
+    const liste: { art: DingArt; farbe: Color; wo: 'spiel' | 'garten' }[] = [
+      { art: 'ball', farbe: F.rot, wo: 'spiel' },
+      { art: 'kuebel', farbe: F.gelb, wo: 'spiel' },
+      { art: 'schaufel', farbe: F.blau, wo: 'spiel' },
+      { art: 'form', farbe: F.rot, wo: 'spiel' },
+      { art: 'ball', farbe: F.blau, wo: 'spiel' },
+      { art: 'kuebel', farbe: F.rot, wo: 'spiel' },
+      { art: 'schaufel', farbe: F.gelb, wo: 'spiel' },
+      { art: 'sessel', farbe: F.weiss, wo: 'garten' },
+      { art: 'sessel', farbe: F.weiss, wo: 'garten' },
+      { art: 'ball', farbe: F.gelb, wo: 'garten' },
+    ]
+    liste.forEach((d, i) => {
+      const form = dingForm(d.art, d.farbe)
+      const r = Math.hypot(form.b, form.t) / 2
+      let p: P | null = null
+      if (d.wo === 'spiel' && spielDa && spielPoly) p = inFlaeche(spielPoly, 0.4, r)
+      if (!p && gaerten.length) p = inFlaeche(gaerten[i % gaerten.length], 0.3, r)
+      if (!p) p = nebenHaus(r)
+      const geo = form.p.bauen()
+      if (!p || !geo) {
+        geo?.dispose()
+        return
+      }
+      gesetzt.push(p)
+      geometrien.push(geo)
+      const id = `siedlung:d${i}`
+      const m = new Mesh(geo, welt)
+      m.name = `ding:${id}`
+      const w = nachWelt(p)
+      m.position.set(w[0], bodenY, w[1])
+      m.rotation.y = zd() * Math.PI * 2
+      gruppe.add(m)
+      meineDinge.push({ id, objekt: m, breite: form.b, tiefe: form.t, hoehe: form.h, ebene: bodenKennung })
+    })
+  }
+
+  /** Ein Ding als ein Mesh (Eckfarben, Ursprung unten in der Mitte). */
+  function dingForm(art: DingArt, farbe: Color): { p: Puffer; b: number; t: number; h: number } {
+    const p = new Puffer(1024)
+    const X: V3 = [1, 0, 0]
+    const Y: V3 = [0, 1, 0]
+    const Z: V3 = [0, 0, 1]
+    switch (art) {
+      case 'ball':
+        p.form(kugelFein(), achsenMatrix([0, 0.11, 0], X, Y, Z, 0.11, 0.11, 0.11), farbe, 0.2)
+        return { p, b: 0.22, t: 0.22, h: 0.22 }
+      case 'kuebel':
+        p.form(walze(), achsenMatrix([0, 0.1, 0], X, Y, Z, 0.1, 0.2, 0.1), farbe, 0.15)
+        p.form(walze(), achsenMatrix([0, 0.205, 0], X, Y, Z, 0.108, 0.014, 0.108), farbe.clone().multiplyScalar(0.8))
+        p.quader([0, 0.272, 0], X, Y, Z, 0.21, 0.012, 0.012, F.metall)
+        for (const sx of [-0.1, 0.1]) p.quader([sx, 0.24, 0], X, Y, Z, 0.012, 0.07, 0.012, F.metall)
+        return { p, b: 0.22, t: 0.22, h: 0.28 }
+      case 'schaufel':
+        p.quader([0, 0.015, 0.06], X, Y, Z, 0.03, 0.03, 0.22, farbe)
+        p.quader([0, 0.012, -0.11], X, Y, Z, 0.11, 0.024, 0.12, farbe)
+        return { p, b: 0.11, t: 0.34, h: 0.03 }
+      case 'form':
+        p.form(walze(), achsenMatrix([0, 0.035, 0], X, Y, Z, 0.07, 0.07, 0.07), farbe, 0.15)
+        return { p, b: 0.14, t: 0.14, h: 0.07 }
+      case 'sessel':
+        for (const [sx, sz] of [
+          [-0.2, -0.19],
+          [0.2, -0.19],
+          [-0.2, 0.19],
+          [0.2, 0.19],
+        ])
+          p.quader([sx, 0.21, sz], X, Y, Z, 0.035, 0.42, 0.035, farbe)
+        p.quader([0, 0.43, 0], X, Y, Z, 0.46, 0.04, 0.44, farbe)
+        p.quader([0, 0.66, 0.205], X, Y, Z, 0.46, 0.42, 0.035, farbe)
+        for (const sx of [-0.215, 0.215]) p.quader([sx, 0.63, 0], X, Y, Z, 0.035, 0.03, 0.42, farbe)
+        return { p, b: 0.48, t: 0.46, h: 0.87 }
+    }
+  }
+
+  if (stadt) gruppe.add(stadt.gruppe)
 
   /* ------------------------------------------------ Aufzuege */
   let weg = false
@@ -4300,7 +4986,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     const z = ih.zone
     if (p[0] < z[0] || p[0] > z[2] || p[1] < z[1] || p[1] > z[3]) return false
     if (ly < -1.5 || ly > ih.h.H + 1.5) return false
-    return innen(p, ih.h.poly) || abstandUmriss(p, ih.h.poly) < ZONE_RAND || (ly < ih.h.gh && ih.vorne.some((v) => innen(p, v)))
+    return innen(p, ih.h.poly) || abstandUmriss(p, ih.h.poly) < ZONE_RAND || (ly < ih.h.gh && ih.vorne.some((v) => innen(p, v))) || ih.anbau.some((a) => innen(p, a))
   }
   /** Was als Naechstes gebaut wird: ein halb gebautes Geschoss fertig, dann
    *  das der Kamera, dann Glas und Aufzug, dann die uebrigen (nah zuerst). */
@@ -4416,9 +5102,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
 
   /* ------------------------------------------------ Sprungziele */
   const sprungziele: Sprungziel3D[] = []
-  /** Lokale Richtung in die Welt (ohne Verschiebung). */
-  const richtungWelt = (d: P): P => [cs * d[0] + sn * d[1], -sn * d[0] + cs * d[1]]
-  const zielVon = (name: string, ebene: number, p: P, blick: P): Sprungziel3D => {
+  const zielVon =(name: string, ebene: number, p: P, blick: P): Sprungziel3D => {
     const w = nachWelt(p)
     const d = richtungWelt(blick)
     return { name, ebene, x: w[0], z: w[1], gier: Math.atan2(-d[0], -d[1]) }
@@ -4481,7 +5165,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       return
     }
     const e = eingangSprung.get(h.g.id)
-    if (e) ziel(name, gartenIndex, e.p, e.blick)
+    if (e) ziel(name, draussenIndex, e.p, e.blick)
   }
   /** Index des Sprungziels vor der Haustuer, je Haus mit einem. */
   const eingangIndex = new Map<Haus, number>()
@@ -4506,7 +5190,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       const w = nachWelt(p)
       if (!draussen.hindernisse.every((hd) => hindernisAbstand(hd, w[0], w[1]) > 0.35)) continue
       const d = Math.hypot(mitte[0] - p[0], mitte[1] - p[1]) || 1
-      ziel('Spielplatz', gartenIndex, p, [(mitte[0] - p[0]) / d, (mitte[1] - p[1]) / d])
+      ziel('Spielplatz', draussenIndex, p, [(mitte[0] - p[0]) / d, (mitte[1] - p[1]) / d])
       break
     }
   }
@@ -4518,9 +5202,70 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     const start =
       i !== undefined
         ? { ...sprungziele[i], name: 'Start' }
-        : zielVon('Start', gartenIndex, kp(sk, lmitte, strasseQ0 + GEHSTEIG / 2), [-q[0], -q[1]])
+        : zielVon('Start', draussenIndex, kp(sk, lmitte, strasseQ0 + GEHSTEIG / 2), [-q[0], -q[1]])
     sprungziele.unshift(start)
   }
+  /* Die eigene Wohnung (E87): ohne Rahmen ein freies Ziel in der geplanten
+   * (leeren) Wohnung, in der siedlung.wohnung liegt, hinten an. Mit Plaenen
+   * die Wohnung des Plans, in der der Ursprung der eigenen liegt (0,4 m
+   * hinein; sonst die naechste bis 3 m), dort der groesste Raum; ohne Plaene
+   * ein Punkt im Haus nahe dem Ursprung. Der Plan der eigenen Wohnung liegt
+   * in der Welt am Ursprung, Planmeter sind Weltmeter. */
+  let eigeneWohnung: number | null = null
+  if (eigen && !rahmenLokal) {
+    const ei = ebeneVon(eigen.g.id, geschoss)
+    const E = ebenen[ei]
+    const freiIn = (p: P) => {
+      const w = nachWelt(p)
+      return !!E && E.hindernisse.every((hd) => hindernisAbstand(hd, w[0], w[1]) > 0.35)
+    }
+    const ecke = nachLokal([0.4, 0.4])
+    const g = eigenInnen?.nachK.get(geschoss) ?? null
+    let ziel: { p: P; blick: P; name: string } | null = null
+    if (g) {
+      const abstandW = (w: IWohnung) => Math.min(...w.flaechen.map((i) => (innen(ecke, g.flaechen[i].poly) ? 0 : abstandUmriss(ecke, g.flaechen[i].poly))))
+      const reihe = g.wohnungen.map((w) => ({ w, d: abstandW(w) })).filter((x) => x.d <= 3).sort((a1, b1) => a1.d - b1.d)
+      const w = reihe[0]?.w
+      if (w) {
+        const raeume = w.flaechen.map((i) => g.flaechen[i]).filter((f) => f.art === 'innen').sort((a1, b1) => Math.abs(flaecheVon(b1.poly)) - Math.abs(flaecheVon(a1.poly)))
+        const tuer: P | null = w.tuer ? [(w.tuer.a[0] + w.tuer.b[0]) / 2, (w.tuer.a[1] + w.tuer.b[1]) / 2] : null
+        for (const f of raeume) {
+          const m = innenPunkt(f.poly)
+          const [x0, z0, x1, z1] = f.r
+          const stellen: P[] = [m]
+          for (let x = x0 + 0.4; x <= x1 - 0.4; x += 0.4) for (let z = z0 + 0.4; z <= z1 - 0.4; z += 0.4) stellen.push([x, z])
+          stellen.sort((a1, b1) => Math.hypot(a1[0] - m[0], a1[1] - m[1]) - Math.hypot(b1[0] - m[0], b1[1] - m[1]))
+          const p = stellen.find((s) => innen(s, f.poly) && abstandUmriss(s, f.poly) >= 0.4 && freiIn(s))
+          if (!p) continue
+          const weg0: P = tuer ? [p[0] - tuer[0], p[1] - tuer[1]] : [0, -1]
+          const lw = Math.hypot(weg0[0], weg0[1]) || 1
+          ziel = { p, blick: [weg0[0] / lw, weg0[1] / lw], name: `${w.top}, ${ogName(geschoss)}, innen` }
+          break
+        }
+      }
+    }
+    // Ohne Plaene (oder keine Wohnung des Plans dort): im Haus nahe dem Ursprung.
+    if (!ziel) {
+      const m = innenPunkt(eigen.poly)
+      const stellen: [number, number][] = []
+      for (let x = 0.5; x <= 12; x += 0.5) for (let z = 0.5; z <= 12; z += 0.5) stellen.push([x, z])
+      stellen.sort((a1, b1) => Math.hypot(a1[0] - 2, a1[1] - 2) - Math.hypot(b1[0] - 2, b1[1] - 2))
+      for (const s of stellen) {
+        const p = nachLokal(s)
+        if (!innen(p, eigen.poly) || abstandUmriss(p, eigen.poly) < 0.6 || !freiIn(p)) continue
+        const d: P = [m[0] - p[0], m[1] - p[1]]
+        const ld = Math.hypot(d[0], d[1]) || 1
+        ziel = { p, blick: ld > 0.01 ? [d[0] / ld, d[1] / ld] : [0, -1], name: `Wohnung, ${ogName(geschoss)}, innen` }
+        break
+      }
+    }
+    if (ziel && E) {
+      sprungziele.push(zielVon(ziel.name, ei, ziel.p, ziel.blick))
+      eigeneWohnung = sprungziele.length - 1
+    }
+  }
+  // Die Orte der Stadt, auf der Ebene des Bodens (E87).
+  if (stadt) for (const s of stadt.sprungziele) sprungziele.push({ ...s, ebene: 0 })
 
   /* ------------------------------------------------ Karte (E86) */
   /* Fuer die Minikarte: jedes Haus mit Namen und die Flaechen, zuerst lokal
@@ -4553,14 +5298,68 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     return rechteckForm({ k: sk, t0: Math.min(...t), t1: Math.max(...t), s0: strasseQ0, s1: strasseQ1 })
   }
   let kr = kastenVon([...alle, ...karteLokal.flatMap((f) => f.punkte)])
-  kr = kastenVon([[kr[0], kr[1]], [kr[2], kr[3]], ...strasseIn(kr)])
+  // Mit Stadt (E87) gibt es die eigene Strasse nicht; die Stadt bringt die echten.
+  if (!stadtDa) kr = kastenVon([[kr[0], kr[1]], [kr[2], kr[3]], ...strasseIn(kr)])
   kr = [kr[0] - KARTE_RAND, kr[1] - KARTE_RAND, kr[2] + KARTE_RAND, kr[3] + KARTE_RAND]
-  karteLokal.unshift({ art: 'strasse', punkte: strasseIn(kr) })
+  if (!stadtDa) karteLokal.unshift({ art: 'strasse', punkte: strasseIn(kr) })
   const karte: Karte3D = {
     rahmen: rechteckWelt([kr[0], kr[1]], [kr[2], kr[3]]),
     haeuser: haeuser.map((h) => ({ name: hausName(h), punkte: h.poly.map(nachWelt) })),
     flaechen: karteLokal.map((f) => ({ art: f.art, punkte: f.punkte.map(nachWelt) })),
   }
+  // Mit Stadt: ihr Rahmen dazu, ihre Haeuser dahinter, ihre Flaechen
+  // davor (zuerst gemalt), ihre Strassen und Orte.
+  if (stadt) {
+    const sr = stadt.karte.rahmen
+    if (Array.isArray(sr) && sr.length === 4 && sr.every(Number.isFinite) && sr[2] > sr[0] && sr[3] > sr[1]) {
+      const r = karte.rahmen
+      karte.rahmen = [Math.min(r[0], sr[0]), Math.min(r[1], sr[1]), Math.max(r[2], sr[2]), Math.max(r[3], sr[3])]
+    }
+    karte.haeuser = [...karte.haeuser, ...stadt.karte.haeuser]
+    karte.flaechen = [...stadt.karte.flaechen, ...karte.flaechen]
+    karte.strassen = [...(stadt.karte.strassen ?? [])]
+    karte.orte = [...(stadt.karte.orte ?? [])]
+  }
+
+  /* ------------------------------------------------ Stadt abgleichen (E87) */
+  /* Die Stadt laedt Haeuser innen nach (version() zaehlt hoch): dann die
+   * Hindernisse am Boden (eigene und ihre), ihre Ebenen hinter den eigenen
+   * (am selben Index ersetzt, neue hinten an), Treppen, Fahrzeuge und Dinge
+   * neu, und die eigene version() zaehlt hoch. */
+  const bodenEigen = bodenEbenen.map((i) => ebenen[i].hindernisse)
+  const meineEbenen = ebenen.length
+  let stadtStand: number | null = null
+  let stand = 0
+  let treppenJetzt: Treppe3D[] = meineTreppen
+  let fahrzeugeJetzt: Fahrzeug3D[] = meineFahrzeuge
+  let dingeJetzt: WeltDing3D[] = meineDinge
+  /** Die Hindernisse der Stadt beim letzten Abgleich (dasselbe Feld: nichts neu). */
+  let stadtHindernisse: Hindernis3D[] | null = null
+  if (stadt) for (const i of bodenEbenen) ebenen[i].hoehe = stadt.hoehe
+  const abgleichen = (): void => {
+    if (!stadt || weg) return
+    const v = stadt.version()
+    if (v === stadtStand) return
+    const erstes = stadtStand === null
+    stadtStand = v
+    // Am Boden nur dann ein neues Feld, wenn die Stadt eins hat: der Motor
+    // rastert eine Ebene neu, sobald ihr Feld ein anderes ist (zehntausende
+    // Rechtecke), und die Stadt behaelt ihres (Tueren bleiben Hindernisse).
+    const sh = stadt.hindernisse()
+    if (sh !== stadtHindernisse) {
+      stadtHindernisse = sh
+      bodenEbenen.forEach((i, j) => {
+        ebenen[i].hindernisse = bodenEigen[j].concat(sh)
+      })
+    }
+    const se = stadt.ebenen()
+    for (let i = 0; i < se.length; i++) ebenen[meineEbenen + i] = se[i]
+    treppenJetzt = meineTreppen.concat(stadt.treppen())
+    fahrzeugeJetzt = meineFahrzeuge.concat(stadt.fahrzeuge())
+    dingeJetzt = meineDinge.concat(stadt.dinge())
+    if (!erstes) stand++
+  }
+  abgleichen()
 
   gruppe.userData = {
     baeume,
@@ -4572,19 +5371,52 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     strasse: seite.name,
     kern: !!kabineMesh,
     innen: innenListe.length,
+    // E87
+    treppen: meineTreppen.length,
+    fahrzeuge: meineFahrzeuge.length,
+    dinge: meineDinge.length,
+    stadt: stadtDa,
+    innenFehler,
+    fahrzeugFehler,
   }
 
   const ergebnis: SiedlungWelt3D = {
     gruppe,
-    nebel: new Fog(o.farben.himmelUnten, NEBEL_NAH, NEBEL_FERN),
+    nebel: stadtDa ? new Fog(o.farben.himmelUnten, NEBEL_STADT_NAH, NEBEL_STADT_FERN) : new Fog(o.farben.himmelUnten, NEBEL_NAH, NEBEL_FERN),
     himmel: o.farben.himmelUnten,
     ebenen,
     interaktiv,
     sprungziele,
     karte,
-    schritt,
+    schritt(dt: number, kameraY: number): boolean {
+      const a = schritt(dt, kameraY)
+      const b = stadt && !weg ? stadt.schritt(dt) : false
+      abgleichen()
+      return a || b
+    },
     fahrt,
-    kamera,
+    kamera(x: number, y: number, z: number): void {
+      kamera(x, y, z)
+      if (stadt && !weg) stadt.kamera(x, y, z)
+    },
+    eigeneWohnung,
+    get treppen() {
+      abgleichen()
+      return treppenJetzt
+    },
+    get fahrzeuge() {
+      abgleichen()
+      return fahrzeugeJetzt
+    },
+    get dinge() {
+      abgleichen()
+      return dingeJetzt
+    },
+    version() {
+      abgleichen()
+      return stand
+    },
+    stadtFehler,
     get kabine() {
       if (weg) return null
       const L = liftJetzt()
@@ -4608,6 +5440,8 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       if (weg) return
       weg = true
       himmelMesh.onBeforeRender = () => undefined
+      stadt?.dispose()
+      for (const f of meineFahrzeuge) f.dispose()
       for (const g of geometrien) g.dispose()
       for (const m of materialien) m.dispose()
       kabineMesh?.clear()
@@ -4673,16 +5507,16 @@ function kastenVon(poly: P[]): [number, number, number, number] {
   return [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)]
 }
 
-/** Himmelskugel: Farbe nach der Hoehe, am Horizont schnell heller. */
-function himmelKugel(oben: Color, unten: Color): BufferGeometry {
-  const g = new SphereGeometry(HIMMEL_R, 32, 24)
+/** Himmelskugel mit Radius r: Farbe nach der Hoehe, am Horizont schnell heller. */
+function himmelKugel(oben: Color, unten: Color, r: number): BufferGeometry {
+  const g = new SphereGeometry(r, 32, 24)
   g.deleteAttribute('uv')
   g.deleteAttribute('normal')
   const pos = g.getAttribute('position')
   const col = new Float32Array(pos.count * 3)
   const c = new Color()
   for (let i = 0; i < pos.count; i++) {
-    const t = Math.max(0, pos.getY(i) / HIMMEL_R)
+    const t = Math.max(0, pos.getY(i) / r)
     c.copy(unten).lerp(oben, 1 - (1 - t) ** 2.4)
     col[i * 3] = c.r
     col[i * 3 + 1] = c.g

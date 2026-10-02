@@ -773,6 +773,9 @@ export interface Siedlung {
   aussen: SiedlungAussen
   /** Die Haeuser innen, wo Plaene bekannt sind (E84, Migration 0045). */
   innen?: SiedlungInnenHaus[] | null
+  /** Die Umgebung (E87, Migration 0047): Gelaende, Strassen und Haeuser
+   *  ringsum aus OpenStreetMap. Nur beim Oeffnen geladen. */
+  stadt?: StadtDaten | null
   created_at: string
   updated_at: string
 }
@@ -858,3 +861,124 @@ export interface SiedlungMitglied {
 export type SiedlungEinladung =
   | { status: 'ok'; name: string }
   | { status: 'nicht_gefunden' | 'mehrdeutig' | 'schon_drin' | 'selbst' | 'zu_viele' }
+
+/* ------------------------------------------------------- Stadt (E87)
+ * Die Umgebung einer Siedlung: Gelaende, Strassen, Haeuser, Flaechen,
+ * Baeume und Orte mit Namen, aus OpenStreetMap (ODbL) und einem freien
+ * Hoehenmodell. Erzeugt von scripts/stadt-aus-osm.mjs, eingetragen ueber
+ * den Datei-Import (siedlungImport.ts), gespeichert in siedlungen.stadt.
+ *
+ * Koordinaten wie die Siedlung: Meter, Ursprung lat/lon der Siedlung, x
+ * nach Osten, z nach Sueden. Hoehen in Metern ueber dem Boden der Siedlung
+ * (0 = Gelaende, auf dem die Haeuser der Siedlung stehen). Die Haeuser der
+ * Siedlung selbst fehlen hier (die baut siedlung3d.ts genauer), und auf
+ * ihrem Grund ist das Gelaende eben 0. Umrisse ohne doppelten Endpunkt, in
+ * beliebiger Drehrichtung. Wo jemand wohnt, steht nie im Code: diese Daten
+ * gibt es nur in der Datenbank und in der Datei des Besitzers. */
+
+export type StadtHausArt =
+  | 'wohnen'
+  | 'haus'
+  | 'laden'
+  | 'supermarkt'
+  | 'einkaufszentrum'
+  | 'feuerwehr'
+  | 'spital'
+  | 'schule'
+  | 'kindergarten'
+  | 'kirche'
+  | 'buero'
+  | 'halle'
+  | 'garage'
+  | 'schuppen'
+  | 'sonst'
+
+export interface StadtHaus {
+  /** Kennung, stabil ueber neue Auszuege (etwa 'w123' aus OSM). */
+  id: string
+  umriss: [number, number][]
+  /** Innenhoefe. */
+  loecher?: [number, number][][]
+  art: StadtHausArt
+  /** Geschosse ueber dem Boden, mindestens 1. */
+  geschosse: number
+  geschossHoehe: number
+  dach: 'flach' | 'sattel' | 'walm'
+  /** Boden des Erdgeschosses (Meter ueber dem Boden der Siedlung). */
+  boden: number
+  /** Schild ueber der Tuer (Name aus der Karte). */
+  name?: string
+  /** Geschaefte im Haus (Einkaufszentrum), mit Art wie shop= in OSM. */
+  laeden?: { name: string; art: string }[]
+  /** Haustuer: auf der Kante von umriss[kante] nach umriss[kante + 1]
+   *  (zyklisch), Anteil t (0..1) entlang der Kante. */
+  tuer: { kante: number; t: number }
+  /** Fassadenfarbe aus der Karte (#rrggbb), sonst fehlt. */
+  farbe?: string
+}
+
+export type StadtStrassenArt = 'haupt' | 'neben' | 'wohn' | 'dienst' | 'fuss' | 'rad' | 'treppe' | 'feldweg' | 'gleis'
+
+export interface StadtStrasse {
+  art: StadtStrassenArt
+  /** Breite in Metern (Fahrbahn oder Weg). */
+  breite: number
+  punkte: [number, number][]
+  name?: string
+  /** Bruecke oder Tunnel: nicht aufs Gelaende legen (Bruecke) oder weglassen (Tunnel). */
+  bruecke?: boolean
+  tunnel?: boolean
+}
+
+export type StadtFlaechenArt =
+  | 'wiese'
+  | 'park'
+  | 'wald'
+  | 'acker'
+  | 'wasser'
+  | 'parkplatz'
+  | 'sport'
+  | 'spielplatz'
+  | 'friedhof'
+  | 'gewerbe'
+  | 'wohngebiet'
+  | 'fels'
+  | 'schwimmbad'
+
+export interface StadtFlaeche {
+  art: StadtFlaechenArt
+  punkte: [number, number][]
+}
+
+export interface StadtOrt {
+  name: string
+  /** Art wie in OSM (shop=..., amenity=...), etwa 'supermarket', 'fire_station'. */
+  art: string
+  x: number
+  z: number
+  /** Haus, in dem der Ort liegt (StadtHaus.id), sonst fehlt. */
+  haus?: string
+}
+
+export interface StadtDaten {
+  art: 'kistly-stadt'
+  v: 1
+  /** Stand der Kartendaten (Datum, ISO), fuer den Hinweis. */
+  stand: string
+  /** Bereich [x0, z0, x1, z1] in Metern. */
+  rahmen: [number, number, number, number]
+  /** Gelaende als Gitter: Punkt (i, j) liegt bei (x0 + i*schritt, z0 +
+   *  j*schritt), Wert dm[j*nx + i] in Dezimetern (ganze Zahlen) ueber dem
+   *  Boden der Siedlung. Dazwischen bilinear (src/lib/stadt.ts). */
+  gelaende: { x0: number; z0: number; schritt: number; nx: number; nz: number; dm: number[] }
+  haeuser: StadtHaus[]
+  strassen: StadtStrasse[]
+  flaechen: StadtFlaeche[]
+  /** Fluesse und Baeche als Linien mit Breite. */
+  gewaesser: { breite: number; punkte: [number, number][] }[]
+  /** Mauern, Zaeune, Hecken. */
+  zaeune: { art: 'mauer' | 'zaun' | 'hecke'; punkte: [number, number][] }[]
+  /** Einzelne Baeume (x, z). */
+  baeume: [number, number][]
+  orte: StadtOrt[]
+}

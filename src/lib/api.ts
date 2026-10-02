@@ -5,6 +5,7 @@
  */
 import { supabase, errText } from './supabase'
 import { siedlungInnenPruefen } from './siedlungInnen'
+import { stadtPruefen } from './stadt'
 import { tg } from './i18n'
 import { zuPunkten, zuUmriss } from './geometrie'
 import type {
@@ -1669,6 +1670,9 @@ const SIEDLUNG_SPALTEN = 'id, owner_id, name, lat, lon, gebaeude, wohnung, ausse
 /** Mit den Haeusern innen (E84, 0045): gross, darum nur beim Oeffnen einer
  *  Siedlung, nicht in der Liste. */
 const SIEDLUNG_SPALTEN_INNEN = `${SIEDLUNG_SPALTEN}, innen`
+/** Dazu die Stadt ringsum (E87, 0047): bis einige MB, ebenso nur beim
+ *  Oeffnen. */
+const SIEDLUNG_SPALTEN_GANZ = `${SIEDLUNG_SPALTEN_INNEN}, stadt`
 
 /** Zeile der Datenbank in die Form der Oberflaeche: fehlende Listen leer,
  *  lat und lon als Zahl. */
@@ -1706,11 +1710,54 @@ export async function listSiedlungen(): Promise<SiedlungZeile[]> {
   return ((res.data ?? []) as SiedlungZeile[]).map(siedlungLesen)
 }
 
-/** Eine Siedlung. null heisst: gibt es nicht (mehr) oder nicht sichtbar. */
+/** Die Stadt ringsum (E87): nur, wenn stadtPruefen nichts findet. Eine
+ *  kaputte Stadt faellt weg (mit Hinweis in der Konsole), statt die ganze
+ *  Siedlung zu sperren. Fehlt die Spalte in der Abfrage, bleibt es
+ *  undefined. */
+function stadtLesen(roh: unknown): SiedlungZeile['stadt'] {
+  if (roh === undefined) return undefined
+  if (roh === null) return null
+  const probleme = stadtPruefen(roh)
+  if (probleme.length) {
+    console.warn('[siedlung] Stadt ausgelassen:', probleme.slice(0, 3))
+    return null
+  }
+  return roh as SiedlungZeile['stadt']
+}
+
+/** Eine Siedlung. null heisst: gibt es nicht (mehr) oder nicht sichtbar.
+ *  Mit innen und Stadt. */
 export async function ladeSiedlung(id: string): Promise<SiedlungZeile | null> {
-  const res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN_INNEN).eq('id', id).maybeSingle()
+  let res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN_GANZ).eq('id', id).maybeSingle()
+  // Ist 0047 noch nicht angewandt, fehlt die Spalte stadt (42703): dann die
+  // Siedlung ohne Stadt, mit Hinweis in der Konsole, statt gar keine.
+  if (res.error?.code === '42703') {
+    console.warn('[siedlung] Spalte stadt fehlt (Migration 0047), Siedlung ohne Stadt geladen')
+    res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN_INNEN).eq('id', id).maybeSingle()
+  }
   if (res.error) throw new Error(errText(res.error))
-  return res.data ? siedlungLesen(res.data as SiedlungZeile) : null
+  if (!res.data) return null
+  const z = res.data as SiedlungZeile
+  return { ...siedlungLesen(z), stadt: stadtLesen(z.stadt) }
+}
+
+/** Die Siedlung ist gespeichert, ihre Stadt aber nicht (E87). siedlung ist
+ *  die gespeicherte Zeile; die Nachricht sagt beides. */
+export class SiedlungStadtFehler extends Error {
+  siedlung: SiedlungZeile
+  constructor(nachricht: string, siedlung: SiedlungZeile) {
+    super(nachricht)
+    this.name = 'SiedlungStadtFehler'
+    this.siedlung = siedlung
+  }
+}
+
+/** Satz zu einem Fehler beim Speichern der Stadt: die Pruefung von 0047
+ *  (siedlungen_stadt_ok) und eine zu grosse Anfrage haben einen eigenen. */
+function stadtFehlerText(err: { message?: string }): string {
+  const m = err.message ?? ''
+  if (m.includes('siedlungen_stadt_ok') || /too large|\b413\b/i.test(m)) return tg('fehler.db.siedlung.stadt_ungueltig')
+  return errText(err)
 }
 
 /** Legt an (ohne id) oder aendert (mit id). Beim Aendern gehen nur die
@@ -1725,6 +1772,7 @@ export async function speichereSiedlung(
   if (s.aussen !== undefined) werte.aussen = s.aussen
   if (s.innen !== undefined) werte.innen = s.innen
 
+  let zeile: SiedlungZeile
   if (!s.id) {
     const neu = {
       gebaeude: [],
@@ -1734,14 +1782,27 @@ export async function speichereSiedlung(
     }
     const res = await supabase.from('siedlungen').insert(neu).select(SIEDLUNG_SPALTEN).single()
     if (res.error) throw new Error(errText(res.error))
-    return siedlungLesen(res.data as SiedlungZeile)
+    zeile = siedlungLesen(res.data as SiedlungZeile)
+  } else {
+    const res = await supabase.from('siedlungen').update(werte).eq('id', s.id).select(SIEDLUNG_SPALTEN).maybeSingle()
+    if (res.error) throw new Error(errText(res.error))
+    // Keine Zeile: gibt es nicht mehr oder gehoert einem anderen Konto.
+    if (!res.data) throw new Error(tg('zustand.nichts_gefunden'))
+    zeile = siedlungLesen(res.data as SiedlungZeile)
   }
 
-  const res = await supabase.from('siedlungen').update(werte).eq('id', s.id).select(SIEDLUNG_SPALTEN).maybeSingle()
-  if (res.error) throw new Error(errText(res.error))
-  // Keine Zeile: gibt es nicht mehr oder gehoert einem anderen Konto.
-  if (!res.data) throw new Error(tg('zustand.nichts_gefunden'))
-  return siedlungLesen(res.data as SiedlungZeile)
+  // Die Stadt (E87, bis einige MB) geht in einer eigenen Anfrage hinterher,
+  // damit die Siedlung selbst nicht an ihrer Groesse scheitert. Scheitert
+  // dieser Schritt, bleibt die Siedlung gespeichert, und der Fehler sagt es.
+  if (s.stadt !== undefined) {
+    const res = await supabase.from('siedlungen').update({ stadt: s.stadt }).eq('id', zeile.id).select('id').maybeSingle()
+    if (res.error || !res.data) {
+      const grund = res.error ? stadtFehlerText(res.error) : tg('zustand.nichts_gefunden')
+      throw new SiedlungStadtFehler(tg('fehler.siedlung_stadt', { grund }), zeile)
+    }
+    zeile = { ...zeile, stadt: s.stadt }
+  }
+  return zeile
 }
 
 /** Loescht eine eigene Siedlung. Traf es keine Zeile (fremd oder schon
@@ -1757,7 +1818,10 @@ export async function loescheSiedlung(id: string): Promise<void> {
  *  eigene Siedlung mit derselben Wohnung, wird sie ersetzt statt doppelt
  *  angelegt. Deko und Schalter fuer den eigenen Grundriss kommen danach;
  *  scheitern sie, bleibt die Siedlung trotzdem eingetragen, und der Grund
- *  kommt als Text zurueck (deko), nichts wird verschwiegen. */
+ *  kommt als Text zurueck (deko), nichts wird verschwiegen. Die Stadt
+ *  (E87) schreibt speichereSiedlung gleich nach der Siedlung; scheitert
+ *  sie, kommt ein SiedlungStadtFehler (Siedlung gespeichert, Stadt und
+ *  Deko nicht), und ein zweites Laden derselben Datei holt alles nach. */
 export async function siedlungImportieren(
   d: import('./siedlungImport').SiedlungDatei,
 ): Promise<{ siedlung: SiedlungZeile; deko: 'ok' | 'keine' | { fehler: string } }> {
@@ -1836,4 +1900,78 @@ export async function siedlungMitglieder(siedlungId: string): Promise<SiedlungMi
 export async function siedlungEntfernen(siedlungId: string, userId: string): Promise<void> {
   const res = await supabase.rpc('siedlung_entfernen', { p_siedlung: siedlungId, p_user: userId })
   if (res.error) throw new Error(errText(res.error))
+}
+
+/* ------------------------------------------------------ Siedlung E87 (0047)
+ * Dinge und Fahrzeuge, die jemand bewegt hat, bleiben dort stehen, wo sie
+ * zuletzt hingestellt wurden (siedlung_dinge). Lesen duerfen Besitzer und
+ * Gaeste (siedlung_darf, 0046), schreiben nur ueber siedlung_ding_setzen:
+ * die Funktion prueft Zugang, Kennung, Zahlen und hoechstens 5000 Dinge je
+ * Siedlung. Ablehnungen tragen eine Kennung (kistly:siedlung.*), den Satz
+ * macht errText. Die Typen kommen wie oben ohne Eintrag in der
+ * Importliste aus. */
+type DingLageZeile = import('../components/plan3d/vertrag3d').DingLage3D
+
+/** So viele Zeilen gibt die Datenbank hoechstens auf einmal heraus
+ *  (Supabase: max rows 1000); darum in Seiten. */
+const DINGE_SEITE = 1000
+const UUID_FORM = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Wo Dinge und Fahrzeuge der Siedlung zuletzt hingestellt wurden (alle,
+ *  die je bewegt wurden). Nur fuer Besitzer und Gaeste; wer nicht dazu
+ *  gehoert, bekommt eine leere Liste (die Zeilen-Sicherheit filtert). */
+export async function siedlungDinge(siedlungId: string): Promise<DingLageZeile[]> {
+  const out: DingLageZeile[] = []
+  for (let von = 0; ; von += DINGE_SEITE) {
+    const { data, error } = await supabase
+      .from('siedlung_dinge')
+      .select('ding_id, art, x, y, z, gier, ebene')
+      .eq('siedlung_id', siedlungId)
+      .order('ding_id')
+      .range(von, von + DINGE_SEITE - 1)
+    if (error) throw new Error(tg('fehler.siedlung_dinge_laden', { grund: errText(error) }))
+    const zeilen = (data ?? []) as { ding_id: string; art: string; x: number; y: number; z: number; gier: number; ebene: string }[]
+    for (const d of zeilen) {
+      out.push({
+        id: d.ding_id,
+        art: d.art === 'fahrzeug' ? 'fahrzeug' : 'ding',
+        x: Number(d.x),
+        y: Number(d.y),
+        z: Number(d.z),
+        gier: Number(d.gier),
+        ebene: d.ebene,
+      })
+    }
+    if (zeilen.length < DINGE_SEITE) return out
+  }
+}
+
+/** Eine neue Lage speichern (ueberschreibt die alte desselben Dings). Die
+ *  Datenbank lehnt ab, wenn man nicht dazu gehoert
+ *  (kistly:siedlung.kein_zugriff), Kennung oder Zahlen nicht passen
+ *  (kistly:siedlung.ding_ungueltig) oder schon 5000 Dinge bewegt wurden
+ *  (kistly:siedlung.zu_viele_dinge). */
+export async function siedlungDingSetzen(siedlungId: string, l: DingLageZeile): Promise<void> {
+  const werte = {
+    p_siedlung: siedlungId,
+    p_ding: l.id,
+    p_art: l.art,
+    p_x: l.x,
+    p_y: l.y,
+    p_z: l.z,
+    p_gier: l.gier,
+    p_ebene: l.ebene,
+  }
+  const { error } = await supabase.rpc('siedlung_ding_setzen', werte)
+  if (error) throw new Error(tg('fehler.siedlung_ding_setzen', { grund: errText(error) }))
+}
+
+/** Darf ich diesen Grundriss sehen (bin ich im Umzug)? Dann sein Umzug,
+ *  sonst null. Fuer den Knopf "Eingerichtet ansehen" in der Siedlung. Die
+ *  Zeilen-Sicherheit der Grundrisse (is_member) entscheidet. */
+export async function grundrissDarf(grundrissId: string): Promise<{ projectId: string } | null> {
+  if (!UUID_FORM.test(grundrissId)) return null
+  const { data, error } = await supabase.from('grundrisse').select('id, project_id').eq('id', grundrissId).maybeSingle()
+  if (error) throw new Error(tg('fehler.grundriss_laden', { grund: errText(error) }))
+  return data ? { projectId: (data as { project_id: string }).project_id } : null
 }

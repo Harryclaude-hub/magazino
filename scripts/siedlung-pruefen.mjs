@@ -37,10 +37,54 @@
 //   Ebene 'wohnung', ihr Geschoss heisst wie die anderen,
 // - das erste Sprungziel heisst 'Start' und steht vor der Haustuer des
 //   Hauses der Wohnung (ohne Wohnung: des ersten Hauses), frei.
+// Begehbar und Stadt (E87):
+// - ohne Stadt wie vorher: Dreiecke je festem Mesh, Ebenen und
+//   Sprungziele gegen einen Abdruck des Stands vor E87 (in 'bauten' fehlen
+//   nur die Autos, die jetzt Fahrzeuge sind), neu nur Zwischenpodeste
+//   hinten und das Ziel in der eigenen Wohnung,
+// - Treppen in jedem Stiegenhaus (Kern des eigenen Hauses, Haeuser mit
+//   Plaenen, ein grosses Haus mit dem Gang nur seitlich, eine Halle, ein
+//   erfundenes Haus): jedes Geschoss mit dem naechsten verbunden, jeder
+//   Lauf im Stiegenhaus, betretbar nur ueber seine zwei Kanten (Hindernisse
+//   aus kollision.ts), seitlich zu, seine Linie auf den Stufen (Strahl),
+// - Fahrzeuge und Dinge: Kennungen stabil und eindeutig, auf dem Boden,
+//   frei; das Ziel in der eigenen Wohnung frei und in ihr,
+// - Stadt (erfunden, mit der echten baueStadt und einer mitschreibenden
+//   darum): Gelaende und Hindernisse am Boden, Ebenen hinten an, version,
+//   kamera und schritt reichen weiter, Ziele mit der Ebene des Bodens,
+//   Karte vereint, ohne eigene Strasse, Hecken und Nachbarn, Wiese nur auf
+//   dem Grund und ueber -0,06, Himmel und Dunst bis 700 m; unbrauchbare
+//   Stadt: Fehler, Siedlung wie ohne,
+// - erfundene Wohnungen (innenGenerator, hier ein mitschreibender): Rahmen
+//   und Umriss, Kern und Gang des eigenen Hauses, gebaut wie Plaene,
+//   Fehler des Generators fallen weg,
+// - Niedriges draussen mit Oberkante (Baenke 0,47, Sandkiste 0,3, Buesche
+//   und Hecken bis gut einen Meter), Hohes ohne; mit Stadt: aussparen um den
+//   eigenen Grund und die Grube der Rampe; laedt die Stadt ein Haus innen,
+//   bleiben die Hindernisse am Boden dasselbe Feld mit denselben Rechtecken,
+// - mit dem echten Generator (wohnhausInnen): jedes Haus hat Wohnungen,
+//   Sprungziele je Wohnung, jedes Geschoss ist ueber die Treppen in der
+//   Stiege erreichbar (Kanten, Seiten, Linie auf den Stufen), der Aufzug im
+//   Kern des eigenen Hauses.
+// Die Faelle davor laufen ohne erfundene Wohnungen (innenErfinden gibt null),
+// wie die Siedlung vor E87 und ihr Abdruck; Fahrzeuge geben ihre geteilten
+// Teile selbst frei (jedes dispose() wird geprueft).
 // Aufruf im Projektordner: node scripts/siedlung-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import { BackSide, PerspectiveCamera, Raycaster, Vector3 } from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { aufzugZiel, baueSiedlung } from '../src/components/plan3d/siedlung3d.ts'
+import { baueStadt } from '../src/components/plan3d/stadt3d.ts'
+import { Hindernisse, KOERPER_RADIUS_M } from '../src/components/plan3d/kollision.ts'
+import { wohnhausInnen } from '../src/lib/innenGenerator.ts'
+import { STUFE_M } from '../src/components/plan3d/vertrag3d.ts'
+
+/** Ohne erfundene Wohnungen (wie vor E87): die Faelle bis zum Teil 'E87:
+ *  echte erfundene Wohnungen' pruefen die Siedlung aus ihren Daten (mit
+ *  Plaenen oder ohne), den Generator nur mitschreibend. Die echten
+ *  erfundenen Wohnungen (innenGenerator.wohnhausInnen) prueft der Teil unten. */
+const OHNE_ERFINDEN = () => null
+const bau = (o) => baueSiedlung({ innenErfinden: OHNE_ERFINDEN, ...o })
 
 let fehler = 0
 function wahr(name, ist) {
@@ -130,6 +174,11 @@ function meshesVon(gruppe) {
     if (o.isMesh) out.push(o)
   })
   return out
+}
+/** Teil eines Fahrzeugs oder Dings (E87, bewegt der Motor)? */
+function beweglich(o) {
+  for (let x = o; x; x = x.parent) if (typeof x.name === 'string' && (x.name.startsWith('fahrzeug:') || x.name.startsWith('ding:'))) return true
+  return false
 }
 const dreiecke = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3
 
@@ -353,6 +402,191 @@ function startPruefen(name, w, wohnung) {
 /** Lage der Siedlung in der Welt (Matrix der Gruppe siedlungLage). */
 const lageVon = (w) => w.gruppe.children.find((x) => x.name === 'siedlungLage')
 
+/* ------------------------------------------------ Abdruck (E87) */
+/* Ohne Stadt bleibt die Siedlung wie vor E87: Dreiecke je festem Mesh,
+ * Ebenen (Kennung, Name, Hoehe) und Sprungziele vorne gleich. ABDRUCK_VORHER
+ * ist mit dem Stand vor E87 gemessen (SIEDLUNG_ABDRUCK=1 druckt ihn neu). */
+const fnv = (s) => {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16)
+}
+const r6 = (v) => (Math.abs(v) < 5e-7 ? 0 : v).toFixed(6)
+const ebeneText = (e) => `${e.id}|${e.name}|${r6(e.y)}`
+const zielText = (s) => `${s.name}|${s.ebene}|${r6(s.x)}|${r6(s.z)}|${r6(s.gier)}`
+/** Dreiecke je festem Mesh (in siedlungLage), Ebenen und Sprungziele als Abdruck. */
+function abdruck(w) {
+  const tris = {}
+  for (const m of meshesVon(lageVon(w))) tris[m.name] = (tris[m.name] ?? 0) + dreiecke(m)
+  return { tris, ebenenListe: w.ebenen.map(ebeneText), zieleListe: w.sprungziele.map(zielText), autos: w.gruppe.userData.autos }
+}
+/** Kurz zum Speichern (ABDRUCK_VORHER). */
+const abdruckKurz = (a) => ({
+  tris: a.tris,
+  ebenen: a.ebenenListe.length,
+  ebenenHash: fnv(a.ebenenListe.join(';')),
+  ziele: a.zieleListe.length,
+  zieleHash: fnv(a.zieleListe.join(';')),
+  autos: a.autos,
+})
+const ABDRUCK = {}
+
+/* ------------------------------------------------ Treppen (E87) */
+
+/** Punkt (u, v) einer Treppe3D in der Welt (Formel aus vertrag3d.ts). */
+const anTreppe = (t, u, v) => [t.x + u * Math.cos(t.drehY) + v * Math.sin(t.drehY), t.z - u * Math.sin(t.drehY) + v * Math.cos(t.drehY)]
+/** Hindernisse einer Ebene im Raster von kollision.ts (wie der Motor). */
+function rasterVon(e) {
+  const h = new Hindernisse(1)
+  for (const x of e.hindernisse) h.dazu(x.x, x.z, x.laenge, x.tiefe, x.drehY)
+  h.rastern()
+  return h
+}
+/** Kommt der Koerper auf der Ebene (Raster h) von a nach b (frei am Start, am Ziel angekommen)? */
+function kommtHin(h, a, b) {
+  const r = KOERPER_RADIUS_M
+  if (!h.frei(a[0], a[1], r)) return false
+  const p = { x: a[0], z: a[1] }
+  h.bewegen(p, b[0] - a[0], b[1] - a[1], r)
+  return Math.hypot(p.x - b[0], p.z - b[1]) < 0.02
+}
+
+/**
+ * Treppen eines Hauses (E87): jedes Geschoss ist mit dem naechsten ueber
+ * eine Kette von Treppen verbunden; jeder Lauf liegt in einem der
+ * Stiegenhaeuser (Welt-Vielecke), steigt um eine halbe Geschosshoehe, ist
+ * auf seiner Ebene von nur ueber seine untere Kante, auf nach nur ueber
+ * die obere zu betreten, seitlich auf keiner (Hindernisse in kollision.ts),
+ * und seine Linie liegt auf den Stufen (Strahl von oben gegen meshes, eine
+ * halbe Steigung Spiel).
+ */
+function treppenPruefen(name, w, haus) {
+  const E = w.ebenen
+  const T = w.treppen.filter((t) => t.id.startsWith(`${haus.id}:t`))
+  wahr(`${name}: ${haus.id}: Treppen da (${T.length})`, T.length === 2 * (haus.geschosse.length - 1))
+  const nb = new Map()
+  const verbinden = (a, b) => {
+    if (!nb.has(a)) nb.set(a, new Set())
+    nb.get(a).add(b)
+  }
+  for (const t of T) {
+    verbinden(t.von, t.nach)
+    verbinden(t.nach, t.von)
+  }
+  for (let k = 0; k + 1 < haus.geschosse.length; k++) {
+    const ziel = haus.geschosse[k + 1]
+    const gesehen = new Set([haus.geschosse[k]])
+    let rand = [haus.geschosse[k]]
+    while (rand.length && !gesehen.has(ziel)) {
+      const neu = []
+      for (const x of rand) {
+        for (const y of nb.get(x) ?? []) {
+          if (gesehen.has(y)) continue
+          gesehen.add(y)
+          neu.push(y)
+        }
+      }
+      rand = neu
+    }
+    wahr(`${name}: ${haus.id}: Geschoss ${k} und ${k + 1} ueber Treppen verbunden`, gesehen.has(ziel))
+  }
+  const strahl = new Raycaster()
+  for (const t of T) {
+    const von = E.find((e) => e.id === t.von)
+    const nach = E.find((e) => e.id === t.nach)
+    wahr(`${name}: ${t.id}: Ebenen ${t.von} und ${t.nach} da`, !!von && !!nach)
+    if (!von || !nach) continue
+    nahe(`${name}: ${t.id}: steigt eine halbe Geschosshoehe`, nach.y - von.y, haus.gh / 2, 1e-9)
+    const L = t.laenge / 2
+    const B = t.breite / 2
+    const ecken = [anTreppe(t, -L + 0.01, -B + 0.01), anTreppe(t, L - 0.01, -B + 0.01), anTreppe(t, L - 0.01, B - 0.01), anTreppe(t, -L + 0.01, B - 0.01)]
+    wahr(`${name}: ${t.id}: im Stiegenhaus`, haus.stiegen.some((poly) => ecken.every((p) => imVieleck(p, poly))))
+    wahr(`${name}: ${t.id}: breit genug (${t.breite.toFixed(2)} m)`, t.breite >= 2 * KOERPER_RADIUS_M + 0.04 && t.stufen >= 3)
+    const hv = rasterVon(von)
+    const hn = rasterVon(nach)
+    wahr(`${name}: ${t.id}: auf ${t.von} unten hinein`, kommtHin(hv, anTreppe(t, -L - 0.45, 0), anTreppe(t, -L + 0.35, 0)))
+    wahr(`${name}: ${t.id}: auf ${t.nach} oben hinein`, kommtHin(hn, anTreppe(t, L + 0.45, 0), anTreppe(t, L - 0.35, 0)))
+    wahr(`${name}: ${t.id}: auf ${t.von} oben zu`, !kommtHin(hv, anTreppe(t, L + 0.45, 0), anTreppe(t, L - 0.35, 0)))
+    wahr(`${name}: ${t.id}: auf ${t.nach} unten zu`, !kommtHin(hn, anTreppe(t, -L - 0.45, 0), anTreppe(t, -L + 0.35, 0)))
+    let seitlich = 0
+    for (const h of [hv, hn]) for (const s of [-1, 1]) for (const u of [-0.5 * L, 0, 0.5 * L]) if (kommtHin(h, anTreppe(t, u, s * (B + 0.45)), anTreppe(t, u, s * (B - 0.3)))) seitlich++
+    wahr(`${name}: ${t.id}: seitlich zu (${seitlich})`, seitlich === 0)
+    // Die Linie der Treppe auf den Stufen.
+    const steig = (nach.y - von.y) / t.stufen
+    let daneben = 0
+    for (let i = 1; i < 16; i++) {
+      const f = i / 16
+      const [x, z] = anTreppe(t, -L + 2 * L * f, 0)
+      const y = von.y + (nach.y - von.y) * f
+      strahl.set(new Vector3(x, y + 0.6, z), new Vector3(0, -1, 0))
+      strahl.far = 1.4
+      const hit = strahl.intersectObjects(haus.meshes, false)[0]
+      if (!hit || Math.abs(hit.point.y - y) > steig / 2 + 0.05) {
+        if (daneben < 2) console.log('  Stufe daneben:', t.id, f.toFixed(2), 'Linie', y.toFixed(3), 'Stufe', hit ? hit.point.y.toFixed(3) : '-')
+        daneben++
+      }
+    }
+    wahr(`${name}: ${t.id}: Linie auf den Stufen (${daneben} daneben)`, daneben === 0)
+  }
+}
+
+/** Die beiden moeglichen Lagen des Kerns am Gang (Welt-Vielecke). */
+function kernRechtecke(hausDaten, welt) {
+  const gk = gangKante(hausDaten.umriss)
+  const rechteck = (t0, t1, s0, s1) => [
+    [t0, s0],
+    [t1, s0],
+    [t1, s1],
+    [t0, s1],
+  ].map(([t, s]) => welt([gk.a[0] + gk.u[0] * t + gk.n[0] * s, gk.a[1] + gk.u[1] * t + gk.n[1] * s]))
+  return [rechteck(0, 6.8, 1.6, 4.4), rechteck(gk.l - 6.8, gk.l, 1.6, 4.4)]
+}
+
+/** Fahrzeuge und Dinge (E87): Kennungen, Lage, frei, gleich in a und b. */
+function beweglichePruefen(name, a, b) {
+  const E0 = a.ebenen[0]
+  const F0 = a.fahrzeuge
+  const D = a.dinge
+  wahr(`${name}: so viele Fahrzeuge wie Autos (${F0.length})`, F0.length === a.gruppe.userData.autos && F0.length > 0)
+  wahr(`${name}: Kennungen der Fahrzeuge`, F0.every((f, i) => f.id === `siedlung:f${i}`))
+  wahr(`${name}: Dinge (${D.length})`, D.length >= 8 && D.length <= 12 && new Set(D.map((d) => d.id)).size === D.length && D.every((d) => /^siedlung:d\d+$/.test(d.id)))
+  for (const f of F0) {
+    wahr(`${name}: ${f.id} auf dem Boden`, f.ebene === E0.id && f.gruppe.parent === a.gruppe && Math.abs(f.gruppe.position.y - E0.y) < 1e-9)
+    wahr(`${name}: ${f.id} Lage`, Math.abs(f.gruppe.position.x - f.x) < 1e-9 && Math.abs(f.gruppe.position.z - f.z) < 1e-9 && Math.abs(f.gruppe.rotation.y - f.gier) < 1e-9)
+    wahr(`${name}: ${f.id} Art`, f.art === 'auto' || f.art === 'kombi')
+  }
+  for (const d of D) {
+    const o = d.objekt
+    wahr(`${name}: ${d.id} auf dem Boden`, d.ebene === E0.id && o.parent === a.gruppe && Math.abs(o.position.y - E0.y) < 1e-9)
+    o.geometry.computeBoundingBox()
+    const bb = o.geometry.boundingBox
+    wahr(`${name}: ${d.id} Ursprung unten (${bb.min.y.toFixed(3)})`, Math.abs(bb.min.y) < 0.005 && Math.abs(bb.max.y - d.hoehe) < 0.02)
+    wahr(`${name}: ${d.id} frei`, frei(E0, o.position.x, o.position.z, Math.hypot(d.breite, d.tiefe) / 2 + 0.2))
+    wahr(`${name}: ${d.id} Eckfarben`, !!o.geometry.attributes.color && o.material.vertexColors === true)
+  }
+  const lagen = (w) => JSON.stringify([...w.fahrzeuge.map((f) => [f.id, f.art, r6(f.x), r6(f.z), r6(f.gier)]), ...w.dinge.map((d) => [d.id, r6(d.objekt.position.x), r6(d.objekt.position.z)])])
+  wahr(`${name}: Fahrzeuge und Dinge stabil`, lagen(a) === lagen(b))
+}
+
+/** Das Ziel in der eigenen Wohnung (E87): ohne Rahmen da, auf dem
+ *  Geschoss der Wohnung, frei, im Vieleck einer der Flaechen (Welt). */
+function eigenePruefen(name, w, wohnung, rahmen, ebene, flaechen) {
+  const i = w.eigeneWohnung
+  if (!wohnung || rahmen) {
+    wahr(`${name}: kein eigenes Ziel (${i})`, i === null)
+    return
+  }
+  const s = Number.isInteger(i) ? w.sprungziele[i] : null
+  wahr(`${name}: eigenes Ziel da (${i})`, !!s)
+  if (!s) return
+  wahr(`${name}: eigenes Ziel auf dem Geschoss der Wohnung (${s.ebene})`, s.ebene === ebene)
+  wahr(`${name}: eigenes Ziel frei`, frei(w.ebenen[s.ebene], s.x, s.z, 0.3))
+  wahr(`${name}: eigenes Ziel in der Wohnung (${s.name})`, flaechen.some((poly) => imVieleck([s.x, s.z], poly)))
+}
+
 /** Besitzer und Gast in derselben Welt: Lage, Karte, Hoehen, Haustueren,
  *  Start. Die Ebene der Wohnung heisst beim Gast wie jedes Geschoss. */
 function gleicheWelt(name, besitzer, gast) {
@@ -379,9 +613,10 @@ function gleicheWelt(name, besitzer, gast) {
 
 function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
   const t0 = performance.now()
-  const w = baueSiedlung({ siedlung: siedlung(wohnung, aussen), farben: F, wohnungRahmen: rahmen })
+  const w = bau({ siedlung: siedlung(wohnung, aussen), farben: F, wohnungRahmen: rahmen })
   const zeit = performance.now() - t0
   w.gruppe.updateMatrixWorld(true)
+  ABDRUCK[name] = abdruck(w)
   const meshes = meshesVon(w.gruppe)
   const nach = new Map(meshes.map((m) => [m.name, m]))
   const haus = wohnung ? HAEUSER.find((h) => h.id === wohnung.gebaeudeId) : null
@@ -389,11 +624,13 @@ function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
   // Meshes, Zeichenaufrufe, Dreiecke, Farben.
   for (const n of ['himmel', 'boden', 'gelaende', 'gruen', 'bauten']) wahr(`${name}: Mesh ${n} da`, nach.has(n))
   wahr(`${name}: Kabine und Tueren genau mit Wohnung`, nach.has('kabine') === !!wohnung && nach.has('aufzugTueren') === !!wohnung)
-  const sichtbar = meshes.filter((m) => m.visible)
+  // Die feste Welt; Fahrzeuge und Dinge (E87) zaehlen eigens (E87-Teil unten).
+  const festeMeshes = meshes.filter((m) => !beweglich(m))
+  const sichtbar = festeMeshes.filter((m) => m.visible)
   wahr(`${name}: unter 25 Zeichenaufrufe (${sichtbar.length})`, sichtbar.length < 25)
   const summe = meshes.reduce((s, m) => s + dreiecke(m), 0)
   wahr(`${name}: unter 150 000 Dreiecke (${summe})`, summe < 150000)
-  for (const m of meshes) {
+  for (const m of festeMeshes) {
     const pos = m.geometry.attributes.position.array
     wahr(`${name}: ${m.name} Lage endlich`, pos.every(Number.isFinite))
     const col = m.geometry.attributes.color
@@ -430,16 +667,22 @@ function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
   if (haus) {
     const g = wohnung.geschoss
     const gh = haus.geschossHoehe
-    wahr(`${name}: Ebenen = Geschosse + Garten (${E.length})`, E.length === haus.geschosse + 1)
+    // E87: hinter dem Garten je Geschoss mit Treppe hinauf ein Zwischenpodest.
+    wahr(`${name}: Ebenen = Geschosse + Garten + Zwischenpodeste (${E.length})`, E.length === 2 * haus.geschosse)
     for (let k = 0; k < haus.geschosse; k++) {
       nahe(`${name}: Ebene ${k} Hoehe`, E[k].y, (k - g) * gh, 1e-9)
       wahr(`${name}: Ebene ${k} Name`, E[k].name === (k === 0 ? 'EG' : `${k}. OG`))
       // Ohne Rahmen (Gast, E86) heisst auch das Geschoss der Wohnung wie die anderen.
       wahr(`${name}: Ebene ${k} Kennung`, E[k].id === (k === g && rahmen ? 'wohnung' : `geschoss-${k}`))
     }
-    const garten = E[E.length - 1]
-    wahr(`${name}: Garten zuletzt`, garten.id === 'garten' && garten.name === 'Garten')
+    const garten = E[haus.geschosse]
+    wahr(`${name}: Garten nach den Geschossen`, garten.id === 'garten' && garten.name === 'Garten')
     nahe(`${name}: Garten Hoehe`, garten.y, -g * gh, 1e-9)
+    for (let k = 0; k + 1 < haus.geschosse; k++) {
+      const e = E[haus.geschosse + 1 + k]
+      wahr(`${name}: Zwischenpodest ${k}`, !!e && e.id === `${haus.id}:${k}.5` && e.name === `Zwischenpodest ${k === 0 ? 'EG' : `${k}. OG`}`)
+      if (e) nahe(`${name}: Zwischenpodest ${k} Hoehe`, e.y, (k + 0.5 - g) * gh, 1e-9)
+    }
     nahe(`${name}: Wohnung bei 0`, E[g].y, 0, 1e-12)
   } else {
     wahr(`${name}: nur Garten`, E.length === 1 && E[0].id === 'garten' && E[0].y === 0)
@@ -451,9 +694,21 @@ function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
       e.hindernisse.every((h) => [h.x, h.z, h.laenge, h.tiefe, h.drehY].every(Number.isFinite) && h.laenge > 0 && h.tiefe > 0),
     )
   }
+  // Treppen im Kern des eigenen Hauses (E87) und das Ziel in der Wohnung.
+  if (haus) {
+    const L = lage(wohnung)
+    treppenPruefen(name, w, {
+      id: haus.id,
+      gh: haus.geschossHoehe,
+      geschosse: E.slice(0, haus.geschosse).map((e) => e.id),
+      stiegen: kernRechtecke(haus, L.welt),
+      meshes: [nach.get('bauten'), nach.get('gelaende')],
+    })
+    eigenePruefen(name, w, wohnung, rahmen, wohnung.geschoss, [haus.umriss.map(L.welt)])
+  } else eigenePruefen(name, w, wohnung, rahmen, -1, [])
   // Spielgeraete stehen als Hindernisse im Garten (Mitte im Spielplatz).
   if (aussen.spielplatz) {
-    const garten = E[E.length - 1]
+    const garten = E.find((e) => e.id === 'garten')
     const L = wohnung ? lage(wohnung) : null
     const pw = aussen.spielplatz.map((p) => (L ? L.welt(p) : p))
     const innen = (p, poly) => {
@@ -468,7 +723,16 @@ function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
     if (L) {
       const imSpiel = garten.hindernisse.filter((h) => innen([h.x, h.z], pw)).length
       wahr(`${name}: Spielgeraete im Garten (${imSpiel})`, imSpiel >= 3)
+      // E87: auf Baenke (Sitz 0,47 m) und die Sandkiste (Rahmen 0,3 m) kommt man hinauf.
+      const baenke = garten.hindernisse.filter((h) => innen([h.x, h.z], pw) && h.oben === 0.47).length
+      const sand = garten.hindernisse.filter((h) => innen([h.x, h.z], pw) && h.oben === 0.3).length
+      wahr(`${name}: Baenke und Sandkiste mit Oberkante (${baenke}, ${sand})`, baenke >= 1 && sand === 1 && 0.3 <= STUFE_M)
+      const hoch = garten.hindernisse.filter((h) => innen([h.x, h.z], pw) && h.oben === undefined).length
+      wahr(`${name}: Schaukel und Turm ohne Oberkante (${hoch})`, hoch >= 1)
     }
+    // Buesche (und ohne Stadt Hecken) mit Oberkante bis gut einen Meter.
+    const gruen = garten.hindernisse.filter((h) => h.oben !== undefined && h.oben > 0.5 && h.oben <= 1.16)
+    wahr(`${name}: Buesche und Hecken mit Oberkante (${gruen.length})`, gruen.length >= 3)
   }
 
   // Gang: Luecke vor der Wohnungstuer nur auf ihrem Geschoss, Gelaender.
@@ -697,9 +961,27 @@ function gleich(name, a, b) {
 }
 
 /** dispose() gibt alles frei, auch zweimal; danach ist alles still. */
+/** Fahrzeuge teilen Geometrie, Lack und Materialien ueber alle Welten
+ *  (fahrzeug3d.ts, mit Zaehlern): die gibt ihr eigenes dispose() frei,
+ *  wenn kein Fahrzeug sie mehr braucht. Hier zaehlt, was die Siedlung baut;
+ *  dass sie jedes Fahrzeug freigibt, prueft fahrzeugeFrei. */
+const istFahrzeug = (m) => {
+  for (let x = m; x; x = x.parent) if (typeof x.name === 'string' && x.name.startsWith('fahrzeug:')) return true
+  return false
+}
 function freigeben(name, w) {
   const offen = new Set()
+  const fahrzeuge = Array.isArray(w.fahrzeuge) ? w.fahrzeuge.slice() : []
+  const fzFrei = new Set()
+  for (const f of fahrzeuge) {
+    const alt = f.dispose.bind(f)
+    f.dispose = () => {
+      fzFrei.add(f)
+      alt()
+    }
+  }
   for (const m of meshesVon(w.gruppe)) {
+    if (istFahrzeug(m)) continue
     for (const x of [m.geometry, m.material]) {
       if (offen.has(x)) continue
       offen.add(x)
@@ -714,6 +996,7 @@ function freigeben(name, w) {
     fehler++
   }
   wahr(`${name}: alles freigegeben (${offen.size} offen)`, offen.size === 0)
+  wahr(`${name}: jedes Fahrzeug freigegeben (${fzFrei.size} von ${fahrzeuge.length})`, fzFrei.size === fahrzeuge.length)
   wahr(`${name}: Gruppe leer`, w.gruppe.children.length === 0)
   wahr(`${name}: nach dispose still`, w.schritt(0.1, 1.6) === false && w.fahrt() === null && aufzugZiel(w) === null)
   if (w.interaktiv) w.interaktiv.tippen(w.interaktiv.objekte[0])
@@ -724,10 +1007,11 @@ let hoechstAufrufe = 0
 let langsamst = 0
 for (const [name, wohnung, rahmen] of FAELLE) {
   const a = pruefen(name, wohnung, rahmen)
-  const b = baueSiedlung({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen })
+  const b = bau({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen })
   // Vergleich mit einem frischen Bau (a ist durch die Fahrten veraendert).
-  const c = baueSiedlung({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen })
+  const c = bau({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen })
   gleich(name, b, c)
+  beweglichePruefen(name, b, c)
   hoechst = Math.max(hoechst, a.summe)
   hoechstAufrufe = Math.max(hoechstAufrufe, a.aufrufe)
   langsamst = Math.max(langsamst, a.zeit)
@@ -749,7 +1033,7 @@ for (const [name, wohnung, rahmen] of FAELLE) {
 for (const [name, wohnung, rahmen] of FAELLE) {
   if (!wohnung) continue
   const n = `${name}, Gast`
-  const besitzer = baueSiedlung({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen })
+  const besitzer = bau({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen })
   const gast = pruefen(n, wohnung, null).w
   gleicheWelt(n, besitzer, gast)
   const haus = HAEUSER.find((h) => h.id === wohnung.gebaeudeId)
@@ -763,7 +1047,7 @@ for (const [name, wohnung, rahmen] of FAELLE) {
 const wirft = (name, siedlungDaten, rahmen = RAHMEN) => {
   let geworfen = false
   try {
-    baueSiedlung({ siedlung: siedlungDaten, farben: F, wohnungRahmen: rahmen })
+    bau({ siedlung: siedlungDaten, farben: F, wohnungRahmen: rahmen })
   } catch {
     geworfen = true
   }
@@ -895,8 +1179,9 @@ const INNEN_FAELLE = [
 const INNEN_GAERTEN = [innenGeschoss(0).wohnungen[1].raeume[3].punkte]
 
 function innenPruefen(name, wohnung, rahmen) {
-  const w = baueSiedlung({ siedlung: mitInnen(wohnung), farben: F, wohnungRahmen: rahmen })
+  const w = bau({ siedlung: mitInnen(wohnung), farben: F, wohnungRahmen: rahmen })
   w.gruppe.updateMatrixWorld(true)
+  ABDRUCK[name] = abdruck(w)
   const LG = w.gruppe.children.find((x) => x.name === 'siedlungLage')
   /** Lokal (Meter, Hoehe lokal) -> Welt als Vector3. */
   const welt3 = (p, y = 0) => new Vector3(p[0], y, p[1]).applyMatrix4(LG.matrixWorld)
@@ -918,9 +1203,13 @@ function innenPruefen(name, wohnung, rahmen) {
     for (let k = 1; k < h.geschosse; k++) soll.push({ id: eigen && k === g ? 'wohnung' : `${h.id}:${k}`, name: `${h.name} ${k}. OG`, y: (k - g) * gh })
   }
   soll.push({ id: eigen && wohnung.gebaeudeId === 'h5' && g === 1 ? 'wohnung' : 'h5:1', name: 'Haus 5 1. OG', y: (1 - g) * gh })
+  // E87: dahinter die Zwischenpodeste (eigenes Haus ohne Plaene am Kern, dann Haus 5).
+  const podeste = [...(wohnung && wohnung.gebaeudeId !== 'h5' ? [0, 1, 2, 3].map((k) => `${wohnung.gebaeudeId}:${k}.5`) : []), 'h5:0.5']
   wahr(
     `${name}: Ebenen ${E.map((e) => e.id).join(',')}`,
-    E.length === soll.length && soll.every((s, i) => E[i].id === s.id && E[i].name === s.name && Math.abs(E[i].y - s.y) < 1e-9),
+    E.length === soll.length + podeste.length &&
+      soll.every((s, i) => E[i].id === s.id && E[i].name === s.name && Math.abs(E[i].y - s.y) < 1e-9) &&
+      podeste.every((id, i) => E[soll.length + i].id === id),
   )
   const iOG = E.findIndex((e) => e.name === 'Haus 5 1. OG')
   for (const e of E) {
@@ -985,6 +1274,36 @@ function innenPruefen(name, wohnung, rahmen) {
   w.kamera(imGang.x, imGang.y, imGang.z)
   wahr(`${name}: wieder drin, nichts neu gebaut`, gruppeH5.visible && nachName(w, 'innen:h5:0') === stock0 && nachName(w, 'innen:h5:1') === stock1)
   w.gruppe.updateMatrixWorld(true)
+
+  /* E87: die Treppe in Haus 5 (zwei Geschosse), die am Kern eines eigenen
+   * Hauses ohne Plaene, das Ziel in der eigenen Wohnung. */
+  treppenPruefen(name, w, {
+    id: 'h5',
+    gh,
+    geschosse: [E[0].id, E[iOG].id],
+    stiegen: [[[0, 100], [200, 100], [200, 650], [0, 650]].map(plan)],
+    meshes: meshesVon(gruppeH5),
+  })
+  if (wohnung && wohnung.gebaeudeId !== 'h5') {
+    const hd = HAEUSER.find((h) => h.id === wohnung.gebaeudeId)
+    const weltXZ = (p) => {
+      const v = welt3(p)
+      return [v.x, v.z]
+    }
+    treppenPruefen(name, w, {
+      id: hd.id,
+      gh,
+      geschosse: Array.from({ length: hd.geschosse }, (_, k) => (k === 0 ? E[0].id : (E.find((e) => e.id === `${hd.id}:${k}`) ?? E.find((e) => e.id === 'wohnung')).id)),
+      stiegen: kernRechtecke(hd, weltXZ),
+      meshes: [nachName(w, 'bauten'), nachName(w, 'gelaende')],
+    })
+  }
+  {
+    const h5 = HAEUSER.find((h) => h.id === 'h5')
+    const imPlan = wohnung && wohnung.geschoss === 1 && wohnung.gebaeudeId === 'h5'
+    const flaechen = imPlan ? innenGeschoss(1).wohnungen[0].raeume.map((r) => r.punkte.map(plan)) : [h5.umriss.map((p) => plan([(p[0] + 32.6) * 100, (p[1] + 51.0) * 100]))]
+    eigenePruefen(name, w, wohnung, rahmen, wohnung && wohnung.geschoss === 1 ? iOG : 0, flaechen)
+  }
 
   /* Menge: je Haus unter 120 000 Dreiecken und 12 Zeichenaufrufen. */
   const tris = dreieckeVon(gruppeH5)
@@ -1087,7 +1406,12 @@ function innenPruefen(name, wohnung, rahmen) {
   wahr(`${name}: Sprungziel vor der Haustuer`, haus5.length === 1 && haus5[0].ebene === 0 && frei(E[0], haus5[0].x, haus5[0].z, 0.2))
   if (haus5[0] && bodenFrei) wahr(`${name}: von der Haustuer in den Gang`, wegFrei(E[0], [haus5[0].x, haus5[0].z], plan([1300, 775]), 0.23))
   const eingaenge = S.filter((x) => x.name.startsWith('Eingang '))
-  wahr(`${name}: Sprungziele: Start, 4 Wohnungen, ${eingaenge.length} Haustueren, Spielplatz (${S.length})`, S.length === 1 + 4 + eingaenge.length + 1 && eingaenge.length === 5)
+  // E87: ohne Rahmen dazu das Ziel in der eigenen (geplanten) Wohnung.
+  const eigenesZiel = wohnung && !rahmen ? 1 : 0
+  wahr(
+    `${name}: Sprungziele: Start, 4 Wohnungen, ${eingaenge.length} Haustueren, Spielplatz${eigenesZiel ? ', eigene Wohnung' : ''} (${S.length})`,
+    S.length === 1 + 4 + eingaenge.length + 1 + eigenesZiel && eingaenge.length === 5,
+  )
   startPruefen(name, w, wohnung)
   kartePruefen(name, w, (p) => {
     const v = welt3(p)
@@ -1179,7 +1503,7 @@ for (const [name, wohnung, rahmen] of INNEN_FAELLE) innenWelten.push([name, inne
 {
   const [, wohnung, rahmen] = INNEN_FAELLE[0]
   const bauen = () => {
-    const w = baueSiedlung({ siedlung: mitInnen(wohnung), farben: F, wohnungRahmen: rahmen })
+    const w = bau({ siedlung: mitInnen(wohnung), farben: F, wohnungRahmen: rahmen })
     const LG = w.gruppe.children.find((x) => x.name === 'siedlungLage')
     w.gruppe.updateMatrixWorld(true)
     const p = new Vector3(...[planLokal([1600, 800])].map(([x, z]) => [x, 1.6, z])[0]).applyMatrix4(LG.matrixWorld)
@@ -1207,8 +1531,8 @@ for (const [name, wohnung, rahmen] of INNEN_FAELLE) innenWelten.push([name, inne
     if (!wohnung || !rahmen) continue
     const n = `${name}, Gast`
     const daten = { ...mitInnen(wohnung), gebaeude: grau }
-    const besitzer = baueSiedlung({ siedlung: daten, farben: F, wohnungRahmen: rahmen })
-    const gast = baueSiedlung({ siedlung: daten, farben: F, wohnungRahmen: null })
+    const besitzer = bau({ siedlung: daten, farben: F, wohnungRahmen: rahmen })
+    const gast = bau({ siedlung: daten, farben: F, wohnungRahmen: null })
     gleicheWelt(n, besitzer, gast)
     const kaesten = []
     for (const [wer, w] of [
@@ -1309,8 +1633,9 @@ function grossesHaus() {
   let w = null
   for (let lauf = 0; lauf < 3; lauf++) {
     if (w) freigeben(`Grosses Haus (${lauf})`, w)
-    w = baueSiedlung({ siedlung: DATEN, farben: F, wohnungRahmen: null })
+    w = bau({ siedlung: DATEN, farben: F, wohnungRahmen: null })
     w.gruppe.updateMatrixWorld(true)
+    if (lauf === 0) ABDRUCK['Grosses Haus'] = abdruck(w)
     const LG = w.gruppe.children.find((x) => x.name === 'siedlungLage')
     const p = new Vector3(4.5 + 10, 1.6, -72.6 + 10.75).applyMatrix4(LG.matrixWorld)
     const zeiten = []
@@ -1337,8 +1662,25 @@ function grossesHaus() {
   wahr(`Grosses Haus: laengster Bau-Schritt ${langsam.toFixed(1)} ms`, langsam < 30)
   wahr(`Grosses Haus: kamera() baut nicht (${kuerzest[0].toFixed(2)} ms)`, kuerzest[0] < 2)
   wahr(`Grosses Haus: Sprungziele (${w.sprungziele.length})`, w.sprungziele.filter((s) => /^G\d\d, /.test(s.name)).length === 30)
-  wahr(`Grosses Haus: Ebenen (${w.ebenen.length})`, w.ebenen.length === 1 + 4 + 1)
+  wahr(`Grosses Haus: Ebenen (${w.ebenen.length})`, w.ebenen.length === 1 + 4 + 1 + 4 + 1)
   console.log(`  grosses Haus: ${tris} Dreiecke, ${auf} Zeichenaufrufe, ${n - 1} Bau-Schritte, der laengste ${langsam.toFixed(1)} ms`)
+  // E87: die Treppe ueber fuenf Geschosse; der Gang liegt nur seitlich am
+  // Stiegenhaus, davor ein Podest auf Geschosshoehe.
+  {
+    const LG = lageVon(w)
+    const planG = ([x, y]) => {
+      const v = new Vector3(4.5 + x / 100, 0, -72.6 + y / 100).applyMatrix4(LG.matrixWorld)
+      return [v.x, v.z]
+    }
+    w.gruppe.updateMatrixWorld(true)
+    treppenPruefen('Grosses Haus', w, {
+      id: 'h4',
+      gh: 3,
+      geschosse: [w.ebenen[0].id, 'h4:1', 'h4:2', 'h4:3', 'h4:4'],
+      stiegen: [[[2070, 900], [2270, 900], [2270, 1450], [2070, 1450]].map(planG)],
+      meshes: meshesVon(gruppe),
+    })
+  }
   freigeben('Grosses Haus', w)
 }
 
@@ -1349,7 +1691,7 @@ function grossesHaus() {
     const g = innenGeschoss(k)
     return { ...g, allgemein: [{ art: 'gang', punkte: [[0, 100], [700, 100], [700, 650], [2700, 650], [2700, 900], [0, 900]] }, ...g.allgemein.slice(1)] }
   }
-  const w = baueSiedlung({ siedlung: mitInnen(null, [{ ...INNEN[0], geschosse: [halle(0), halle(1)] }]), farben: F, wohnungRahmen: null })
+  const w = bau({ siedlung: mitInnen(null, [{ ...INNEN[0], geschosse: [halle(0), halle(1)] }]), farben: F, wohnungRahmen: null })
   w.gruppe.updateMatrixWorld(true)
   const LG = w.gruppe.children.find((x) => x.name === 'siedlungLage')
   const welt3 = (p, y) => new Vector3(...planLokal(p).flatMap((v, i) => (i === 0 ? [v, y] : [v]))).applyMatrix4(LG.matrixWorld)
@@ -1378,6 +1720,15 @@ function grossesHaus() {
   // Die Tuer zeigt in die Halle (nicht zur Stiege): von Osten hinein.
   wahr('Halle: in den Aufzug', wegFrei(og, plan([620, 547]), plan([330, 547]), 0.23))
   wahr('Halle: nicht von der Stiege her', !wegFrei(og, plan([305, 800]), plan([305, 560]), 0.23))
+  // E87: die Treppe in der Halle (rundum Gang): nur ueber den Antritt.
+  w.gruppe.updateMatrixWorld(true)
+  treppenPruefen('Halle', w, {
+    id: 'h5',
+    gh: 3,
+    geschosse: [E[0].id, 'h5:1'],
+    stiegen: [[[0, 100], [200, 100], [200, 650], [0, 650]].map(plan)],
+    meshes: meshesVon(w.gruppe.getObjectByName('innen:h5')),
+  })
   freigeben('Halle', w)
 }
 
@@ -1402,6 +1753,554 @@ function grossesHaus() {
   wirft('innen: keine Liste', { ...siedlung(null), innen: { a: 1 } }, null)
 }
 
+
+/* ------------------------------------------------ E87: wie vorher */
+/* Gemessen mit dem Stand vor E87 (Vertrag E87, Teil 1), gleich nach dem
+ * Bau jeder Siedlung oben (ohne Stadt). Ohne Stadt bleibt alles wie
+ * vorher: dieselben Dreiecke in jedem festen Mesh, nur in 'bauten' fehlen
+ * die Autos (sie sind jetzt Fahrzeuge: je Auto genau die Dreiecke des alten
+ * Modells), gleich viele Autos, Ebenen und Sprungziele von vorher vorne
+ * unveraendert; neu hinten sind nur Zwischenpodeste und das Ziel in der
+ * eigenen Wohnung. */
+const ABDRUCK_VORHER = {
+  'Gang 1. OG': { tris: { boden: 10320, gelaende: 962, gruen: 14296, bauten: 53582, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugTueren: 192, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108 }, ebenen: 5, ebenenHash: '94460cd7', ziele: 7, zieleHash: 'ed274d20', autos: 6 },
+  'Drehung 90, 3. OG': { tris: { boden: 10320, gelaende: 914, gruen: 14856, bauten: 49974, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugFahre4: 108, aufzugTueren: 240, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108, aufzugRuf4: 108 }, ebenen: 6, ebenenHash: '16799ce5', ziele: 7, zieleHash: '62b47ac1', autos: 5 },
+  'Erdgeschoss, Drehung 180': { tris: { boden: 10320, gelaende: 950, gruen: 14296, bauten: 52834, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugTueren: 192, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108 }, ebenen: 5, ebenenHash: '9809fe9', ziele: 7, zieleHash: 'eb4084b5', autos: 6 },
+  'Oben, Drehung 270': { tris: { boden: 10320, gelaende: 962, gruen: 14296, bauten: 52902, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugTueren: 192, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108 }, ebenen: 5, ebenenHash: '7c1d1753', ziele: 7, zieleHash: 'ecb34aba', autos: 6 },
+  'Ohne Wohnung': { tris: { boden: 10320, gelaende: 926, gruen: 14776, bauten: 45258 }, ebenen: 1, ebenenHash: 'eeac85d9', ziele: 7, zieleHash: 'eedbe487', autos: 3 },
+  'Ohne Draussen': { tris: { boden: 10312, gelaende: 660, gruen: 14296, bauten: 51624, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugTueren: 192, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108 }, ebenen: 5, ebenenHash: '53658cc6', ziele: 6, zieleHash: 'f7d22110', autos: 4 },
+  'Gang 1. OG, Gast': { tris: { boden: 10320, gelaende: 962, gruen: 14296, bauten: 53610, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugTueren: 192, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108 }, ebenen: 5, ebenenHash: '53658cc6', ziele: 7, zieleHash: 'ed274d20', autos: 6 },
+  'Drehung 90, 3. OG, Gast': { tris: { boden: 10320, gelaende: 914, gruen: 14856, bauten: 50002, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugFahre4: 108, aufzugTueren: 240, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108, aufzugRuf4: 108 }, ebenen: 6, ebenenHash: '4c15e6d0', ziele: 7, zieleHash: '62b47ac1', autos: 5 },
+  'Erdgeschoss, Drehung 180, Gast': { tris: { boden: 10320, gelaende: 962, gruen: 14296, bauten: 53610, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugTueren: 192, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108 }, ebenen: 5, ebenenHash: '5f991b13', ziele: 7, zieleHash: 'eb4084b5', autos: 6 },
+  'Oben, Drehung 270, Gast': { tris: { boden: 10320, gelaende: 962, gruen: 14296, bauten: 53608, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugTueren: 192, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108 }, ebenen: 5, ebenenHash: '46e9b7aa', ziele: 7, zieleHash: 'ecb34aba', autos: 6 },
+  'Innen, Wohnung im 1. OG': { tris: { boden: 10320, gelaende: 1314, gruen: 14296, bauten: 39690, 'huelle:h5': 6570 }, ebenen: 2, ebenenHash: 'ba916f4d', ziele: 11, zieleHash: 'af0421e6', autos: 6 },
+  'Innen, ohne Wohnung': { tris: { boden: 10320, gelaende: 1314, gruen: 14776, bauten: 38696, 'huelle:h5': 6634 }, ebenen: 2, ebenenHash: '81c571d2', ziele: 11, zieleHash: '3c7ed0e4', autos: 3 },
+  'Innen, Wohnung in Haus 4': { tris: { boden: 10320, gelaende: 1302, gruen: 14856, bauten: 43412, 'huelle:h5': 6634, kabine: 168, aufzugFahre0: 108, aufzugFahre1: 108, aufzugFahre2: 108, aufzugFahre3: 108, aufzugFahre4: 108, aufzugTueren: 240, aufzugRuf0: 108, aufzugRuf1: 108, aufzugRuf2: 108, aufzugRuf3: 108, aufzugRuf4: 108 }, ebenen: 6, ebenenHash: '4a98a8d3', ziele: 11, zieleHash: '1e9c432', autos: 5 },
+  'Innen, Wohnung im EG gedreht': { tris: { boden: 10320, gelaende: 1314, gruen: 14296, bauten: 39690, 'huelle:h5': 6206 }, ebenen: 2, ebenenHash: '218ea450', ziele: 11, zieleHash: '138de521', autos: 6 },
+  'Innen, Gast, Wohnung im 1. OG': { tris: { boden: 10320, gelaende: 1314, gruen: 14296, bauten: 39690, 'huelle:h5': 6634 }, ebenen: 2, ebenenHash: '5899ad6f', ziele: 11, zieleHash: 'af0421e6', autos: 6 },
+  'Innen, Gast, Wohnung im EG gedreht': { tris: { boden: 10320, gelaende: 1314, gruen: 14296, bauten: 39690, 'huelle:h5': 6634 }, ebenen: 2, ebenenHash: '81c571d2', ziele: 11, zieleHash: '138de521', autos: 6 },
+  'Grosses Haus': { tris: { boden: 10320, gelaende: 1278, gruen: 14936, bauten: 26632, 'huelle:h5': 6634, 'huelle:h4': 12220 }, ebenen: 6, ebenenHash: '91a11937', ziele: 41, zieleHash: 'da51233e', autos: 3 },
+}
+{
+  const rund = (r) => {
+    const g = new RoundedBoxGeometry(1, 1, 1, 1, r)
+    const n = (g.index ? g.index.count : g.attributes.position.count) / 3
+    g.dispose()
+    return n
+  }
+  // Das alte Auto: zwei runde Quader, vier Raeder (Walze mit 8 Seiten, 32 Dreiecke).
+  const AUTO = rund(0.16) + rund(0.2) + 4 * 32
+  for (const [name, v] of Object.entries(ABDRUCK_VORHER)) {
+    const n = ABDRUCK[name]
+    wahr(`wie vorher: ${name} gemessen`, !!n)
+    if (!n) continue
+    wahr(`wie vorher: ${name}: Autos (${n.autos})`, n.autos === v.autos)
+    for (const m of new Set([...Object.keys(v.tris), ...Object.keys(n.tris)])) {
+      const soll = m === 'bauten' ? v.tris[m] - v.autos * AUTO : v.tris[m]
+      wahr(`wie vorher: ${name}: ${m} ${n.tris[m]} Dreiecke (soll ${soll})`, n.tris[m] === soll)
+    }
+    wahr(`wie vorher: ${name}: Ebenen vorne gleich`, n.ebenenListe.length >= v.ebenen && fnv(n.ebenenListe.slice(0, v.ebenen).join(';')) === v.ebenenHash)
+    wahr(`wie vorher: ${name}: neu nur Zwischenpodeste`, n.ebenenListe.slice(v.ebenen).every((t) => /^[^|]+:\d+\.5\|/.test(t)))
+    wahr(`wie vorher: ${name}: Sprungziele vorne gleich`, n.zieleListe.length >= v.ziele && fnv(n.zieleListe.slice(0, v.ziele).join(';')) === v.zieleHash)
+    wahr(`wie vorher: ${name}: neu nur das Ziel in der eigenen Wohnung`, n.zieleListe.slice(v.ziele).every((t) => /, innen\|/.test(t)) && n.zieleListe.length - v.ziele <= 1)
+  }
+}
+
+/* ------------------------------------------------ E87: Stadt */
+
+/** Eine erfundene kleine Stadt um die erfundene Siedlung. */
+const STADT = {
+  art: 'kistly-stadt',
+  v: 1,
+  stand: '2026-01-01',
+  rahmen: [-220, -220, 220, 220],
+  gelaende: { x0: -220, z0: -220, schritt: 55, nx: 9, nz: 9, dm: Array.from({ length: 81 }, (_, i) => (i % 9 === 0 || i % 9 === 8 ? 25 : 0)) },
+  haeuser: [{ id: 'w1', umriss: [[80, 80], [100, 80], [100, 95], [80, 95]], art: 'laden', geschosse: 2, geschossHoehe: 3.2, dach: 'flach', boden: 0, name: 'Probeladen', tuer: { kante: 0, t: 0.5 } }],
+  strassen: [{ art: 'haupt', breite: 7, punkte: [[60, -150], [60, 150]], name: 'Probeweg' }],
+  flaechen: [{ art: 'wald', punkte: [[-180, -180], [-120, -180], [-120, -120], [-180, -120]] }],
+  gewaesser: [],
+  zaeune: [],
+  baeume: [[70, 0]],
+  orte: [{ name: 'Probeladen', art: 'supermarket', x: 90, z: 78, haus: 'w1' }],
+}
+const ebeneGleich = (a, b) => a.id === b.id && a.name === b.name && a.y === b.y
+
+/** Was fuer jede Stadt gilt (auch die echte aus stadt3d.ts): ohne ist
+ *  dieselbe Siedlung ohne Stadt. */
+function stadtWie(name, ohne, mit) {
+  const E = mit.ebenen
+  const EO = ohne.ebenen
+  const u = mit.gruppe.userData
+  wahr(`${name}: gebaut (${mit.stadtFehler})`, mit.stadtFehler === null && u.stadt === true && ohne.stadtFehler === null && ohne.gruppe.userData.stadt === false)
+  wahr(`${name}: Sicht bis 700 m`, mit.nebel.near === 220 && mit.nebel.far === 700 && mit.himmel === F.himmelUnten)
+  wahr(`${name}: eigene Ebenen vorne gleich`, E.length >= EO.length && EO.every((e, i) => ebeneGleich(e, E[i])))
+  wahr(`${name}: Gelaende am Boden`, typeof E[0].hoehe === 'function' && Number.isFinite(E[0].hoehe(E[0].hindernisse[0].x, E[0].hindernisse[0].z)))
+  const garten = E.findIndex((e) => e.id === 'garten')
+  if (garten > 0) wahr(`${name}: Gelaende auch im Garten`, E[garten].hoehe === E[0].hoehe)
+  wahr(`${name}: sonst kein Gelaende`, E.slice(1, EO.length).every((e, i) => i + 1 === garten || e.hoehe === undefined))
+  // Obergeschosse haengen nicht an der Stadt.
+  wahr(`${name}: Hindernisse oben gleich`, EO.every((e, i) => i === 0 || i === garten || JSON.stringify(e.hindernisse) === JSON.stringify(E[i].hindernisse)))
+  wahr(`${name}: eigene Treppen gleich`, JSON.stringify(mit.treppen.slice(0, ohne.treppen.length)) === JSON.stringify(ohne.treppen))
+  wahr(`${name}: eigene Fahrzeuge und Dinge`, ohne.fahrzeuge.every((f, i) => mit.fahrzeuge[i]?.id === f.id) && ohne.dinge.every((d, i) => mit.dinge[i]?.id === d.id))
+  const SO = ohne.sprungziele
+  // Mit Stadt liegen Ziele draussen auf der Ebene 0 (ohne Plaene mit eigenem Haus sonst im Garten).
+  const ohneGarten = SO.map((s) => (s.ebene === garten ? { ...s, ebene: 0 } : s))
+  wahr(`${name}: eigene Sprungziele vorne gleich`, JSON.stringify(mit.sprungziele.slice(0, SO.length)) === JSON.stringify(ohneGarten))
+  wahr(`${name}: keine Ziele im Garten`, garten <= 0 || mit.sprungziele.every((s) => s.ebene !== garten))
+  wahr(`${name}: Ziele der Stadt auf dem Boden`, mit.sprungziele.slice(SO.length).every((s) => s.ebene === 0))
+  wahr(`${name}: eigenes Ziel gleich`, mit.eigeneWohnung === ohne.eigeneWohnung)
+  // Karte: die eigene Strasse faellt weg, sonst die eigenen Flaechen wie ohne Stadt.
+  const K = mit.karte
+  const eigene = K.flaechen.slice(K.flaechen.length - (ohne.karte.flaechen.length - 1))
+  wahr(`${name}: Karte ohne die eigene Strasse`, JSON.stringify(eigene) === JSON.stringify(ohne.karte.flaechen.slice(1)))
+  wahr(`${name}: Karte: eigene Haeuser vorne`, JSON.stringify(K.haeuser.slice(0, ohne.karte.haeuser.length)) === JSON.stringify(ohne.karte.haeuser))
+  const um = kastenAus([...ohne.karte.haeuser.flatMap((h) => h.punkte), ...eigene.flatMap((f) => f.punkte)])
+  wahr(`${name}: Karte: Rahmen um alles Eigene`, K.rahmen[0] <= um[0] - 5 + 1e-9 && K.rahmen[1] <= um[1] - 5 + 1e-9 && K.rahmen[2] >= um[2] + 5 - 1e-9 && K.rahmen[3] >= um[3] + 5 - 1e-9)
+  // Die weite Umgebung faellt weg; die Wiese bleibt auf dem Grund und ueber -0,06.
+  wahr(`${name}: keine Hecken, Laternen, Nachbarn (${u.hecken}, ${u.nachbarn})`, u.hecken === 0 && u.nachbarn === 0)
+  mit.gruppe.updateMatrixWorld(true)
+  const LG = lageVon(mit)
+  const v = new Vector3()
+  const meshMit = (n) => meshesVon(LG).find((m) => m.name === n)
+  const meshOhne = (n) => meshesVon(lageVon(ohne)).find((m) => m.name === n)
+  wahr(`${name}: Wiese kleiner (${dreiecke(meshMit('boden'))} statt ${dreiecke(meshOhne('boden'))})`, dreiecke(meshMit('boden')) < dreiecke(meshOhne('boden')))
+  const haeuserKasten = kastenAus(ohne.karte.haeuser.flatMap((h) => h.punkte))
+  let weit = 0
+  let tief = 0
+  for (const n of ['boden', 'gelaende']) {
+    const m = meshMit(n)
+    const p = m.geometry.attributes.position
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld)
+      if (v.x < haeuserKasten[0] - 40 || v.x > haeuserKasten[2] + 40 || v.z < haeuserKasten[1] - 40 || v.z > haeuserKasten[3] + 40) weit++
+      if (n === 'boden' && v.y - E[0].y < -0.0501) tief++
+    }
+  }
+  wahr(`${name}: Grund nur um die Siedlung (${weit} Ecken weiter als 40 m)`, weit === 0)
+  wahr(`${name}: Wiese ueber -0,06 (${tief})`, tief === 0)
+  // Himmel: weiter weg, und kleiner, wenn die Kamera nicht so weit sieht.
+  const himmel = mit.gruppe.children.find((x) => x.name === 'himmel')
+  himmel.geometry.computeBoundingSphere()
+  nahe(`${name}: Himmel 760 m`, himmel.geometry.boundingSphere.radius, 760, 1)
+  const kam = new PerspectiveCamera(60, 1, 0.05, 400)
+  kam.updateMatrixWorld()
+  himmel.onBeforeRender(null, null, kam, himmel.geometry, himmel.material, null)
+  nahe(`${name}: Himmel passt in far 400`, himmel.matrixWorld.elements[0], (400 * 0.95) / 760, 1e-9)
+  const ver = mit.version()
+  wahr(`${name}: version() eine Zahl, ruhig`, Number.isInteger(ver) && mit.version() === ver)
+  let wirft = false
+  try {
+    mit.kamera(E[0].hindernisse[0].x, E[0].y + 1.6, E[0].hindernisse[0].z)
+    mit.kamera(Number.NaN, Number.NaN, Number.NaN)
+    wahr(`${name}: schritt() eine Antwort`, typeof mit.schritt(0.016, 1.6) === 'boolean')
+  } catch (e) {
+    console.log('  wirft:', e)
+    wirft = true
+  }
+  wahr(`${name}: kamera() und schritt() werfen nicht`, !wirft)
+}
+
+/** Eine Stadt zum Mitschreiben: die echte aus stadt3d.ts, dazu
+ *  Hindernisse, Gelaende, Ebenen, Treppen, Ziele und Karte, die man kennt,
+ *  und eine version(), die die Pruefung hochzaehlt. */
+function spion() {
+  const s = { optionen: null, kamera: [], weg: 0, version: 0, laeuft: false }
+  const hoehe = () => 1.25
+  const hindernis = (z) => ({ x: 90, z, laenge: 4, tiefe: 0.3, drehY: 0, oben: 0.6 })
+  const ebene = (k) => ({ id: `w1:${k}`, name: `Probeladen ${k}`, y: k * 3.2, hindernisse: [{ x: 90, z: 87, laenge: 1, tiefe: 1, drehY: 0 }] })
+  const bauen = (o) => {
+    const echt = baueStadt(o)
+    s.optionen = o
+    return {
+      ...echt,
+      hindernisse: () => (s.version === 0 ? [hindernis(70)] : [hindernis(70), hindernis(75)]),
+      hoehe,
+      ebenen: () => Array.from({ length: 1 + s.version }, (_, k) => ebene(k)),
+      treppen: () => (s.version === 0 ? [] : [{ id: 'w1:s', x: 90, z: 79.5, laenge: 1.2, breite: 1.5, drehY: 0, von: o.bodenEbene, nach: 'w1:0', stufen: 1 }]),
+      fahrzeuge: () => [],
+      dinge: () => [],
+      sprungziele: [{ name: 'Probeladen', ebene: -1, x: 90, z: 78, gier: 0 }],
+      karte: {
+        rahmen: [-300, -250, 300, 260],
+        haeuser: [{ name: 'Probeladen', punkte: [[80, 80], [100, 80], [100, 95], [80, 95]] }],
+        flaechen: [{ art: 'wald', punkte: [[-180, -180], [-120, -180], [-120, -120], [-180, -120]] }],
+        strassen: [{ art: 'haupt', breite: 7, punkte: [[60, -150], [60, 150]] }],
+        orte: [{ name: 'Probeladen', x: 90, z: 87 }],
+      },
+      version: () => s.version,
+      kamera: (x, y, z) => s.kamera.push([x, y, z]),
+      schritt: () => s.laeuft,
+      dispose: () => {
+        s.weg++
+        echt.dispose()
+      },
+    }
+  }
+  return { s, bauen, hoehe }
+}
+
+const STADT_FAELLE = [
+  ['Stadt, Gast im 1. OG', () => siedlung(FAELLE[0][1]), null],
+  ['Stadt, Besitzer im 1. OG', () => siedlung(FAELLE[0][1]), RAHMEN],
+  ['Stadt, ohne Wohnung', () => siedlung(null), null],
+  ['Stadt, mit Plaenen', () => mitInnen(null), null],
+  ['Stadt, Gast mit Plaenen', () => mitInnen(FAELLE[0][1]), null],
+]
+for (const [name, daten, rahmen] of STADT_FAELLE) {
+  // Mit der echten Stadt aus stadt3d.ts.
+  const ohne = bau({ siedlung: daten(), farben: F, wohnungRahmen: rahmen })
+  const mit = bau({ siedlung: { ...daten(), stadt: STADT }, farben: F, wohnungRahmen: rahmen })
+  stadtWie(name, ohne, mit)
+  freigeben(`${name} (mit)`, mit)
+
+  // Mit der mitschreibenden: die Verdrahtung im Einzelnen.
+  const { s, bauen, hoehe } = spion()
+  const w = bau({ siedlung: { ...daten(), stadt: STADT }, farben: F, wohnungRahmen: rahmen, stadtBauen: bauen })
+  const n = `${name}, mitgeschrieben`
+  stadtWie(n, ohne, w)
+  const E = w.ebenen
+  const o = s.optionen
+  w.gruppe.updateMatrixWorld(true)
+  wahr(`${n}: Optionen`, !!o && o.stadt.art === 'kistly-stadt' && o.farben === F && o.bodenEbene === E[0].id && o.bodenY === E[0].y)
+  const lm = lageVon(w).matrixWorld.elements
+  wahr(`${n}: zuWelt wie die Lage der Siedlung`, !!o && o.zuWelt.elements.every((x, i) => Math.abs(x - lm[i]) < 1e-9))
+  // aussparen (lokal): ein Rechteck um alle Haeuser, Spielplatz und Wege, dazu die Grube der Rampe.
+  {
+    const a = o?.aussparen ?? []
+    const r = a[0] ?? []
+    const xs = r.map((p) => p[0])
+    const zs = r.map((p) => p[1])
+    const imKern = (p) => p[0] > Math.min(...xs) && p[0] < Math.max(...xs) && p[1] > Math.min(...zs) && p[1] < Math.max(...zs)
+    const d = daten()
+    const alles = [...d.gebaeude.flatMap((h) => h.umriss), ...(d.aussen.spielplatz ?? []), ...d.aussen.wege.flat()]
+    wahr(`${n}: aussparen um den eigenen Grund (${a.length})`, r.length === 4 && alles.every(imKern))
+    wahr(`${n}: aussparen mit der Grube der Rampe`, a.length === 2 && a[1].length === 4 && a[1].every(imKern))
+  }
+  wahr(`${n}: Gelaende der Stadt am Boden`, E[0].hoehe === hoehe && E[0].hoehe(0, 0) === 1.25)
+  const eigeneZahl = ohne.ebenen.length
+  const bodenOhneStadt = E[0].hindernisse.length - 1
+  wahr(`${n}: Hindernisse der Stadt am Boden`, JSON.stringify(E[0].hindernisse[E[0].hindernisse.length - 1]) === JSON.stringify({ x: 90, z: 70, laenge: 4, tiefe: 0.3, drehY: 0, oben: 0.6 }))
+  wahr(`${n}: Ebenen der Stadt hinten an`, E.length === eigeneZahl + 1 && E[eigeneZahl].id === 'w1:0')
+  wahr(`${n}: anfangs version 0`, w.version() === 0)
+  const S = w.sprungziele
+  const zs = S[S.length - 1]
+  wahr(`${n}: Ziel der Stadt mit Ebene des Bodens`, zs.name === 'Probeladen' && zs.ebene === 0 && zs.x === 90 && zs.z === 78)
+  const K = w.karte
+  wahr(`${n}: Karte: Rahmen vereint`, K.rahmen[0] === -300 && K.rahmen[1] === -250 && K.rahmen[2] === 300 && K.rahmen[3] === 260)
+  wahr(`${n}: Karte: Haus, Flaeche zuerst, Strassen, Orte`, K.haeuser[K.haeuser.length - 1].name === 'Probeladen' && K.flaechen[0].art === 'wald' && K.strassen.length === 1 && K.orte.length === 1)
+  // Neues aus der Stadt (ein Haus innen nachgeladen).
+  s.version = 1
+  wahr(`${n}: version zaehlt mit`, w.version() === 1 && w.version() === 1)
+  wahr(`${n}: neue Ebene hinten, alte am Platz`, E.length === eigeneZahl + 2 && E[eigeneZahl].id === 'w1:0' && E[eigeneZahl + 1].id === 'w1:1' && E === w.ebenen)
+  wahr(`${n}: neue Hindernisse am Boden`, E[0].hindernisse.length === bodenOhneStadt + 2)
+  const T = w.treppen
+  wahr(`${n}: Treppen der Stadt hinten an`, T.length === ohne.treppen.length + 1 && T[T.length - 1].id === 'w1:s' && T[T.length - 1].von === E[0].id)
+  // kamera() und schritt() reichen weiter.
+  w.kamera(1, 2, 3)
+  w.kamera(Number.NaN, Number.NaN, Number.NaN)
+  const k2 = s.kamera.slice(-2)
+  wahr(`${n}: kamera() reicht weiter`, k2.length === 2 && k2[0].join() === '1,2,3' && k2[1].every(Number.isNaN))
+  wahr(`${n}: schritt() ruhig`, w.schritt(0.016, 1.6) === false)
+  s.laeuft = true
+  wahr(`${n}: schritt() meldet die Stadt`, w.schritt(0.016, 1.6) === true)
+  s.laeuft = false
+  const vorher = s.kamera.length
+  freigeben(n, w)
+  wahr(`${n}: dispose() gibt die Stadt frei`, s.weg === 1)
+  w.kamera(1, 2, 3)
+  wahr(`${n}: nach dispose still`, s.kamera.length === vorher && w.version() === 1)
+  freigeben(`${name} (ohne)`, ohne)
+}
+
+/** f ausfuehren und console.warn mitschreiben: [Ergebnis, Warnungen]. */
+function mitWarnungen(f) {
+  const alt = console.warn
+  const liste = []
+  console.warn = (...a) => liste.push(a.map(String).join(' '))
+  try {
+    return [f(), liste]
+  } finally {
+    console.warn = alt
+  }
+}
+
+// Unbrauchbare Stadt: ein Fehler zum Zeigen (und in der Konsole), die
+// Siedlung steht wie ohne.
+{
+  const ohne = bau({ siedlung: siedlung(FAELLE[0][1]), farben: F, wohnungRahmen: null })
+  const zuWelt = (w) => JSON.stringify([w.ebenen.map(ebeneText), w.sprungziele.map(zielText), abdruckKurz(abdruck(w)).tris, w.nebel.far])
+  const [falsch, w1] = mitWarnungen(() => bau({ siedlung: { ...siedlung(FAELLE[0][1]), stadt: { ...STADT, art: 'falsch' } }, farben: F, wohnungRahmen: null }))
+  wahr(`Stadt falsch: Fehler (${falsch.stadtFehler})`, typeof falsch.stadtFehler === 'string' && falsch.gruppe.userData.stadt === false && w1.length === 1)
+  wahr('Stadt falsch: wie ohne Stadt', zuWelt(falsch) === zuWelt(ohne))
+  const [kaputt, w2] = mitWarnungen(() =>
+    bau({
+      siedlung: { ...siedlung(FAELLE[0][1]), stadt: STADT },
+      farben: F,
+      wohnungRahmen: null,
+      stadtBauen: () => {
+        throw new Error('Probefehler')
+      },
+    }),
+  )
+  wahr(`Stadt wirft: Fehler (${kaputt.stadtFehler})`, typeof kaputt.stadtFehler === 'string' && kaputt.stadtFehler.includes('Probefehler') && w2.length === 1)
+  wahr('Stadt wirft: wie ohne Stadt', zuWelt(kaputt) === zuWelt(ohne))
+  wahr('ohne Stadt: kein Fehler, version 0', ohne.stadtFehler === null && ohne.version() === 0)
+  for (const [n, w] of [
+    ['Stadt falsch', falsch],
+    ['Stadt wirft', kaputt],
+    ['Stadt, Vergleich', ohne],
+  ])
+    freigeben(n, w)
+}
+
+/* ------------------------------------------------ E87: erfundene Wohnungen */
+
+/** Ein Generator zum Mitschreiben: fuer die Haeuser in fuer zwei
+ *  Wohnungen je Geschoss an einem Gang mit Stiege und Aufzug (oder, wenn
+ *  ein Kern da ist, eine Wohnung ohne Gang), sonst null. */
+function erfinder(fuer) {
+  const log = []
+  const erfinden = (e) => {
+    log.push(e)
+    if (!fuer.includes(e.gebaeudeId)) return null
+    const xs = e.umrissCm.map((p) => p[0])
+    const ys = e.umrissCm.map((p) => p[1])
+    const [x0, y0, x1, y1] = [Math.min(...xs) + 80, Math.min(...ys) + 80, Math.max(...xs) - 80, Math.max(...ys) - 80]
+    const R = (a, b, c, d) => [[a, b], [c, b], [c, d], [a, d]]
+    const tuer = (kante) => ({ raum: 0, art: 'tuer', kante, abstand_cm: 100, breite_cm: 100, hoehe_cm: 210, bruestung_cm: 0, anschlag: 'links', aufschlag: 'innen' })
+    const xm = (x0 + x1) / 2
+    const ym = (y0 + y1) / 2
+    const geschoss = (k) =>
+      e.kern.length
+        ? { geschoss: k, wohnungen: [{ top: `E${k}1`, typ: 'E', raeume: [{ name: 'Wohnen', art: 'innen', punkte: R(x0, y0, x1, y1) }], oeffnungen: [], moebel: [], eingang: null }], allgemein: [] }
+        : {
+            geschoss: k,
+            wohnungen: [
+              { top: `E${k}1`, typ: 'E', raeume: [{ name: 'Wohnen', art: 'innen', punkte: R(x0, y0, xm, ym - 100) }], oeffnungen: [tuer(2)], moebel: [], eingang: [xm - 150, ym - 80] },
+              { top: `E${k}2`, typ: 'E', raeume: [{ name: 'Wohnen', art: 'innen', punkte: R(xm, y0, x1, ym - 100) }], oeffnungen: [tuer(2)], moebel: [], eingang: [x1 - 150, ym - 80] },
+            ],
+            allgemein: [
+              { art: 'gang', punkte: R(x0, ym - 100, x1, ym + 100) },
+              { art: 'stiege', punkte: R(x1 - 200, ym + 100, x1, ym + 650) },
+              { art: 'aufzug', punkte: R(x1 - 450, ym + 100, x1 - 240, ym + 310) },
+            ],
+          }
+    return { gebaeudeId: e.gebaeudeId, x: e.x, z: e.z, drehung: e.drehung, geschosse: Array.from({ length: e.geschosse }, (_, k) => geschoss(k)) }
+  }
+  return { erfinden, log }
+}
+/** Plan (cm) im Rahmen r (x, z, drehung) -> lokal (m), wie innenLesen. */
+const ausRahmen = (r, [x, y]) => {
+  const [c, s] = { 0: [1, 0], 90: [0, 1], 180: [-1, 0], 270: [0, -1] }[r.drehung]
+  return [r.x + (c * x - s * y) / 100, r.z + (s * x + c * y) / 100]
+}
+
+// Ein Haus ohne Plaene (Haus 4) bekommt Wohnungen, Gang, Stiege und Aufzug.
+{
+  const { erfinden, log } = erfinder(['h4'])
+  const w = bau({ siedlung: siedlung(null), farben: F, wohnungRahmen: null, innenErfinden: erfinden })
+  const E = w.ebenen
+  wahr(`Erfunden: fuer jedes Haus gefragt (${log.length})`, log.length === HAEUSER.length && HAEUSER.every((h) => log.some((e) => e.gebaeudeId === h.id)))
+  const e4 = log.find((e) => e.gebaeudeId === 'h4')
+  const h4 = HAEUSER.find((h) => h.id === 'h4')
+  wahr('Erfunden: Rahmen und Umriss passen', !!e4 && e4.geschosse === 5 && e4.kern.length === 0 && e4.gang.length === 0 && e4.umrissCm.every((p, i) => punktGleich(ausRahmen(e4, p), h4.umriss[i], 2e-3)))
+  wahr('Erfunden: Umriss beginnt bei 0', Math.abs(Math.min(...e4.umrissCm.map((p) => p[0]))) < 0.2 && Math.abs(Math.min(...e4.umrissCm.map((p) => p[1]))) < 0.2)
+  wahr(`Erfunden: ein Haus innen (${w.gruppe.userData.innen}, ${w.gruppe.userData.innenFehler} Fehler)`, w.gruppe.userData.innen === 1 && w.gruppe.userData.innenFehler === 0)
+  const ids = E.map((e) => e.id)
+  wahr(`Erfunden: Ebenen ${ids.join(',')}`, ids.join(',') === 'boden,h4:1,h4:2,h4:3,h4:4,h4:0.5,h4:1.5,h4:2.5,h4:3.5')
+  wahr('Erfunden: Sprungziele je Wohnung', w.sprungziele.filter((s) => /^E\d\d, /.test(s.name)).length === 10)
+  w.gruppe.updateMatrixWorld(true)
+  const LG = lageVon(w)
+  const welt = (p) => {
+    const v = new Vector3(p[0], 0, p[1]).applyMatrix4(LG.matrixWorld)
+    return [v.x, v.z]
+  }
+  const plan4 = (p) => welt(ausRahmen(e4, p))
+  // Hinein (zum Bauen), dann die Treppe ueber fuenf Geschosse.
+  const xs = e4.umrissCm.map((p) => p[0])
+  const ys = e4.umrissCm.map((p) => p[1])
+  const mitte = plan4([(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2])
+  w.kamera(mitte[0], E[0].y + 1.6, mitte[1])
+  ruhe(w)
+  w.gruppe.updateMatrixWorld(true)
+  const stiege = erfinden(e4).geschosse[0].allgemein.find((a) => a.art === 'stiege').punkte.map(plan4)
+  treppenPruefen('Erfunden', w, { id: 'h4', gh: 3, geschosse: ['boden', 'h4:1', 'h4:2', 'h4:3', 'h4:4'], stiegen: [stiege], meshes: meshesVon(w.gruppe.getObjectByName('innen:h4')) })
+  wahr('Erfunden: gebaut wie Plaene', meshesVon(w.gruppe.getObjectByName('innen:h4')).filter((m) => /^innen:h4:\d$/.test(m.name)).length === 5)
+  freigeben('Erfunden', w)
+}
+
+// Das eigene Haus ohne Plaene: der Generator bekommt Kern und Laubengang,
+// daraus werden Stiege, Aufzug und Laubengang der Plaene.
+{
+  const wohnung = FAELLE[0][1]
+  const h5 = HAEUSER.find((h) => h.id === 'h5')
+  const { erfinden, log } = erfinder(['h5'])
+  const w = bau({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: null, innenErfinden: erfinden })
+  const E = w.ebenen
+  const e5 = log.find((e) => e.gebaeudeId === 'h5')
+  wahr('Eigenes erfunden: Kern und Gang mitgegeben', !!e5 && e5.kern.length === 1 && e5.gang.length === 1 && e5.kern[0].length === 4 && e5.gang[0].length === 4)
+  const L = lage(wohnung)
+  const kerne = kernRechtecke(h5, L.welt)
+  const kernWelt = e5 ? e5.kern[0].map((p) => L.welt(ausRahmen(e5, p))) : []
+  wahr('Eigenes erfunden: Kern am Gang', kerne.some((k) => kernWelt.every((p) => k.some((q) => punktGleich(p, q, 2e-3)))))
+  wahr(`Eigenes erfunden: ein Haus mit Plaenen, kein Kern mehr (${w.gruppe.userData.kern})`, w.gruppe.userData.innen === 1 && w.gruppe.userData.kern === false)
+  const ids = E.map((e) => e.id)
+  wahr(`Eigenes erfunden: Ebenen ${ids.join(',')}`, ids.join(',') === 'boden,h5:1,h5:2,h5:3,h5:0.5,h5:1.5,h5:2.5')
+  w.gruppe.updateMatrixWorld(true)
+  // Auf die Treppe im Kern (vor der Fassade): das Haus baut sein Inneres.
+  const t0 = w.treppen.find((t) => t.id === 'h5:t0a')
+  wahr('Eigenes erfunden: Treppe im Kern', !!t0)
+  if (t0) {
+    const [x, z] = anTreppe(t0, t0.laenge / 2 - 0.1, 0)
+    w.kamera(x, E[0].y + 1.5 + 1.6, z)
+    ruhe(w)
+    w.gruppe.updateMatrixWorld(true)
+    const innenH5 = w.gruppe.getObjectByName('innen:h5')
+    wahr('Eigenes erfunden: auf der Treppe vor der Fassade innen sichtbar', !!innenH5 && innenH5.visible)
+    treppenPruefen('Eigenes erfunden', w, { id: 'h5', gh: 3, geschosse: ['boden', 'h5:1', 'h5:2', 'h5:3'], stiegen: kerne, meshes: meshesVon(innenH5) })
+    wahr('Eigenes erfunden: Aufzug aus dem Kern', w.interaktiv.objekte.some((o) => o.name === 'aufzugFahre:h5:3'))
+  }
+  eigenePruefen('Eigenes erfunden', w, wohnung, null, E.findIndex((e) => e.id === 'h5:1'), [h5.umriss.map(L.welt)])
+  freigeben('Eigenes erfunden', w)
+}
+
+// Haeuser mit Plaenen fragt niemand; Fehler des Generators fallen weg.
+{
+  const { erfinden, log } = erfinder(['h4', 'h5'])
+  const w = bau({ siedlung: mitInnen(null), farben: F, wohnungRahmen: null, innenErfinden: erfinden })
+  wahr('Erfunden: Haus mit Plaenen nicht gefragt', !log.some((e) => e.gebaeudeId === 'h5') && w.gruppe.userData.innen === 2)
+  freigeben('Erfunden mit Plaenen', w)
+  const normal = bau({ siedlung: siedlung(null), farben: F, wohnungRahmen: null })
+  const wie = (x) => JSON.stringify([x.ebenen.map(ebeneText), x.sprungziele.map(zielText), abdruckKurz(abdruck(x)).tris])
+  const [werfen, w1] = mitWarnungen(() =>
+    bau({
+      siedlung: siedlung(null),
+      farben: F,
+      wohnungRahmen: null,
+      innenErfinden: () => {
+        throw new Error('Probefehler')
+      },
+    }),
+  )
+  wahr(
+    `Erfunden wirft: alles wie ohne (${werfen.gruppe.userData.innenFehler} Fehler, ${w1.length} Warnungen)`,
+    werfen.gruppe.userData.innenFehler === HAEUSER.length && w1.length === HAEUSER.length && wie(werfen) === wie(normal),
+  )
+  const [unsinn, w2] = mitWarnungen(() =>
+    bau({
+      siedlung: siedlung(null),
+      farben: F,
+      wohnungRahmen: null,
+      innenErfinden: (e) =>
+        e.gebaeudeId === 'h4'
+          ? { gebaeudeId: 'h4', x: e.x, z: e.z, drehung: e.drehung, geschosse: [{ geschoss: 0, wohnungen: [{ top: 'X' }], allgemein: [] }] }
+          : e.gebaeudeId === 'h3'
+            ? { gebaeudeId: 'h1', x: e.x, z: e.z, drehung: e.drehung, geschosse: [] }
+            : null,
+    }),
+  )
+  wahr(
+    `Erfunden kaputt: verworfen (${unsinn.gruppe.userData.innenFehler} Fehler, ${w2.length} Warnungen)`,
+    unsinn.gruppe.userData.innenFehler === 2 && w2.length === 2 && unsinn.gruppe.userData.innen === 0 && wie(unsinn) === wie(normal),
+  )
+  for (const [n, x] of [
+    ['Erfunden, normal', normal],
+    ['Erfunden wirft', werfen],
+    ['Erfunden kaputt', unsinn],
+  ])
+    freigeben(n, x)
+}
+
+/* ------------------------------------------------ E87: echte erfundene Wohnungen */
+/* Mit dem echten Generator (innenGenerator.wohnhausInnen, hier nur
+ * mitgeschrieben): jedes Haus ohne Plaene bekommt Wohnungen, Gang, Stiege
+ * und Treppen, gebaut wie Plaene; jedes Geschoss ist ueber Treppen in der
+ * Stiege erreichbar (Kanten, Seiten, Linie auf den Stufen wie oben); das
+ * eigene Haus behaelt Kern und Laubengang. */
+for (const [name, wohnung, rahmen] of [
+  ['Echt erfunden, Gang 1. OG', FAELLE[0][1], RAHMEN],
+  ['Echt erfunden, Gast im 3. OG', FAELLE[1][1], null],
+  ['Echt erfunden, ohne Wohnung', null, null],
+]) {
+  const log = []
+  const erfinden = (e) => {
+    const r = wohnhausInnen(e)
+    log.push([e, r])
+    return r
+  }
+  const t0 = performance.now()
+  const w = baueSiedlung({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen, innenErfinden: erfinden })
+  const ms = performance.now() - t0
+  const u = w.gruppe.userData
+  wahr(`${name}: jedes Haus mit Wohnungen (${u.innen} Haeuser, ${u.innenFehler} Fehler, ${Math.round(ms)} ms)`, u.innen === HAEUSER.length && u.innenFehler === 0 && log.length === HAEUSER.length && log.every(([, r]) => !!r))
+  const E = w.ebenen
+  const ids = E.map((e) => e.id)
+  const eigen = wohnung ? wohnung.gebaeudeId : null
+  wahr(`${name}: Boden zuerst (${ids[0]})`, ids[0] === (rahmen && wohnung.geschoss === 0 ? 'wohnung' : 'boden'))
+  wahr(`${name}: Kennungen eindeutig`, new Set(ids).size === ids.length)
+  const kennung = (h, k) => (k === 0 ? ids[0] : rahmen && h.id === eigen && k === wohnung.geschoss ? 'wohnung' : `${h.id}:${k}`)
+  for (const h of HAEUSER) for (let k = 1; k < h.geschosse; k++) wahr(`${name}: Ebene ${kennung(h, k)} da`, ids.includes(kennung(h, k)))
+  const flats = log.reduce((s, [, r]) => s + r.geschosse.reduce((a, g) => a + g.wohnungen.length, 0), 0)
+  const ziele = w.sprungziele.filter((s) => /^Haus-[A-Z]-\d+, [^,]+$/.test(s.name)).length
+  wahr(`${name}: Sprungziele je Wohnung mit Eingang (${ziele} von ${flats})`, ziele > 0 && ziele <= flats)
+  w.gruppe.updateMatrixWorld(true)
+  const LG = lageVon(w)
+  const nachWelt = (p) => {
+    const v = new Vector3(p[0], 0, p[1]).applyMatrix4(LG.matrixWorld)
+    return [v.x, v.z]
+  }
+  for (const h of HAEUSER) {
+    const [, roh] = log.find(([e]) => e.gebaeudeId === h.id)
+    // Stiegen: aus dem Plan (cm im Rahmen des Geschosses) und, beim eigenen Haus, der Kern am Gang.
+    const stiegen = roh.geschosse[0].allgemein.filter((a) => a.art === 'stiege').map((a) => a.punkte.map((p) => nachWelt(ausRahmen(roh, p))))
+    if (h.id === eigen) stiegen.push(...kernRechtecke(h, lage(wohnung).welt))
+    // Hinein: das Haus baut sein Inneres.
+    const mitte = h.umriss.reduce((s, p) => [s[0] + p[0] / h.umriss.length, s[1] + p[1] / h.umriss.length], [0, 0])
+    const [mx, mz] = nachWelt(mitte)
+    w.kamera(mx, E[0].y + 1.6, mz)
+    ruhe(w)
+    w.gruppe.updateMatrixWorld(true)
+    const innenH = w.gruppe.getObjectByName(`innen:${h.id}`)
+    wahr(`${name}: ${h.id} innen gebaut`, !!innenH && innenH.visible)
+    if (!innenH) continue
+    const geschosse = Array.from({ length: h.geschosse }, (_, k) => kennung(h, k))
+    treppenPruefen(`${name}`, w, { id: h.id, gh: h.geschossHoehe, geschosse, stiegen, meshes: meshesVon(innenH) })
+  }
+  // Der Aufzug des Kerns (eigenes Haus) ist da, sobald das Haus gebaut ist.
+  wahr(`${name}: Aufzug im eigenen Haus`, !eigen || (!!w.interaktiv && w.interaktiv.objekte.some((x) => typeof x.name === 'string' && x.name.startsWith(`aufzugFahre:${eigen}`))))
+  // Kein Boden doppelt: Gang und Kern des Generators sind durch die genauen Teile ersetzt.
+  if (eigen) {
+    const [, roh] = log.find(([e]) => e.gebaeudeId === eigen)
+    wahr(`${name}: Generator bekam Kern und Gang`, roh.geschosse.every((g) => g.allgemein.some((a) => a.art === 'stiege') && g.allgemein.some((a) => a.art === 'gang')))
+  }
+  freigeben(name, w)
+}
+
+/* ------------------------------------------------ E87: Hindernisse am Boden bleiben dasselbe Feld */
+/* Die Stadt laedt ein Haus innen (version zaehlt hoch): ihre Hindernisse
+ * bleiben dasselbe Feld, also auch das am Boden der Siedlung (der Motor
+ * rastert es nicht neu), mit denselben Rechtecken. */
+{
+  const w = bau({ siedlung: { ...siedlung(FAELLE[0][1]), stadt: STADT }, farben: F, wohnungRahmen: null })
+  const E = w.ebenen
+  const boden = E[0].hindernisse
+  const eintraege = boden.slice()
+  const garten = E.find((e) => e.id === 'garten')
+  const gartenVorher = garten ? garten.hindernisse : null
+  w.gruppe.updateMatrixWorld(true)
+  const LG = lageVon(w)
+  // Vor die Tuer des Probeladens (Ort bei 90, 78, Siedlungsmeter).
+  const v = new Vector3(90, 0, 76).applyMatrix4(LG.matrixWorld)
+  const v0 = w.version()
+  w.kamera(v.x, E[0].y + 1.6, v.z)
+  for (let i = 0; i < 600 && w.version() === v0; i++) w.schritt(1 / 60, E[0].y + 1.6)
+  wahr(`Stadt laedt innen: version zaehlt (${v0} -> ${w.version()})`, w.version() > v0 && w.ebenen.some((e) => e.id.startsWith('stadt:w1:')))
+  wahr('Stadt laedt innen: Hindernisse am Boden dasselbe Feld', E[0].hindernisse === boden && boden.length === eintraege.length && boden.every((h, i) => h === eintraege[i]))
+  wahr('Stadt laedt innen: im Garten auch', !garten || garten.hindernisse === gartenVorher)
+  freigeben('Stadt, Feld bleibt', w)
+}
+
+if (process.env.SIEDLUNG_ABDRUCK) console.log(JSON.stringify(Object.fromEntries(Object.entries(ABDRUCK).map(([k, v]) => [k, abdruckKurz(v)]))))
 
 if (fehler) {
   console.log(`${fehler} Abweichung(en)`)

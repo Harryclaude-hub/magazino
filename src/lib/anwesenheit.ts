@@ -31,9 +31,18 @@
  * Datenpaket von E86). Alles andere bleibt gleich; die Saetze fuer Fehler
  * sprechen dann von der Siedlung statt von der Wohnung. Als grundrissId
  * geben dort alle dieselbe Kennung (die der Siedlung), sonst saehen sie
- * sich nicht. */
+ * sich nicht.
+ *
+ * E87: Wer ein Fahrzeug lenkt, schickt dessen Lage mit der Stellung mit
+ * (Pose3D.lenkt, im Feld l: Kennung des Fahrzeugs, Zentimeter und
+ * Milliradiant). Hereinkommend wird l streng gelesen (lenktLesen); ist es
+ * kaputt, faellt nur l weg, die Stellung gilt. Dazu das Ereignis 'ding':
+ * jemand hat ein Ding hingestellt oder ein Fahrzeug abgestellt
+ * (DingLage3D, dingLesen). Auch dafuer muss der Absender gerade da sein,
+ * im selben Grundriss, hoechstens 20 je Sekunde. Gespeichert wird hier
+ * nichts; das tut die Seite ueber api.ts. */
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import type { Pose3D } from '../components/plan3d/vertrag3d'
+import type { DingLage3D, Pose3D } from '../components/plan3d/vertrag3d'
 import { istKennung, poseLesen, poseVerpacken } from './avatar'
 import { tg } from './i18n'
 import { supabase } from './supabase'
@@ -44,6 +53,10 @@ export interface WohnungVerbindung {
   pose(p: Pose3D): void
   /** Nachricht fuer sprechen.ts an genau eine Person. */
   signal(an: string, daten: unknown): void
+  /** E87: Ein Ding oder Fahrzeug steht jetzt woanders: an alle anderen im
+   *  Kanal. Kaputtes geht nicht hinaus (Hinweis in der Konsole). Vor dem
+   *  Verbinden wird je Ding die letzte Lage gemerkt und dann gesendet. */
+  ding(l: DingLage3D): void
   /** Kanal verlassen, alles aufraeumen. Danach ohne Wirkung. */
   verlassen(): void
 }
@@ -67,6 +80,9 @@ export interface WohnungOptionen {
   onFehler(text: string): void
   /** Die Verbindung steht (wieder): eine gezeigte Fehlermeldung kann weg. */
   onVerbunden?(): void
+  /** E87: Jemand anderes im eigenen Grundriss hat ein Ding oder Fahrzeug
+   *  bewegt (geprueft wie die Stellungen). */
+  onDing?(uid: string, l: DingLage3D): void
 }
 
 /** Hoechstens 10 Stellungen je Sekunde hinaus. */
@@ -81,8 +97,122 @@ const WARTESCHLANGE = 100
 const VORAUS_MS = 5000
 const VORAUS_JE_ABSENDER = 50
 const VORAUS_ABSENDER = 20
+/** E87: hoechstens so viele Dinge je Sekunde und Absender herein, und so
+ *  viele verschiedene Dinge warten hoechstens auf die Verbindung. */
+const DINGE_JE_SEKUNDE = 20
+const DINGE_WARTEN = 200
 
-const NICHTS: WohnungVerbindung = { pose() {}, signal() {}, verlassen() {} }
+/* ------------------------------------------------ E87: Fahrzeuge, Dinge */
+
+/** Laengste Kennung eines Dings, Fahrzeugs oder einer Ebene. */
+export const KENNUNG_MAX = 120
+/** Weiter als so viele Meter vom Ursprung liegt nichts (Stadtteil mit Rand). */
+const WELT_XZ_M = 50_000
+/** Hoehe zwischen -WELT_Y_M und +WELT_Y_M Metern. */
+const WELT_Y_M = 5_000
+
+/** Eine Kennung fuer Dinge, Fahrzeuge und Ebenen: Text mit 1 bis
+ *  KENNUNG_MAX Zeichen, ohne Steuerzeichen. */
+export function textKennung(x: unknown): x is string {
+  // eslint-disable-next-line no-control-regex -- genau die sollen nicht hinein
+  return typeof x === 'string' && x.length > 0 && x.length <= KENNUNG_MAX && !/[\u0000-\u001f\u007f]/.test(x)
+}
+
+function endlich(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
+}
+
+/** Auf -pi bis pi falten (was schon darin liegt, bleibt genau so). */
+function winkelFalten(w: number): number {
+  if (w >= -Math.PI && w <= Math.PI) return w
+  const voll = Math.PI * 2
+  let a = ((w % voll) + voll) % voll
+  if (a > Math.PI) a -= voll
+  return a
+}
+
+/** Ort in Metern innerhalb der Welt? */
+function imRahmen(x: number, y: number, z: number): boolean {
+  return Math.abs(x) <= WELT_XZ_M && Math.abs(z) <= WELT_XZ_M && Math.abs(y) <= WELT_Y_M
+}
+
+/** Was im Kanal fuer Pose3D.lenkt steht: i Kennung des Fahrzeugs, x y z in
+ *  Zentimetern, ga in Milliradiant (ganze Zahlen). */
+export interface LenktNachricht {
+  i: string
+  x: number
+  y: number
+  z: number
+  ga: number
+}
+
+/** lenkt zum Senden verpacken. Fehlt es oder ist es kaputt: null (dann
+ *  geht die Stellung ohne Fahrzeug hinaus). */
+export function lenktVerpacken(l: Pose3D['lenkt']): LenktNachricht | null {
+  if (!l || typeof l !== 'object') return null
+  if (!textKennung(l.id) || !endlich(l.x) || !endlich(l.y) || !endlich(l.z) || !endlich(l.gier)) return null
+  if (!imRahmen(l.x, l.y, l.z)) return null
+  return { i: l.id, x: Math.round(l.x * 100), y: Math.round(l.y * 100), z: Math.round(l.z * 100), ga: Math.round(winkelFalten(l.gier) * 1000) }
+}
+
+/** Das Feld l einer fremden Stellung streng lesen: Kennung 1 bis 120
+ *  Zeichen, jede Zahl endlich und in der Welt. Was nicht passt: null. */
+export function lenktLesen(roh: unknown): NonNullable<Pose3D['lenkt']> | null {
+  if (!roh || typeof roh !== 'object' || Array.isArray(roh)) return null
+  const o = roh as Record<string, unknown>
+  if (!textKennung(o.i) || !endlich(o.x) || !endlich(o.y) || !endlich(o.z) || !endlich(o.ga)) return null
+  const x = Math.round(o.x) / 100
+  const y = Math.round(o.y) / 100
+  const z = Math.round(o.z) / 100
+  if (!imRahmen(x, y, z)) return null
+  return { id: o.i, x, y, z, gier: winkelFalten(Math.round(o.ga) / 1000) }
+}
+
+/** Was im Kanal fuer ein bewegtes Ding steht (Ereignis 'ding', Feld d):
+ *  i Kennung, a Art, x y z Zentimeter, ga Milliradiant, e Ebene. */
+export interface DingNachricht {
+  i: string
+  a: DingLage3D['art']
+  x: number
+  y: number
+  z: number
+  ga: number
+  e: string
+}
+
+/** Eine Lage zum Senden verpacken; kaputt: null. */
+export function dingVerpacken(l: DingLage3D): DingNachricht | null {
+  if (!l || typeof l !== 'object') return null
+  if (!textKennung(l.id) || !textKennung(l.ebene) || (l.art !== 'ding' && l.art !== 'fahrzeug')) return null
+  if (!endlich(l.x) || !endlich(l.y) || !endlich(l.z) || !endlich(l.gier) || !imRahmen(l.x, l.y, l.z)) return null
+  return {
+    i: l.id,
+    a: l.art,
+    x: Math.round(l.x * 100),
+    y: Math.round(l.y * 100),
+    z: Math.round(l.z * 100),
+    ga: Math.round(winkelFalten(l.gier) * 1000),
+    e: l.ebene,
+  }
+}
+
+/** Ein fremdes Ding streng lesen (Feld d): Kennung und Ebene 1 bis 120
+ *  Zeichen, Art 'ding' oder 'fahrzeug', jede Zahl endlich und in der
+ *  Welt. Was nicht passt: null. Heraus kommt eine neue DingLage3D in
+ *  Metern, ohne weitere Felder. */
+export function dingLesen(roh: unknown): DingLage3D | null {
+  if (!roh || typeof roh !== 'object' || Array.isArray(roh)) return null
+  const o = roh as Record<string, unknown>
+  if (!textKennung(o.i) || !textKennung(o.e) || (o.a !== 'ding' && o.a !== 'fahrzeug')) return null
+  if (!endlich(o.x) || !endlich(o.y) || !endlich(o.z) || !endlich(o.ga)) return null
+  const x = Math.round(o.x) / 100
+  const y = Math.round(o.y) / 100
+  const z = Math.round(o.z) / 100
+  if (!imRahmen(x, y, z)) return null
+  return { id: o.i, art: o.a, x, y, z, gier: winkelFalten(Math.round(o.ga) / 1000), ebene: o.e }
+}
+
+const NICHTS: WohnungVerbindung = { pose() {}, signal() {}, ding() {}, verlassen() {} }
 
 /** Erlaubte Kanaele (E86): Wohnung eines Umzugs oder gemeinsame Siedlung. */
 const KANAL = /^(wohnung|siedlung):[0-9a-f-]{36}$/
@@ -135,6 +265,9 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
   const nummern = new Map<string, number>()
   const posenTakt = new Map<string, number[]>()
   const signalTakt = new Map<string, number[]>()
+  const dingTakt = new Map<string, number[]>()
+  // Dinge, die vor dem Verbinden bewegt wurden: je Kennung die letzte Lage.
+  const dingeWarten = new Map<string, DingNachricht>()
   const warteschlange: { u: string; an: string; d: unknown }[] = []
   const voraus = new Map<string, { zeit: number; d: unknown }[]>()
   const gewarnt = new Set<string>()
@@ -161,7 +294,7 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
     return frei
   }
 
-  function versenden(event: 'pose' | 'rtc', payload: unknown) {
+  function versenden(event: 'pose' | 'rtc' | 'ding', payload: unknown) {
     const k = kanal
     if (!k) return
     k.send({ type: 'broadcast', event, payload })
@@ -192,14 +325,17 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
       return
     }
     const n = poseVerpacken(letztePose, ich, 0, grundriss)
-    const kern = `${n.x},${n.y},${n.z},${n.ga},${n.ne},${n.h},${n.t}`
+    // E87: das gelenkte Fahrzeug faehrt mit (kaputt: ohne, zu Fuss).
+    const l = lenktVerpacken(letztePose.lenkt)
+    if (letztePose.lenkt && !l) warnenEinmal('eigenes Fahrzeug mit falschem Aufbau, Stellung ohne Fahrzeug gesendet')
+    const kern = `${n.x},${n.y},${n.z},${n.ga},${n.ne},${n.h},${n.t}|${l ? `${l.i},${l.x},${l.y},${l.z},${l.ga}` : ''}`
     if (kern === letzterKern && !erzwingen && jetzt - letzteGesendet < PULS_MS) return
     nummer += 1
     n.n = nummer
     letzterKern = kern
     letzteGesendet = jetzt
     erzwingen = false
-    versenden('pose', n)
+    versenden('pose', l ? { ...n, l } : n)
   }
 
   const puls = setInterval(planen, PULS_MS)
@@ -233,6 +369,7 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
         nummern.delete(wer)
         posenTakt.delete(wer)
         signalTakt.delete(wer)
+        dingTakt.delete(wer)
       }
     }
     anwesend.clear()
@@ -278,7 +415,39 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
       return
     }
     nummern.set(m.u, m.n)
-    o.onPose(m.u, m.pose)
+    // E87: lenkt nur, wenn es da und heil ist; kaputt faellt nur lenkt weg.
+    const roh = (payload as Record<string, unknown>).l
+    if (roh === undefined || roh === null) {
+      o.onPose(m.u, m.pose)
+      return
+    }
+    const lenkt = lenktLesen(roh)
+    if (!lenkt) warnenEinmal('Fahrzeug einer Stellung mit falschem Aufbau verworfen')
+    o.onPose(m.u, lenkt ? { ...m.pose, lenkt } : m.pose)
+  }
+
+  function dingEmpfangen(payload: unknown) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      warnenEinmal('Ding mit falschem Aufbau verworfen')
+      return
+    }
+    const { u, g, d } = payload as Record<string, unknown>
+    if (!istKennung(u) || !istKennung(g)) {
+      warnenEinmal('Ding mit falschem Aufbau verworfen')
+      return
+    }
+    const von = u.toLowerCase()
+    if (von === ich || !anwesend.has(von) || g.toLowerCase() !== grundriss) return
+    const l = dingLesen(d)
+    if (!l) {
+      warnenEinmal('Ding mit falschem Aufbau verworfen')
+      return
+    }
+    if (!imTakt(dingTakt, von, DINGE_JE_SEKUNDE)) {
+      warnenEinmal('zu viele Dinge von einem Absender, Rest verworfen')
+      return
+    }
+    o.onDing?.(von, l)
   }
 
   function signalEmpfangen(payload: unknown) {
@@ -328,6 +497,7 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
       .on('presence', { event: 'leave' }, () => queueMicrotask(werLesen))
       .on('broadcast', { event: 'pose' }, ({ payload }) => poseEmpfangen(payload))
       .on('broadcast', { event: 'rtc' }, ({ payload }) => signalEmpfangen(payload))
+      .on('broadcast', { event: 'ding' }, ({ payload }) => dingEmpfangen(payload))
     k.subscribe((status, err) => {
       if (aus) return
       if (status === 'SUBSCRIBED') {
@@ -343,6 +513,8 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
             melden(tg(satz.kanal))
           })
         for (const x of warteschlange.splice(0)) versenden('rtc', x)
+        for (const d of dingeWarten.values()) versenden('ding', { u: ich, g: grundriss, d })
+        dingeWarten.clear()
         erzwingen = true
         planen()
         return
@@ -359,8 +531,24 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
   return {
     pose(p) {
       if (aus) return
-      letztePose = { ...p }
+      // Eigene Kopie, auch von lenkt: der Motor darf seine Objekte weiter benutzen.
+      letztePose = { ...p, ...(p.lenkt ? { lenkt: { ...p.lenkt } } : {}) }
       planen()
+    },
+    ding(l) {
+      if (aus) return
+      const d = dingVerpacken(l)
+      if (!d) {
+        warnenEinmal('Ding mit falschem Aufbau nicht gesendet')
+        return
+      }
+      if (!verbunden || !kanal) {
+        // Je Ding nur die letzte Lage; zu viele verschiedene: sichtbar melden.
+        if (dingeWarten.has(d.i) || dingeWarten.size < DINGE_WARTEN) dingeWarten.set(d.i, d)
+        else melden(tg(satz.kanal))
+        return
+      }
+      versenden('ding', { u: ich, g: grundriss, d })
     },
     signal(an, daten) {
       if (aus) return
@@ -385,6 +573,7 @@ export function wohnungBeitreten(o: WohnungOptionen): WohnungVerbindung {
       nachzuegler = null
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', sichtwechsel)
       warteschlange.length = 0
+      dingeWarten.clear()
       voraus.clear()
       const k = kanal
       kanal = null

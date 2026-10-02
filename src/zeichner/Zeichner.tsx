@@ -66,7 +66,7 @@ import type { Aktion, KisteInHand, Kontext, Schritt, WerkzeugName } from './werk
 import { zReducer, zStart } from './zustand'
 import { woerterNachladen } from '../lib/i18n/woerter'
 import { zeichnerWoerter } from '../lib/i18n/bausteine/zeichner'
-import { Ueberlagerung3D } from '../components/plan3d/oeffnen'
+import { Ueberlagerung3D, useWunschAngenommen } from '../components/plan3d/oeffnen'
 import type { Treffer3D } from '../components/plan3d/motor'
 
 // Die Saetze des Zeichners kommen mit seinem Code-Teil (siehe zeichner.ts).
@@ -141,6 +141,8 @@ export default function Zeichner({
   onUngespeichert,
   kopf,
   kopfEnde,
+  begehen = false,
+  onBegehen,
 }: {
   start: GrundrissDaten
   raumId: string | null
@@ -153,6 +155,11 @@ export default function Zeichner({
   /** Meldet, ob gerade etwas nicht gespeichert ist (fuer die Seite, falls
    *  der Zeichner beim Verkleinern des Fensters verschwindet). */
   onUngespeichert?: (ja: boolean) => void
+  /** E87: mit ?begehen=1 geoeffnet: 3D gleich an und gleich begehen,
+   *  einmal (gelesen beim Einbauen). */
+  begehen?: boolean
+  /** Der Wunsch begehen ist angenommen (die Seite vergisst ihn). */
+  onBegehen?: () => void
 }) {
   const { project, rooms, tags, reloadTags } = useProject()
   const { t, lang } = useSprache()
@@ -176,7 +183,14 @@ export default function Zeichner({
   // Deko und Spielzeug ein- und ausblenden (E82), nur die Ansicht.
   const [deko, setDeko] = useState(true)
   /** Umschalter 2D/3D: 3D liegt ueber der Zeichenflaeche und zeigt z.dok live. */
-  const [drei, setDrei] = useState(false)
+  const [drei, setDrei] = useState(begehen)
+  // E87: begehen gilt nur fuer das erste 3D; zurueck auf 2D vergisst es.
+  const [dreiGehen, setDreiGehen] = useState(begehen)
+  useWunschAngenommen(begehen, onBegehen)
+  const dreiAus = () => {
+    setDrei(false)
+    setDreiGehen(false)
+  }
   const [zeigerCm, setZeigerCm] = useState<Punkt | null>(null)
   const [hinweis, setHinweis] = useState<string | null>(null)
   const [leiste, setLeiste] = useState<Leiste | null>(null)
@@ -1102,7 +1116,7 @@ export default function Zeichner({
           <button
             type="button"
             aria-pressed={!drei}
-            onClick={() => setDrei(false)}
+            onClick={dreiAus}
             className={cx('h-8 rounded-lg px-3 text-sm font-bold', !drei ? 'bg-ink text-paper' : 'text-ink hover:bg-raised')}
           >
             {t('plan3d.zwei_d')}
@@ -1322,7 +1336,8 @@ export default function Zeichner({
             <Ueberlagerung3D
               daten={z.dok}
               hervor={z.auswahl?.art === 'kiste' ? z.auswahl.id : kisteId}
-              onSchliessen={() => setDrei(false)}
+              onSchliessen={dreiAus}
+              startGehen={dreiGehen}
               onTippen={stelltHin || werkzeug.name === 'auswahl' ? planTippen : undefined}
               markiert={z.auswahl?.art === 'objekt' ? z.auswahl.id : null}
               onObjektZiehen={(id, dx, dy) => {

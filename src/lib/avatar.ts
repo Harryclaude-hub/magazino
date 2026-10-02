@@ -174,10 +174,13 @@ export interface PoseNachricht {
 
 const HALTUNG_NR: Record<Haltung, 0 | 1 | 2> = { stehen: 0, sitz: 1, liegen: 2 }
 const NR_HALTUNG: Haltung[] = ['stehen', 'sitz', 'liegen']
-/** Wohnungen sind kleiner als ein Kilometer, Augen niedriger als 100 m. */
-const XZ_CM = 100_000
-const Y_MIN_CM = -1_000
-const Y_MAX_CM = 10_000
+/** Seit E87 geht man durch einen ganzen Stadtteil (Gelaende, Treppen,
+ *  Hochhaeuser): x und z bis 10 km vom Ursprung, die Augen zwischen -1 km
+ *  und +1 km (Hang und Hochhaus mit Reserve). Weiter draussen wird auf die
+ *  Grenze gesetzt. */
+const XZ_CM = 1_000_000
+const Y_MIN_CM = -100_000
+const Y_MAX_CM = 100_000
 const PI_MRAD = 3142
 const HALB_PI_MRAD = 1571
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

@@ -5,7 +5,9 @@
 //  - pruefeLook und avatar3d_gueltig (Migration 0043) haben dieselben
 //    Schluessel, Auswahlen, Farbregel und Groessengrenzen,
 //  - poseVerpacken und poseLesen (Kanal der Wohnung) runden sauber und
-//    lehnen Unsinn ab,
+//    lehnen Unsinn ab; seit E87 reicht die Stellung fuer einen ganzen
+//    Stadtteil (x und z bis 10 km, Augen zwischen -1 km und +1 km),
+//    weiter draussen wird auf die Grenze gesetzt,
 //  - baueFigur baut jede Frisur, jede Haltung laeuft, unter 3000 Dreiecken,
 //    die Augen liegen dort, wo auge() es sagt, dispose gibt alles frei.
 // Aufruf im Projektordner: node scripts/avatar-pruefen.mjs
@@ -134,9 +136,16 @@ const zurueck = poseLesen(nachricht)
 gleich('poseLesen Kopf', [zurueck?.u, zurueck?.n, zurueck?.g], [U, 7, G])
 gleich('poseLesen Stellung', zurueck?.pose, { x: 3.46, y: 1.64, z: -2, gier: -2.892, neigung: -0.3, haltung: 'sitz', tempo: 1.3 })
 gleich('poseVerpacken Unsinn', poseVerpacken({ x: Number.NaN, y: 1e9, z: -1e9, gier: Infinity, neigung: 9, haltung: 'stehen', tempo: -1 }, U, 1, G), {
-  u: U, n: 1, g: G, x: 0, y: 10000, z: -100000, ga: 0, ne: 1571, h: 0, t: 0,
+  u: U, n: 1, g: G, x: 0, y: 100000, z: -1000000, ga: 0, ne: 1571, h: 0, t: 0,
 })
-gleich('poseLesen klemmt', poseLesen({ ...nachricht, x: 5_000_000, t: 99, ga: -9000 })?.pose, { x: 1000, y: 1.64, z: -2, gier: -3.142, neigung: -0.3, haltung: 'sitz', tempo: 2 })
+gleich('poseLesen klemmt', poseLesen({ ...nachricht, x: 500_000_000, t: 99, ga: -9000 })?.pose, { x: 10000, y: 1.64, z: -2, gier: -3.142, neigung: -0.3, haltung: 'sitz', tempo: 2 })
+// E87: ein ganzer Stadtteil. 9,5 km vom Ursprung und Augen auf -80 m (Hang)
+// oder +120 m (Hochhaus auf dem Huegel) kommen unveraendert an.
+const weit = poseLesen(poseVerpacken({ x: 9500.25, y: -80.5, z: -9499.75, gier: 0, neigung: 0, haltung: 'stehen', tempo: 0 }, U, 2, G))?.pose
+gleich('Stadtteil: 9,5 km und -80 m bleiben', [weit?.x, weit?.y, weit?.z], [9500.25, -80.5, -9499.75])
+const hoch = poseLesen(poseVerpacken({ x: -1200, y: 120.4, z: 3000, gier: 0, neigung: 0, haltung: 'stehen', tempo: 0 }, U, 3, G))?.pose
+gleich('Stadtteil: Augen auf 120 m bleiben', [hoch?.x, hoch?.y, hoch?.z], [-1200, 120.4, 3000])
+gleich('Stadtteil: 10 km ist die Grenze', poseVerpacken({ x: 12_000, y: 2000, z: -12_000, gier: 0, neigung: 0, haltung: 'stehen', tempo: 0 }, U, 4, G).x, 1_000_000)
 const kaputt = {
   'Kommazahl': { ...nachricht, x: 1.5 },
   'Text statt Zahl': { ...nachricht, y: '164' },

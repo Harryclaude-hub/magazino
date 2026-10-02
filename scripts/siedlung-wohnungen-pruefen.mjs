@@ -1,4 +1,5 @@
-// Prueft die Liste der Wohnungen der Siedlung (E84) ohne Browser:
+// Prueft die Liste der Orte der Siedlung (E84, seit E87 "Orte": Wohnungen,
+// Geschaefte, Feuerwehr, Spital) ohne Browser:
 //  1. Der Inhalt der Liste (WohnungenListe in src/pages/SiedlungAnsicht.tsx)
 //     als HTML: ohne Ziele ein Hinweis, ohne Treffer ein anderer, sonst
 //     Gruppen in der gegebenen Reihenfolge, eine Ueberschrift je Wechsel
@@ -73,9 +74,9 @@ const ziele = [
 
 {
   const html = liste([], ebenen, '')
-  wahr('leer: Hinweis', html.includes('In dieser Siedlung gibt es noch keine Wohnungen zum Hingehen.'))
+  wahr('leer: Hinweis', html.includes('In dieser Siedlung gibt es noch keine Orte zum Hingehen.'))
   wahr('leer: kein Knopf', nummern(html).length === 0)
-  wahr('leer: Hinweis auch mit Suche', liste([], ebenen, 'Top').includes('noch keine Wohnungen'))
+  wahr('leer: Hinweis auch mit Suche', liste([], ebenen, 'Top').includes('noch keine Orte'))
 }
 {
   const html = liste(ziele, ebenen, '')
@@ -95,7 +96,7 @@ const ziele = [
 }
 {
   const html = liste(ziele, ebenen, 'xyz')
-  wahr('kein Treffer: eigener Hinweis mit dem Suchwort', html.includes('Keine Wohnung passt zu „xyz“.'))
+  wahr('kein Treffer: eigener Hinweis mit dem Suchwort', html.includes('Kein Ort passt zu „xyz“.'))
   wahr('kein Treffer: kein Knopf', nummern(html).length === 0)
   wahr('kein Treffer: Suchwort ohne Leerzeichen', liste(ziele, ebenen, '  xyz ').includes('„xyz“'))
 }
@@ -110,12 +111,26 @@ const ziele = [
 }
 {
   const leer = liste([], ebenen, '', 'ar')
-  wahr('arabisch: Hinweis leer', leer.includes('لا توجد في هذا المجمّع شقق يمكن الانتقال إليها بعد.'))
+  wahr('arabisch: Hinweis leer', leer.includes('لا توجد في هذا المجمّع أماكن يمكن الانتقال إليها بعد.'))
   const keiner = liste(ziele, ebenen, 'xyz', 'ar')
-  wahr('arabisch: kein Treffer', keiner.includes('لا توجد شقة تطابق «xyz».'))
+  wahr('arabisch: kein Treffer', keiner.includes('لا يوجد مكان يطابق «xyz».'))
   const alle = liste(ziele, ebenen, '', 'ar')
   wahr('arabisch: Vorlesename', alle.includes('aria-label="الانتقال إلى Haus Nord Top 1"'))
   wahr('arabisch: Namen bleiben, wie sie sind', alle.includes('>Haus Nord Top 1<'))
+  // Namen aus den Daten (auch arabische Orte des Stadtteils) in ihrer eigenen Richtung.
+  const ort = liste([ziel('مخبز الحي', 0)], ebenen, '', 'ar')
+  wahr('Namen und Ueberschriften mit dir=auto', /<span dir="auto"[^>]*>مخبز الحي<\/span>/.test(ort) && /<h3 dir="auto"/.test(ort))
+}
+{
+  // E87: die alten Saetze "Wohnungen" sind weg, die Orte haben de und ar.
+  const woerter = lesen('src/lib/i18n/bausteine/siedlung.ts')
+  wahr('alte Schluessel wohnungen_* weg', !/'siedlung\.wohnungen_(leer|keine_treffer|laedt)'/.test(woerter))
+  for (const k of ['orte_leer', 'orte_keine_treffer', 'orte_laedt', 'orte_suchen', 'orte_hilfe']) {
+    wahr(`siedlung.${k} mit de und ar`, new RegExp(`'siedlung\\.${k}': \\{\\s*de: '[^']+',\\s*ar: '[^']+'`).test(woerter))
+  }
+  for (const datei of ['src/pages/SiedlungAnsicht.tsx', 'src/components/plan3d/Raum3D.tsx', 'src/components/plan3d/Minikarte.tsx']) {
+    wahr(`${datei}: keine Schluessel wohnungen_*`, !/'siedlung\.wohnungen_/.test(lesen(datei)))
+  }
 }
 
 /* ------------------------------------------------------------ 2. Vertrag */

@@ -677,3 +677,44 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Konto ein, Deko und Schalter fuer den eigenen Grundriss gleich mit. Die
   Datei liegt nur beim Nutzer, nie im Code. Der Assistent zum Anlegen
   (SiedlungEinrichten) bleibt im Code, hat aber keinen Eingang mehr.
+- **E86 Siedlung gemeinsam:** Der Besitzer laedt registrierte Leute ein,
+  per E-Mail oder per Anzeigename, aber nur wenn der Name eindeutig ist
+  (Kistly hat keine eindeutigen Benutzernamen). Hoechstens 20 Gaeste und
+  30 Einladeversuche je Stunde, damit niemand Konten absucht. Die Antwort
+  verraet nie E-Mails oder Kennungen anderer. Ein Gast kann jederzeit
+  gehen, der Besitzer nimmt Gaeste heraus. Wer da ist, geht als Figur mit
+  und ist zu hoeren, lauter je naeher (Kanal siedlung:<Siedlung>, nur
+  Besitzer und Gaeste; Migration 0046). Minikarte unten rechts,
+  einklappbar, Tippen auf ein Haus springt hin. Entscheidung von Karam:
+  Siedlung und eingerichtete Wohnung sind zwei getrennte Dinge. In der
+  Siedlung ist die eigene Wohnung leer wie jede andere (die geplante),
+  eingerichtet sieht man sie nur im Umzug. Darum haben alle dieselbe Welt,
+  und das Begehen beginnt am Hauseingang. Gaeste erfahren dabei, welche
+  Wohnung die des Besitzers ist (die Lage legt den Ursprung der Welt fest);
+  das ist bei eingeladenen Nachbarn und Freunden in Ordnung.
+- **E87 Umgebung, Treppen, Springen, Fahren, Hinstellen:** Um die Siedlung
+  liegt jetzt der Stadtteil als begehbare Welt: Gelaende aus einem freien
+  Hoehenmodell (EU-DEM 25 m), Strassen, Wege, Bruecken, Gleise, Gewaesser,
+  Flaechen, Baeume, Zaeune und alle Haeuser aus OpenStreetMap (ODbL,
+  Hinweis unter dem Bild). Google Maps duerfen wir nicht nutzen. Haeuser
+  bekommen Geschosse aus der Karte oder geschaetzt, Fenster, Tuer am Weg,
+  Dach, Namensschild; innen ist jedes Haus begehbar, aber erfunden
+  (Wohnungen, Laeden mit Regalen und Kassen, Einkaufszentren mit
+  Geschaeften, Feuerwehr mit Fahrzeughalle, Spital mit Zimmern, Schulen,
+  Kirchen), gleich fuer alle Mitspieler, gebaut erst in der Naehe und in
+  Stuecken (Plan in einem Web Worker), damit nichts ruckelt. Die Haeuser
+  der Siedlung ohne oeffentliche Plaene (A, B, C) bekommen erfundene
+  Wohnungen. Treppen in jedem Stiegenhaus und an jeder Haustuer (Schwelle
+  vom Gelaende ins EG), Springen mit der Leertaste oder dem Knopf, auf
+  niedrige Dinge steigen. Autos, Feuerwehr, Rettung, Polizei und ein Bus
+  zum Einsteigen (E), Fahren mit Tasten oder Knueppel, Sicht innen oder
+  hinten (V), Blaulicht (B), Aussteigen (E); fahren wie im Spiel, nicht wie
+  echte Autos. Dinge aufheben und dorthin stellen, wo Maus oder Bildmitte
+  zeigt (gruene Vorschau, R dreht), in der Siedlung gespeichert (Migration
+  0047, siedlung_dinge, auch abgestellte Autos) und bei allen gleichzeitig
+  zu sehen. Die Umgebung kommt mit der Siedlungs-Datei (siedlungen.stadt),
+  nicht aus dem Code: wo jemand wohnt, steht nie im oeffentlichen Repo.
+  Bestehende Siedlung: Knopf "Aus Datei aktualisieren". Die Siedlung
+  startet gleich im Begehen am Hauseingang. Grenzen: Innenraeume sind nicht
+  1:1, keine Firmenlogos, Gelaende auf 25 m genau, nach einem Sprung in
+  ein fernes Viertel kann das erste Bild kurz haengen.

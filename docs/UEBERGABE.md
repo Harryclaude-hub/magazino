@@ -1,6 +1,6 @@
 # Kistly: Uebergabe fuer eine neue (lokale) Claude-Sitzung
 
-Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
+Stand: 02.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 
 ## Wo alles ist
 
@@ -9,7 +9,7 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - Repo: https://github.com/Harryclaude-hub/kistly, Zweig `main` ist aktuell
   (der Cloud-Arbeitszweig `claude/vibrant-planck-jlsatf` ist identisch).
 - Datenbank: Supabase `vqpirkgvclfsduklnnzv` (nur dieses Projekt!).
-  Migrationen 0001 bis 0045 sind angewandt.
+  Migrationen 0001 bis 0047 sind angewandt.
 
 ## Was fertig ist
 
@@ -47,15 +47,23 @@ Stand: 26.09.2026 spaet. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
   (Version 6, Liste gleich uebernommen), fuenf weitere Designs, Handy-
   Kopfzeile mit Menue, 3D-Vollbild, Moebel per IKEA-Link (Funktion
   produkt-lesen), Begehen im Massstab 1,75 m.
+- Siedlung (E83 bis E87): eigener Bereich mit der Siedlung des Besitzers
+  in 3D, alle Haeuser innen, gemeinsam mit eingeladenen Leuten (Figuren,
+  Sprechen, Minikarte; 0046), dazu die Umgebung aus OpenStreetMap mit
+  Gelaende (0047, siedlungen.stadt), jedes Haus innen erfunden und
+  begehbar, Treppen, Springen, Autos fahren, Dinge hinstellen wie bei
+  Minecraft (gespeichert in siedlung_dinge). Echte Daten nur in der
+  Datenbank und in der Datei des Besitzers (_privat.local, nie im Repo).
+  Umgebung neu erzeugen: scripts/stadt-aus-osm.mjs (siehe Kopf der Datei).
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E84.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E87.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler
-  bekommen eine neue Nummer (naechste: 0046).
+  bekommen eine neue Nummer (naechste: 0048).
 - Regel-Spiegel: SQL-Geometrie und `src/lib/geometrie.ts` immer zusammen
   aendern (`scripts/geometrie-pruefen.mjs`).
 

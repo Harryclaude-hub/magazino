@@ -73,12 +73,43 @@ export const plan3dWoerter: Woerterbuch = {
     ar: 'تجوّل في الشقة كأنك بداخلها.',
   },
   'plan3d.begehen_bedienung': {
-    de: 'W A S D oder Pfeiltasten gehen, Umschalt rennt, ziehen schaut umher. Antippen: hinsetzen, hinlegen, aufheben, Fernseher und Wasser an. Esc beendet.',
-    ar: 'W A S D أو مفاتيح الأسهم للمشي، Shift للركض، السحب للنظر حولك. النقر: اجلس، استلقِ، التقط، شغّل التلفاز والماء. Esc للإنهاء.',
+    de: 'W A S D oder Pfeiltasten gehen, Umschalt rennt, Leertaste springt, ziehen schaut umher. E steigt ein. Antippen: hinsetzen, hinlegen, aufheben, Fernseher und Wasser an. Esc beendet.',
+    ar: 'W A S D أو مفاتيح الأسهم للمشي، Shift للركض، المسافة للقفز، السحب للنظر حولك. E للركوب. النقر: اجلس، استلقِ، التقط، شغّل التلفاز والماء. Esc للإنهاء.',
   },
   'plan3d.begehen_bedienung_handy': {
-    de: 'Links den Knopf schieben zum Gehen, mit dem Finger ziehen zum Umschauen. Antippen: hinsetzen, hinlegen, aufheben, Fernseher und Wasser an.',
-    ar: 'ادفع الزر يسارًا للمشي، واسحب بإصبعك للنظر حولك. النقر: اجلس، استلقِ، التقط، شغّل التلفاز والماء.',
+    de: 'Links den Knopf schieben zum Gehen, mit dem Finger ziehen zum Umschauen. Die Knöpfe darüber: springen, einsteigen. Antippen: hinsetzen, hinlegen, aufheben, Fernseher und Wasser an.',
+    ar: 'ادفع الزر يسارًا للمشي، واسحب بإصبعك للنظر حولك. الأزرار فوقه: اقفز، اركب. النقر: اجلس، استلقِ، التقط، شغّل التلفاز والماء.',
+  },
+  // E87: Springen, Fahren, Dinge hinstellen (Knoepfe beim Begehen).
+  'plan3d.aktionen': { de: 'Was du gerade tun kannst', ar: 'ما يمكنك فعله الآن' },
+  'plan3d.springen': { de: 'Springen', ar: 'اقفز' },
+  'plan3d.einsteigen': { de: 'Einsteigen', ar: 'اركب' },
+  'plan3d.aussteigen': { de: 'Aussteigen', ar: 'انزل' },
+  'plan3d.sicht': { de: 'Sicht', ar: 'المنظر' },
+  'plan3d.sicht_hinten': { de: 'Sicht von hinten', ar: 'المنظر من الخلف' },
+  'plan3d.blaulicht': { de: 'Blaulicht', ar: 'ضوء الطوارئ' },
+  'plan3d.hinstellen': { de: 'Hinstellen', ar: 'ضعه هنا' },
+  'plan3d.ding_drehen': { de: 'Drehen', ar: 'دوّره' },
+  'plan3d.kmh_name': { de: 'Geschwindigkeit in km/h', ar: 'السرعة بالكيلومتر في الساعة' },
+  'plan3d.knueppel_fahren': {
+    de: 'Fahren: nach vorn schieben fährt, zur Seite lenkt',
+    ar: 'القيادة: الدفع للأمام يقود، والدفع للجانب يوجّه',
+  },
+  'plan3d.fahren_bedienung': {
+    de: 'W und S Gas und Bremse, A und D lenken, ziehen schaut umher. E oder Esc steigt aus, V wechselt die Sicht, B schaltet das Blaulicht.',
+    ar: 'W وS للتسارع والفرامل، A وD للتوجيه، السحب للنظر حولك. E أو Esc للنزول، V لتغيير المنظر، B لضوء الطوارئ.',
+  },
+  'plan3d.fahren_bedienung_handy': {
+    de: 'Den Knopf links schieben: nach vorn fährt, zur Seite lenkt. Die Knöpfe darüber: aussteigen, Sicht, Blaulicht.',
+    ar: 'ادفع الزر يسارًا: للأمام للقيادة، وللجانب للتوجيه. الأزرار فوقه: انزل، المنظر، ضوء الطوارئ.',
+  },
+  'plan3d.halten_bedienung': {
+    de: 'Klick stellt das Ding dorthin, wohin du zeigst. R oder Mausrad dreht es, Ablegen legt es vor dir ab. Esc beendet.',
+    ar: 'النقر يضع الشيء حيث تشير. R أو عجلة الفأرة لتدويره، و«ضعه» يضعه أمامك. Esc للإنهاء.',
+  },
+  'plan3d.halten_bedienung_handy': {
+    de: 'Tipp auf die Stelle, an die das Ding soll, oder Hinstellen für die Mitte (Kreuz). Drehen dreht es, Ablegen legt es vor dir ab.',
+    ar: 'انقر على المكان الذي تريد وضع الشيء فيه، أو «ضعه هنا» للمنتصف (العلامة). «دوّره» يدوّره، و«ضعه» يضعه أمامك.',
   },
   'plan3d.gehen_vor': { de: 'Vorwärts gehen', ar: 'امشِ للأمام' },
   'plan3d.knueppel': { de: 'Gehen: in die Richtung schieben', ar: 'المشي: ادفع في الاتجاه' },

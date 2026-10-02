@@ -15,6 +15,16 @@
 //     'siedlung:<Kennung>', sonst ein sichtbarer Fehler.
 //  5. Der Vertrag zwischen Seite, Raum3D und Minikarte, die Woerter und
 //     dass in den neuen Dateien nichts Persoenliches steht.
+//  6. E87, grosse Karten: Stufen nah, mittel, ganz (Knoepfe + und -),
+//     Ausschnitt folgt einem selbst, Kacheln fuer Namen, feste Pfade je
+//     Art (Haeuser, Flaechen, Strassen mit Breite in Metern), Orte nur nah
+//     und mittel, Tippen und Ziele bei Tausenden Haeusern, und das
+//     Zeitbudget: hoechstens 2 ms je Takt bei 4000 Haeusern und 20 Leuten
+//     (erfundene Karte im Gitter). Je Takt zeichnet React nichts: der Takt
+//     setzt nur Attribute an den Marken (markenSetzen) und nur die, die
+//     sich geaendert haben; React baut die Marken nur, wenn jemand kommt
+//     oder geht (markenGerippe). Namen von Orten in ihrer Richtung
+//     (textRichtung, wie dir=auto).
 // Alle Namen und Zahlen sind erfunden. Aufruf im Projektordner:
 //   node scripts/minikarte-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
@@ -41,6 +51,16 @@ function nahe(name, ist, soll, tol = 1e-9) {
 }
 const gleich = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const lesen = (p) => fs.readFileSync(p, 'utf8')
+/** Ein erfundenes SVG-Element: haelt jede Zuweisung fest wie ein echtes. */
+function element() {
+  const attr = {}
+  return {
+    attr,
+    setAttribute(n, v) {
+      attr[n] = String(v)
+    },
+  }
+}
 
 // Eigener Zwischenspeicher im Temp-Ordner, wie die anderen Pruefungen.
 const vite = await createServer({
@@ -262,7 +282,14 @@ function karte(props = {}, sprache = 'de', speicher = {}) {
   wahr('Karte: SVG da', html.includes('<svg'))
   wahr('Karte: alle brauchbaren Haeuser', html.includes('data-haus="0"') && html.includes('data-haus="1"') && html.includes('data-haus="2"') && !html.includes('data-haus="3"'))
   wahr('Karte: Namen der Haeuser', html.includes('>Haus Nord<') && html.includes('>Haus Sued<'))
-  wahr('Karte: vier Flaechen', (html.match(/<polygon/g) ?? []).length === 4 + 3)
+  // E87: eine Flaeche je Art als Pfad, alle Haeuser in einem Pfad, dazu je
+  // Haus mit Ziel ein unsichtbarer Knopf (Vieleck) fuer die Tasten.
+  wahr('Karte: vier Flaechen als Pfade', (html.match(/data-flaeche="/g) ?? []).length === 4)
+  wahr('Karte: Flaechen von unten nach oben (Garten unter Weg)', html.indexOf('data-flaeche="garten"') < html.indexOf('data-flaeche="weg"'))
+  wahr('Karte: Haeuser in einem Pfad', (html.match(/data-haeuser="3"/g) ?? []).length === 1)
+  wahr('Karte: Umriss gleich duenn in jeder Stufe', /data-haeuser="3"[^>]*vector-effect="non-scaling-stroke"/.test(html))
+  wahr('Karte: Knoepfe nur als Vielecke', (html.match(/<polygon/g) ?? []).length === 3)
+  wahr('Karte: Siedlung allein ohne Stufenknoepfe', !html.includes('aria-label="Näher heran"') && html.includes('data-zoom="ganz"'))
   wahr('Karte: eigener Pfeil mit Drehung', /data-ich=""[^>]*transform="translate\(-10 -10\) rotate\(-90\)/.test(html))
   wahr('Karte: Punkte der anderen', html.includes(`data-person="${UID_A}"`) && html.includes(`data-person="${UID_B}"`))
   wahr('Karte: Kuerzel', html.includes('>AB<') && html.includes('>BT<'))
@@ -273,7 +300,8 @@ function karte(props = {}, sprache = 'de', speicher = {}) {
   wahr('Karte: Norden', html.includes('>N<'))
   wahr('Karte: ohne springbar ist jedes Haus ein Knopf', (html.match(/role="button"/g) ?? []).length === 3)
   wahr('Karte: Vorlesename des Hauses', html.includes('aria-label="Zu Haus Nord gehen"'))
-  wahr('Karte: am Handy klein', html.includes('w-[132px]'))
+  // Die Breite gibt seit E87 die Spalte in Raum3D vor (7,5 rem am Handy).
+  wahr('Karte: fuellt ihre Spalte', html.includes('w-full overflow-hidden rounded-2xl'))
 }
 {
   const html = karte({ ebene: 'Haus Nord 2. OG', springbar: [true, false, false] })
@@ -290,6 +318,13 @@ function karte(props = {}, sprache = 'de', speicher = {}) {
   const html = karte({}, 'de', { 'kistly.minikarte.zu': '1' })
   wahr('eingeklappt: nur ein Knopf', !html.includes('data-haus') && !html.includes('role="group"') && html.includes('aria-label="Karte zeigen"') && html.includes('aria-expanded="false"'))
   wahr('kaputter Rahmen: nichts', karte({ karte: { ...KARTE, rahmen: [0, 0, NaN, 1] } }) === '')
+  // E87: zu niedrige 3D-Flaeche (quer ohne Vollbild): nur der Knopf, nicht gemerkt.
+  const eng = karte({ hoeheFrei: 120 })
+  wahr('zu niedrig: nur ein Knopf', eng.includes('data-eng=""') && !eng.includes('data-haus') && eng.includes('aria-label="Karte zeigen"'))
+  wahr('hoch genug: ganze Karte', karte({ hoeheFrei: 400 }).includes('data-haus="0"') && !karte({ hoeheFrei: 400 }).includes('data-eng'))
+  wahr('ohne Angabe: ganze Karte', karte().includes('data-haus="0"'))
+  wahr('eingeklappt und eng: kein Zeichen eng', !karte({ hoeheFrei: 120 }, 'de', { 'kistly.minikarte.zu': '1' }).includes('data-eng'))
+  wahr('Grenze: Breite plus Kopf und Rand', M.KARTE_EXTRA_PX === 100 && karte({ hoeheFrei: 259 }).includes('data-eng') && !karte({ hoeheFrei: 260 }).includes('data-eng'))
 }
 {
   const de = karte()
@@ -445,8 +480,14 @@ function leute(props, sprache = 'de') {
   wahr('Raum3D: Umzug wie bisher', raum.includes("!!uid && !!projekt && projekt.project.id === projectId"))
   wahr('Raum3D: Minikarte im 3D-Behaelter', raum.includes('<Minikarte') && (raum.match(/\{minikarte\}/g) ?? []).length === 2)
   const spalte = raum.indexOf('{minikarte}')
-  wahr('Raum3D: Minikarte ueber Aufstehen, Ablegen, Mikrofon', spalte > 0 && spalte < raum.indexOf("t('plan3d.aufstehen')") && spalte < raum.indexOf("t('plan3d.ablegen')") && spalte < raum.indexOf('<Mic size'))
-  wahr('Raum3D: Spalte rechts unten, Knueppel links unten', /end-\[calc\(env\(safe-area-inset-right,0px\)\+1rem\)\] z-20 flex max-w-\[60%\] flex-col/.test(raum))
+  // E87: Aufstehen und Ablegen sind Knoepfe der Gruppe links (BedienKachel),
+  // in der Spalte rechts stehen Hinweise, die Minikarte und das Mikrofon.
+  wahr('Raum3D: Minikarte ueber dem Mikrofon', spalte > 0 && spalte < raum.indexOf('<Mic size'))
+  wahr('Raum3D: kein Knopf Aufstehen mehr in der Spalte', !raum.includes("<span dir=\"auto\">{t('plan3d.aufstehen')}</span>"))
+  wahr('Raum3D: Spalte rechts unten, Knueppel links unten', raum.includes('style={SPALTE_STIL} data-spalte=""') && raum.includes('style={KNUEPPEL_STIL}'))
+  wahr('Raum3D: Breite der Spalte am Handy 7,5 rem, quer immer', raum.includes("quer ? 'w-[7.5rem]' : 'w-[7.5rem] sm:w-44 lg:w-52'"))
+  wahr('Raum3D: Ziele je Haus ueber das Gitter', raum.includes('springbarBerechnen(k.haeuser, sprungziele.current)'))
+  wahr('Raum3D: Hoehe der 3D-Flaeche an die Minikarte', raum.includes('hoeheFrei={flaecheH}') && raum.includes('<div ref={flaeche} dir="ltr" className="relative min-h-0 flex-1"'))
   // Kein Neuzeichnen je Bild: der Abnehmer am Motor setzt keinen Zustand.
   const ab = raum.indexOf('m.eigenePose((p) => {')
   const bis = raum.indexOf('})', ab)
@@ -486,6 +527,8 @@ function leute(props, sprache = 'de') {
 
   // Nichts Persoenliches und kein langer Gedankenstrich in den Dateien von E86.
   const NEU = [
+    'scripts/bedienung-pruefen.mjs',
+    'src/lib/i18n/bausteine/plan3d.ts',
     'src/components/plan3d/Minikarte.tsx',
     'src/components/SiedlungLeute.tsx',
     'src/lib/anwesenheit.ts',
@@ -504,6 +547,352 @@ function leute(props, sprache = 'de') {
     wahr(`${datei}: keine echten Kennungen`, ids.every((id) => id.startsWith('00000000-0000-4000-8000-')))
     wahr(`${datei}: keine Koordinaten auf der Erde`, !/\b(4[6-9]|5[0-5])\.\d{4,}\b/.test(txt))
   }
+}
+
+/* ------------------------------------------------- 6. E87: grosse Karten */
+
+{
+  // Stufen: nah 120 m, mittel 400 m, ganz; nur, was kleiner ist als das Ganze.
+  wahr('Stufen: Siedlung allein nur ganz', gleich(M.zoomStufen(130), ['ganz']))
+  wahr('Stufen: mittlere Karte nah und ganz', gleich(M.zoomStufen(450), ['nah', 'ganz']))
+  wahr('Stufen: Stadtteil alle drei', gleich(M.zoomStufen(3000), ['nah', 'mittel', 'ganz']))
+  wahr('Stufen: kaputt nur ganz', gleich(M.zoomStufen(NaN), ['ganz']) && gleich(M.zoomStufen(-5), ['ganz']))
+  wahr('Stufen: Seiten 120 und 400 m', M.ZOOM_SEITE_M.nah === 120 && M.ZOOM_SEITE_M.mittel === 400)
+  wahr('Anfang: Stadtteil mittel', M.zoomStart(['nah', 'mittel', 'ganz']) === 'mittel')
+  wahr('Anfang: sonst ganz', M.zoomStart(['nah', 'ganz']) === 'ganz' && M.zoomStart(['ganz']) === 'ganz')
+  const alle = ['nah', 'mittel', 'ganz']
+  wahr('Plus: naeher', M.zoomSchritt(alle, 'ganz', 1) === 'mittel' && M.zoomSchritt(alle, 'mittel', 1) === 'nah')
+  wahr('Plus: am Ende bleibt es', M.zoomSchritt(alle, 'nah', 1) === 'nah')
+  wahr('Minus: weiter weg', M.zoomSchritt(alle, 'nah', -1) === 'mittel' && M.zoomSchritt(alle, 'ganz', -1) === 'ganz')
+  wahr('Schritt: unbekannte Stufe beginnt beim Anfang', M.zoomSchritt(['nah', 'ganz'], 'mittel', 1) === 'ganz')
+}
+{
+  const ganz = { x: -100, y: -80, seite: 1000 }
+  wahr('Ansicht: ganz ist das Ganze', gleich(M.kartenAnsicht('ganz', ganz, { x: 5, z: 5 }), ganz))
+  wahr('Ansicht: nah um mich, Norden oben', gleich(M.kartenAnsicht('nah', ganz, { x: 10, z: -20 }), { x: -50, y: -80, seite: 120 }))
+  wahr('Ansicht: mittel um mich', gleich(M.kartenAnsicht('mittel', ganz, { x: 0, z: 0 }), { x: -200, y: -200, seite: 400 }))
+  wahr('Ansicht: ohne Stelle um die Mitte', gleich(M.kartenAnsicht('nah', ganz, null), { x: 340, y: 360, seite: 120 }))
+  wahr('Ansicht: NaN wie ohne Stelle', gleich(M.kartenAnsicht('nah', ganz, { x: NaN, z: 0 }), { x: 340, y: 360, seite: 120 }))
+  // Kacheln: solange die Mitte in der Kachel bleibt, liegt der Ausschnitt
+  // ganz im Fenster der Namen.
+  let ok = true
+  let zufall = 7
+  const z = () => {
+    zufall = (zufall * 16807) % 2147483647
+    return zufall / 2147483647
+  }
+  for (let i = 0; i < 2000; i++) {
+    const seite = i % 2 ? 120 : 400
+    const a = { x: z() * 4000 - 2000, y: z() * 4000 - 2000, seite }
+    const f = M.kachelFenster(M.kachelSchluessel(a))
+    if (!f || a.x < f.x - 1e-9 || a.y < f.y - 1e-9 || a.x + a.seite > f.x + f.seite + 1e-9 || a.y + a.seite > f.y + f.seite + 1e-9) ok = false
+  }
+  wahr('Kachel: Ausschnitt immer im Fenster der Namen', ok)
+  const a = { x: -30, y: -30, seite: 120 }
+  wahr('Kachel: kleine Bewegung, gleiche Kachel', M.kachelSchluessel(a) === M.kachelSchluessel({ ...a, x: a.x + 10, y: a.y - 5 }))
+  wahr('Kachel: halbes Bild weiter, neue Kachel', M.kachelSchluessel(a) !== M.kachelSchluessel({ ...a, x: a.x + 60 }))
+  wahr('Kachel: kaputter Schluessel', M.kachelFenster('x|y|z') === null && M.kachelFenster('0|1|1') === null)
+}
+
+const STADT = {
+  rahmen: [-500, -400, 700, 600],
+  haeuser: [
+    { name: 'Haus Nord', punkte: quadrat(-40, -30, 0, -5) },
+    { name: 'Laden Beispiel', punkte: quadrat(100, 100, 130, 120) },
+    { name: '', punkte: quadrat(300, 300, 320, 320) },
+    { name: 'kaputt', punkte: [[0, 0], [1, NaN], [2, 2]] },
+  ],
+  flaechen: [
+    { art: 'wiese', punkte: quadrat(-500, -400, 700, 600) },
+    { art: 'wasser', punkte: quadrat(200, -100, 260, -40) },
+    { art: 'wald', punkte: quadrat(-480, 300, -300, 500) },
+    { art: 'wiese', punkte: quadrat(0, 400, 50, 450) },
+  ],
+  strassen: [
+    { art: 'haupt', breite: 7.2, punkte: [[-500, 0], [700, 0]] },
+    { art: 'haupt', breite: 7.0, punkte: [[0, -400], [0, 600]] },
+    { art: 'neben', breite: 5, punkte: [[-100, 200], [400, 200]] },
+    { art: 'fuss', breite: 2, punkte: [[50, 50], [80, 90], [120, 90]] },
+    { art: 'gleis', breite: 3, punkte: [[-500, 550], [700, 550]] },
+    { art: 'wasser', breite: 4, punkte: [[600, -400], [600, 600]] },
+    { art: 'neben', breite: 5, punkte: [[1, 1]] },
+    { art: 'quatsch', breite: 5, punkte: [[0, 0], [9, 9]] },
+  ],
+  orte: [
+    { name: 'Feuerwehr', x: 20, z: 30 },
+    { name: 'Laden Beispiel', x: 115, z: 110 },
+    { name: 'Spital Beispiel', x: 650, z: 550 },
+    { name: '', x: 1, z: 1 },
+  ],
+}
+
+{
+  const p = M.kartenPfade(STADT)
+  wahr('Pfade: Flaechen je Art einmal', gleich(p.flaechen.map((f) => f.art), ['wald', 'wiese', 'wasser']))
+  wahr('Pfade: zwei Wiesen in einem Pfad', (p.flaechen[1].d.match(/M/g) ?? []).length === 2)
+  wahr('Pfade: Strassen nach Art und Breite', gleich(p.strassen.map((s) => `${s.art} ${s.breite}`), ['wasser 4', 'gleis 3', 'fuss 2', 'neben 5', 'haupt 7']))
+  wahr('Pfade: Hauptstrassen 7,0 und 7,2 m gleich breit (0,5 m)', (p.strassen.find((s) => s.art === 'haupt').d.match(/M/g) ?? []).length === 2)
+  wahr('Pfade: Linien offen, Flaechen zu', !p.strassen.some((s) => s.d.includes('Z')) && p.flaechen.every((f) => f.d.endsWith('Z')))
+  wahr('Pfade: kaputte Haeuser fallen weg', p.hausZahl === 3)
+  wahr('Pfade: auf 10 cm', !/\d\.\d\d/.test(p.haeuser + p.strassen.map((s) => s.d).join('')))
+  const leer = M.kartenPfade({ rahmen: [0, 0, 10, 10], haeuser: [], flaechen: [] })
+  wahr('Pfade: leere Karte', leer.haeuser === '' && leer.flaechen.length === 0 && leer.strassen.length === 0)
+}
+{
+  const u = 1000 / 160
+  const ganz = M.kartenNamen(STADT, 'ganz', null, u)
+  wahr('Namen: ganz keine Orte', !ganz.some((n) => n.art === 'ort'))
+  const fenster = { x: -100, y: -100, seite: 400 }
+  const mittel = M.kartenNamen(STADT, 'mittel', fenster, 400 / 160)
+  wahr('Namen: mittel mit Orten im Fenster', mittel.some((n) => n.art === 'ort' && n.text === 'Feuerwehr'))
+  wahr('Namen: Ort ausserhalb fehlt', !mittel.some((n) => n.text === 'Spital Beispiel'))
+  wahr('Namen: Ort ohne Namen fehlt', !mittel.some((n) => n.text === ''))
+  wahr('Namen: Haus und Ort mit gleichem Namen nur einmal', mittel.filter((n) => n.text === 'Laden Beispiel').length === 1)
+  const viele = { ...STADT, orte: Array.from({ length: 100 }, (_, i) => ({ name: `Ort ${i}`, x: i, z: i })) }
+  wahr('Namen: hoechstens 40 Orte', M.kartenNamen(viele, 'nah', { x: -10, y: -10, seite: 200 }, 1).filter((n) => n.art === 'ort').length === 40)
+  // Kein Text auf einem anderen: dicht beieinander bleibt nur der Punkt.
+  const dicht = { ...STADT, haeuser: [], orte: Array.from({ length: 30 }, (_, i) => ({ name: `Laden ${i}`, x: (i % 6) * 8, z: Math.floor(i / 6) * 6 })) }
+  const nd = M.kartenNamen(dicht, 'mittel', { x: -50, y: -50, seite: 200 }, 2.5)
+  const mitText = nd.filter((n) => n.mitText)
+  wahr('Namen: dicht, alle Punkte da', nd.length === 30)
+  wahr('Namen: dicht, nur ein Teil mit Text', mitText.length > 0 && mitText.length < 30)
+  const kasten = (n) => [n.x - 2.2 * 2.5, n.z - 12.5, n.x + 4 * 2.5 + n.text.length * 4.9 * 2.5, n.z + 12.5]
+  let schnitt = false
+  for (let i = 0; i < mitText.length; i++)
+    for (let j = i + 1; j < mitText.length; j++) {
+      const a = kasten(mitText[i])
+      const b = kasten(mitText[j])
+      if (a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]) schnitt = true
+    }
+  wahr('Namen: kein Text auf einem anderen', !schnitt)
+  const langerName = { ...STADT, orte: [{ name: 'Ein sehr langer Name fuer einen erfundenen Ort hier', x: 0, z: 0 }] }
+  wahr('Namen: lange Namen gekuerzt', M.kartenNamen(langerName, 'nah', { x: -10, y: -10, seite: 200 }, 1).find((n) => n.art === 'ort').text.length === 28)
+}
+{
+  // Der Stadtteil: beginnt bei mittel um den Ursprung (die Siedlung), mit
+  // Strassen, Orten und den Knoepfen + und -.
+  const html = karte({ karte: STADT, lage: () => ({ eigene: null, andere: new Map() }) })
+  wahr('Stadt: beginnt bei mittel', html.includes('data-zoom="mittel"'))
+  wahr('Stadt: Ausschnitt 400 m um den Ursprung', /viewBox="-200 -200 400 400"/.test(html))
+  wahr('Stadt: Knoepfe naeher und weiter', html.includes('aria-label="Näher heran"') && html.includes('aria-label="Weiter weg"'))
+  wahr('Stadt: Strassen als Linien', (html.match(/data-strasse="/g) ?? []).length === 5 && /data-strasse="haupt"[^>]*fill="none"/.test(html))
+  // u = 400 m / 160 px = 2,5 m: Hauptstrasse mindestens 2 px = 5 m, sonst 7 m.
+  wahr('Stadt: Breite in Metern', /data-strasse="haupt"[^>]*stroke-width="7"/.test(html))
+  wahr('Stadt: schmale Wege mindestens sichtbar', /data-strasse="fuss"[^>]*stroke-width="2"/.test(html))
+  wahr('Stadt: Gleis gestrichelt', /data-strasse="gleis"[^>]*stroke-dasharray=/.test(html))
+  wahr('Stadt: Orte beschriftet', html.includes('>Feuerwehr</text>') && html.includes('data-ort'))
+  wahr('Stadt: Orte mit Namen beim Zeigen', html.includes('<title>Feuerwehr</title>'))
+  wahr('Stadt: Haeuser in einem Pfad', html.includes('data-haeuser="3"'))
+  const nah = karte({ karte: STADT, lage: () => ({ eigene: pose(100, 1.64, 110), andere: new Map() }) })
+  wahr('Stadt: folgt mir (mittel um meine Stelle)', /viewBox="-100 -90 400 400"/.test(nah))
+  const ar = karte({ karte: STADT, lage: () => ({ eigene: null, andere: new Map() }) }, 'ar')
+  wahr('Stadt arabisch: Knoepfe', ar.includes('aria-label="تقريب"') && ar.includes('aria-label="تبعيد"'))
+  wahr('Stadt arabisch: nicht gespiegelt', /viewBox="-200 -200 400 400"/.test(ar) && !ar.includes('scale(-1'))
+}
+
+/** Eine erfundene grosse Karte: n Haeuser im Gitter (10 m gross, 16 m
+ *  Abstand), Strassen dazwischen, Flaechen und Orte. */
+function grosseKarte(n) {
+  const seite = Math.ceil(Math.sqrt(n))
+  const haeuser = []
+  for (let i = 0; i < n; i++) {
+    const x = (i % seite) * 16 - seite * 8
+    const z = Math.floor(i / seite) * 16 - seite * 8
+    haeuser.push({ name: i % 7 === 0 ? `Haus ${i}` : '', punkte: [[x, z], [x + 10, z], [x + 10, z + 8], [x + 4, z + 10], [x, z + 8]] })
+  }
+  const strassen = []
+  for (let k = 0; k < 150; k++) {
+    const q = k * 16 - seite * 8 - 3
+    strassen.push({ art: k % 5 === 0 ? 'haupt' : 'neben', breite: k % 5 === 0 ? 7 : 5, punkte: [[q, -seite * 8], [q, seite * 8]] })
+    strassen.push({ art: 'fuss', breite: 2, punkte: [[-seite * 8, q], [0, q + 3], [seite * 8, q]] })
+  }
+  const flaechen = []
+  for (let k = 0; k < 500; k++) flaechen.push({ art: ['wiese', 'wald', 'acker', 'parkplatz', 'gewerbe'][k % 5], punkte: quadrat(k * 3, k * 2, k * 3 + 20, k * 2 + 15) })
+  const orte = Array.from({ length: 300 }, (_, k) => ({ name: `Ort ${k}`, x: (k % 20) * 40 - 400, z: Math.floor(k / 20) * 40 - 300 }))
+  const r = seite * 8 + 20
+  return { rahmen: [-r, -r, r, r], haeuser, flaechen, strassen, orte }
+}
+
+{
+  const gross = grosseKarte(4000)
+  wahr('gross: 4000 Haeuser', gross.haeuser.length === 4000)
+  let t0 = performance.now()
+  const pfade = M.kartenPfade(gross)
+  const pfadeMs = performance.now() - t0
+  wahr(`gross: Pfade einmal unter 300 ms (${pfadeMs.toFixed(1)} ms)`, pfadeMs < 300)
+  wahr('gross: alle Haeuser in einem Pfad', pfade.hausZahl === 4000 && pfade.flaechen.length === 5 && pfade.strassen.length === 3)
+
+  // Der Takt (E87): Lage lesen, Stand, Ausschnitt, Kachel, und dann nur
+  // Attribute an den vorhandenen Marken setzen (viewBox, je Person
+  // transform und opacity, der eigene Pfeil), wie Minikarte im Browser.
+  // React zeichnet dabei nichts; die Elemente sind hier erfundene, die
+  // jede Zuweisung wie ein Element festhalten.
+  const andere = new Map()
+  for (let k = 0; k < 20; k++) andere.set(`00000000-0000-4000-8000-${String(k).padStart(12, '0')}`, pose(k * 5, 1.64, k * 3))
+  const leuteNach = new Map([...andere.keys()].map((u, k) => [u, { uid: u, name: `Person ${k}`, farbe: '#4f6d8f' }]))
+  const ganz = M.kartenAusschnitt(gross.rahmen)
+  let stand = M.kartenStand({ eigene: pose(0, 1.64, 0), andere })
+  const gerippe = M.markenGerippe(stand)
+  const svg = element()
+  const ziel = { ich: element(), andere: new Map([...andere.keys()].map((u) => [u, element()])) }
+  const schreiber = M.attributSchreiber()
+  const N = 400
+  let schluessel = ''
+  let neuGezeichnet = 0
+  const takt = (i) => {
+    const neu = M.kartenStand({ eigene: pose(i * 0.37, 1.64, i * 0.21, i * 0.05), andere }, stand.mitte)
+    if (neu.schluessel === stand.schluessel) return
+    stand = neu
+    const ansicht = M.kartenAnsicht('mittel', ganz, stand.mitte)
+    const k = M.kachelSchluessel(ansicht)
+    // Neue Kachel: React zeichnet die Namen (selten, eigens gemessen).
+    if (k !== schluessel) neuGezeichnet++
+    schluessel = k
+    if (M.markenGerippe(stand) !== gerippe) neuGezeichnet++
+    schreiber.schreiben(svg, 'viewBox', `${ansicht.x} ${ansicht.y} ${ansicht.seite} ${ansicht.seite}`)
+    M.markenSetzen(ziel, stand, ansicht.seite / 160, schreiber.schreiben)
+  }
+  // Zum Aufwaermen (der erste Lauf uebersetzt den Code), dann gemessen.
+  for (let i = 0; i < 50; i++) takt(1000 + i)
+  // Drei Durchgaenge, der beste zaehlt (andere Programme auf dem Rechner
+  // sollen das Ergebnis nicht verfaelschen).
+  let taktMs = Infinity
+  let schreibenJeTakt = 0
+  for (let durchgang = 0; durchgang < 3; durchgang++) {
+    const vorher = schreiber.zahl()
+    const a0 = performance.now()
+    for (let i = 0; i < N; i++) takt(durchgang * N + i)
+    const ms = (performance.now() - a0) / N
+    if (ms < taktMs) taktMs = ms
+    schreibenJeTakt = (schreiber.zahl() - vorher) / N
+  }
+  wahr(`gross: je Takt hoechstens 2 ms (${taktMs.toFixed(3)} ms)`, taktMs <= 2)
+  // Was je Takt geschieht, haengt nicht an der Zahl der Haeuser und kaum an den Leuten.
+  wahr(`gross: je Takt unter 0,2 ms (${taktMs.toFixed(3)} ms)`, taktMs < 0.2)
+  wahr('gross: Kachel bekannt', typeof schluessel === 'string' && schluessel.startsWith('400|'))
+  // Die anderen stehen still: je Takt nur viewBox und der eigene Pfeil.
+  wahr(`gross: je Takt nur, was sich aendert (${schreibenJeTakt} Attribute)`, schreibenJeTakt === 2)
+  wahr(`gross: React zeichnet je Takt nicht (${neuGezeichnet} neue Kacheln bei ${3 * N + 50} Takten)`, neuGezeichnet > 0 && neuGezeichnet < (3 * N + 50) / 10)
+  wahr('gross: Pfeil und Punkte wie von React', ziel.ich.attr.transform === M.ichTransform(stand.ich, 400 / 160) && [...ziel.andere.values()].every((el) => el.attr.transform.startsWith('translate(') && el.attr.opacity === '1'))
+  // Bewegen sich alle 20 Leute und gehen 10 davon ein Stockwerk hoeher,
+  // kommen 20 transform und 10 opacity dazu, mehr nicht (man selbst steht).
+  {
+    const vorher = schreiber.zahl()
+    const alle = new Map([...andere].map(([u, p], k) => [u, pose(p.x + 1, k < 10 ? 7.64 : p.y, p.z, 0)]))
+    const ich = pose(stand.ich.x, 1.64, stand.ich.z, (-stand.ich.grad * Math.PI) / 180)
+    const s = M.kartenStand({ eigene: ich, andere: alle }, stand.mitte)
+    M.markenSetzen(ziel, s, 400 / 160, schreiber.schreiben)
+    wahr(`gross: alle bewegen sich, 30 Attribute (${schreiber.zahl() - vorher})`, schreiber.zahl() - vorher === 30)
+    wahr('gross: blass als opacity', [...ziel.andere.values()].filter((el) => el.attr.opacity === '0.45').length === 10)
+  }
+  // Wenn jemand kommt oder geht, baut React die Marken (selten): Zahl fuer den Bericht.
+  let gerippeMs = Infinity
+  for (let durchgang = 0; durchgang < 3; durchgang++) {
+    const a0 = performance.now()
+    for (let i = 0; i < 20; i++) renderToStaticMarkup(h(M.KartenMarken, { stand, leuteNach, u: 2.5, duText: 'Du' }))
+    gerippeMs = Math.min(gerippeMs, (performance.now() - a0) / 20)
+  }
+  wahr(`gross: Marken neu bauen (jemand kommt) unter 50 ms (${gerippeMs.toFixed(2)} ms)`, gerippeMs < 50)
+
+  // Namen neu nur bei neuer Kachel: auch das bleibt klein.
+  t0 = performance.now()
+  for (let i = 0; i < 20; i++) M.kartenNamen(gross, 'mittel', M.kachelFenster(`400|${i}|0`), 2.5)
+  const namenMs = (performance.now() - t0) / 20
+  wahr(`gross: Namen je neuer Kachel unter 15 ms (${namenMs.toFixed(2)} ms)`, namenMs < 15)
+
+  // Tippen auf ein Haus unter Tausenden.
+  t0 = performance.now()
+  let treffer = 0
+  for (let i = 0; i < 200; i++) if (M.hausAn(gross, [-seiteMitte(gross) + 5 + (i % 50) * 16, -seiteMitte(gross) + 4], 2) !== null) treffer++
+  const tippMs = (performance.now() - t0) / 200
+  wahr(`gross: Tippen unter 2 ms (${tippMs.toFixed(3)} ms)`, tippMs < 2)
+  wahr('gross: Tippen trifft', treffer === 200)
+
+  // Ziele je Haus ueber das Gitter: dasselbe wie einzeln gerechnet, schneller.
+  const ziele = Array.from({ length: 400 }, (_, k) => ({ name: `Ziel ${k}`, ebene: 0, x: ((k * 37) % 1000) - 500, z: ((k * 53) % 1000) - 500, gier: 0 }))
+  t0 = performance.now()
+  const sb = M.springbarBerechnen(gross.haeuser, ziele)
+  const sbMs = performance.now() - t0
+  const einzeln = gross.haeuser.map((hh) => ziele.some((zz) => M.abstandZumUmriss([zz.x, zz.z], hh.punkte) <= M.HAUS_RAND_M))
+  wahr('gross: Ziele je Haus wie einzeln gerechnet', gleich(sb, einzeln))
+  wahr(`gross: Ziele je Haus unter 150 ms (${sbMs.toFixed(1)} ms)`, sbMs < 150)
+  wahr('Ziele: kaputte Umrisse ohne Ziel', gleich(M.springbarBerechnen([{ name: 'x', punkte: [] }, { name: 'y', punkte: [[NaN, 0]] }], ziele), [false, false]))
+
+  // Das erste Zeichnen der ganzen Karte (einmal): Zahl fuer den Bericht.
+  t0 = performance.now()
+  const html = karte({ karte: gross, lage: () => ({ eigene: pose(0, 1.64, 0), andere }), springbar: sb, leute: [...leuteNach.values()] })
+  const ersteMs = performance.now() - t0
+  wahr(`gross: erstes Zeichnen unter 1500 ms (${ersteMs.toFixed(0)} ms)`, ersteMs < 1500)
+  wahr('gross: Knoepfe nur fuer Haeuser mit Ziel', (html.match(/role="button"/g) ?? []).length === sb.filter(Boolean).length)
+  console.log(`Zeiten bei 4000 Haeusern: Pfade ${pfadeMs.toFixed(1)} ms einmal, Takt mit 20 Leuten ${taktMs.toFixed(3)} ms (${schreibenJeTakt} Attribute), Marken neu bauen ${gerippeMs.toFixed(2)} ms, Namen ${namenMs.toFixed(2)} ms je Kachel, Tippen ${tippMs.toFixed(3)} ms, Ziele ${sbMs.toFixed(1)} ms, erstes Zeichnen ${ersteMs.toFixed(0)} ms`)
+}
+
+function seiteMitte(k) {
+  return Math.ceil(Math.sqrt(k.haeuser.length)) * 8
+}
+
+{
+  // Marken je Takt ohne React (E87): dieselben Werte wie beim Zeichnen.
+  const leute = new Map(LEUTE.map((l) => [l.uid, l]))
+  const s = M.kartenStand(LAGE)
+  const html = renderToStaticMarkup(h(M.KartenMarken, { stand: s, leuteNach: leute, u: 2, duText: 'Du' }))
+  const attrVon = (sel, name) => new RegExp(`${sel}[^>]*${name}="([^"]*)"`).exec(html)?.[1]
+  const ziel = { ich: element(), andere: new Map([[UID_A, element()], [UID_B, element()]]) }
+  const sch = M.attributSchreiber()
+  M.markenSetzen(ziel, s, 2, sch.schreiben)
+  wahr('Takt: Pfeil wie von React', ziel.ich.attr.transform === attrVon('data-ich=""', 'transform'))
+  wahr('Takt: Punkt wie von React', ziel.andere.get(UID_A).attr.transform === attrVon(`data-person="${UID_A}"`, 'transform'))
+  wahr('Takt: blass wie von React', ziel.andere.get(UID_B).attr.opacity === attrVon(`data-person="${UID_B}"`, 'opacity') && ziel.andere.get(UID_B).attr.opacity === '0.45')
+  wahr('Takt: Groesse in Bildpunkten (scale u)', ziel.andere.get(UID_A).attr.transform === 'translate(20 20) scale(2)' && /<circle r="8"/.test(html))
+  wahr('Takt: erstes Mal alles geschrieben', sch.zahl() === 5)
+  M.markenSetzen(ziel, s, 2, sch.schreiben)
+  wahr('Takt: gleiche Lage schreibt nichts', sch.zahl() === 5)
+  sch.vergessen()
+  M.markenSetzen(ziel, s, 2, sch.schreiben)
+  wahr('Takt: nach dem Zeichnen durch React alles neu', sch.zahl() === 10)
+  // Jemand ohne Element (kommt gerade): bleibt aus, bis React es baut.
+  const mitNeuem = M.kartenStand({ ...LAGE, andere: new Map([...LAGE.andere, ['00000000-0000-4000-8000-00000000000c', pose(1, 1.64, 1)]]) })
+  M.markenSetzen(ziel, mitNeuem, 2, sch.schreiben)
+  wahr('Takt: ohne Element nichts, kein Fehler', sch.zahl() === 10)
+  // Gerippe: wer da ist und ob man selbst geht.
+  wahr('Gerippe: neue Person', M.markenGerippe(mitNeuem) !== M.markenGerippe(s))
+  wahr('Gerippe: Bewegung allein nicht', M.markenGerippe(M.kartenStand({ ...LAGE, eigene: pose(30, 1.64, 30, 1) })) === M.markenGerippe(s))
+  wahr('Gerippe: Begehen endet', M.markenGerippe(M.kartenStand({ ...LAGE, eigene: null })) !== M.markenGerippe(s))
+}
+{
+  // Richtung der Namen wie dir=auto: das erste starke Zeichen.
+  wahr('Richtung: deutsch', M.textRichtung('Feuerwehr') === 'ltr')
+  wahr('Richtung: arabisch', M.textRichtung('مخبز') === 'rtl')
+  wahr('Richtung: Zahl vor arabisch', M.textRichtung('24 مخبز') === 'rtl')
+  wahr('Richtung: lateinisch vor arabisch', M.textRichtung('Laden مخبز') === 'ltr')
+  wahr('Richtung: nur Zahlen', M.textRichtung('12') === 'ltr' && M.textRichtung('') === 'ltr')
+  wahr('Richtung: hebraeisch', M.textRichtung('שלום') === 'rtl')
+  const ar = { ...STADT, orte: [{ name: 'مخبز الحي', x: 20, z: 30 }, { name: 'Feuerwehr', x: 60, z: -60 }] }
+  const html = karte({ karte: ar, lage: () => ({ eigene: null, andere: new Map() }) })
+  // Der arabische Name laeuft von rechts nach links und endet links am
+  // Punkt (Anker end), der deutsche beginnt dort (Anker start).
+  wahr('Richtung: arabischer Ort rtl, rechts vom Punkt', /direction="rtl" text-anchor="end"[^>]*>مخبز الحي<\/text>/.test(html))
+  wahr('Richtung: deutscher Ort ltr', /direction="ltr" text-anchor="start"[^>]*>Feuerwehr<\/text>/.test(html))
+  wahr('Richtung: Haeuser auch', /direction="ltr" text-anchor="middle"[^>]*>Haus Nord<\/text>/.test(karte()))
+}
+
+{
+  // Das Feste ist gemerkt; je Takt zeichnet React nichts, nur Attribute.
+  const txt = lesen('src/components/plan3d/Minikarte.tsx')
+  const ab0 = txt.indexOf('const uhr = window.setInterval(() => {')
+  const ab = ab0 + 40
+  const bis = txt.indexOf('}, KARTE_TAKT_MS)', ab)
+  wahr('Minikarte: Takt ohne setState, nur taktRef', ab0 > 0 && bis > ab && !/\bset[A-Z]\w*\(/.test(txt.slice(ab, bis)) && txt.slice(ab, bis).includes('taktRef.current()'))
+  wahr('Minikarte: Takt setzt Attribute', txt.includes("schreiber.schreiben(svg, 'viewBox',") && txt.includes('markenSetzen(ziel, s, u, schreiber.schreiben)'))
+  wahr('Minikarte: React nur bei neuem Gerippe oder neuer Kachel', txt.includes('if (markenGerippe(s) !== gerippe || kachelVon(a) !== kachel) {'))
+  wahr('Minikarte: Marken gemerkt', txt.includes('export const KartenMarken = memo(function KartenMarken('))
+  wahr('Minikarte: Grund und N wandern nicht mit', !/<rect x=\{ansicht/.test(txt) && txt.includes("style={{ background: 'var(--plan-boden-draussen)' }}"))
+  wahr('Minikarte: Grund gemerkt', txt.includes('const KartenGrund = memo(function KartenGrund('))
+  wahr('Minikarte: Namen gemerkt', txt.includes('const KartenNamen = memo(function KartenNamen('))
+  wahr('Minikarte: Hausknoepfe gemerkt', txt.includes('const HausKnoepfe = memo(function HausKnoepfe('))
+  wahr('Minikarte: Pfade einmal je Karte', txt.includes('useMemo(() => kartenPfade(karte), [karte])'))
+  wahr('Minikarte: Rueckruf fuer Hausknoepfe stabil', txt.includes('hausRueck.current(i, info.mitte[0], info.mitte[1])'))
+  wahr('Minikarte: Takt vergleicht vor dem Setzen', /if \(neu\.schluessel === standRef\.current\.schluessel\) return/.test(txt))
 }
 
 if (fehler) {

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Ref } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowDownToLine, ArrowUpFromLine, Clock, Crosshair, Eye, Flower2, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, Map as KarteIcon, Maximize2, Mic, MicOff, Minimize2, Moon, Rotate3d, SlidersHorizontal, Square, Sun, Users, X } from 'lucide-react'
+import { ArrowBigUp, ArrowDownToLine, ArrowUpFromLine, Car, Clock, Crosshair, Eye, Flower2, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, LogOut, Map as KarteIcon, Maximize2, Mic, MicOff, Minimize2, Moon, Rotate3d, RotateCw, Siren, SlidersHorizontal, Square, Sun, SwitchCamera, Target, Users, X } from 'lucide-react'
 import { displayNameOf, useAuth } from '../../lib/auth'
 import { standardLook } from '../../lib/avatar'
 import { wohnungBeitreten, type WohnungVerbindung } from '../../lib/anwesenheit'
@@ -16,11 +16,11 @@ import { baueFigur } from './avatar3d'
 import KistenKarte from './KistenKarte'
 import { motorStarten, type Blick, type Figur3D, type Haltung, type Motor, type Pose3D, type Treffer3D } from './motor'
 import { Knueppel } from './Knueppel'
-import Minikarte, { abstandZumUmriss, HAUS_RAND_M, sprungImHaus, type MinikarteLage, type MinikartePerson } from './Minikarte'
+import Minikarte, { springbarBerechnen, sprungImHaus, type MinikarteLage, type MinikartePerson } from './Minikarte'
 import { farbenLesen } from './farben3d'
 import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
 import { umgebungAus } from './umgebungRahmen'
-import type { Ebene3D, Karte3D, Sprungziel3D, Welt3D } from './vertrag3d'
+import type { DingLage3D, Ebene3D, FahrzeugArt, FahrzeugJetzt, Karte3D, Moeglich3D, Sprungziel3D, Welt3D } from './vertrag3d'
 
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
  *
@@ -60,11 +60,38 @@ import type { Ebene3D, Karte3D, Sprungziel3D, Welt3D } from './vertrag3d'
  * den Kanal der Siedlung statt in den des Umzugs: wer gleichzeitig dort
  * geht, erscheint als Figur (Name und Aussehen aus live.leute), Sprechen
  * wie in der Wohnung (der Abstand zaehlt hier auch in der Hoehe, also
- * ueber Stockwerke), Zahl der Leute und Fehler unten rechts. Bringt die
+ * ueber Stockwerke), Zahl der Leute unten rechts (Fehler seit E87 oben
+ * in der Mitte unter dem Stockwerk). Bringt die
  * Welt eine Karte mit (Welt3D.karte), steht unten rechts die Minikarte
  * (Minikarte.tsx), ueber den Knoepfen und auch im Vollbild; Antippen eines
  * Hauses fuehrt zu seinem naechsten Sprungziel. Die Lage fuer die Karte
  * liegt in Refs, Raum3D zeichnet dafuer nicht neu.
+ *
+ * E87: Beim Begehen stehen Knoepfe fuer das, was gerade geht (der Motor
+ * meldet es mit moeglich() und fahrzeug()): Springen (nur am Handy, am
+ * Computer die Leertaste), Einsteigen, beim Fahren Aussteigen, Sicht,
+ * Blaulicht (nur Feuerwehr, Rettung, Polizei) und die Geschwindigkeit;
+ * mit einem Ding in der Hand Hinstellen (Mitte des Bildes, am Handy mit
+ * Kreuz), Drehen und Ablegen; sitzend Aufstehen. Die Tasten (E, V, B, R,
+ * Leertaste, Mausrad) liest der Motor selbst wie W A S D; hier steht nur
+ * der Buchstabe am Knopf und im Hinweis. Esc beim Fahren steigt zuerst
+ * aus. Die Knoepfe stehen hochkant ueber dem Knueppel, quer gehaltene
+ * Handys unten zwischen Knueppel und Minikarte (BEDIEN_MASS, eine Stelle
+ * fuer CSS und Pruefung, scripts/bedienung-pruefen.mjs); nichts deckt
+ * Knueppel, Minikarte oder einander zu. 3D wird nie gespiegelt, auch die
+ * Knoepfe bleiben im Arabischen, wo sie sind.
+ *
+ * E87, gemeinsam: Wer faehrt, schickt das Fahrzeug mit der Stellung
+ * (Pose3D.lenkt, anwesenheit.ts). Stellt jemand ein Ding hin oder ein
+ * Fahrzeug ab (motor.bewegt), geht das an die anderen (Ereignis 'ding')
+ * und an die Seite (onDingBewegt, zum Speichern); Ankommendes setzt
+ * motor.lage. Gespeicherte Lagen kommen ueber dingLagen und werden nach
+ * jedem Neubau der Welt wieder gesetzt.
+ *
+ * E87, Nachtrag: Zwischenpodeste der Treppen (Ebenen '<Haus>:<k>.5') sind
+ * keine Stockwerke zum Waehlen (ebenenZumWaehlen); oben steht trotzdem ihr
+ * Name, solange man darauf steht. startGehen beginnt das Begehen gleich
+ * beim Oeffnen, einmal (Grundriss mit ?begehen=1).
  *
  * Die Farben kommen aus den Tokens (getComputedStyle) und werden bei
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
@@ -148,6 +175,22 @@ export interface Raum3DProps {
    *  live, ohne Umzug. null oder fehlt: wie bisher, live nur im eigenen
    *  Umzug (E82). Die Liste darf sich aendern, die Verbindung bleibt. */
   live?: Raum3DLive | null
+  /** E87: Wo Dinge und Fahrzeuge der Welt stehen (gespeichert). Jede Lage
+   *  geht an den Motor (motor.lage), wenn die Liste kommt und nach jedem
+   *  Neubau der Welt. Was in dieser Sitzung schon bewegt wurde (selbst
+   *  oder von anderen), gilt vor dieser Liste. */
+  dingLagen?: readonly DingLage3D[] | null
+  /** E87: Man hat ein Ding der Welt hingestellt oder abgelegt oder ein
+   *  Fahrzeug abgestellt (motor.bewegt), zum Speichern. Kommt auch, wenn
+   *  niemand sonst da ist. */
+  onDingBewegt?: (l: DingLage3D) => void
+  /** E87: Ein Fehler der Seite (etwa beim Speichern der Dinge), als
+   *  kleiner Hinweis unten rechts in der Ansicht, auch im Vollbild. */
+  seitenFehler?: string | null
+  /** E87: gleich begehen, sobald 3D laeuft (einmal je Ansicht), etwa wenn
+   *  der Grundriss mit ?begehen=1 geoeffnet wurde. Spaeter wechseln wirkt
+   *  nicht mehr; ohne Raeume und ohne Welt nichts. */
+  startGehen?: boolean
   className?: string
 }
 
@@ -168,12 +211,34 @@ function startPunkt(daten: GrundrissDaten, raumId: string | null): [number, numb
   return best ? innenPunkt(best.punkte) : null
 }
 
+/** E87: so viele selbst bewegte Dinge bekommt jemand, der neu dazukommt
+ *  (der Kanal nimmt je Absender 20 je Sekunde an). */
+const DINGE_NACHREICHEN = 20
+
 /** Eine ruhige Farbe je Person, fest aus der Kennung. */
 function farbeFuer(uid: string): string {
   const farben = ['#4f6d8f', '#7a5c8e', '#4f8a6e', '#a0663f', '#8a4f5c', '#5c7a8a']
   let h = 0
   for (let i = 0; i < uid.length; i++) h = (h * 31 + uid.charCodeAt(i)) >>> 0
   return farben[h % farben.length]
+}
+
+/** Ist diese Ebene ein Zwischenpodest einer Treppe (E87, Kennung
+ *  '<Haus>:<k>.5')? Dorthin waehlt man nicht, man geht hin. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function istPodest(id: string): boolean {
+  return typeof id === 'string' && id.endsWith('.5')
+}
+
+/** Die Ebenen zum Waehlen (Aufzug): ohne Zwischenpodeste, oben die
+ *  hoechste wie an der Tafel im Aufzug; i ist die Nummer in welt.ebenen. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function ebenenZumWaehlen(ebenen: readonly Pick<Ebene3D, 'id' | 'name' | 'y'>[]): { i: number; name: string; y: number }[] {
+  return ebenen
+    .map((x, i) => ({ i, id: x.id, name: x.name, y: x.y }))
+    .filter((x) => !istPodest(x.id))
+    .sort((a, b) => b.y - a.y)
+    .map(({ i, name, y }) => ({ i, name, y }))
 }
 
 /** Die Karte der Welt (E86), nur wenn sie brauchbar ist: Rahmen aus vier
@@ -196,6 +261,267 @@ function karteLesen(k: Karte3D | undefined): Karte3D | null {
     return null
   }
   return k
+}
+
+/* ------------------------------------------------ E87: Bedienung
+ * Reine Rechnungen, ohne Browser pruefbar (scripts/bedienung-pruefen.mjs). */
+
+/** Was man kann, bevor der Motor etwas meldet: zu Fuss und stehend. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export const MOEGLICH_START: Moeglich3D = { einsteigen: false, aussteigen: false, halten: false, hinstellen: false, hupfen: true }
+
+function gleichMoeglich(a: Moeglich3D, b: Moeglich3D): boolean {
+  return a.einsteigen === b.einsteigen && a.aussteigen === b.aussteigen && a.halten === b.halten && a.hinstellen === b.hinstellen && a.hupfen === b.hupfen
+}
+
+/** Ein Knopf beim Begehen. kmh ist die Anzeige der Geschwindigkeit. */
+export type BedienKnopf = 'kmh' | 'springen' | 'aufstehen' | 'einsteigen' | 'aussteigen' | 'sicht' | 'blaulicht' | 'hinstellen' | 'drehen' | 'ablegen'
+
+/** Hat ein Fahrzeug dieser Art Blaulicht? */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function hatBlaulicht(art: FahrzeugArt | string): boolean {
+  return art === 'feuerwehr' || art === 'rettung' || art === 'polizei'
+}
+
+export interface BedienZustand {
+  moeglich: Moeglich3D
+  /** Das Fahrzeug, in dem man sitzt (motor.fahrzeug), sonst null. */
+  fahrzeug: { art: FahrzeugArt } | null
+  haltung: Haltung
+  /** Man haelt etwas (motor.inHand oder Moeglich3D.halten). */
+  haelt: boolean
+  /** Finger statt Maus: Springen als Knopf (am Computer die Leertaste). */
+  beruehren: boolean
+}
+
+/** Welche Knoepfe beim Begehen stehen, in dieser Reihenfolge (der erste
+ *  unten, am naechsten zur Mitte). Im Fahrzeug: Geschwindigkeit,
+ *  Aussteigen, Sicht, Blaulicht (nur wenn es eins hat). Zu Fuss: sitzend
+ *  oder liegend Aufstehen, sonst am Handy Springen; Einsteigen, wenn ein
+ *  Fahrzeug nah ist; mit einem Ding Hinstellen, Drehen, Ablegen.
+ *  Hoechstens BEDIEN_MASS.maxKnoepfe. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function bedienKnoepfe(z: BedienZustand): BedienKnopf[] {
+  if (z.fahrzeug || z.moeglich.aussteigen) {
+    const out: BedienKnopf[] = ['kmh', 'aussteigen', 'sicht']
+    if (z.fahrzeug && hatBlaulicht(z.fahrzeug.art)) out.push('blaulicht')
+    return out
+  }
+  const out: BedienKnopf[] = []
+  if (z.haltung !== 'stehen') out.push('aufstehen')
+  else if (z.beruehren) out.push('springen')
+  if (z.moeglich.einsteigen) out.push('einsteigen')
+  if (z.haelt || z.moeglich.halten) out.push('hinstellen', 'drehen', 'ablegen')
+  return out
+}
+
+/** Ist der Knopf gerade aus (sichtbar, aber ohne Wirkung)? Springen nur,
+ *  wenn der Motor es erlaubt (nicht auf der Treppe, nicht im Aufzug),
+ *  Hinstellen nur, wenn das Ding dort passt, wohin man zeigt. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function knopfAus(k: BedienKnopf, m: Moeglich3D): boolean {
+  if (k === 'springen') return !m.hupfen
+  if (k === 'hinstellen') return !m.hinstellen
+  return false
+}
+
+/** Taste am Computer, steht klein am Knopf und im Titel. Der Motor liest
+ *  sie (wie W A S D), Raum3D nur Esc. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export const BEDIEN_TASTE: Partial<Record<BedienKnopf, string>> = {
+  einsteigen: 'E',
+  aussteigen: 'E',
+  sicht: 'V',
+  blaulicht: 'B',
+  drehen: 'R',
+  aufstehen: 'Esc',
+}
+
+/** Name des Knopfs (Woerterbuch plan3d). */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export const BEDIEN_NAME: Record<BedienKnopf, string> = {
+  kmh: 'plan3d.kmh_name',
+  springen: 'plan3d.springen',
+  aufstehen: 'plan3d.aufstehen',
+  einsteigen: 'plan3d.einsteigen',
+  aussteigen: 'plan3d.aussteigen',
+  sicht: 'plan3d.sicht',
+  blaulicht: 'plan3d.blaulicht',
+  hinstellen: 'plan3d.hinstellen',
+  drehen: 'plan3d.ding_drehen',
+  ablegen: 'plan3d.ablegen',
+}
+
+/** Was der Motor auf einen Knopf hin tut (eine Stelle, auch fuer die
+ *  Pruefung). Sicht und Blaulicht schalten um, ausgehend von dem, was
+ *  der Motor zuletzt gemeldet hat. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function knopfAusfuehren(
+  k: BedienKnopf,
+  m: Pick<Motor, 'hupfen' | 'aufstehen' | 'einsteigen' | 'aussteigen' | 'fahrSicht' | 'blaulicht' | 'hinstellen' | 'drehen' | 'ablegen'>,
+  fahrt: Pick<FahrzeugJetzt, 'sicht' | 'blaulicht'> | null,
+): void {
+  switch (k) {
+    case 'springen':
+      m.hupfen()
+      return
+    case 'aufstehen':
+      m.aufstehen()
+      return
+    case 'einsteigen':
+      m.einsteigen()
+      return
+    case 'aussteigen':
+      m.aussteigen()
+      return
+    case 'sicht':
+      m.fahrSicht(fahrt?.sicht === 'hinten' ? 'innen' : 'hinten')
+      return
+    case 'blaulicht':
+      m.blaulicht(!fahrt?.blaulicht)
+      return
+    case 'hinstellen':
+      m.hinstellen()
+      return
+    case 'drehen':
+      m.drehen(1)
+      return
+    case 'ablegen':
+      m.ablegen()
+      return
+    case 'kmh':
+      return
+  }
+}
+
+/** Der Satz in der Leiste (Schluessel im Woerterbuch plan3d): ohne Begehen
+ *  wie bisher, beim Begehen je nach Fahren, Halten und Geraet. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function bedienHinweis(z: { gehen: boolean; faehrt: boolean; haelt: boolean; beruehren: boolean; kannZiehen: boolean; hand: boolean }): string {
+  if (!z.gehen) return `${z.beruehren ? 'plan3d.bedienung_handy' : z.kannZiehen ? 'plan3d.bedienung_ziehen' : 'plan3d.bedienung'}${z.hand ? '_hand' : ''}`
+  if (z.faehrt) return z.beruehren ? 'plan3d.fahren_bedienung_handy' : 'plan3d.fahren_bedienung'
+  if (z.haelt) return z.beruehren ? 'plan3d.halten_bedienung_handy' : 'plan3d.halten_bedienung'
+  return z.beruehren ? 'plan3d.begehen_bedienung_handy' : 'plan3d.begehen_bedienung'
+}
+
+/** Masse der Bedienung beim Begehen in rem (wie Tailwind; die App hat 18 px
+ *  je rem, ab 1024 px Breite 17 px, index.css): eine Stelle fuer die Lage
+ *  am Bildschirm (style) und die Pruefung, dass sich nichts ueberdeckt.
+ *  rand: Abstand zum Rand (dazu die sichere Zone des Handys), knueppel:
+ *  Knueppel.tsx (h-32 w-32 = 8 rem), luecke: zwischen den Teilen, knopfB
+ *  und knopfH: ein Knopf, spalte: Breite der Spalte rechts (Minikarte) am
+ *  Handy und quer (w-[7.5rem]), kreuz: Kreuz in der Mitte (h-6 w-6),
+ *  maxKnoepfe: hoechstens so viele Knoepfe (bedienKnoepfe). */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export const BEDIEN_MASS = { rand: 1, knueppel: 8, luecke: 0.5, knopfB: 3.75, knopfH: 3, spalte: 7.5, kreuz: 1.5, maxKnoepfe: 5 } as const
+
+/** Quer gehaltenes Handy: wenig Hoehe. Dann stehen die Knoepfe unten
+ *  zwischen Knueppel und Spalte und die Minikarte bleibt schmal. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export const QUER_MEDIA = '(orientation: landscape) and (max-height: 500px)'
+
+/** Lage der Knopfgruppe (rem ab links und unten, dazu die sichere
+ *  Zone): hochkant ueber dem Knueppel und so breit wie er (zwei Knoepfe
+ *  je Reihe), quer unten rechts neben dem Knueppel bis vor die Spalte.
+ *  Die Reihen wachsen nach oben. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function knopfGruppeLage(quer: boolean): { links: number; unten: number; breite: number | null; rechts: number | null } {
+  const m = BEDIEN_MASS
+  return quer
+    ? { links: m.rand + m.knueppel + m.luecke, unten: m.rand, breite: null, rechts: m.rand + m.spalte + m.luecke }
+    : { links: m.rand, unten: m.rand + m.knueppel + m.luecke, breite: m.knueppel, rechts: null }
+}
+
+/** Dasselbe als style fuer die Knopfgruppe. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function knopfGruppeStil(quer: boolean): CSSProperties {
+  const l = knopfGruppeLage(quer)
+  return {
+    left: `calc(env(safe-area-inset-left, 0px) + ${l.links}rem)`,
+    bottom: `calc(env(safe-area-inset-bottom, 0px) + ${l.unten}rem)`,
+    ...(l.breite !== null ? { width: `${l.breite}rem` } : {}),
+    ...(l.rechts !== null ? { right: `calc(env(safe-area-inset-right, 0px) + ${l.rechts}rem)` } : {}),
+    gap: `${BEDIEN_MASS.luecke}rem`,
+  }
+}
+
+/** Knueppel links unten, Spalte rechts unten (style). */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export const KNUEPPEL_STIL: CSSProperties = {
+  left: `calc(env(safe-area-inset-left, 0px) + ${BEDIEN_MASS.rand}rem)`,
+  bottom: `calc(env(safe-area-inset-bottom, 0px) + ${BEDIEN_MASS.rand}rem)`,
+}
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export const SPALTE_STIL: CSSProperties = {
+  right: `calc(env(safe-area-inset-right, 0px) + ${BEDIEN_MASS.rand}rem)`,
+  bottom: `calc(env(safe-area-inset-bottom, 0px) + ${BEDIEN_MASS.rand}rem)`,
+}
+/** Ein Knopf (BedienKachel, Tacho). */
+const KNOPF_STIL: CSSProperties = { width: `${BEDIEN_MASS.knopfB}rem`, height: `${BEDIEN_MASS.knopfH}rem` }
+
+/** Breite der Spalte rechts: quer immer schmal (BEDIEN_MASS.spalte), sonst
+ *  ab sm und lg breiter (die Knoepfe stehen dann ueber dem Knueppel). */
+function spalteKlasse(quer: boolean): string {
+  return quer ? 'w-[7.5rem]' : 'w-[7.5rem] sm:w-44 lg:w-52'
+}
+
+export interface Rechteck {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+/** Wo die Teile der Bedienung bei einer Flaeche von breite mal hoehe
+ *  Bildpunkten liegen (ohne sichere Zone), aus denselben Zahlen wie das
+ *  style oben, mit rem Bildpunkten je rem: Knueppel, Knopfgruppe mit
+ *  knoepfe Knoepfen (null ohne), Spalte rechts (spalte breit, spalteH hoch,
+ *  beides in Bildpunkten, je nach Inhalt) und das Kreuz in der Mitte (nur
+ *  mit fadenkreuz). Fuer die Pruefung, dass sich nichts ueberdeckt. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function bedienRechtecke(
+  breite: number,
+  hoehe: number,
+  o: { quer: boolean; rem: number; spalte: number; spalteH: number; knoepfe: number; fadenkreuz: boolean },
+): { knueppel: Rechteck; knoepfe: Rechteck | null; spalte: Rechteck; fadenkreuz: Rechteck | null } {
+  const r = o.rem
+  const m = BEDIEN_MASS
+  const rand = m.rand * r
+  const knueppel = { x0: rand, y0: hoehe - rand - m.knueppel * r, x1: rand + m.knueppel * r, y1: hoehe - rand }
+  const spalte = { x0: breite - rand - o.spalte, y0: hoehe - rand - o.spalteH, x1: breite - rand, y1: hoehe - rand }
+  let knoepfe: Rechteck | null = null
+  if (o.knoepfe > 0) {
+    const l = knopfGruppeLage(o.quer)
+    const x0 = l.links * r
+    const x1 = l.breite !== null ? (l.links + l.breite) * r : breite - (l.rechts ?? 0) * r
+    const jeReihe = Math.max(1, Math.floor((x1 - x0 + m.luecke * r) / ((m.knopfB + m.luecke) * r)))
+    const reihen = Math.ceil(o.knoepfe / jeReihe)
+    const y1 = hoehe - l.unten * r
+    knoepfe = { x0, y0: y1 - (reihen * m.knopfH + (reihen - 1) * m.luecke) * r, x1, y1 }
+  }
+  const k = (m.kreuz * r) / 2
+  const fadenkreuz = o.fadenkreuz ? { x0: breite / 2 - k, y0: hoehe / 2 - k, x1: breite / 2 + k, y1: hoehe / 2 + k } : null
+  return { knueppel, knoepfe, spalte, fadenkreuz }
+}
+
+/** Ueberdecken sich zwei Rechtecke (Beruehren zaehlt nicht)? */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function ueberdecken(a: Rechteck, b: Rechteck): boolean {
+  return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
+}
+
+/** Eine Medienabfrage als Zustand, folgt Aenderungen (Handy drehen). */
+function useMedien(abfrage: string): boolean {
+  const [an, setAn] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(abfrage).matches)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia(abfrage)
+    const neu = () => setAn(mq.matches)
+    neu()
+    mq.addEventListener('change', neu)
+    return () => mq.removeEventListener('change', neu)
+  }, [abfrage])
+  return an
 }
 
 /** Kiste -> Objekt, auf oder in dem ihr Stapel steht (ueber Kisten hinweg). */
@@ -229,6 +555,10 @@ export default function Raum3D({
   onSprungziele,
   steuer,
   live: gemeinsam = null,
+  dingLagen = null,
+  onDingBewegt,
+  seitenFehler = null,
+  startGehen = false,
   className,
 }: Raum3DProps) {
   const { t } = useSprache()
@@ -237,6 +567,17 @@ export default function Raum3D({
   const { user, profile } = useAuth()
   const projekt = useProjektOptional()
   const host = useRef<HTMLDivElement>(null)
+  // E87: Hoehe der 3D-Flaeche, damit die Minikarte bei zu wenig Platz
+  // (quer, ohne Vollbild) nur als Knopf steht und die Leiste nicht zudeckt.
+  const flaeche = useRef<HTMLDivElement>(null)
+  const [flaecheH, setFlaecheH] = useState<number | undefined>(undefined)
+  useEffect(() => {
+    const el = flaeche.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setFlaecheH(Math.round(el.clientHeight)))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const motor = useRef<Motor | null>(null)
   const [geht, setGeht] = useState<'pruefen' | 'ja' | 'nein'>('pruefen')
   const [farben, setFarben] = useState<Farben3D>(farbenLesen)
@@ -309,6 +650,27 @@ export default function Raum3D({
   // Beim Begehen: stehen, sitzen, liegen; und was man in der Hand haelt.
   const [haltung, setHaltung] = useState<Haltung>('stehen')
   const [inHand, setInHand] = useState<string | null>(null)
+  // E87: was gerade geht (Knoepfe) und das Fahrzeug, in dem man sitzt. Die
+  // Geschwindigkeit kommt bis 5-mal je Sekunde und geht darum nur an den
+  // Tacho (eigene kleine Komponente), nicht in den Zustand von Raum3D.
+  const [moeglich, setMoeglich] = useState<Moeglich3D>(MOEGLICH_START)
+  const [fahrt, setFahrt] = useState<Omit<FahrzeugJetzt, 'kmh'> | null>(null)
+  const kmhHoerer = useRef(new Set<(kmh: number) => void>())
+  const kmhLetzt = useRef(0)
+  const quer = useMedien(QUER_MEDIA)
+  // E87: die zuletzt bekannte Lage der Dinge und Fahrzeuge der Welt, je
+  // Kennung (aus dingLagen, eigenen Bewegungen und von den anderen).
+  // frisch: in dieser Sitzung bewegt, gilt vor dingLagen. eigeneLagen:
+  // selbst bewegt, fuer alle, die neu in den Kanal kommen (juengste zuletzt).
+  const lagen = useRef(new Map<string, DingLage3D>())
+  const frisch = useRef(new Set<string>())
+  const eigeneLagen = useRef(new Map<string, DingLage3D>())
+  const dingRueck = useRef(onDingBewegt)
+  useLayoutEffect(() => {
+    dingRueck.current = onDingBewegt
+  })
+  /** Senden an die anderen (gehoert der Verbindung, sonst null). */
+  const dingSenden = useRef<((l: DingLage3D) => void) | null>(null)
   const lichtRaeumeListe = useMemo(
     () => daten.raeume.filter((r) => r.punkte.length >= 3 && (!raumId || r.id === raumId)),
     [daten.raeume, raumId],
@@ -421,11 +783,53 @@ export default function Raum3D({
     if (!m) return
     m.haltung(setHaltung)
     m.inHand(setInHand)
+    // E87: Knoepfe und Fahrzeug. Neu gesetzt nur bei echter Aenderung.
+    m.moeglich((x) => setMoeglich((alt) => (gleichMoeglich(alt, x) ? alt : { ...x })))
+    m.fahrzeug((f) => {
+      if (f) {
+        kmhLetzt.current = f.kmh
+        for (const h of kmhHoerer.current) h(f.kmh)
+      }
+      setFahrt((alt) => {
+        if (!f) return null
+        if (alt && alt.id === f.id && alt.art === f.art && alt.sicht === f.sicht && alt.blaulicht === f.blaulicht) return alt
+        return { id: f.id, art: f.art, sicht: f.sicht, blaulicht: f.blaulicht }
+      })
+    })
     return () => {
       m.haltung(null)
       m.inHand(null)
+      m.moeglich(null)
+      m.fahrzeug(null)
     }
   }, [geht])
+
+  // E87: Hingestellt, abgelegt oder abgestellt: merken, an die anderen und
+  // an die Seite (Speichern). Dinge der Wohnung meldet der Motor nicht.
+  useEffect(() => {
+    const m = motor.current
+    if (!m) return
+    m.bewegt((l) => {
+      lagen.current.set(l.id, l)
+      frisch.current.add(l.id)
+      eigeneLagen.current.delete(l.id)
+      eigeneLagen.current.set(l.id, l)
+      dingSenden.current?.(l)
+      dingRueck.current?.(l)
+    })
+    return () => m.bewegt(null)
+  }, [geht])
+  // Gespeicherte Lagen (E87): an den Motor; was in dieser Sitzung schon
+  // bewegt wurde, bleibt, wie es jetzt ist.
+  useEffect(() => {
+    const m = motor.current
+    if (!m || geht !== 'ja' || !dingLagen) return
+    for (const l of dingLagen) {
+      if (frisch.current.has(l.id)) continue
+      lagen.current.set(l.id, l)
+      m.lage(l)
+    }
+  }, [dingLagen, geht])
   // Spiegel spiegeln echt, solange man geht (kostet Rechenzeit).
   useEffect(() => {
     motor.current?.spiegel(gehen)
@@ -493,16 +897,20 @@ export default function Raum3D({
     const mw = mitWelt(m)
     if (mw.welt) mw.welt(w)
     else m.umgebung({ gruppe: w.gruppe, nebel: w.nebel, himmel: w.himmel })
-    const liste = w.ebenen.map((x, i) => ({ i, name: x.name, y: x.y })).sort((a, b) => b.y - a.y)
+    // E87: die bekannten Lagen der Dinge und Fahrzeuge auch in der neuen Welt.
+    for (const l of lagen.current.values()) m.lage(l)
+    // Zum Waehlen ohne die Zwischenpodeste (E87); oben steht trotzdem der
+    // Name der Ebene, auf der man gerade ist, auch eines Podests.
+    const liste = ebenenZumWaehlen(w.ebenen)
     mw.ebeneJetzt?.((e) => setEbeneLage({ name: ebenenName(e, w.ebenen), liste }))
     sprungziele.current = w.sprungziele ?? []
     sprungRueck.current?.(sprungziele.current, w.ebenen.map((x) => x.name))
     const k = karteLesen(w.karte)
     if (k) {
-      const ziele = sprungziele.current
       setLageKarte({
         karte: k,
-        springbar: k.haeuser.map((h) => ziele.some((z) => abstandZumUmriss([z.x, z.z], h.punkte) <= HAUS_RAND_M)),
+        // Ueber ein Gitter: auch Tausende Haeuser mal Hunderte Ziele (E87).
+        springbar: springbarBerechnen(k.haeuser, sprungziele.current),
         ebenenY: w.ebenen.map((x) => x.y),
       })
     }
@@ -586,6 +994,15 @@ export default function Raum3D({
   )
   useImperativeHandle(steuer, () => griff, [griff])
 
+  // E87: gleich begehen (startGehen, etwa ?begehen=1), einmal, sobald der
+  // Motor laeuft und es etwas zu begehen gibt. Wie ein Druck auf den Knopf.
+  const startGegangen = useRef(false)
+  useEffect(() => {
+    if (!startGehen || startGegangen.current || geht !== 'ja' || (leer && !eigeneWelt)) return
+    startGegangen.current = true
+    setGehen(true)
+  }, [startGehen, geht, leer, eigeneWelt])
+
   // Begehen an und aus; der Motor merkt sich die Kamera von vorher. Ohne
   // Raeume (Siedlung ohne Wohnung, E86) beginnt es am ersten Sprungziel der
   // Welt ('Start', vor einem Hauseingang), nicht im Ursprung, der in einer
@@ -595,6 +1012,11 @@ export default function Raum3D({
     const m = motor.current
     if (!m) return
     const start = gehen ? startPunkt(daten, raumId) : null
+    // E87: neues Begehen beginnt zu Fuss; was der Motor danach meldet, gilt.
+    if (!gehen) {
+      setMoeglich(MOEGLICH_START)
+      setFahrt(null)
+    }
     m.begehen(gehen, start)
     const gewaehlt = zielGewaehlt.current
     zielGewaehlt.current = false
@@ -605,11 +1027,16 @@ export default function Raum3D({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gehen, geht])
 
-  // Esc der Reihe nach (E82): erst die Kistenkarte, dann aufstehen, dann
-  // das Begehen beenden, dann das Vollbild; erst danach schliesst 3D.
-  const escLage = useRef({ karte, haltung, gehen, vollbild })
+  // E87: im Fahrzeug, oder mit einem Ding in der Hand (fuer Knoepfe, Esc, Hinweis).
+  const faehrt = gehen && (fahrt !== null || moeglich.aussteigen)
+  const haelt = gehen && !faehrt && (inHand !== null || moeglich.halten)
+
+  // Esc der Reihe nach (E82): erst die Kistenkarte, dann (E87) beim Fahren
+  // aussteigen, dann aufstehen, dann das Begehen beenden, dann das
+  // Vollbild; erst danach schliesst 3D.
+  const escLage = useRef({ karte, haltung, gehen, vollbild, faehrt })
   useLayoutEffect(() => {
-    escLage.current = { karte, haltung, gehen, vollbild }
+    escLage.current = { karte, haltung, gehen, vollbild, faehrt }
   })
   useEffect(() => {
     const taste = (e: KeyboardEvent) => {
@@ -622,6 +1049,7 @@ export default function Raum3D({
       if (fremd) return
       const z = escLage.current
       if (z.karte) setKarte(null)
+      else if (z.gehen && z.faehrt) motor.current?.aussteigen()
       else if (z.gehen && z.haltung !== 'stehen') motor.current?.aufstehen()
       else if (z.gehen) setGehen(false)
       else if (z.vollbild) setVollbild(false)
@@ -732,6 +1160,13 @@ export default function Raum3D({
       m.leute([...karte].map(([u, figur]) => ({ uid: u, figur })))
     }
     figurenNeu.current = () => figurenSetzen(hierJetzt)
+    // E87: wer neu dazukommt, bekommt die Dinge, die man selbst bewegt hat
+    // (die juengsten, hoechstens so viele, wie der Kanal je Sekunde annimmt).
+    let bekannt = new Set<string>()
+    const dingeNachreichen = () => {
+      const liste = [...eigeneLagen.current.values()].slice(-DINGE_NACHREICHEN)
+      for (const l of liste) verbindung?.ding(l)
+    }
     verbindung = wohnungBeitreten({
       projectId: raum ?? projectId,
       grundrissId,
@@ -744,6 +1179,8 @@ export default function Raum3D({
         for (const u of [...fremde.keys()]) if (!hier.includes(u)) fremde.delete(u)
         figurenSetzen(hier)
         setLeuteDa(hier)
+        if (hier.some((u) => !bekannt.has(u))) dingeNachreichen()
+        bekannt = new Set(hier)
       },
       onPose: (u, p) => {
         fremde.set(u, p)
@@ -756,7 +1193,15 @@ export default function Raum3D({
         toast(text, 'error')
       },
       onVerbunden: () => setWohnungFehler(null),
+      // E87: jemand anderes hat ein Ding hingestellt oder ein Fahrzeug abgestellt.
+      onDing: (_von, l) => {
+        lagen.current.set(l.id, l)
+        frisch.current.add(l.id)
+        eigeneLagen.current.delete(l.id)
+        motor.current?.lage(l)
+      },
     })
+    dingSenden.current = (l) => verbindung?.ding(l)
     const aufPose = (p: Pose3D) => {
       eigene.p = p
       verbindung?.pose(p)
@@ -768,6 +1213,7 @@ export default function Raum3D({
     if (eigeneLetzte.current) aufPose(eigeneLetzte.current)
     return () => {
       hoerer.delete(aufPose)
+      dingSenden.current = null
       figurenNeu.current = null
       sprechen.beenden()
       verbindung?.verlassen()
@@ -831,9 +1277,78 @@ export default function Raum3D({
         ebene={ebeneJetzt}
         springbar={lageKarte.springbar}
         onHaus={hausAntippen}
+        hoeheFrei={flaecheH}
       />
     ) : null
   const karteRaum = karteKiste?.platz_raum_id ? daten.raeume.find((r) => r.id === karteKiste.platz_raum_id) : null
+
+  // Knoepfe beim Begehen (E87): was gerade geht, in fester Reihenfolge.
+  const knoepfe = gehen ? bedienKnoepfe({ moeglich, fahrzeug: fahrt, haltung, haelt, beruehren }) : []
+  const knopfGruppe =
+    knoepfe.length > 0 ? (
+      <div
+        role="toolbar"
+        aria-label={t('plan3d.aktionen')}
+        data-knoepfe={knoepfe.join(' ')}
+        // Erster Knopf rechts unten (am naechsten zur Mitte), Reihen wachsen nach oben.
+        // Nur die Knoepfe fangen Finger und Maus, die Luecken dazwischen nicht.
+        className="pointer-events-none absolute z-20 flex flex-row-reverse flex-wrap-reverse content-start *:pointer-events-auto"
+        style={knopfGruppeStil(quer)}
+      >
+        {knoepfe.map((k) =>
+          k === 'kmh' ? (
+            <Tacho key={k} hoerer={kmhHoerer.current} start={kmhLetzt.current} name={t(BEDIEN_NAME.kmh)} />
+          ) : (
+            <BedienKachel
+              key={k}
+              knopf={k}
+              // Sicht ist ein Schalter: gedrueckt heisst von hinten.
+              name={t(k === 'sicht' ? 'plan3d.sicht_hinten' : BEDIEN_NAME[k])}
+              kurz={t(BEDIEN_NAME[k])}
+              taste={beruehren ? null : (BEDIEN_TASTE[k] ?? null)}
+              an={k === 'blaulicht' ? !!fahrt?.blaulicht : k === 'sicht' ? fahrt?.sicht === 'hinten' : undefined}
+              aus={knopfAus(k, moeglich)}
+              onClick={() => {
+                const m = motor.current
+                if (m) knopfAusfuehren(k, m, fahrt)
+              }}
+            />
+          ),
+        )}
+      </div>
+    ) : null
+  // Hinweise und Fehler (E87): oben in der Mitte unter dem Stockwerk, nicht
+  // mehr rechts unten. So bleibt die Spalte mit der Minikarte gleich hoch
+  // und deckt auch quer am Handy nichts zu; ein Fehler ist trotzdem immer
+  // zu sehen, auch im Vollbild.
+  const chip = 'max-w-md rounded-xl border bg-surface/95 px-3 py-2 text-center text-sm font-bold shadow'
+  const hinweise = [
+    seitenFehler ? (
+      <p key="seite" dir="auto" className={cx(chip, 'border-danger text-danger')} role="alert">
+        {seitenFehler}
+      </p>
+    ) : null,
+    weltFehlerText ? (
+      <p key="welt" dir="auto" className={cx(chip, 'border-danger text-danger')} role="alert">
+        {t('siedlung.welt_fehler', { fehler: weltFehlerText })}
+      </p>
+    ) : null,
+    gehen && sprech?.tonGesperrt && leuteDa.length > 0 ? (
+      <p key="ton" dir="auto" className={cx(chip, 'border-line text-ink')}>
+        {t('plan3d.ton_tippen')}
+      </p>
+    ) : null,
+    gehen && sprech?.fehler ? (
+      <p key="sprechen" dir="auto" className={cx(chip, 'border-danger text-danger')} role="alert">
+        {sprech.fehler}
+      </p>
+    ) : null,
+    gehen && live && wohnungFehler ? (
+      <p key="live" dir="auto" className={cx(chip, 'border-danger text-danger')} role="alert">
+        {wohnungFehler}
+      </p>
+    ) : null,
+  ].filter(Boolean)
 
   return (
     <div
@@ -920,12 +1435,8 @@ export default function Raum3D({
           <Knopf zeichen={Layers} name={t('plan3d.waende_halb')} an={halb} onClick={() => setHalb((v) => !v)} disabled={geht !== 'ja'} />
           <Knopf zeichen={Square} name={t('plan3d.teppiche')} an={teppiche} onClick={() => setTeppiche((v) => !v)} disabled={geht !== 'ja'} />
           <Knopf zeichen={Flower2} name={t('plan3d.deko')} an={deko} onClick={() => setDeko((v) => !v)} disabled={geht !== 'ja'} />
-          <p className="t-sub hidden min-w-0 flex-1 truncate px-1 lg:block">
-            {geht !== 'ja'
-              ? null
-              : gehen
-                ? t(beruehren ? 'plan3d.begehen_bedienung_handy' : 'plan3d.begehen_bedienung')
-                : t(`${beruehren ? 'plan3d.bedienung_handy' : kannZiehen ? 'plan3d.bedienung_ziehen' : 'plan3d.bedienung'}${hand ? '_hand' : ''}`)}
+          <p className="t-sub hidden min-w-0 flex-1 truncate px-1 lg:block" title={geht === 'ja' ? t(bedienHinweis({ gehen, faehrt, haelt, beruehren, kannZiehen, hand })) : undefined}>
+            {geht !== 'ja' ? null : t(bedienHinweis({ gehen, faehrt, haelt, beruehren, kannZiehen, hand }))}
           </p>
           <Knopf zeichen={ChevronUp} name={t('plan3d.leiste_zu')} onClick={() => setLeisteZu(true)} />
           {onSchliessen && !vollbild ? <Knopf zeichen={X} name={t('plan3d.schliessen')} onClick={onSchliessen} /> : null}
@@ -933,7 +1444,7 @@ export default function Raum3D({
       </div>
       )}
       {/* Plaene werden nie gespiegelt, auch nicht im Arabischen. */}
-      <div dir="ltr" className="relative min-h-0 flex-1" style={{ background: 'var(--plan-grund)' }}>
+      <div ref={flaeche} dir="ltr" className="relative min-h-0 flex-1" style={{ background: 'var(--plan-grund)' }}>
         <div
           ref={host}
           className={cx('absolute inset-0', geht === 'nein' && 'hidden')}
@@ -995,35 +1506,30 @@ export default function Raum3D({
           </div>
         ) : geht === 'ja' && gehen && !karte ? (
           <>
-            {/* Gehen per Steuerknueppel (E81): schieben, loslassen bleibt stehen. */}
-            <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] start-[calc(env(safe-area-inset-left,0px)+1rem)]">
-              <Knueppel name={t('plan3d.knueppel')} onLage={(x, y) => motor.current?.gehenStick(x, y)} />
+            {/* Gehen per Steuerknueppel (E81): schieben, loslassen bleibt
+                stehen; im Fahrzeug Gas und Lenken (E87). Lage aus BEDIEN_MASS. */}
+            <div className="absolute" style={KNUEPPEL_STIL}>
+              <Knueppel name={t(faehrt ? 'plan3d.knueppel_fahren' : 'plan3d.knueppel')} onLage={(x, y) => motor.current?.gehenStick(x, y)} />
             </div>
-            {/* Rechts unten (E82): aufstehen, ablegen, Mikrofon, wer da ist;
-                darueber die Minikarte (E86), so deckt sie keinen Knopf zu. */}
-            {/* Der Behaelter erbt ltr (end- bleibt rechts, nicht auf dem Knueppel);
+            {/* Knoepfe fuer das, was gerade geht (E87): hochkant ueber dem
+                Knueppel, quer zwischen Knueppel und Spalte. */}
+            {knopfGruppe}
+            {/* Mit einem Ding in der Hand am Handy: das Kreuz zeigt, wohin
+                Hinstellen es stellt (Mitte des Bildes). */}
+            {beruehren && haelt ? (
+              <div aria-hidden="true" data-fadenkreuz="" className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2">
+                <span className="absolute left-1/2 top-0 h-full w-0.5 -translate-x-1/2 rounded-full bg-ink shadow-[0_0_0_1px_var(--surface)]" />
+                <span className="absolute left-0 top-1/2 h-0.5 w-full -translate-y-1/2 rounded-full bg-ink shadow-[0_0_0_1px_var(--surface)]" />
+              </div>
+            ) : null}
+            {/* Rechts unten (E82): Mikrofon und wer da ist; darueber die
+                Minikarte (E86). Feste Breite (BEDIEN_MASS.spalte am Handy),
+                damit die Knoepfe daneben Platz haben; Hinweise stehen oben
+                (E87). */}
+            {/* Der Behaelter erbt ltr (rechts bleibt rechts, nicht auf dem Knueppel);
                 nur die Texte richten sich nach ihrer Sprache (E82, Pruefung). */}
-            <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] end-[calc(env(safe-area-inset-right,0px)+1rem)] z-20 flex max-w-[60%] flex-col items-end gap-2">
-              {sprech?.tonGesperrt && leuteDa.length > 0 ? (
-                <p dir="auto" className="rounded-xl border border-line bg-surface/95 px-3 py-2 text-sm font-bold text-ink shadow">{t('plan3d.ton_tippen')}</p>
-              ) : null}
-              {sprech?.fehler ? (
-                <p dir="auto" className="rounded-xl border border-danger bg-surface/95 px-3 py-2 text-sm font-bold text-danger shadow" role="alert">{sprech.fehler}</p>
-              ) : null}
-              {live && wohnungFehler ? (
-                <p dir="auto" className="rounded-xl border border-danger bg-surface/95 px-3 py-2 text-sm font-bold text-danger shadow" role="alert">{wohnungFehler}</p>
-              ) : null}
+            <div className={cx('pointer-events-none absolute z-20 flex flex-col items-end gap-2 *:pointer-events-auto', spalteKlasse(quer))} style={SPALTE_STIL} data-spalte="">
               {minikarte}
-              {haltung !== 'stehen' ? (
-                <Button size="sm" onClick={() => motor.current?.aufstehen()}>
-                  <ArrowUpFromLine size={17} /> <span dir="auto">{t('plan3d.aufstehen')}</span>
-                </Button>
-              ) : null}
-              {inHand ? (
-                <Button size="sm" onClick={() => motor.current?.ablegen()}>
-                  <ArrowDownToLine size={17} /> <span dir="auto">{t('plan3d.ablegen')}</span>
-                </Button>
-              ) : null}
               {live ? (
                 <div className="flex items-center gap-1.5">
                   <span
@@ -1057,29 +1563,24 @@ export default function Raum3D({
         {/* Ohne Begehen steht die Minikarte allein rechts unten (E86);
             Antippen eines Hauses beginnt das Begehen dort. */}
         {geht === 'ja' && !gehen && minikarte ? (
-          <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] end-[calc(env(safe-area-inset-right,0px)+1rem)] z-20">
+          <div className={cx('pointer-events-none absolute z-20 flex flex-col items-end gap-2 *:pointer-events-auto', spalteKlasse(quer))} style={SPALTE_STIL}>
             {minikarte}
           </div>
         ) : null}
-        {/* Eigene Welt (E83): Fehler beim Bauen, und beim Begehen das
-            Stockwerk oben in der Mitte; mit Aufzug als Liste zum Wechseln.
-            Die Saetze stehen in bausteine/siedlung.ts, das mit der Seite der
+        {/* Eigene Welt (E83): beim Begehen das Stockwerk oben in der Mitte;
+            mit Aufzug als Liste zum Wechseln. Darunter (E87) Hinweise und
+            Fehler: Bau der Welt, Seite, Sprechen, Verbindung. Die Saetze
+            der Welt stehen in bausteine/siedlung.ts, das mit der Seite der
             Siedlung laedt (nur sie gibt eine Welt mit). */}
-        {weltFehlerText ? (
-          <div dir="auto" className="absolute inset-x-3 bottom-3 z-30 flex justify-center">
-            <p className="max-w-md rounded-xl border border-danger bg-surface/95 px-3 py-2 text-sm font-bold text-danger shadow" role="alert">
-              {t('siedlung.welt_fehler', { fehler: weltFehlerText })}
-            </p>
-          </div>
-        ) : null}
-        {geht === 'ja' && ebeneJetzt && !karte ? (
+        {(geht === 'ja' && ebeneJetzt && !karte) || (hinweise.length > 0 && !karte) ? (
           <div
+            data-hinweise=""
             className={cx(
-              'absolute inset-x-0 z-20 flex flex-col items-center gap-1 px-3',
+              'pointer-events-none absolute inset-x-0 z-20 flex flex-col items-center gap-1 px-3 *:pointer-events-auto',
               vollbild && !leisteZu ? 'top-28 md:top-16' : 'top-3',
             )}
           >
-            {kannWechseln && (ebeneLage?.liste.length ?? 0) > 1 ? (
+            {geht !== 'ja' || !ebeneJetzt ? null : kannWechseln && (ebeneLage?.liste.length ?? 0) > 1 ? (
               <button
                 type="button"
                 aria-expanded={aufzugAuf}
@@ -1125,6 +1626,7 @@ export default function Raum3D({
                 </ul>
               </div>
             ) : null}
+            {hinweise}
           </div>
         ) : null}
         {karteKiste ? (
@@ -1189,6 +1691,96 @@ function Knopf({
       <Zeichen size={17} style={farbe ? { color: farbe } : undefined} />
       <span className="hidden lg:inline">{name}</span>
     </Button>
+  )
+}
+
+const KACHEL_ZEICHEN: Record<Exclude<BedienKnopf, 'kmh'>, typeof Sun> = {
+  springen: ArrowBigUp,
+  aufstehen: ArrowUpFromLine,
+  einsteigen: Car,
+  aussteigen: LogOut,
+  sicht: SwitchCamera,
+  blaulicht: Siren,
+  hinstellen: Target,
+  drehen: RotateCw,
+  ablegen: ArrowDownToLine,
+}
+
+/** Ein Knopf beim Begehen (E87): Zeichen und kurzer Name darunter, so
+ *  gross wie BEDIEN_MASS.knopfB mal knopfH. Am Computer steht die Taste
+ *  klein in der Ecke und im Titel. an: eingeschaltet (Blaulicht, Sicht
+ *  von hinten), aus: gerade ohne Wirkung. */
+function BedienKachel({
+  knopf,
+  name,
+  kurz,
+  taste,
+  an,
+  aus,
+  onClick,
+}: {
+  knopf: Exclude<BedienKnopf, 'kmh'>
+  name: string
+  kurz: string
+  taste: string | null
+  an?: boolean
+  aus: boolean
+  onClick: () => void
+}) {
+  const Zeichen = KACHEL_ZEICHEN[knopf]
+  return (
+    <button
+      type="button"
+      data-knopf={knopf}
+      aria-label={name}
+      aria-pressed={an === undefined ? undefined : an}
+      aria-disabled={aus || undefined}
+      title={taste ? `${name} (${taste})` : name}
+      onClick={() => {
+        if (!aus) onClick()
+      }}
+      style={KNOPF_STIL}
+      className={cx(
+        'knopf relative flex shrink-0 touch-manipulation select-none flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-0.5 shadow',
+        an ? 'border-ink bg-ink text-paper' : 'border-line bg-surface/95 text-ink',
+        aus && 'opacity-45',
+        knopf === 'blaulicht' && an && 'text-[var(--plan-fenster)]',
+      )}
+    >
+      <Zeichen size={20} aria-hidden="true" />
+      <span dir="auto" className="max-w-full truncate text-[0.5625rem] font-bold leading-none">
+        {kurz}
+      </span>
+      {taste ? (
+        <span aria-hidden="true" className="absolute right-0.5 top-0.5 rounded px-0.5 text-[0.5625rem] font-black leading-none opacity-70">
+          {taste}
+        </span>
+      ) : null}
+    </button>
+  )
+}
+
+/** Die Geschwindigkeit beim Fahren (E87): hoert selbst auf den Motor
+ *  (bis 5-mal je Sekunde), damit nicht ganz Raum3D neu zeichnet. */
+function Tacho({ hoerer, start, name }: { hoerer: Set<(kmh: number) => void>; start: number; name: string }) {
+  const [kmh, setKmh] = useState(() => Math.max(0, Math.round(start)))
+  useEffect(() => {
+    const neu = (v: number) => setKmh(Number.isFinite(v) ? Math.max(0, Math.round(Math.abs(v))) : 0)
+    hoerer.add(neu)
+    return () => {
+      hoerer.delete(neu)
+    }
+  }, [hoerer])
+  return (
+    <div
+      data-knopf="kmh"
+      title={name}
+      style={KNOPF_STIL}
+      className="flex shrink-0 flex-col items-center justify-center rounded-xl border-2 border-line bg-surface/95 text-ink shadow"
+    >
+      <span className="t-serial text-lg font-black leading-none">{kmh}</span>
+      <span className="text-[0.625rem] font-bold leading-none text-muted">km/h</span>
+    </div>
   )
 }
 

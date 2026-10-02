@@ -50,6 +50,11 @@ import { useProject } from './ProjectLayout'
  *
  * Adresse: grundriss/:gid?raum=<raumId>&kiste=<itemId>. raum zoomt auf den
  * Raum, kiste hebt die Kiste rot hervor (nie in die Hand nehmen).
+ *
+ * E87: &begehen=1 (aus der Siedlung, "Eingerichtet ansehen") oeffnet 3D
+ * gleich und beginnt das Begehen, einmal: die Seite nimmt es sofort aus
+ * der Adresse (replace, Neuladen wiederholt es nicht) und vergisst den
+ * Wunsch, sobald Knopf3D oder der Zeichner ihn angenommen hat.
  */
 
 const Zeichner = lazy(() => import('../zeichner/Zeichner'))
@@ -304,7 +309,20 @@ function NameDialog({
 
 /* ---------------------------------------------------- Nur ansehen */
 
-function Ansehen({ daten, raumId, kisteId }: { daten: GrundrissDaten; raumId: string | null; kisteId: string | null }) {
+function Ansehen({
+  daten,
+  raumId,
+  kisteId,
+  begehen,
+  onBegehen,
+}: {
+  daten: GrundrissDaten
+  raumId: string | null
+  kisteId: string | null
+  /** E87: 3D gleich offen und gleich begehen (?begehen=1). */
+  begehen: boolean
+  onBegehen: () => void
+}) {
   const { project } = useProject()
   const { t } = useSprache()
   const zeichnen = useZeichnen()
@@ -372,7 +390,15 @@ function Ansehen({ daten, raumId, kisteId }: { daten: GrundrissDaten; raumId: st
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <PlanLegende mitKiste={Boolean(kisteId)} />
-              <Knopf3D daten={daten} raumId={raum?.id ?? null} hervor={kisteId} className="justify-center" tour="grundriss-3d" />
+              <Knopf3D
+                daten={daten}
+                raumId={raum?.id ?? null}
+                hervor={kisteId}
+                className="justify-center"
+                tour="grundriss-3d"
+                begehen={begehen}
+                onBegehen={onBegehen}
+              />
             </div>
             {gewaehlt.kiste ? (
               <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-3">
@@ -409,9 +435,21 @@ export default function Grundriss() {
   const toast = useToast()
   const nav = useNavigate()
   const zeichnen = useZeichnen()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const raumId = params.get('raum')
   const kisteId = params.get('kiste')
+
+  // E87: ?begehen=1 gilt fuer diesen Grundriss, einmal. Gleich aus der
+  // Adresse nehmen (replace); vergessen, sobald es angenommen ist.
+  const [begehenFuer, setBegehenFuer] = useState<string | null>(() => (params.get('begehen') === '1' ? gid : null))
+  useEffect(() => {
+    if (!params.has('begehen')) return
+    const ohne = new URLSearchParams(params)
+    ohne.delete('begehen')
+    setParams(ohne, { replace: true })
+  }, [params, setParams])
+  const begehen = begehenFuer !== null && begehenFuer === gid
+  const begehenAngenommen = useCallback(() => setBegehenFuer(null), [])
 
   const mitZeichner = zeichnen && canEdit
   const liste = useAsync(() => ladeGrundrisse(project.id), [project.id])
@@ -551,11 +589,13 @@ export default function Grundriss() {
           onUngespeichert={ungespeichertMelden}
           kopf={kompaktKopf}
           kopfEnde={kompaktEnde}
+          begehen={begehen}
+          onBegehen={begehenAngenommen}
         />
       </Suspense>
     )
   } else {
-    inhalt = <Ansehen daten={passend} raumId={raumId} kisteId={kisteId} />
+    inhalt = <Ansehen daten={passend} raumId={raumId} kisteId={kisteId} begehen={begehen} onBegehen={begehenAngenommen} />
   }
 
   // Der Zeichner bringt den Kopf in seiner eigenen Leiste mit.

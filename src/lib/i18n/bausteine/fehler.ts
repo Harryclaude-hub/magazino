@@ -467,6 +467,31 @@ export const fehler: Woerterbuch = {
     de: 'Zu viele Einladungen in kurzer Zeit. Versuch es in einer Stunde wieder.',
     ar: 'دعوات كثيرة في وقت قصير. حاول مرة أخرى بعد ساعة.',
   },
+  // Stadt und Dinge der Siedlung (E87, 0047).
+  'fehler.db.siedlung.zu_viele_dinge': {
+    de: 'In dieser Siedlung wurden schon zu viele Dinge verschoben.',
+    ar: 'تم نقل عدد كبير جدًا من الأشياء في هذا المجمّع السكني.',
+  },
+  'fehler.db.siedlung.ding_ungueltig': {
+    de: 'Dieses Ding lässt sich so nicht abstellen.',
+    ar: 'لا يمكن وضع هذا الشيء بهذه الطريقة.',
+  },
+  'fehler.db.siedlung.stadt_ungueltig': {
+    de: 'Die Umgebung in der Datei ist beschädigt oder zu groß.',
+    ar: 'المنطقة المحيطة في الملف تالفة أو كبيرة جدًا.',
+  },
+  'fehler.siedlung_stadt': {
+    de: 'Die Siedlung ist gespeichert, die Umgebung aber nicht: {grund} Lade die Datei noch einmal.',
+    ar: 'تم حفظ المجمّع السكني، لكن لم تُحفظ المنطقة المحيطة: {grund} حمّل الملف مرة أخرى.',
+  },
+  'fehler.siedlung_dinge_laden': {
+    de: 'Dinge der Siedlung laden: {grund}',
+    ar: 'تعذّر تحميل أشياء المجمّع السكني: {grund}',
+  },
+  'fehler.siedlung_ding_setzen': {
+    de: 'Ding abstellen: {grund}',
+    ar: 'تعذّر وضع الشيء: {grund}',
+  },
   'fehler.db.grundriss.grundriss_fehlt': {
     de: 'Diesen Grundriss gibt es nicht mehr.',
     ar: 'هذا المخطط لم يعد موجودًا.',

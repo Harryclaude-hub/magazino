@@ -9,14 +9,21 @@
  *
  * Aufbau der Datei:
  *   { art: 'kistly-siedlung', v: 1,
- *     siedlung: { name, lat, lon, gebaeude, wohnung, aussen, innen },
- *     deko?: { grundrissId, objekte, symbole } } */
+ *     siedlung: { name, lat, lon, gebaeude, wohnung, aussen, innen, stadt? },
+ *     deko?: { grundrissId, objekte, symbole } }
+ *
+ * stadt (E87) ist die Umgebung aus scripts/stadt-aus-osm.mjs. Fehlt der
+ * Schluessel, bleibt eine schon gespeicherte Stadt, wie sie ist; null
+ * nimmt sie heraus. */
 import { tg } from './i18n'
 import { siedlungInnenPruefen } from './siedlungInnen'
-import type { Objekt, PlanSymbol, Siedlung } from './types'
+import { stadtPruefen } from './stadt'
+import type { Objekt, PlanSymbol, Siedlung, StadtDaten } from './types'
 
 export type SiedlungDaten = Pick<Siedlung, 'name' | 'lat' | 'lon' | 'gebaeude' | 'wohnung' | 'aussen'> & {
   innen: NonNullable<Siedlung['innen']> | null
+  /** Fehlt (undefined): die gespeicherte Stadt bleibt. */
+  stadt?: StadtDaten | null
 }
 
 export interface DekoDaten {
@@ -30,8 +37,9 @@ export interface SiedlungDatei {
   deko: DekoDaten | null
 }
 
-/** Groesser wird keine echte Siedlung (0045 erlaubt 2 MB fuer innen). */
-const MAX_BYTES = 3_000_000
+/** Groesser wird keine echte Siedlung: innen bis 2 MB (0045), die Stadt
+ *  bis 6 MB (stadtPruefen; 0047 erlaubt 8 MB), dazu Haeuser und Deko. */
+const MAX_BYTES = 8_000_000
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const istObjekt = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -65,6 +73,13 @@ export function siedlungDateiLesen(text: string): SiedlungDatei {
     const probleme = siedlungInnenPruefen(innen, ids)
     if (probleme.length) throw fehler(`innen ${probleme[0].pfad} ${probleme[0].kennung}`)
   }
+  let stadt: StadtDaten | null | undefined
+  if (s.stadt === null) stadt = null
+  else if (s.stadt !== undefined) {
+    const probleme = stadtPruefen(s.stadt)
+    if (probleme.length) throw fehler(`stadt ${probleme[0]}`)
+    stadt = s.stadt as StadtDaten
+  }
   let deko: DekoDaten | null = null
   if (roh.deko !== undefined && roh.deko !== null) {
     const d = roh.deko
@@ -82,6 +97,7 @@ export function siedlungDateiLesen(text: string): SiedlungDatei {
       wohnung: (s.wohnung ?? null) as Siedlung['wohnung'],
       aussen: s.aussen as unknown as Siedlung['aussen'],
       innen: innen as SiedlungDaten['innen'],
+      ...(stadt !== undefined ? { stadt } : {}),
     },
     deko,
   }

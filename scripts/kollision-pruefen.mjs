@@ -12,6 +12,10 @@
 // behaelt die Wohnung, nach einer Fahrt gilt das Ziel (ankunftsEbene aus
 // motor.ts), mit faehrt nur, wer in der Kabine steht (inKabine), und eine
 // neue Welt findet die Ebene ueber ihre Kennung wieder (ebeneWiederfinden).
+// E87: Oberkante (Bordstein laesst durch, Bank und Mauer halten am Boden
+// auf, nicht mit hoeheren Fuessen, Wand immer; stand() sagt, worauf man
+// steht) und das genaue Raster (gedrehte Rechtecke nur in den Zellen, die
+// sie beruehren; geprueft gegen eine Rechnung ueber alle).
 // motor.ts laedt dafuer three, aber keinen Browser.
 // Aufruf im Projektordner: node scripts/kollision-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
@@ -238,6 +242,22 @@ function gehen(h, p, vx, vz, dt, bilder) {
 }
 
 /* ------------------------------------------------------- Raster */
+/** Schneidet Rechteck i (gedreht) das Feld (x0, z0)-(x1, z1)? Trennende
+ *  Achsen: x, z und die zwei Achsen des Rechtecks. */
+function schneidet(h, i, x0, z0, x1, z1) {
+  const ux = h.ux[i]
+  const uz = h.uz[i]
+  const ecken = []
+  for (const a of [-1, 1]) for (const b of [-1, 1]) ecken.push([h.mx[i] + a * ux * h.hl[i] - b * uz * h.ht[i], h.mz[i] + a * uz * h.hl[i] + b * ux * h.ht[i]])
+  const feld = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]]
+  for (const [ax, az] of [[1, 0], [0, 1], [ux, uz], [-uz, ux]]) {
+    const p = (q) => q[0] * ax + q[1] * az
+    const e = ecken.map(p)
+    const f = feld.map(p)
+    if (Math.max(...e) < Math.min(...f) - 1e-9 || Math.min(...e) > Math.max(...f) + 1e-9) return false
+  }
+  return true
+}
 {
   // Zufall mit festem Samen, damit jeder Lauf gleich ist.
   let s = 12345
@@ -267,10 +287,13 @@ function gehen(h, p, vx, vz, dt, bilder) {
         if (set.has(h.treffer[i])) doppelt++
         set.add(h.treffer[i])
       }
+      // E87: das Raster kennt gedrehte Rechtecke genau. Es fehlt keins, das
+      // das Feld wirklich schneidet, und keins kommt, dessen Kasten das Feld
+      // nicht beruehrt (vorher: jedes, dessen Kasten es beruehrt).
       for (let i = 0; i < n; i++) {
-        const soll = !(h.bx1[i] < x0 || h.bx0[i] > x1 || h.bz1[i] < z0 || h.bz0[i] > z1)
-        if (soll && !set.has(i)) fehlend++
-        if (!soll && set.has(i)) zuviel++
+        const kasten = !(h.bx1[i] < x0 || h.bx0[i] > x1 || h.bz1[i] < z0 || h.bz0[i] > z1)
+        if (schneidet(h, i, x0, z0, x1, z1) && !set.has(i)) fehlend++
+        if (!kasten && set.has(i)) zuviel++
       }
       // frei() stimmt mit der Pruefung aller Rechtecke ueberein.
       const px = (x0 + x1) / 2
@@ -293,6 +316,40 @@ function gehen(h, p, vx, vz, dt, bilder) {
   nahe('leer: geht', p.x, 0.5, 1e-9)
   leer.leeren()
   wahr('geleert: Groesse 0', leer.groesse === 0)
+}
+
+/* --------------------------------------------- Oberkante (E87) */
+{
+  const h = new Hindernisse()
+  h.dazu(0, 0, 10, 0.2, 0, true, 0.15) // Bordstein entlang x bei z 0
+  h.dazu(0, 3, 10, 0.4, 0, true, 0.45) // Bank
+  h.dazu(0, 6, 10, 0.2, 0) // Wand
+  h.rastern()
+  // Ueber den Bordstein hinweg (z von -1 nach 2): nichts haelt auf.
+  const p = { x: 0, z: -1 }
+  gehen(h, p, 0, 1.4, 1 / 60, 90)
+  nahe('Bordstein: hinueber gegangen', p.z, -1 + 1.4 * 1.5, 1e-6)
+  // Die Bank haelt am Boden auf ...
+  gehen(h, p, 0, 1.4, 1 / 60, 90)
+  nahe('Bank: haelt am Boden auf', p.z, 3 - 0.2 - R, 2e-3)
+  // ... nicht mit 20 cm hohen Fuessen (0,45 <= 0,2 + STUFE_M).
+  const q = { x: 0, z: 2 }
+  for (let i = 0; i < 90; i++) h.bewegen(q, 0, 1.4 / 60, R, 0.2)
+  wahr('Bank: mit 20 cm hohen Fuessen darueber', q.z > 3.5)
+  // Die Wand haelt immer auf, wie hoch die Fuesse auch sind.
+  for (const f of [0, 0.5, 3, 1e9, NaN]) {
+    const w = { x: 0, z: 5 }
+    for (let i = 0; i < 60; i++) h.bewegen(w, 0, 1.4 / 60, R, f)
+    nahe(`Wand: haelt bei Fusshoehe ${f} auf`, w.z, 6 - 0.1 - R, 2e-3)
+  }
+  nahe('stand: auf dem Bordstein', h.stand(0, 0), 0.15)
+  nahe('stand: auf der Bank nur mit hohen Fuessen', h.stand(0, 3) + h.stand(0, 3, 0.2), 0.45)
+  nahe('stand: nie auf der Wand', h.stand(0, 6, 100), 0)
+  const b = { x: 0, z: 3 }
+  h.herausdruecken(b, R, 0.2)
+  wahr('herausdruecken: die Bank schiebt mit hohen Fuessen nicht', b.x === 0 && b.z === 3)
+  h.herausdruecken(b, R, 0)
+  wahr('herausdruecken: am Boden schiebt die Bank hinaus', Math.abs(b.z - 3) >= 0.2 + R - 1e-3)
 }
 
 /* Zahlen: kein NaN bei Nullschritt und Nullrechteck. */

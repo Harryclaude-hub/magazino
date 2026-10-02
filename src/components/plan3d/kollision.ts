@@ -22,7 +22,28 @@
  * Ebenen (E83): in einer Siedlung gibt es mehrere begehbare Boeden
  * (Geschosse, Gelaende). Jede Ebene hat ihr eigenes Raster, und es gilt
  * immer nur das der Ebene, auf der man steht (Ebenen). Die Ebene der
- * Wohnung (Boden bei 0) teilt sich das Raster mit der Wohnung selbst. */
+ * Wohnung (Boden bei 0) teilt sich das Raster mit der Wohnung selbst.
+ *
+ * Hoehe (E87): ein Rechteck kann eine Oberkante haben (oben, Meter ueber
+ * dem Gelaende an der Stelle, an der man steht). Wer mit den Fuessen
+ * hoechstens STUFE_M darunter ist, wird nicht aufgehalten und steigt
+ * hinauf (stand() sagt, wie hoch); was hoeher ist, haelt auf, bis man
+ * darueber springt. Waende haben keine Oberkante und halten immer auf.
+ *
+ * Raster (E87): eine Zelle kennt nur die Rechtecke, die sie wirklich
+ * beruehrt, auch gedrehte (sonst stuende eine schraege Wand von 20 m in
+ * 200 Zellen). Tueren und Schubladen (bereich()) stehen in allen Zellen
+ * ihres Bereichs, weil sie sich bewegen. Gespeichert als zwei Felder statt
+ * vieler kleiner Listen: 40 000 Rechtecke einer Stadt rastern in wenigen
+ * Millisekunden.
+ *
+ * Dazu (E87): bewegen(), frei() und herausdruecken() nehmen auf Wunsch ein
+ * zweites, kleines Raster mit (dazu), das in derselben Rechnung aufhaelt:
+ * die abgestellten Fahrzeuge einer Ebene. Sie bewegen sich, darum stehen
+ * sie nicht im grossen Raster der Ebene (das neu zu rastern dauert bei
+ * einer Stadt zu lange), sondern in einem eigenen mit wenigen Rechtecken,
+ * das der Motor neu baut, wenn sich eins bewegt. */
+import { STUFE_M } from './vertrag3d.ts'
 
 /** Halbe Schulterbreite eines Mannes mit 1,75 m (wie seit E77). */
 export const KOERPER_RADIUS_M = 0.23
@@ -34,6 +55,38 @@ const HAUT_M = 1e-4
 const RESTUEBERLAPP_M = 0.002
 /** Durchgaenge beim Herausdruecken (Ecken brauchen zwei, enge Stellen mehr). */
 const DURCHGAENGE = 5
+/** Worauf man steht, zaehlt, wenn die Mitte des Koerpers hoechstens so weit
+ *  (Meter) neben der Flaeche ist (E87): man steht mit den Fuessen, nicht
+ *  mit den Schultern auf einer Mauer. */
+export const STAND_R_M = 0.1
+/** Zellen je Richtung fuer den Schluessel (E87): bis +-16 384 Zellen (bei
+ *  1 m +-16 km) bleibt er eine kleine Ganzzahl, und die Map ist schnell.
+ *  Was weiter draussen liegt, faellt in die Randzellen: richtig, nur
+ *  langsamer. */
+const KANTE = 16384
+/** So viele Rechtecke rastert eine Ebene in Zellen der Grundgroesse; mehr
+ *  in Zellen von 2 m, ueber SEHR_VIELE (eine ganze Stadt) von 4 m: viel
+ *  weniger Eintraege, kaum langsamer beim Gehen (E87, gemessen in
+ *  scripts/physik-pruefen.mjs). */
+const VIELE_RECHTECKE = 4000
+const SEHR_VIELE_RECHTECKE = 20000
+
+/** Zellgroesse fuer n Rechtecke bei Grundgroesse basis (E87). */
+function zelleFuer(n: number, basis: number): number {
+  if (n > SEHR_VIELE_RECHTECKE) return Math.max(basis, 4)
+  if (n > VIELE_RECHTECKE) return Math.max(basis, 2)
+  return basis
+}
+
+/** Zwei Felder mit denselben Rechtecken (dasselbe Feld, oder gleich lang
+ *  mit denselben Objekten an jeder Stelle): dann braucht es kein neues
+ *  Raster (E87; eine Welt darf ihre Liste neu zusammenstellen). */
+function gleicheRechtecke(a: readonly Rechteck[], b: readonly Rechteck[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
 
 /** Stelle in der Ebene (Meter, Welt): x und z. Wird beim Gehen veraendert. */
 export interface Stelle {
@@ -42,22 +95,39 @@ export interface Stelle {
 }
 
 /** Ein Rechteck von aussen (wie Hindernis3D in vertrag3d.ts): Mitte,
- *  Laenge entlang x vor der Drehung, Tiefe entlang z, Drehung wie three. */
+ *  Laenge entlang x vor der Drehung, Tiefe entlang z, Drehung wie three.
+ *  oben (E87): Oberkante ueber dem Gelaende in Metern; fehlt: eine Wand. */
 export interface Rechteck {
   x: number
   z: number
   laenge: number
   tiefe: number
   drehY: number
+  oben?: number
 }
 
 /** Eine begehbare Ebene (wie Ebene3D in vertrag3d.ts, ohne three): y ist
- *  die Bodenhoehe in Metern, die Wohnung liegt bei 0. */
+ *  die Bodenhoehe in Metern, die Wohnung liegt bei 0. hoehe (E87): das
+ *  Gelaende an (x, z) relativ zu y; fehlt: eben. */
 export interface EbeneDaten {
   id: string
   name: string
   y: number
   hindernisse: readonly Rechteck[]
+  hoehe?: (x: number, z: number) => number
+}
+
+/** Oberkante aus den Daten: fehlt oder kaputt ist eine Wand (unendlich),
+ *  unter 0 zaehlt als 0. */
+function obenAus(o: number | undefined): number {
+  if (typeof o !== 'number' || o !== o) return Infinity
+  return o < 0 ? 0 : o
+}
+
+/** Fusshoehe fuer die Rechnung: kaputt oder unendlich zaehlt als 0, damit
+ *  Waende (oben unendlich) immer aufhalten. */
+function fussAus(f: number): number {
+  return f > -1e6 && f < 1e6 ? f : 0
 }
 
 /** So nah an 0 (Meter) gilt ein Boden als der Boden der Wohnung. */
@@ -73,7 +143,8 @@ export class Hindernisse {
   /** Kantenlaenge einer Rasterzelle in Metern. */
   zelle: number
   /* Ein Rechteck je Index: Mitte, Richtung der Laenge (ux, uz), halbe
-   * Laenge und halbe Tiefe, an oder aus. */
+   * Laenge und halbe Tiefe, an oder aus, Oberkante (E87; unendlich ist
+   * eine Wand). */
   mx: number[] = []
   mz: number[] = []
   ux: number[] = []
@@ -81,20 +152,38 @@ export class Hindernisse {
   hl: number[] = []
   ht: number[] = []
   an: boolean[] = []
+  ob: number[] = []
   /* Bereich fuer das Raster: die Lage beim Bauen, bei Tueren und
    * Schubladen alles, was sie je ueberstreichen koennen. */
   bx0: number[] = []
   bz0: number[] = []
   bx1: number[] = []
   bz1: number[] = []
-  /** Zelle -> Indizes der Rechtecke darin. */
-  raster = new Map<number, number[]>()
+  /** Bewegt sich (bereich() wurde gerufen): steht im Raster in allen Zellen
+   *  seines Bereichs, nicht nur in denen, die es gerade beruehrt. */
+  beweglich: boolean[] = []
+  /** Raster (E87) als offene Streutabelle: tabKey[h] ist der Schluessel
+   *  der Zelle plus 1 (0 = frei), tabZelle[h] ihre Nummer k. Die Rechtecke
+   *  der Zelle k stehen in eintraege[anfang[k]] bis vor
+   *  eintraege[anfang[k + 1]]. Ohne Map: 40 000 Rechtecke einer Stadt
+   *  rastern so in wenigen Millisekunden statt in einer Zehntelsekunde. */
+  tabKey: Int32Array = new Int32Array(2)
+  tabZelle: Int32Array = new Int32Array(2)
+  private maske = 1
+  private schieb = 31
+  /** Wie viele Zellen etwas enthalten. */
+  zellenZahl = 0
+  anfang: Int32Array = new Int32Array(1)
+  eintraege: Int32Array = new Int32Array(0)
   /** Treffer der letzten Abfrage (die ersten anzahl Eintraege gelten). */
   treffer: Int32Array = new Int32Array(0)
   anzahl = 0
   /** Fuer doppelte Treffer: Nummer der Abfrage, in der ein Index schon kam. */
   marke: Int32Array = new Int32Array(0)
   nr = 0
+  /** Was hoeher ist (Oberkante in Metern), haelt in der laufenden Rechnung
+   *  auf: Fusshoehe plus STUFE_M (E87). */
+  private grenze = STUFE_M
 
   constructor(zelle = 1) {
     this.zelle = zelle
@@ -107,28 +196,62 @@ export class Hindernisse {
 
   /** Alles weg (neue Szene). */
   leeren(): void {
-    for (const f of [this.mx, this.mz, this.ux, this.uz, this.hl, this.ht, this.bx0, this.bz0, this.bx1, this.bz1]) f.length = 0
+    for (const f of [this.mx, this.mz, this.ux, this.uz, this.hl, this.ht, this.ob, this.bx0, this.bz0, this.bx1, this.bz1]) f.length = 0
     this.an.length = 0
-    this.raster.clear()
+    this.beweglich.length = 0
+    this.rasterLeeren()
     this.treffer = new Int32Array(0)
     this.marke = new Int32Array(0)
     this.anzahl = 0
     this.nr = 0
   }
 
+  private rasterLeeren(): void {
+    this.tabKey = new Int32Array(2)
+    this.tabZelle = new Int32Array(2)
+    this.maske = 1
+    this.schieb = 31
+    this.zellenZahl = 0
+    this.anfang = new Int32Array(1)
+    this.eintraege = new Int32Array(0)
+  }
+
+  /** Stelle in der Streutabelle, an der Schluessel k steht oder hingehoert
+   *  (multiplikativ gestreut, dann linear weiter). */
+  private platz(k: number): number {
+    let h = Math.imul(k, 0x9e3779b1) >>> this.schieb
+    const kk = k + 1
+    const tab = this.tabKey
+    for (;;) {
+      const v = tab[h]
+      if (v === kk || v === 0) return h
+      h = (h + 1) & this.maske
+    }
+  }
+
   /** Neues Rechteck: Mitte (x, z), laenge entlang drehY, tiefe quer dazu
    *  (wie Quader.masse[0] und [2]), drehY wie three (positiv dreht x nach
-   *  -z). Gibt den Index zurueck. Vor raster() aufrufen. */
-  dazu(x: number, z: number, laenge: number, tiefe: number, drehY: number, aktiv = true): number {
+   *  -z). oben (E87): Oberkante ueber dem Gelaende in Metern, ohne Angabe
+   *  eine Wand. Gibt den Index zurueck. Vor rastern() aufrufen. */
+  dazu(x: number, z: number, laenge: number, tiefe: number, drehY: number, aktiv = true, oben?: number): number {
     const i = this.mx.length
+    const ux = Math.cos(drehY)
+    const uz = -Math.sin(drehY)
+    const hl = Math.max(0, laenge / 2)
+    const ht = Math.max(0, tiefe / 2)
     this.mx.push(x)
     this.mz.push(z)
-    this.ux.push(Math.cos(drehY))
-    this.uz.push(-Math.sin(drehY))
-    this.hl.push(Math.max(0, laenge / 2))
-    this.ht.push(Math.max(0, tiefe / 2))
+    this.ux.push(ux)
+    this.uz.push(uz)
+    this.hl.push(hl)
+    this.ht.push(ht)
     this.an.push(aktiv)
-    const [ex, ez] = this.ausdehnung(i)
+    this.ob.push(obenAus(oben))
+    this.beweglich.push(false)
+    const ax = Math.abs(ux)
+    const az = Math.abs(uz)
+    const ex = ax * hl + az * ht
+    const ez = az * hl + ax * ht
     this.bx0.push(x - ex)
     this.bz0.push(z - ez)
     this.bx1.push(x + ex)
@@ -141,12 +264,13 @@ export class Hindernisse {
    *  wie viele das waren. Vor rastern(). */
   alle(liste: readonly Rechteck[]): number {
     let verworfen = 0
-    for (const r of liste) {
-      if (![r.x, r.z, r.laenge, r.tiefe, r.drehY].every(Number.isFinite)) {
+    for (let k = 0; k < liste.length; k++) {
+      const r = liste[k]
+      if (!r || !Number.isFinite(r.x) || !Number.isFinite(r.z) || !Number.isFinite(r.laenge) || !Number.isFinite(r.tiefe) || !Number.isFinite(r.drehY)) {
         verworfen++
         continue
       }
-      this.dazu(r.x, r.z, r.laenge, r.tiefe, r.drehY)
+      this.dazu(r.x, r.z, r.laenge, r.tiefe, r.drehY, true, r.oben)
     }
     return verworfen
   }
@@ -155,9 +279,10 @@ export class Hindernisse {
    *  ihrer Ebene). Danach rastern(). */
   kuerzen(n: number): void {
     const k = Math.max(0, Math.min(Math.floor(n), this.mx.length))
-    for (const f of [this.mx, this.mz, this.ux, this.uz, this.hl, this.ht, this.bx0, this.bz0, this.bx1, this.bz1]) f.length = k
+    for (const f of [this.mx, this.mz, this.ux, this.uz, this.hl, this.ht, this.ob, this.bx0, this.bz0, this.bx1, this.bz1]) f.length = k
     this.an.length = k
-    this.raster.clear()
+    this.beweglich.length = k
+    this.rasterLeeren()
     this.anzahl = 0
   }
 
@@ -169,12 +294,14 @@ export class Hindernisse {
   }
 
   /** Rasterbereich von i um das Rechteck (x0, z0)-(x1, z1) erweitern
-   *  (Tuer: der Kreis, den sie um die Angel ueberstreicht). Vor raster(). */
+   *  (Tuer: der Kreis, den sie um die Angel ueberstreicht). Nur damit darf
+   *  sich i spaeter bewegen (lage()). Vor rastern(). */
   bereich(i: number, x0: number, z0: number, x1: number, z1: number): void {
     this.bx0[i] = Math.min(this.bx0[i], x0)
     this.bz0[i] = Math.min(this.bz0[i], z0)
     this.bx1[i] = Math.max(this.bx1[i], x1)
     this.bz1[i] = Math.max(this.bz1[i], z1)
+    this.beweglich[i] = true
   }
 
   /** Rasterbereich von i um die eigene Lage, verschoben um (dx, dz),
@@ -185,7 +312,8 @@ export class Hindernisse {
   }
 
   /** Neue Lage eines Rechtecks (Tuer dreht, Schublade faehrt). Es muss im
-   *  Bereich bleiben, der beim Bauen angegeben war. Ohne neues Objekt. */
+   *  Bereich bleiben, der beim Bauen mit bereich() angegeben war. Ohne
+   *  neues Objekt. */
   lage(i: number, x: number, z: number, drehY: number): void {
     this.mx[i] = x
     this.mz[i] = z
@@ -197,40 +325,151 @@ export class Hindernisse {
     this.an[i] = an
   }
 
-  private schluessel(ix: number, iz: number): number {
-    return (ix + 50000) * 100000 + (iz + 50000)
+  /** Zellnummer auf den Bereich des Schluessels begrenzt (NaN bleibt NaN:
+   *  dann laeuft keine Schleife). */
+  private static klemm(i: number): number {
+    return i < -KANTE ? -KANTE : i > KANTE - 1 ? KANTE - 1 : i
   }
 
-  /** Raster aus allen Rechtecken bauen. Nach dem letzten dazu(). */
+  /** Schluessel der Zelle (ix, iz), beide schon geklemmt: eine Ganzzahl
+   *  unter 2^30, schnell in einer Map. */
+  private static schluessel(ix: number, iz: number): number {
+    return (ix + KANTE) * (2 * KANTE) + (iz + KANTE)
+  }
+
+  /** Raster aus allen Rechtecken bauen. Nach dem letzten dazu(). Jede
+   *  Zelle bekommt die Rechtecke, die sie beruehrt (gedrehte genau, Zeile
+   *  fuer Zeile), bewegliche alle Zellen ihres Bereichs. */
   rastern(): void {
-    this.raster.clear()
     const n = this.mx.length
     this.treffer = new Int32Array(Math.max(1, n))
     this.marke = new Int32Array(Math.max(1, n))
     this.nr = 0
+    /* Erst alle Eintraege (Schluessel der Zelle, Rechteck) sammeln, dann
+     * die Zellen in die Streutabelle, zuletzt nach Zellen geordnet. */
+    let platzE = Math.max(16, n * 4)
+    let eKey = new Int32Array(platzE)
+    let eRecht = new Int32Array(platzE)
+    let e = 0
+    const eintragen = (ix: number, iz: number, i: number) => {
+      if (e === platzE) {
+        platzE *= 2
+        const k2 = new Int32Array(platzE)
+        k2.set(eKey)
+        eKey = k2
+        const r2 = new Int32Array(platzE)
+        r2.set(eRecht)
+        eRecht = r2
+      }
+      eKey[e] = Hindernisse.schluessel(ix, iz)
+      eRecht[e] = i
+      e++
+    }
     const c = this.zelle
+    const weit = (KANTE - 1) * c
+    const cx = new Float64Array(4)
+    const cz = new Float64Array(4)
     for (let i = 0; i < n; i++) {
-      const ix0 = Math.floor(this.bx0[i] / c)
-      const ix1 = Math.floor(this.bx1[i] / c)
-      const iz0 = Math.floor(this.bz0[i] / c)
-      const iz1 = Math.floor(this.bz1[i] / c)
-      for (let ix = ix0; ix <= ix1; ix++) {
-        for (let iz = iz0; iz <= iz1; iz++) {
-          const k = this.schluessel(ix, iz)
-          let liste = this.raster.get(k)
-          if (!liste) {
-            liste = []
-            this.raster.set(k, liste)
+      const x0 = this.bx0[i]
+      const x1 = this.bx1[i]
+      const z0 = this.bz0[i]
+      const z1 = this.bz1[i]
+      if (this.beweglich[i] || !(x0 > -weit && x1 < weit && z0 > -weit && z1 < weit)) {
+        // Kasten: der ganze Bereich (bewegt sich, oder liegt am Rand des Schluessels).
+        const ix0 = Hindernisse.klemm(Math.floor(x0 / c))
+        const ix1 = Hindernisse.klemm(Math.floor(x1 / c))
+        const iz0 = Hindernisse.klemm(Math.floor(z0 / c))
+        const iz1 = Hindernisse.klemm(Math.floor(z1 / c))
+        for (let ix = ix0; ix <= ix1; ix++) for (let iz = iz0; iz <= iz1; iz++) eintragen(ix, iz, i)
+        continue
+      }
+      // Genau: die vier Ecken (Laenge u, Tiefe t = (-uz, ux)) im Umlauf.
+      const mx = this.mx[i]
+      const mz = this.mz[i]
+      const lx = this.ux[i] * this.hl[i]
+      const lz = this.uz[i] * this.hl[i]
+      const tx = -this.uz[i] * this.ht[i]
+      const tz = this.ux[i] * this.ht[i]
+      cx[0] = mx + lx + tx
+      cz[0] = mz + lz + tz
+      cx[1] = mx - lx + tx
+      cz[1] = mz - lz + tz
+      cx[2] = mx - lx - tx
+      cz[2] = mz - lz - tz
+      cx[3] = mx + lx - tx
+      cz[3] = mz + lz - tz
+      const zMin = Math.min(cz[0], cz[1], cz[2], cz[3])
+      const zMax = Math.max(cz[0], cz[1], cz[2], cz[3])
+      const iz0 = Math.floor(zMin / c)
+      const iz1 = Math.floor(zMax / c)
+      for (let iz = iz0; iz <= iz1; iz++) {
+        const za = iz * c
+        const zb = za + c
+        let lo = Infinity
+        let hi = -Infinity
+        for (let k = 0; k < 4; k++) {
+          // Ecken in der Zeile.
+          const ex = cx[k]
+          const ez = cz[k]
+          if (ez >= za && ez <= zb) {
+            if (ex < lo) lo = ex
+            if (ex > hi) hi = ex
           }
-          liste.push(i)
+          // Kanten durch den oberen und unteren Rand der Zeile.
+          const m = (k + 1) & 3
+          const fz = cz[m]
+          if (fz === ez) continue
+          if ((ez - za) * (fz - za) < 0) {
+            const x = ex + ((za - ez) * (cx[m] - ex)) / (fz - ez)
+            if (x < lo) lo = x
+            if (x > hi) hi = x
+          }
+          if ((ez - zb) * (fz - zb) < 0) {
+            const x = ex + ((zb - ez) * (cx[m] - ex)) / (fz - ez)
+            if (x < lo) lo = x
+            if (x > hi) hi = x
+          }
         }
+        if (!(lo <= hi)) continue
+        const ix1 = Math.floor(hi / c)
+        for (let ix = Math.floor(lo / c); ix <= ix1; ix++) eintragen(ix, iz, i)
       }
     }
+    // Streutabelle: hoechstens so viele Zellen wie Eintraege, Fuellung unter 3/4.
+    let bits = 1
+    while (1 << bits < e * 1.4 + 2 && bits < 30) bits++
+    this.tabKey = new Int32Array(1 << bits)
+    this.tabZelle = new Int32Array(1 << bits)
+    this.maske = (1 << bits) - 1
+    this.schieb = 32 - bits
+    const zahl = new Int32Array(Math.max(1, e))
+    let zellenN = 0
+    for (let j = 0; j < e; j++) {
+      const k = eKey[j]
+      const h = this.platz(k)
+      let s: number
+      if (this.tabKey[h] === 0) {
+        this.tabKey[h] = k + 1
+        s = zellenN++
+        this.tabZelle[h] = s
+      } else s = this.tabZelle[h]
+      // Ab hier steht in eKey die Zellnummer des Eintrags.
+      eKey[j] = s
+      zahl[s]++
+    }
+    const anfang = new Int32Array(zellenN + 1)
+    for (let s = 0; s < zellenN; s++) anfang[s + 1] = anfang[s] + zahl[s]
+    const pos = anfang.slice(0, Math.max(1, zellenN))
+    const eintraege = new Int32Array(e)
+    for (let j = 0; j < e; j++) eintraege[pos[eKey[j]]++] = eRecht[j]
+    this.zellenZahl = zellenN
+    this.anfang = anfang
+    this.eintraege = eintraege
   }
 
-  /** Alle Rechtecke, deren Rasterbereich das Feld (x0, z0)-(x1, z1)
-   *  beruehren koennte, in treffer[0..anzahl). Jedes hoechstens einmal.
-   *  Gibt anzahl zurueck. Ohne neues Objekt. */
+  /** Rechtecke, die das Feld (x0, z0)-(x1, z1) beruehren koennten (Zelle
+   *  getroffen und Bereich ueberlappt das Feld), in treffer[0..anzahl).
+   *  Jedes hoechstens einmal. Gibt anzahl zurueck. Ohne neues Objekt. */
   abfrage(x0: number, z0: number, x1: number, z1: number): number {
     this.anzahl = 0
     if (this.mx.length === 0) return 0
@@ -240,16 +479,20 @@ export class Hindernisse {
       this.nr = 1
     }
     const c = this.zelle
-    const ix0 = Math.floor(x0 / c)
-    const ix1 = Math.floor(x1 / c)
-    const iz0 = Math.floor(z0 / c)
-    const iz1 = Math.floor(z1 / c)
+    const ix0 = Hindernisse.klemm(Math.floor(x0 / c))
+    const ix1 = Hindernisse.klemm(Math.floor(x1 / c))
+    const iz0 = Hindernisse.klemm(Math.floor(z0 / c))
+    const iz1 = Hindernisse.klemm(Math.floor(z1 / c))
+    const anfang = this.anfang
+    const eintraege = this.eintraege
     for (let ix = ix0; ix <= ix1; ix++) {
       for (let iz = iz0; iz <= iz1; iz++) {
-        const liste = this.raster.get(this.schluessel(ix, iz))
-        if (!liste) continue
-        for (let j = 0; j < liste.length; j++) {
-          const i = liste[j]
+        const h = this.platz(Hindernisse.schluessel(ix, iz))
+        if (this.tabKey[h] === 0) continue
+        const s = this.tabZelle[h]
+        const bis = anfang[s + 1]
+        for (let j = anfang[s]; j < bis; j++) {
+          const i = eintraege[j]
           if (this.marke[i] === this.nr) continue
           this.marke[i] = this.nr
           if (this.bx1[i] < x0 || this.bx0[i] > x1 || this.bz1[i] < z0 || this.bz0[i] > z1) continue
@@ -278,6 +521,16 @@ export class Hindernisse {
     if (d2 > 1e-12) return r - Math.sqrt(d2)
     // Mitte im Rechteck: bis zur naechsten Kante plus Radius.
     return Math.min(hl - Math.abs(lx), ht - Math.abs(lz)) + r
+  }
+
+  /** Haelt Rechteck i in der laufenden Rechnung auf? An und hoeher als
+   *  die Grenze (Fusshoehe plus STUFE_M, E87). */
+  private sperrt(i: number): boolean {
+    return this.an[i] && this.ob[i] > this.grenze
+  }
+
+  private grenzeSetzen(fuss: number): void {
+    this.grenze = fussAus(fuss) + STUFE_M
   }
 
   /** Den Kreis aus Rechteck i schieben, wenn er darin steckt. Aendert p.
@@ -325,84 +578,147 @@ export class Hindernisse {
     return true
   }
 
-  /** Groesste Ueberlappung mit den aktiven Rechtecken aus der letzten Abfrage. */
+  /** Groesste Ueberlappung mit den sperrenden Rechtecken aus der letzten Abfrage. */
   private restTiefe(p: Stelle, r: number): number {
     let max = 0
     for (let j = 0; j < this.anzahl; j++) {
       const i = this.treffer[j]
-      if (!this.an[i]) continue
+      if (!this.sperrt(i)) continue
       const t = this.tiefe(i, p.x, p.z, r)
       if (t > max) max = t
     }
     return max
   }
 
-  /** Mit den Treffern der letzten Abfrage herausdruecken. Gibt die
+  /** Mit den Treffern der letzten Abfrage herausdruecken (E87: dazu die
+   *  der letzten Abfrage von b, etwa abgestellte Fahrzeuge). Gibt die
    *  verbleibende groesste Ueberlappung zurueck. */
-  private loesen(p: Stelle, r: number): number {
+  private loesen(p: Stelle, r: number, b: Hindernisse | null = null): number {
     for (let d = 0; d < DURCHGAENGE; d++) {
       let geschoben = false
       for (let j = 0; j < this.anzahl; j++) {
         const i = this.treffer[j]
-        if (this.an[i] && this.schieben(i, p, r)) geschoben = true
+        if (this.sperrt(i) && this.schieben(i, p, r)) geschoben = true
+      }
+      if (b) {
+        for (let j = 0; j < b.anzahl; j++) {
+          const i = b.treffer[j]
+          if (b.sperrt(i) && b.schieben(i, p, r)) geschoben = true
+        }
       }
       if (!geschoben) return 0
     }
-    return this.restTiefe(p, r)
+    return this.tiefeMit(p, r, b)
   }
 
-  /** Ueberlappt der Kreis (x, z, r) ein aktives Rechteck? */
-  frei(x: number, z: number, r: number): boolean {
+  /** Groesste Ueberlappung mit den Treffern der letzten Abfragen von
+   *  diesem Raster und b (E87). */
+  private tiefeMit(p: Stelle, r: number, b: Hindernisse | null): number {
+    const t = this.restTiefe(p, r)
+    return b ? Math.max(t, b.restTiefe(p, r)) : t
+  }
+
+  /** Das zweite Raster (E87) fuer eine Rechnung: nur, wenn es Rechtecke
+   *  hat; dann mit derselben Grenze wie dieses und abgefragt im Feld. */
+  private dazuAbfragen(dazu: Hindernisse | null | undefined, fuss: number, x0: number, z0: number, x1: number, z1: number): Hindernisse | null {
+    if (!dazu || dazu === this || dazu.groesse === 0) return null
+    dazu.grenzeSetzen(fuss)
+    dazu.abfrage(x0, z0, x1, z1)
+    return dazu
+  }
+
+  /** Ueberlappt der Kreis (x, z, r) ein Rechteck, das aufhaelt? fuss
+   *  (E87): Fusshoehe ueber dem Gelaende; was hoechstens STUFE_M darueber
+   *  endet, haelt nicht auf. dazu (E87): ein zweites Raster, das ebenso
+   *  zaehlt (abgestellte Fahrzeuge). */
+  frei(x: number, z: number, r: number, fuss = 0, dazu: Hindernisse | null = null): boolean {
+    this.grenzeSetzen(fuss)
     this.abfrage(x - r, z - r, x + r, z + r)
     for (let j = 0; j < this.anzahl; j++) {
       const i = this.treffer[j]
-      if (this.an[i] && this.tiefe(i, x, z, r) > RESTUEBERLAPP_M) return false
+      if (this.sperrt(i) && this.tiefe(i, x, z, r) > RESTUEBERLAPP_M) return false
+    }
+    const b = this.dazuAbfragen(dazu, fuss, x - r, z - r, x + r, z + r)
+    if (b) {
+      for (let j = 0; j < b.anzahl; j++) {
+        const i = b.treffer[j]
+        if (b.sperrt(i) && b.tiefe(i, x, z, r) > RESTUEBERLAPP_M) return false
+      }
     }
     return true
   }
 
   /** Den Kreis an p aus allem herausdruecken, was er ueberlappt (eine Tuer
    *  ist zugegangen, Start im Moebel). Aendert p. Gibt die verbleibende
-   *  Ueberlappung zurueck (0 = frei). */
-  herausdruecken(p: Stelle, r: number): number {
+   *  Ueberlappung zurueck (0 = frei). fuss und dazu wie bei frei(). */
+  herausdruecken(p: Stelle, r: number, fuss = 0, dazu: Hindernisse | null = null): number {
+    this.grenzeSetzen(fuss)
     const rand = r + 0.4
     this.abfrage(p.x - rand, p.z - rand, p.x + rand, p.z + rand)
-    return this.loesen(p, r)
+    const b = this.dazuAbfragen(dazu, fuss, p.x - rand, p.z - rand, p.x + rand, p.z + rand)
+    return this.loesen(p, r, b)
   }
 
   /** Gehen: p um (dx, dz) verschieben, an Hindernissen entlang gleiten.
    *  Lange Wege in Teilschritten, damit nichts durchrutscht. Steckt der
    *  Kreis nach einem Teilschritt fest (zu eng), bleibt er davor stehen;
-   *  wer schon feststeckt, darf sich herausbewegen. Aendert p. */
-  bewegen(p: Stelle, dx: number, dz: number, r: number): void {
+   *  wer schon feststeckt, darf sich herausbewegen. Aendert p. fuss wie
+   *  bei frei(): Niedriges steigt man hinauf statt anzustossen. dazu
+   *  (E87): ein zweites Raster, das ebenso aufhaelt (abgestellte
+   *  Fahrzeuge der Ebene). */
+  bewegen(p: Stelle, dx: number, dz: number, r: number, fuss = 0, dazu: Hindernisse | null = null): void {
     const l = Math.hypot(dx, dz)
     if (!(l > 0)) return
+    this.grenzeSetzen(fuss)
     // Eine Abfrage fuer den ganzen Weg, mit Rand fuer das Herausdruecken.
     const rand = r + 0.4
-    this.abfrage(Math.min(p.x, p.x + dx) - rand, Math.min(p.z, p.z + dz) - rand, Math.max(p.x, p.x + dx) + rand, Math.max(p.z, p.z + dz) + rand)
+    const x0 = Math.min(p.x, p.x + dx) - rand
+    const z0 = Math.min(p.z, p.z + dz) - rand
+    const x1 = Math.max(p.x, p.x + dx) + rand
+    const z1 = Math.max(p.z, p.z + dz) + rand
+    this.abfrage(x0, z0, x1, z1)
+    const b = this.dazuAbfragen(dazu, fuss, x0, z0, x1, z1)
     const n = Math.max(1, Math.ceil(l / TEILSCHRITT_M))
     const sx = dx / n
     const sz = dz / n
     for (let s = 0; s < n; s++) {
       const ax = p.x
       const az = p.z
-      const vorher = this.restTiefe(p, r)
+      const vorher = this.tiefeMit(p, r, b)
       p.x += sx
       p.z += sz
-      const rest = this.loesen(p, r)
+      const rest = this.loesen(p, r, b)
       if (rest > RESTUEBERLAPP_M && rest > vorher + 1e-4) {
         // Steckte man schon vorher fest, zaehlt der gerade Schritt, wenn er
         // nicht tiefer hineinfuehrt: so kommt man aus der Enge heraus.
         if (vorher > RESTUEBERLAPP_M) {
           p.x = ax + sx
           p.z = az + sz
-          if (this.restTiefe(p, r) <= vorher + 1e-4) continue
+          if (this.tiefeMit(p, r, b) <= vorher + 1e-4) continue
         }
         p.x = ax
         p.z = az
         return
       }
     }
+  }
+
+  /** Worauf man an (x, z) steht (E87): die hoechste Oberkante (Meter ueber
+   *  dem Gelaende) der Rechtecke, die an sind, hoechstens STUFE_M ueber den
+   *  Fuessen (fuss, Meter ueber dem Gelaende) enden und den Kreis (x, z, r)
+   *  beruehren; sonst 0 (das Gelaende). Waende zaehlen nie. */
+  stand(x: number, z: number, fuss = 0, r = STAND_R_M): number {
+    const g = fussAus(fuss) + STUFE_M
+    this.abfrage(x - r, z - r, x + r, z + r)
+    let best = 0
+    for (let j = 0; j < this.anzahl; j++) {
+      const i = this.treffer[j]
+      if (!this.an[i]) continue
+      const o = this.ob[i]
+      if (!(o <= g) || o <= best) continue
+      if (this.tiefe(i, x, z, r) > 0) best = o
+    }
+    return best
   }
 }
 
@@ -477,6 +793,21 @@ export interface EbeneRaster {
   name: string
   y: number
   raster: Hindernisse
+  /** Die Hindernisse, aus denen raster gebaut ist (E87): bleibt das Feld
+   *  dasselbe, braucht es kein neues Raster (aktualisieren()). */
+  quelle: readonly Rechteck[]
+  /** Gelaende relativ zu y (E87), null: eben. */
+  hoehe: ((x: number, z: number) => number) | null
+}
+
+/** Die Hindernisse einer Ebene, kaputt (kein Feld) als leer. */
+function hindernisseVon(e: EbeneDaten): readonly Rechteck[] {
+  return Array.isArray(e.hindernisse) ? e.hindernisse : []
+}
+
+/** Das Gelaende einer Ebene, wenn es eine Funktion ist. */
+function hoeheVon(e: EbeneDaten): ((x: number, z: number) => number) | null {
+  return typeof e.hoehe === 'function' ? e.hoehe : null
 }
 
 /** Begehbare Ebenen fuer den Zusammenstoss (E83). Jede Ebene hat ihr
@@ -501,10 +832,14 @@ export class Ebenen {
   private eigene = 0
   /** Die Rechtecke der Ebene der Wohnung (nach jedem Neubau wieder dazu). */
   private wohnRechtecke: readonly Rechteck[] = []
+  /** Zellgroesse des Rasters der Wohnung, wie es kam (E87: liegt die Stadt
+   *  auf der Ebene der Wohnung, rastert sie in groesseren Zellen). */
+  private readonly wohnZelle: number
 
   constructor(wohnung: Hindernisse, zelle = 1) {
     this.wohnung = wohnung
     this.zelle = zelle
+    this.wohnZelle = wohnung.zelle
   }
 
   /** Die Wohnung ist neu gebaut (leeren(), dazu() ...): haengt die
@@ -517,6 +852,7 @@ export class Ebenen {
   private wohnungRastern(): number {
     this.wohnung.kuerzen(this.eigene)
     const verworfen = this.wohnung.alle(this.wohnRechtecke)
+    this.wohnung.zelle = zelleFuer(this.wohnung.groesse, this.wohnZelle)
     this.wohnung.rastern()
     return verworfen
   }
@@ -527,21 +863,104 @@ export class Ebenen {
     this.wohnIndex = wohnungsEbene(ebenen)
     let verworfen = 0
     this.liste = ebenen.map((e, i) => {
-      if (i === this.wohnIndex) return { id: e.id, name: e.name, y: e.y, raster: this.wohnung }
-      const h = new Hindernisse(this.zelle)
-      verworfen += h.alle(e.hindernisse)
-      h.rastern()
-      return { id: e.id, name: e.name, y: e.y, raster: h }
+      const r = this.ebeneBauen(e, i === this.wohnIndex)
+      verworfen += r.verworfen
+      return r.ebene
     })
-    this.wohnRechtecke = this.wohnIndex >= 0 ? ebenen[this.wohnIndex].hindernisse : []
+    this.wohnRechtecke = this.wohnIndex >= 0 ? hindernisseVon(ebenen[this.wohnIndex]) : []
     verworfen += this.wohnungRastern()
     this.verworfen = verworfen
     this.index = this.wohnIndex
   }
 
+  /** Raster einer Ebene (die der Wohnung: nur der Eintrag, ihr Raster macht
+   *  wohnungRastern()). Grosse Ebenen (eine Stadt) in groesseren Zellen. */
+  private ebeneBauen(e: EbeneDaten, wohnung: boolean): { ebene: EbeneRaster; verworfen: number } {
+    const quelle = hindernisseVon(e)
+    const hoehe = hoeheVon(e)
+    if (wohnung) return { ebene: { id: e.id, name: e.name, y: e.y, raster: this.wohnung, quelle, hoehe }, verworfen: 0 }
+    const h = new Hindernisse(zelleFuer(quelle.length, this.zelle))
+    const verworfen = h.alle(quelle)
+    h.rastern()
+    return { ebene: { id: e.id, name: e.name, y: e.y, raster: h, quelle, hoehe }, verworfen }
+  }
+
+  /** Dieselbe Welt mit neuen Daten (E87, version() der Welt): Ebenen
+   *  kommen nur hinten dazu, Hindernisse einer Ebene duerfen neu sein.
+   *  Neu gerastert wird nur, wo das Feld der Hindernisse ein anderes ist
+   *  und nicht genau dieselben Objekte enthaelt (oder die Ebene neu ist);
+   *  wer ein Rechteck aendert, gibt ein neues Objekt. Name, Boden und
+   *  Gelaende gelten sofort. Die
+   *  aktive Ebene bleibt. Passt das nicht (weniger Ebenen, eine andere
+   *  Kennung an einem alten Index, eine andere Ebene der Wohnung), wie
+   *  setzen(): dann ist die Ebene der Wohnung aktiv, und der Aufrufer sucht
+   *  die alte ueber ihre Kennung (ebeneWiederfinden in motor.ts). Gibt die
+   *  Zahl der neu gerasterten Ebenen zurueck, -1 nach setzen(). verworfen
+   *  zaehlt dann nur die neu gerasterten. */
+  aktualisieren(ebenen: readonly EbeneDaten[]): number {
+    let passt = ebenen.length >= this.liste.length && wohnungsEbene(ebenen) === this.wohnIndex
+    for (let i = 0; passt && i < this.liste.length; i++) if (ebenen[i].id !== this.liste[i].id) passt = false
+    if (!passt) {
+      this.setzen(ebenen)
+      return -1
+    }
+    let neu = 0
+    let verworfen = 0
+    for (let i = 0; i < ebenen.length; i++) {
+      const e = ebenen[i]
+      const alt = this.liste[i]
+      const quelle = hindernisseVon(e)
+      if (alt && gleicheRechtecke(alt.quelle, quelle)) {
+        alt.quelle = quelle
+        if (i === this.wohnIndex) this.wohnRechtecke = quelle
+        alt.name = e.name
+        alt.y = e.y
+        alt.hoehe = hoeheVon(e)
+        continue
+      }
+      const wohnung = i === this.wohnIndex
+      const r = this.ebeneBauen(e, wohnung)
+      if (alt) this.liste[i] = r.ebene
+      else this.liste.push(r.ebene)
+      verworfen += r.verworfen
+      if (wohnung) {
+        this.wohnRechtecke = quelle
+        verworfen += this.wohnungRastern()
+      }
+      neu++
+    }
+    this.verworfen = verworfen
+    if (!this.gibt(this.index) && this.index !== this.wohnIndex) this.index = this.wohnIndex
+    return neu
+  }
+
+  /** Gelaende der Ebene i an (x, z) relativ zu ihrem Boden (E87), 0 ohne
+   *  Gelaende, fuer -1 und bei kaputten Zahlen. Wirft die Funktion der
+   *  Welt, meldet es das einmal in der Konsole und rechnet die Ebene ab
+   *  dann eben. */
+  gelaende(i: number, x: number, z: number): number {
+    const e = i >= 0 && i < this.liste.length ? this.liste[i] : null
+    const f = e?.hoehe
+    if (!e || !f) return 0
+    let h: number
+    try {
+      h = f(x, z)
+    } catch (err) {
+      console.error(`[3d] Ebene ${e.id}: hoehe() wirft, ab jetzt eben:`, err)
+      e.hoehe = null
+      return 0
+    }
+    return typeof h === 'number' && Number.isFinite(h) ? h : 0
+  }
+
   /** Das Raster, das gerade gilt. */
   get aktiv(): Hindernisse {
     return this.index >= 0 ? this.liste[this.index].raster : this.wohnung
+  }
+
+  /** Das Raster der Ebene i (E87); -1 und unbekannte: das der Wohnung. */
+  rasterVon(i: number): Hindernisse {
+    return i >= 0 && i < this.liste.length ? this.liste[i].raster : this.wohnung
   }
 
   /** Steht man auf der Ebene der Wohnung (oder der Wohnung allein)? */
