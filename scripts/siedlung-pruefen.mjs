@@ -25,6 +25,18 @@
 // - Sprungziele: Anzahl, vor der Wohnungstuer, Blick zur Tuer,
 // - unter 120 000 Dreiecke und 12 Zeichenaufrufe je Haus, kein Bau-Schritt
 //   ueber 30 ms, dispose() gibt auch das Innere frei.
+// Gemeinsam (E86):
+// - karte: jedes Haus mit Namen und Umriss in Weltmetern (genau wie die
+//   Lage), Rahmen mit 5 m Rand um alles, die Strasse genau ueber die
+//   Breite der Karte, Wege mit 1,5 m Puffer je Seite, Spielplatz, Garten,
+//   Reihenfolge zum Malen; der Umriss eines Hauses liegt auf 0,1 m dort,
+//   wo seine Huelle (Mesh) steht, auch gedreht,
+// - Gaeste (siedlung.wohnung, aber wohnungRahmen null): dieselbe Lage,
+//   dieselbe Karte, dieselben Hoehen und Haustueren wie beim Besitzer,
+//   nichts ausgespart (Fassade zu, die geplante Wohnung steht), keine
+//   Ebene 'wohnung', ihr Geschoss heisst wie die anderen,
+// - das erste Sprungziel heisst 'Start' und steht vor der Haustuer des
+//   Hauses der Wohnung (ohne Wohnung: des ersten Hauses), frei.
 // Aufruf im Projektordner: node scripts/siedlung-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import { BackSide, PerspectiveCamera, Raycaster, Vector3 } from 'three'
@@ -195,7 +207,7 @@ function gangKante(umriss) {
 
 /** Dreiecke im Kasten der eigenen Wohnung (Rahmen und 15 cm, Boden -0,02
  *  bis Geschosshoehe - 0,05, Welt). */
-function inWohnung(meshes, rahmen, gh) {
+function inWohnung(meshes, rahmen, gh, leise = false) {
   const k = [rahmen[0] - 0.15, -0.02, rahmen[1] - 0.15, rahmen[2] + 0.15, gh - 0.05, rahmen[3] + 0.15]
   const mitte = [(k[0] + k[3]) / 2, (k[1] + k[4]) / 2, (k[2] + k[5]) / 2]
   const halb = [(k[3] - k[0]) / 2 - 1e-3, (k[4] - k[1]) / 2 - 1e-3, (k[5] - k[2]) / 2 - 1e-3]
@@ -216,12 +228,151 @@ function inWohnung(meshes, rahmen, gh) {
       b.fromBufferAttribute(p, ib).applyMatrix4(m.matrixWorld)
       c.fromBufferAttribute(p, ic).applyMatrix4(m.matrixWorld)
       if (dreieckImKasten([a.x, a.y, a.z], [b.x, b.y, b.z], [c.x, c.y, c.z], mitte, halb)) {
-        if (drin < 3) console.log('  in der Wohnung:', m.name, [a, b, c].map((v) => v.toArray().map((x) => +x.toFixed(3))))
+        if (drin < 3 && !leise) console.log('  in der Wohnung:', m.name, [a, b, c].map((v) => v.toArray().map((x) => +x.toFixed(3))))
         drin++
       }
     }
   }
   return drin
+}
+
+/* ------------------------------------------------ Karte und Start (E86) */
+
+/** Reihenfolge der Flaechen zum Malen. */
+const KARTE_REIHE = { strasse: 0, garten: 1, weg: 2, spielplatz: 3 }
+/** Breite der Strasse: zwei Gehsteige, zwei Bordsteine, Fahrbahn. */
+const STRASSE_TIEF = 2 * 2.0 + 2 * 0.15 + 6.5
+const kastenAus = (punkte) => [
+  Math.min(...punkte.map((p) => p[0])),
+  Math.min(...punkte.map((p) => p[1])),
+  Math.max(...punkte.map((p) => p[0])),
+  Math.max(...punkte.map((p) => p[1])),
+]
+const punktGleich = (a, b, tol = 1e-9) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] - b[1]) <= tol
+function imVieleck(p, poly) {
+  let d = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i]
+    const b = poly[j]
+    if (a[1] > p[1] !== b[1] > p[1] && p[0] < ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]) d = !d
+  }
+  return d
+}
+
+/** Prueft w.karte. welt: lokal (Meter) -> Welt (x, z); garten: erwartete
+ *  Gaerten (Weltpunkte je Garten) oder null. */
+function kartePruefen(name, w, welt, aussen, garten = null) {
+  const K = w.karte
+  wahr(
+    `${name}: Karte da`,
+    !!K && Array.isArray(K.rahmen) && K.rahmen.length === 4 && K.rahmen.every(Number.isFinite) && K.rahmen[0] < K.rahmen[2] && K.rahmen[1] < K.rahmen[3],
+  )
+  if (!K) return
+  const [x0, z0, x1, z1] = K.rahmen
+  // Haeuser: Name und Umriss genau wie die Lage.
+  wahr(`${name}: Karte: alle Haeuser mit Namen`, K.haeuser.length === HAEUSER.length && K.haeuser.every((h, i) => h.name === HAEUSER[i].name))
+  wahr(
+    `${name}: Karte: Umrisse in Weltmetern`,
+    K.haeuser.every((h, i) => h.punkte.length === HAEUSER[i].umriss.length && h.punkte.every((p, j) => punktGleich(p, welt(HAEUSER[i].umriss[j])))),
+  )
+  wahr(`${name}: Karte: Flaechen gueltig`, K.flaechen.every((f) => f.art in KARTE_REIHE && f.punkte.length >= 3 && f.punkte.every((p) => p.length === 2 && p.every(Number.isFinite))))
+  wahr(`${name}: Karte: Reihenfolge zum Malen`, K.flaechen.every((f, i) => i === 0 || KARTE_REIHE[K.flaechen[i - 1].art] <= KARTE_REIHE[f.art]))
+  // Rahmen: alles drin, alles ausser der Strasse (die erste Flaeche) mit
+  // 5 m Rand, nicht groesser als noetig (Vorgarten 2,6 m und Strasse).
+  const alle = [...K.haeuser.flatMap((h) => h.punkte), ...K.flaechen.flatMap((f) => f.punkte)]
+  wahr(`${name}: Karte: alles im Rahmen`, alle.every((p) => p[0] >= x0 - 1e-9 && p[0] <= x1 + 1e-9 && p[1] >= z0 - 1e-9 && p[1] <= z1 + 1e-9))
+  const ohneStrasse = kastenAus([...K.haeuser.flatMap((h) => h.punkte), ...K.flaechen.slice(1).flatMap((f) => f.punkte)])
+  wahr(
+    `${name}: Karte: 5 m Rand`,
+    ohneStrasse[0] - x0 >= 5 - 1e-9 && ohneStrasse[1] - z0 >= 5 - 1e-9 && x1 - ohneStrasse[2] >= 5 - 1e-9 && z1 - ohneStrasse[3] >= 5 - 1e-9,
+  )
+  const extra = 10 + 2.6 + STRASSE_TIEF + 1e-6
+  wahr(
+    `${name}: Karte: Rahmen nicht groesser als noetig (${(x1 - x0).toFixed(1)} x ${(z1 - z0).toFixed(1)} m)`,
+    x1 - x0 <= ohneStrasse[2] - ohneStrasse[0] + extra && z1 - z0 <= ohneStrasse[3] - ohneStrasse[1] + extra,
+  )
+  // Die Strasse zuerst, genau ueber die Breite der Karte, so tief wie gebaut.
+  const st = K.flaechen[0]
+  wahr(`${name}: Karte: Strasse zuerst`, !!st && st.art === 'strasse' && st.punkte.length === 4)
+  if (st) {
+    const [sx0, sz0, sx1, sz1] = kastenAus(st.punkte)
+    const laengsX = Math.abs(sx0 - x0) < 1e-9 && Math.abs(sx1 - x1) < 1e-9
+    const laengsZ = Math.abs(sz0 - z0) < 1e-9 && Math.abs(sz1 - z1) < 1e-9
+    wahr(`${name}: Karte: Strasse ueber die ganze Karte`, laengsX || laengsZ)
+    nahe(`${name}: Karte: Strasse so tief wie gebaut`, laengsX ? sz1 - sz0 : sx1 - sx0, STRASSE_TIEF, 1e-6)
+  }
+  // Wege: je Strecke ein Rechteck mit 1,5 m je Seite um die Mittellinie.
+  const wege = K.flaechen.filter((f) => f.art === 'weg')
+  let strecken = 0
+  let gefunden = 0
+  for (const wg of aussen.wege) {
+    for (let i = 0; i + 1 < wg.length; i++) {
+      strecken++
+      const a = welt(wg[i])
+      const b = welt(wg[i + 1])
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+      const n = [-(b[1] - a[1]) / l, (b[0] - a[0]) / l]
+      const mitte = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+      const passt = wege.some((f) => f.punkte.length === 4 && imVieleck(mitte, f.punkte) && f.punkte.every((p) => Math.abs(Math.abs((p[0] - a[0]) * n[0] + (p[1] - a[1]) * n[1]) - 1.5) < 1e-6))
+      if (passt) gefunden++
+    }
+  }
+  wahr(`${name}: Karte: jeder Weg mit 1,5 m Puffer (${gefunden} von ${strecken})`, gefunden === strecken)
+  // Spielplatz genau an seinem Ort.
+  const spiel = K.flaechen.filter((f) => f.art === 'spielplatz')
+  if (aussen.spielplatz) {
+    const soll = aussen.spielplatz.map(welt)
+    wahr(`${name}: Karte: Spielplatz`, spiel.length === 1 && spiel[0].punkte.length === soll.length && spiel[0].punkte.every((p, i) => punktGleich(p, soll[i])))
+  } else wahr(`${name}: Karte: kein Spielplatz`, spiel.length === 0)
+  // Gaerten der Haeuser mit Plaenen.
+  const gaerten = K.flaechen.filter((f) => f.art === 'garten')
+  if (garten) {
+    wahr(
+      `${name}: Karte: Gaerten (${gaerten.length})`,
+      gaerten.length === garten.length && garten.every((g) => gaerten.some((f) => f.punkte.length === g.length && g.every((p) => f.punkte.some((x) => punktGleich(p, x, 1e-6))))),
+    )
+  } else wahr(`${name}: Karte: ohne Plaene keine Gaerten`, gaerten.length === 0)
+}
+
+/** Das erste Sprungziel heisst 'Start': vor der Haustuer des Hauses der
+ *  Wohnung, ohne Wohnung (oder ohne Eingang dort) des ersten Hauses mit
+ *  Eingang; einmal, auf einer Ebene, frei. */
+function startPruefen(name, w, wohnung) {
+  const S = w.sprungziele
+  const E = w.ebenen
+  wahr(`${name}: Start zuerst und einmal`, S.length > 0 && S[0].name === 'Start' && S.filter((s) => s.name === 'Start').length === 1)
+  const s = S[0]
+  if (!s) return
+  wahr(`${name}: Start auf einer Ebene`, Number.isInteger(s.ebene) && s.ebene >= 0 && s.ebene < E.length && [s.x, s.z, s.gier].every(Number.isFinite))
+  if (E[s.ebene]) wahr(`${name}: Start frei`, frei(E[s.ebene], s.x, s.z, 0.2))
+  const eingang = (id) => S.find((x) => x.name === `Eingang ${HAEUSER.find((h) => h.id === id).name}`)
+  const vorbild = (wohnung && eingang(wohnung.gebaeudeId)) || HAEUSER.map((h) => eingang(h.id)).find(Boolean)
+  wahr(`${name}: Start vor der Haustuer${vorbild ? ` (${vorbild.name})` : ''}`, !!vorbild && vorbild.ebene === s.ebene && vorbild.x === s.x && vorbild.z === s.z && vorbild.gier === s.gier)
+}
+
+/** Lage der Siedlung in der Welt (Matrix der Gruppe siedlungLage). */
+const lageVon = (w) => w.gruppe.children.find((x) => x.name === 'siedlungLage')
+
+/** Besitzer und Gast in derselben Welt: Lage, Karte, Hoehen, Haustueren,
+ *  Start. Die Ebene der Wohnung heisst beim Gast wie jedes Geschoss. */
+function gleicheWelt(name, besitzer, gast) {
+  besitzer.gruppe.updateMatrixWorld(true)
+  gast.gruppe.updateMatrixWorld(true)
+  const a = lageVon(besitzer).matrixWorld.elements
+  const b = lageVon(gast).matrixWorld.elements
+  wahr(`${name}: gleiche Lage`, a.every((v, i) => v === b[i]))
+  wahr(`${name}: gleiche Karte`, JSON.stringify(besitzer.karte) === JSON.stringify(gast.karte))
+  const EB = besitzer.ebenen
+  const EG = gast.ebenen
+  wahr(`${name}: gleiche Ebenen (Zahl, Namen, Hoehen)`, EB.length === EG.length && EB.every((e, i) => e.name === EG[i].name && e.y === EG[i].y))
+  const iw = EB.findIndex((e) => e.id === 'wohnung')
+  wahr(`${name}: Besitzer hat die Ebene 'wohnung' bei 0`, iw >= 0 && Math.abs(EB[iw].y) < 1e-12)
+  wahr(`${name}: Gast hat keine Ebene 'wohnung'`, EG.every((e) => e.id !== 'wohnung'))
+  if (iw >= 0 && EG[iw]) wahr(`${name}: beim Gast heisst das Geschoss ${EG[iw].id}`, /^(geschoss-\d+|boden|.+:\d+)$/.test(EG[iw].id))
+  wahr(`${name}: sonst gleiche Kennungen`, EB.every((e, i) => i === iw || e.id === EG[i]?.id))
+  const ziele = (w) => w.sprungziele.filter((s) => s.name === 'Start' || s.name.startsWith('Eingang '))
+  wahr(`${name}: gleicher Start und gleiche Haustueren`, JSON.stringify(ziele(besitzer)) === JSON.stringify(ziele(gast)))
+  wahr(`${name}: Aufzug an derselben Stelle`, JSON.stringify(besitzer.kabine) === JSON.stringify(gast.kabine))
 }
 
 /* ------------------------------------------------ Faelle */
@@ -283,7 +434,8 @@ function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
     for (let k = 0; k < haus.geschosse; k++) {
       nahe(`${name}: Ebene ${k} Hoehe`, E[k].y, (k - g) * gh, 1e-9)
       wahr(`${name}: Ebene ${k} Name`, E[k].name === (k === 0 ? 'EG' : `${k}. OG`))
-      wahr(`${name}: Ebene ${k} Kennung`, E[k].id === (k === g ? 'wohnung' : `geschoss-${k}`))
+      // Ohne Rahmen (Gast, E86) heisst auch das Geschoss der Wohnung wie die anderen.
+      wahr(`${name}: Ebene ${k} Kennung`, E[k].id === (k === g && rahmen ? 'wohnung' : `geschoss-${k}`))
     }
     const garten = E[E.length - 1]
     wahr(`${name}: Garten zuletzt`, garten.id === 'garten' && garten.name === 'Garten')
@@ -460,6 +612,22 @@ function pruefen(name, wohnung, rahmen, aussen = AUSSEN) {
   const haustueren = S.filter((s) => s.name.startsWith('Eingang '))
   wahr(`${name}: Sprungziele vor den Haustueren (${haustueren.length})`, haustueren.length >= 4 && new Set(haustueren.map((s) => s.name)).size === haustueren.length)
   for (const s of S) wahr(`${name}: Sprungziel ${s.name} frei`, frei(E[s.ebene], s.x, s.z, 0.2))
+  startPruefen(name, w, wohnung)
+
+  // Karte (E86) in Weltmetern: lokal -> Welt ueber die Lage der Siedlung.
+  {
+    const LG = lageVon(w)
+    const welt = (p) => {
+      const v = new Vector3(p[0], 0, p[1]).applyMatrix4(LG.matrixWorld)
+      return [v.x, v.z]
+    }
+    kartePruefen(name, w, welt, aussen)
+    // Die Wohnung liegt im Umriss ihres Hauses (Mitte des Rahmens, Welt).
+    if (haus && rahmen) {
+      const k = w.karte.haeuser[HAEUSER.indexOf(haus)]
+      wahr(`${name}: Karte: Wohnung im Umriss ihres Hauses`, !!k && imVieleck([(rahmen[0] + rahmen[2]) / 2, (rahmen[1] + rahmen[3]) / 2], k.punkte))
+    }
+  }
   // Ohne Plaene baut kamera() nichts und schaltet nichts um.
   w.kamera(0, 1.6, 0)
   wahr(`${name}: ohne Plaene nichts innen`, meshesVon(w.gruppe).every((m) => !m.name.startsWith('innen')) && w.gruppe.userData.innen === 0)
@@ -573,6 +741,22 @@ for (const [name, wohnung, rahmen] of FAELLE) {
   const leer = { spielplatz: null, tiefgarage: null, wege: [] }
   const r = pruefen('Ohne Draussen', { grundrissId: 'g1', gebaeudeId: 'h5', geschoss: 1, x: -24, z: -50.96, drehung: 0 }, null, leer)
   freigeben('Ohne Draussen', r.w)
+}
+
+// Gaeste (E86): dieselbe Siedlung mit derselben Wohnung, aber ohne Rahmen
+// (die eingerichtete Wohnung sieht nur der Besitzer). Gleiche Welt, nichts
+// ausgespart, kein 'wohnung'.
+for (const [name, wohnung, rahmen] of FAELLE) {
+  if (!wohnung) continue
+  const n = `${name}, Gast`
+  const besitzer = baueSiedlung({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen })
+  const gast = pruefen(n, wohnung, null).w
+  gleicheWelt(n, besitzer, gast)
+  const haus = HAEUSER.find((h) => h.id === wohnung.gebaeudeId)
+  const drin = inWohnung(meshesVon(gast.gruppe), rahmen, haus.geschossHoehe, true)
+  wahr(`${n}: Fassade dort nicht ausgespart (${drin} Dreiecke)`, drin > 0)
+  freigeben(`${n} (Besitzer)`, besitzer)
+  freigeben(n, gast)
 }
 
 // Unsinnige Daten werfen laut.
@@ -703,7 +887,12 @@ const INNEN_FAELLE = [
   ['Innen, ohne Wohnung', null, null],
   ['Innen, Wohnung in Haus 4', { grundrissId: 'g1', gebaeudeId: 'h4', geschoss: 3, x: 20, z: -72.5, drehung: 90 }, RAHMEN],
   ['Innen, Wohnung im EG gedreht', { grundrissId: 'g1', gebaeudeId: 'h5', geschoss: 0, x: -6.5, z: -38.8, drehung: 180 }, RAHMEN],
+  // Gaeste (E86): dieselben Wohnungen ohne Rahmen.
+  ['Innen, Gast, Wohnung im 1. OG', { grundrissId: 'g1', gebaeudeId: 'h5', geschoss: 1, x: -24, z: -50.96, drehung: 0 }, null],
+  ['Innen, Gast, Wohnung im EG gedreht', { grundrissId: 'g1', gebaeudeId: 'h5', geschoss: 0, x: -6.5, z: -38.8, drehung: 180 }, null],
 ]
+/** Gaerten der Haeuser mit Plaenen fuer die Karte: die Terrasse von B im EG. */
+const INNEN_GAERTEN = [innenGeschoss(0).wohnungen[1].raeume[3].punkte]
 
 function innenPruefen(name, wohnung, rahmen) {
   const w = baueSiedlung({ siedlung: mitInnen(wohnung), farben: F, wohnungRahmen: rahmen })
@@ -717,16 +906,18 @@ function innenPruefen(name, wohnung, rahmen) {
     return [v.x, v.z]
   }
   const gh = 3
+  // Die Lage haengt an der Wohnung, die Ebene 'wohnung' auch am Rahmen (E86).
   const g = wohnung ? wohnung.geschoss : 0
+  const eigen = !!wohnung && !!rahmen
   const E = w.ebenen
 
   /* Ebenen: Boden, dann je Haus die Obergeschosse. */
-  const soll = [{ id: wohnung && g === 0 ? 'wohnung' : 'boden', name: 'EG', y: -g * gh }]
+  const soll = [{ id: eigen && g === 0 ? 'wohnung' : 'boden', name: 'EG', y: -g * gh }]
   if (wohnung && wohnung.gebaeudeId !== 'h5') {
     const h = HAEUSER.find((x) => x.id === wohnung.gebaeudeId)
-    for (let k = 1; k < h.geschosse; k++) soll.push({ id: k === g ? 'wohnung' : `${h.id}:${k}`, name: `${h.name} ${k}. OG`, y: (k - g) * gh })
+    for (let k = 1; k < h.geschosse; k++) soll.push({ id: eigen && k === g ? 'wohnung' : `${h.id}:${k}`, name: `${h.name} ${k}. OG`, y: (k - g) * gh })
   }
-  soll.push({ id: wohnung && wohnung.gebaeudeId === 'h5' && g === 1 ? 'wohnung' : 'h5:1', name: 'Haus 5 1. OG', y: (1 - g) * gh })
+  soll.push({ id: eigen && wohnung.gebaeudeId === 'h5' && g === 1 ? 'wohnung' : 'h5:1', name: 'Haus 5 1. OG', y: (1 - g) * gh })
   wahr(
     `${name}: Ebenen ${E.map((e) => e.id).join(',')}`,
     E.length === soll.length && soll.every((s, i) => E[i].id === s.id && E[i].name === s.name && Math.abs(E[i].y - s.y) < 1e-9),
@@ -857,8 +1048,15 @@ function innenPruefen(name, wohnung, rahmen) {
   }
   const aOben = inA(stock1, 3.05, 5.6)
   const aUnten = inA(stock0, 0.05, 2.6)
-  if (wohnung && wohnung.gebaeudeId === 'h5' && g === 1) wahr(`${name}: Wohnung A im 1. OG weg (${aOben}), im EG da (${aUnten})`, aOben === 0 && aUnten > 0)
+  if (eigen && wohnung.gebaeudeId === 'h5' && g === 1) wahr(`${name}: Wohnung A im 1. OG weg (${aOben}), im EG da (${aUnten})`, aOben === 0 && aUnten > 0)
+  else if (wohnung && !rahmen && wohnung.gebaeudeId === 'h5' && g === 1) wahr(`${name}: Gast sieht die geplante Wohnung A im 1. OG (${aOben}, ${aUnten})`, aOben > 0 && aUnten > 0)
   else wahr(`${name}: Wohnung A in beiden Geschossen (${aOben}, ${aUnten})`, aOben > 0 && aUnten > 0)
+  // Gaeste: im Kasten der (fremden) Wohnung steht die geplante Wohnung.
+  if (wohnung && !rahmen) {
+    const haus = HAEUSER.find((h) => h.id === wohnung.gebaeudeId)
+    const drin = inWohnung(meshesVon(w.gruppe), RAHMEN, haus.geschossHoehe, true)
+    wahr(`${name}: Gast: dort nichts ausgespart (${drin} Dreiecke)`, drin > 0)
+  }
 
   /* Sprungziele: je Wohnung vor ihrer Tuer, mit Blick zur Tuer. */
   const S = w.sprungziele
@@ -889,7 +1087,12 @@ function innenPruefen(name, wohnung, rahmen) {
   wahr(`${name}: Sprungziel vor der Haustuer`, haus5.length === 1 && haus5[0].ebene === 0 && frei(E[0], haus5[0].x, haus5[0].z, 0.2))
   if (haus5[0] && bodenFrei) wahr(`${name}: von der Haustuer in den Gang`, wegFrei(E[0], [haus5[0].x, haus5[0].z], plan([1300, 775]), 0.23))
   const eingaenge = S.filter((x) => x.name.startsWith('Eingang '))
-  wahr(`${name}: Sprungziele: 4 Wohnungen, ${eingaenge.length} Haustueren, Spielplatz (${S.length})`, S.length === 4 + eingaenge.length + 1 && eingaenge.length === 5)
+  wahr(`${name}: Sprungziele: Start, 4 Wohnungen, ${eingaenge.length} Haustueren, Spielplatz (${S.length})`, S.length === 1 + 4 + eingaenge.length + 1 && eingaenge.length === 5)
+  startPruefen(name, w, wohnung)
+  kartePruefen(name, w, (p) => {
+    const v = welt3(p)
+    return [v.x, v.z]
+  }, AUSSEN, INNEN_GAERTEN.map((gt) => gt.map(plan)))
 
   /* Aufzug in Haus 5: Kabine, Knoepfe je Geschoss, fahrt() meldet den
    * Index der Ziel-Ebene, aufzugZiel() genau einmal. */
@@ -988,8 +1191,47 @@ for (const [name, wohnung, rahmen] of INNEN_FAELLE) innenWelten.push([name, inne
   const b = bauen()
   gleich('Innen', a, b)
   wahr('Innen: gleiche Sprungziele', JSON.stringify(a.sprungziele) === JSON.stringify(b.sprungziele))
+  wahr('Innen: gleiche Karte', JSON.stringify(a.karte) === JSON.stringify(b.karte))
   freigeben('Innen (a)', a)
   freigeben('Innen (b)', b)
+}
+
+// Gaeste innen (E86): gleiche Welt wie beim Besitzer. Und der Umriss auf
+// der Karte liegt dort, wo die Huelle des Hauses steht, auf 0,1 m (Haus 5
+// hier grau verputzt: ohne Balkone und Loggien steht nichts weit vor der
+// Fassade; Sockel und Fensterbaenke ragen bis 8 cm hinaus).
+{
+  const grau = HAEUSER.map((h) => (h.id === 'h5' ? { ...h, stil: 'grau' } : h))
+  const i5 = HAEUSER.findIndex((h) => h.id === 'h5')
+  for (const [name, wohnung, rahmen] of INNEN_FAELLE) {
+    if (!wohnung || !rahmen) continue
+    const n = `${name}, Gast`
+    const daten = { ...mitInnen(wohnung), gebaeude: grau }
+    const besitzer = baueSiedlung({ siedlung: daten, farben: F, wohnungRahmen: rahmen })
+    const gast = baueSiedlung({ siedlung: daten, farben: F, wohnungRahmen: null })
+    gleicheWelt(n, besitzer, gast)
+    const kaesten = []
+    for (const [wer, w] of [
+      ['Besitzer', besitzer],
+      ['Gast', gast],
+    ]) {
+      w.gruppe.updateMatrixWorld(true)
+      const huelle = nachName(w, 'huelle:h5')
+      const k = w.karte.haeuser[i5]
+      wahr(`${n}: ${wer}: Huelle und Umriss von Haus 5 da`, !!huelle && !!k)
+      if (!huelle || !k) continue
+      huelle.geometry.computeBoundingBox()
+      const box = huelle.geometry.boundingBox.clone().applyMatrix4(huelle.matrixWorld)
+      const kk = kastenAus(k.punkte)
+      const d = [box.min.x - kk[0], box.min.z - kk[1], box.max.x - kk[2], box.max.z - kk[3]]
+      wahr(`${n}: ${wer}: Umriss auf der Karte wie die Huelle (${d.map((v) => v.toFixed(3)).join(', ')})`, d.every((v) => Math.abs(v) <= 0.1))
+      kaesten.push(box)
+    }
+    // Ohne Aussparung (Wohnung in einem anderen Haus) genau gleich.
+    if (wohnung.gebaeudeId !== 'h5' && kaesten.length === 2) wahr(`${n}: Huelle von Haus 5 genau gleich`, kaesten[0].equals(kaesten[1]))
+    freigeben(`${n} (Besitzer)`, besitzer)
+    freigeben(n, gast)
+  }
 }
 for (const [name, w] of innenWelten) {
   freigeben(name, w)
