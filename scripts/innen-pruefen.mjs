@@ -25,6 +25,9 @@
 // - Oberkanten der Moebel als Hindernis (Tische, Betten, Theken; Regale ohne),
 // - gleiche Eingabe gibt dasselbe (Plan und Ecken), Kennungen eindeutig,
 //   5 bis 30 Dinge je Haus,
+// - E87b: Dinge heissen '<praefix>:d<n>:<art>' (n die Stelle im Plan), die
+//   Art steht am Ende; innenDingBauen baut aus der Kennung allein dasselbe
+//   Ding (Masse, Ecken, Farben) wie im Haus,
 // - Mengen: Zeichenaufrufe, Dreiecke, Bauzeit (Zahlen in der Ausgabe),
 // - dispose() gibt alles frei,
 // - wohnhausInnen: gueltig fuer siedlungInnenPruefen, keine Ueberdeckung
@@ -34,10 +37,10 @@
 // Aufruf im Projektordner: node scripts/innen-pruefen.mjs
 // Ausgabe "ok" mit Kennzahlen oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import { readFileSync } from 'node:fs'
-import { Matrix4, Mesh, Raycaster, Vector3 } from 'three'
+import { Matrix4, Mesh, MeshLambertMaterial, Raycaster, Vector3 } from 'three'
 import { DECKE_M, INNEN_FAHRZEUGE, innenPlanen, tuerLage, wohnhausInnen } from '../src/lib/innenGenerator.ts'
 import { innenAntwort } from '../src/lib/innenWerker.ts'
-import { baueInnen, innenBauen, innenVorbereiten } from '../src/components/plan3d/innen3d.ts'
+import { baueInnen, innenBauen, innenDingArt, innenDingBauen, innenDingKennung, innenVorbereiten } from '../src/components/plan3d/innen3d.ts'
 import { baueSiedlung } from '../src/components/plan3d/siedlung3d.ts'
 import { AUSSENWAND_M, FENSTER_BRUESTUNG, FENSTER_H, SCHWELLE_HINTER, SCHWELLE_VOR, fensterOhneTuer, fensterReihe, tuerBreite } from '../src/components/plan3d/stadtMasse.ts'
 import { STUFE_M } from '../src/components/plan3d/vertrag3d.ts'
@@ -321,11 +324,27 @@ function hausPruefen(name, e, opts = {}) {
   const ids = [...teil.ebenen.map((x) => x.id), ...teil.treppen.map((x) => x.id), ...teil.dinge.map((x) => x.id)]
   wahr(`${name}: Kennungen eindeutig`, new Set(ids).size === ids.length)
   wahr(`${name}: ${teil.dinge.length} Dinge (5 bis 30)`, teil.dinge.length >= 5 && teil.dinge.length <= 30)
+  // E87b: Kennung mit der Stelle im Plan und der Art; aus ihr allein
+  // entsteht dasselbe Ding (Masse, Ecken, Farben) wie im Haus.
+  const planArten = plan.geschosse.flatMap((g) => g.dinge.map((d) => d.art))
+  wahr(`${name}: jedes Ding des Plans gebaut (${teil.dinge.length} von ${planArten.length})`, teil.dinge.length === planArten.length)
+  const einzelMat = new MeshLambertMaterial({ vertexColors: true })
   teil.dinge.forEach((d, i) => {
-    wahr(`${name}: Ding ${i} Kennung`, d.id === `${praefix}:d${i}`)
+    wahr(`${name}: Ding ${i} Kennung`, d.id === `${praefix}:d${i}:${planArten[i]}` && d.id === innenDingKennung(praefix, i, planArten[i]))
+    wahr(`${name}: Ding ${i} Kennung mit Zeichen wie siedlung_ding_setzen`, /^[A-Za-z0-9:._-]{1,120}$/.test(d.id))
+    wahr(`${name}: Ding ${i} Art aus der Kennung`, innenDingArt(d.id) === planArten[i])
     wahr(`${name}: Ding ${i} Ebene`, teil.ebenen.some((E) => E.id === d.ebene))
     wahr(`${name}: Ding ${i} Masse`, d.breite > 0.01 && d.tiefe > 0.01 && d.hoehe > 0.01 && d.breite < 1 && d.hoehe < 1)
+    const e1 = innenDingBauen(d.id, F, einzelMat)
+    const gleich = (n) => {
+      const a = d.objekt.geometry.getAttribute(n).array
+      const b = e1 && e1.objekt.geometry.getAttribute(n).array
+      return !!b && a.length === b.length && a.every((v, j) => Math.abs(v - b[j]) < 1e-6)
+    }
+    wahr(`${name}: Ding ${i} einzeln aus der Kennung gleich (Masse, Ecken, Farben)`, !!e1 && e1.breite === d.breite && e1.tiefe === d.tiefe && e1.hoehe === d.hoehe && gleich('position') && gleich('normal') && gleich('color') && e1.objekt.name === d.id)
+    e1?.objekt.geometry.dispose()
   })
+  einzelMat.dispose()
   wahr(`${name}: keine Fahrzeuge zum Fahren`, teil.fahrzeuge.length === 0)
 
   /* Im Umriss: Raeume, Moebel, Dinge, Waende. */
@@ -940,6 +959,37 @@ for (const f of [ohne, laubengang]) {
     wahr(`siedlung3d: Inneres von ${e.gebaeudeId} gebaut (${innen.length} Geschosse)`, innen.length >= 1)
     w.dispose()
   }
+}
+
+/* E87b: Kennungen der Dinge, Art am Ende, Bau aus der Kennung allein. */
+{
+  wahr('innenDingKennung', innenDingKennung('stadt:w7', 12, 'teddy') === 'stadt:w7:d12:teddy')
+  wahr('innenDingArt: bekannte Art', innenDingArt('stadt:w7:d12:teddy') === 'teddy' && innenDingArt('stadt:a:b:d0:ball') === 'ball')
+  wahr('innenDingArt: unbekannte Art, ohne Nummer, alte Form', innenDingArt('stadt:w7:d12:rakete') === null && innenDingArt('stadt:w7:dx:ball') === null && innenDingArt('stadt:w7:d3') === null && innenDingArt('') === null)
+  const mat = new MeshLambertMaterial({ vertexColors: true })
+  wahr('innenDingBauen: unbekannte Art gibt null', innenDingBauen('stadt:w7:d1:rakete', F, mat) === null && innenDingBauen('stadt:w7:d1', F, mat) === null)
+  const a = innenDingBauen('stadt:w7:d1:tasse', F, mat)
+  const b = innenDingBauen('stadt:w7:d1:tasse', F, mat)
+  const c = innenDingBauen('stadt:w8:d1:tasse', F, mat)
+  const farben = (x) => Array.from(x.objekt.geometry.getAttribute('color').array).join()
+  wahr('innenDingBauen: gleiche Kennung, gleiches Ding', !!a && !!b && farben(a) === farben(b) && a.objekt.material === mat)
+  wahr('innenDingBauen: Ursprung unten in der Mitte, Masse aus DING_MASSE', !!a && a.breite === 0.09 && a.tiefe === 0.09 && a.hoehe === 0.1 && (() => {
+    a.objekt.geometry.computeBoundingBox()
+    const bb = a.objekt.geometry.boundingBox
+    return Math.abs(bb.min.y) < 1e-6 && Math.abs(bb.max.y - 0.1) < 0.01 && Math.abs(bb.min.x + bb.max.x) < 0.03
+  })())
+  // Farben haengen an der Kennung (viele Kennungen geben mehrere Farben).
+  const viele = new Set()
+  for (let i = 0; i < 40; i++) {
+    const x = innenDingBauen(`stadt:w${i}:d0:ball`, F, mat)
+    if (x) {
+      viele.add(farben(x))
+      x.objekt.geometry.dispose()
+    }
+  }
+  wahr(`innenDingBauen: Farben je Kennung verschieden (${viele.size})`, viele.size >= 3)
+  for (const x of [a, b, c]) x?.objekt.geometry.dispose()
+  mat.dispose()
 }
 
 /* Kein langer Gedankenstrich und keine Testhaken in den neuen Dateien. */

@@ -85,6 +85,15 @@ export const plan3dWoerter: Woerterbuch = {
   'plan3d.springen': { de: 'Springen', ar: 'اقفز' },
   'plan3d.einsteigen': { de: 'Einsteigen', ar: 'اركب' },
   'plan3d.aussteigen': { de: 'Aussteigen', ar: 'انزل' },
+  // E87b: rundherum ist alles zu, man bleibt sitzen.
+  'plan3d.aussteigen_kein_platz': {
+    de: 'Hier ist kein Platz zum Aussteigen. Fahr ein Stück weiter.',
+    ar: 'لا يوجد مكان للنزول هنا. تقدّم بالسيارة قليلًا.',
+  },
+  'plan3d.aussteigen_kein_platz_esc': {
+    de: 'Hier ist kein Platz zum Aussteigen. Fahr ein Stück weiter, oder drück noch einmal Esc, dann endet das Begehen.',
+    ar: 'لا يوجد مكان للنزول هنا. تقدّم بالسيارة قليلًا، أو اضغط Esc مرة أخرى لإنهاء التجوّل.',
+  },
   'plan3d.sicht': { de: 'Sicht', ar: 'المنظر' },
   'plan3d.sicht_hinten': { de: 'Sicht von hinten', ar: 'المنظر من الخلف' },
   'plan3d.blaulicht': { de: 'Blaulicht', ar: 'ضوء الطوارئ' },

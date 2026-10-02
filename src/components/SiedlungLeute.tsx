@@ -23,7 +23,18 @@ import { Avatar, Badge, Button, ErrorBox, Field, IconButton, Input, Loading, Mod
  * Dialog (ausser Esc), sonst ginge man mit den Pfeilen in 3D los.
  *
  * Was eingetippt wird (E-Mail oder Name), geht nur an siedlungEinladen in
- * api.ts, nie in die Konsole. */
+ * api.ts, nie in die Konsole.
+ *
+ * E87b: Wer im Umzug der eigenen Wohnung des Besitzers ist (rolle
+ * 'umzug'), steht als "im Umzug" in der Liste: kein Gast, laesst sich
+ * nicht entfernen und zaehlt nicht zu den hoechstens GAESTE_MAX Gaesten
+ * (die Zahl sieht der Besitzer ueber der Liste). Wer selbst so dabei ist,
+ * sieht statt "Gast" einen eigenen Satz und kein Verlassen (er ist ueber
+ * den Umzug dabei, nicht eingeladen). */
+
+/** So viele Gaeste laesst die Datenbank je Siedlung zu (0046). */
+// eslint-disable-next-line react/only-export-components -- reine Zahl, eigene Pruefung
+export const GAESTE_MAX = 20
 
 export interface SiedlungLeuteDaten {
   data: SiedlungMitglied[] | null
@@ -68,13 +79,24 @@ export function einladungMeldung(r: SiedlungEinladung, t: Uebersetzer): Meldung 
   }
 }
 
-/** Besitzer zuerst, dann nach Name (wie man es liest, gross oder klein egal). */
+/** Reihenfolge der Rollen in der Liste (E87b: drei, nicht mehr zwei). */
+const ROLLEN_FOLGE: Record<SiedlungMitglied['rolle'], number> = { besitzer: 0, umzug: 1, gast: 2 }
+
+/** Besitzer zuerst, dann die im Umzug, dann die Gaeste, je nach Name (wie
+ *  man es liest, gross oder klein egal). Eine unbekannte Rolle zuletzt. */
 // eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
 export function mitgliederOrdnen(liste: readonly SiedlungMitglied[]): SiedlungMitglied[] {
+  const rang = (m: SiedlungMitglied) => ROLLEN_FOLGE[m.rolle] ?? 3
   return [...liste].sort((a, b) => {
-    if (a.rolle !== b.rolle) return a.rolle === 'besitzer' ? -1 : 1
+    if (rang(a) !== rang(b)) return rang(a) - rang(b)
     return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
   })
+}
+
+/** Name der Rolle (Woerterbuch siedlung). */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function rolleName(rolle: SiedlungMitglied['rolle']): string {
+  return rolle === 'besitzer' ? 'siedlung.rolle_besitzer' : rolle === 'umzug' ? 'siedlung.rolle_umzug' : 'siedlung.rolle_gast'
 }
 
 export default function SiedlungLeute(props: SiedlungLeuteProps) {
@@ -175,7 +197,10 @@ export function LeuteInhalt({ siedlungId, siedlungName, ich, besitzer, mitgliede
   }
 
   const liste = mitglieder.data ? mitgliederOrdnen(mitglieder.data) : null
+  // Nur Gaeste zaehlen fuer die Grenze (E87b): nicht der Besitzer, nicht die im Umzug.
   const gaeste = liste ? liste.filter((m) => m.rolle === 'gast') : []
+  // Selbst ueber den Umzug dabei (E87b): kein Gast, also auch kein Verlassen.
+  const ichImUmzug = !besitzer && !!liste && liste.some((m) => m.user_id === ich && m.rolle === 'umzug')
 
   return (
     <div ref={wurzel} tabIndex={-1} className="space-y-5 outline-none" onKeyDown={tastenHalten}>
@@ -204,7 +229,7 @@ export function LeuteInhalt({ siedlungId, siedlungName, ich, besitzer, mitgliede
           </Button>
         </form>
       ) : (
-        <p className="text-sm text-muted">{t('siedlung.gast_hinweis')}</p>
+        <p className="text-sm text-muted">{t(ichImUmzug ? 'siedlung.umzug_hinweis' : 'siedlung.gast_hinweis')}</p>
       )}
 
       {meldung ? (
@@ -225,7 +250,14 @@ export function LeuteInhalt({ siedlungId, siedlungName, ich, besitzer, mitgliede
       ) : null}
 
       <section aria-label={t('siedlung.mitglieder')} className="space-y-2">
-        <h3 className="t-name">{t('siedlung.mitglieder')}</h3>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <h3 className="t-name">{t('siedlung.mitglieder')}</h3>
+          {besitzer && liste ? (
+            <span data-gaeste-zahl="" className="t-sub">
+              {t('siedlung.gaeste_zahl', { n: gaeste.length, max: GAESTE_MAX })}
+            </span>
+          ) : null}
+        </div>
         {mitglieder.loading && !liste ? (
           <Loading label={t('siedlung.mitglieder_laedt')} />
         ) : mitglieder.error ? (
@@ -251,7 +283,8 @@ export function LeuteInhalt({ siedlungId, siedlungName, ich, besitzer, mitgliede
                         {name}
                       </span>
                       {binIch ? <Badge>{t('siedlung.du')}</Badge> : null}
-                      <Badge>{t(m.rolle === 'besitzer' ? 'siedlung.rolle_besitzer' : 'siedlung.rolle_gast')}</Badge>
+                      <Badge>{t(rolleName(m.rolle))}</Badge>
+                      {/* Entfernen nur Gaeste; wer im Umzug ist, bleibt (E87b). */}
                       {besitzer && m.rolle === 'gast' && !binIch ? (
                         <IconButton
                           size="sm"
@@ -288,7 +321,7 @@ export function LeuteInhalt({ siedlungId, siedlungName, ich, besitzer, mitgliede
         )}
       </section>
 
-      {!besitzer ? (
+      {!besitzer && !ichImUmzug ? (
         <div className="border-t border-line pt-4">
           {frage === 'ich' ? (
             <div role="group" aria-label={t('siedlung.verlassen')} className="rounded-knopf bg-danger/8 p-3">

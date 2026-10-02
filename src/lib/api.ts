@@ -1814,24 +1814,53 @@ export async function loescheSiedlung(id: string): Promise<void> {
 }
 
 /** Eine Siedlung aus einer Datei eintragen (E85, siedlungImport.ts), mit
- *  dem eigenen Konto, ohne Befehle in der Datenbank. Gibt es schon eine
- *  eigene Siedlung mit derselben Wohnung, wird sie ersetzt statt doppelt
- *  angelegt. Deko und Schalter fuer den eigenen Grundriss kommen danach;
- *  scheitern sie, bleibt die Siedlung trotzdem eingetragen, und der Grund
- *  kommt als Text zurueck (deko), nichts wird verschwiegen. Die Stadt
- *  (E87) schreibt speichereSiedlung gleich nach der Siedlung; scheitert
- *  sie, kommt ein SiedlungStadtFehler (Siedlung gespeichert, Stadt und
- *  Deko nicht), und ein zweites Laden derselben Datei holt alles nach. */
+ *  dem eigenen Konto, ohne Befehle in der Datenbank.
+ *
+ *  Mit opt.ersetzeId (E87b, "Aus Datei aktualisieren" auf der Seite einer
+ *  Siedlung) wird genau diese Siedlung ersetzt, Gaeste und gespeicherte
+ *  Dinge bleiben. Sie muss dem eigenen Konto gehoeren; sonst kommt ein
+ *  Fehler (fehler.siedlung_ersetzen), und nichts wird angelegt, auch keine
+ *  zweite Siedlung. Eine Wohnung aus einem fremden Umzug laesst die
+ *  Datenbank dabei nicht herein (siedlungen_vorher, 0044).
+ *
+ *  Ohne ersetzeId (erstes Laden): gibt es schon eine eigene Siedlung mit
+ *  derselben Wohnung, wird sie ersetzt statt doppelt angelegt, sonst
+ *  kommt eine neue.
+ *
+ *  Deko und Schalter fuer den eigenen Grundriss kommen danach; scheitern
+ *  sie, bleibt die Siedlung trotzdem eingetragen, und der Grund kommt als
+ *  Text zurueck (deko), nichts wird verschwiegen. Die Stadt (E87) schreibt
+ *  speichereSiedlung gleich nach der Siedlung; scheitert sie, kommt ein
+ *  SiedlungStadtFehler (Siedlung gespeichert, Stadt und Deko nicht), und
+ *  ein zweites Laden derselben Datei holt alles nach. */
 export async function siedlungImportieren(
   d: import('./siedlungImport').SiedlungDatei,
+  opt?: { ersetzeId?: string },
 ): Promise<{ siedlung: SiedlungZeile; deko: 'ok' | 'keine' | { fehler: string } }> {
-  const gid = d.siedlung.wohnung?.grundrissId ?? null
-  // Nur eine eigene ersetzen (E86: die Liste enthaelt auch fremde, in die
-  // man eingeladen ist).
-  const { data: auth } = await supabase.auth.getUser()
+  const { data: auth, error: authFehler } = await supabase.auth.getUser()
   const uid = auth.user?.id ?? null
-  const vorhanden = gid && uid ? (await listSiedlungen()).find((x) => x.owner_id === uid && x.wohnung?.grundrissId === gid) : undefined
-  const siedlung = await speichereSiedlung({ ...(vorhanden ? { id: vorhanden.id } : {}), ...d.siedlung })
+  let ziel: string | null = null
+  if (opt?.ersetzeId !== undefined) {
+    // Nur eine eigene ersetzen; eine fremde oder verschwundene ist ein
+    // Fehler und nie ein stilles Neuanlegen.
+    if (authFehler || !uid) throw new Error(tg('fehler.siedlung_ersetzen', { grund: authFehler ? errText(authFehler) : tg('zustand.nichts_gefunden') }))
+    if (!UUID_FORM.test(opt.ersetzeId)) throw new Error(tg('fehler.siedlung_ersetzen', { grund: tg('zustand.nichts_gefunden') }))
+    const res = await supabase.from('siedlungen').select('id, owner_id').eq('id', opt.ersetzeId).maybeSingle()
+    if (res.error) throw new Error(tg('fehler.siedlung_ersetzen', { grund: errText(res.error) }))
+    const z = res.data as { id: string; owner_id: string } | null
+    if (!z) throw new Error(tg('fehler.siedlung_ersetzen', { grund: tg('zustand.nichts_gefunden') }))
+    if (z.owner_id !== uid) throw new Error(tg('fehler.siedlung_ersetzen', { grund: tg('fehler.db.siedlung.nur_besitzer') }))
+    ziel = z.id
+  } else {
+    // Nur eine eigene ersetzen (E86: die Liste enthaelt auch fremde, in die
+    // man eingeladen ist).
+    const gid = d.siedlung.wohnung?.grundrissId ?? null
+    const vorhanden = gid && uid ? (await listSiedlungen()).find((x) => x.owner_id === uid && x.wohnung?.grundrissId === gid) : undefined
+    ziel = vorhanden?.id ?? null
+  }
+  // speichereSiedlung aendert mit id und legt nur ohne id an; mit ziel gibt
+  // es also nie eine zweite Siedlung (keine Zeile mehr: Fehler).
+  const siedlung = await speichereSiedlung({ ...d.siedlung, ...(ziel ? { id: ziel } : {}) })
   if (!d.deko) return { siedlung, deko: 'keine' }
   try {
     const plan = await ladeGrundriss(d.deko.grundrissId)
@@ -1879,24 +1908,35 @@ export async function siedlungEinladen(siedlungId: string, wer: string): Promise
   throw new Error(tg('zustand.unbekannter_fehler'))
 }
 
+/** Rollen, die siedlung_mitglieder_liste kennt (0046, 'umzug' seit 0048). */
+const MITGLIED_ROLLEN: readonly SiedlungMitgliedZeile['rolle'][] = ['besitzer', 'gast', 'umzug']
+
 /** Wer zur Siedlung gehoert: der Besitzer zuerst, dann die Gaeste in der
- *  Reihenfolge der Einladung, mit Anzeigenamen (sonst 'Gast') und Figur.
- *  Nur fuer Besitzer und Gaeste; alle anderen bekommen einen Fehler, keine
- *  leere Liste. Die Figur prueft die Datenbank beim Speichern (0043). */
+ *  Reihenfolge der Einladung, dann (E87b, 0048) die Mitglieder im Umzug der
+ *  eigenen Wohnung des Besitzers mit Rolle 'umzug', jeweils mit
+ *  Anzeigenamen (sonst 'Gast') und Figur. Nur fuer wer hinein darf; alle
+ *  anderen bekommen einen Fehler, keine leere Liste. Die Figur prueft die
+ *  Datenbank beim Speichern (0043). Eine unbekannte Rolle ist ein Fehler
+ *  und wird nicht still zum Gast. */
 export async function siedlungMitglieder(siedlungId: string): Promise<SiedlungMitgliedZeile[]> {
   const res = await supabase.rpc('siedlung_mitglieder_liste', { p_siedlung: siedlungId })
   if (res.error) throw new Error(errText(res.error))
-  return ((res.data ?? []) as SiedlungMitgliedZeile[]).map((m) => ({
-    user_id: m.user_id,
-    name: m.name,
-    avatar3d: m.avatar3d ?? null,
-    rolle: m.rolle === 'besitzer' ? 'besitzer' : 'gast',
-  }))
+  return ((res.data ?? []) as SiedlungMitgliedZeile[]).map((m) => {
+    if (!MITGLIED_ROLLEN.includes(m.rolle)) throw new Error(tg('zustand.unbekannter_fehler'))
+    return {
+      user_id: m.user_id,
+      name: m.name,
+      avatar3d: m.avatar3d ?? null,
+      rolle: m.rolle,
+    }
+  })
 }
 
 /** Nimmt einen Gast heraus (nur der Besitzer) oder verlaesst die Siedlung
- *  (userId = das eigene Konto). War die Person nicht drin, ist das ein
- *  Fehler und kein stilles Nichts. */
+ *  (userId = das eigene Konto). War die Person nicht als Gast drin (auch
+ *  ein Mitglied mit Rolle 'umzug'), ist das ein Fehler und kein stilles
+ *  Nichts. Seit 0048 gehen die Dinge mit, die sie als Erste hingestellt
+ *  hat (sie stehen danach wieder am Startplatz). */
 export async function siedlungEntfernen(siedlungId: string, userId: string): Promise<void> {
   const res = await supabase.rpc('siedlung_entfernen', { p_siedlung: siedlungId, p_user: userId })
   if (res.error) throw new Error(errText(res.error))
@@ -1904,12 +1944,20 @@ export async function siedlungEntfernen(siedlungId: string, userId: string): Pro
 
 /* ------------------------------------------------------ Siedlung E87 (0047)
  * Dinge und Fahrzeuge, die jemand bewegt hat, bleiben dort stehen, wo sie
- * zuletzt hingestellt wurden (siedlung_dinge). Lesen duerfen Besitzer und
- * Gaeste (siedlung_darf, 0046), schreiben nur ueber siedlung_ding_setzen:
- * die Funktion prueft Zugang, Kennung, Zahlen und hoechstens 5000 Dinge je
- * Siedlung. Ablehnungen tragen eine Kennung (kistly:siedlung.*), den Satz
- * macht errText. Die Typen kommen wie oben ohne Eintrag in der
- * Importliste aus. */
+ * zuletzt hingestellt wurden (siedlung_dinge). Lesen duerfen Besitzer,
+ * Gaeste und seit 0048 die Mitglieder im Umzug der eigenen Wohnung
+ * (siedlung_darf), schreiben nur ueber siedlung_ding_setzen: die Funktion
+ * prueft Zugang, Kennung, Zahlen, hoechstens 5000 Dinge je Siedlung und
+ * (0048) hoechstens 500 neue je Konto, ausser fuer den Besitzer. Zurueck an
+ * den Startplatz bringt sie nur der Besitzer (siedlung_dinge_zuruecksetzen).
+ *
+ * Die Lagen sind seit E87b Siedlungsmeter (x nach Osten, z nach Sueden, y
+ * ueber dem Boden der Siedlung = 0, gier wie Pose3D), keine Weltmeter:
+ * die Oberflaeche rechnet beim Laden und Speichern mit
+ * SiedlungWelt3D.rahmen um. Hier geht jede Zahl unveraendert hin und her.
+ *
+ * Ablehnungen tragen eine Kennung (kistly:siedlung.*), den Satz macht
+ * errText. Die Typen kommen wie oben ohne Eintrag in der Importliste aus. */
 type DingLageZeile = import('../components/plan3d/vertrag3d').DingLage3D
 
 /** So viele Zeilen gibt die Datenbank hoechstens auf einmal heraus
@@ -1918,8 +1966,9 @@ const DINGE_SEITE = 1000
 const UUID_FORM = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** Wo Dinge und Fahrzeuge der Siedlung zuletzt hingestellt wurden (alle,
- *  die je bewegt wurden). Nur fuer Besitzer und Gaeste; wer nicht dazu
- *  gehoert, bekommt eine leere Liste (die Zeilen-Sicherheit filtert). */
+ *  die je bewegt wurden), in Siedlungsmetern. Nur fuer wer hinein darf
+ *  (Besitzer, Gaeste, Umzug der eigenen Wohnung); alle anderen bekommen
+ *  eine leere Liste (die Zeilen-Sicherheit filtert). */
 export async function siedlungDinge(siedlungId: string): Promise<DingLageZeile[]> {
   const out: DingLageZeile[] = []
   for (let von = 0; ; von += DINGE_SEITE) {
@@ -1946,11 +1995,13 @@ export async function siedlungDinge(siedlungId: string): Promise<DingLageZeile[]
   }
 }
 
-/** Eine neue Lage speichern (ueberschreibt die alte desselben Dings). Die
- *  Datenbank lehnt ab, wenn man nicht dazu gehoert
+/** Eine neue Lage speichern (ueberschreibt die alte desselben Dings), in
+ *  Siedlungsmetern. Die Datenbank lehnt ab, wenn man nicht dazu gehoert
  *  (kistly:siedlung.kein_zugriff), Kennung oder Zahlen nicht passen
- *  (kistly:siedlung.ding_ungueltig) oder schon 5000 Dinge bewegt wurden
- *  (kistly:siedlung.zu_viele_dinge). */
+ *  (kistly:siedlung.ding_ungueltig), schon 5000 Dinge bewegt wurden
+ *  (kistly:siedlung.zu_viele_dinge) oder das eigene Konto schon 500 neue
+ *  hingestellt hat (kistly:siedlung.zu_viele_eigene_dinge, nicht fuer den
+ *  Besitzer). */
 export async function siedlungDingSetzen(siedlungId: string, l: DingLageZeile): Promise<void> {
   const werte = {
     p_siedlung: siedlungId,
@@ -1964,6 +2015,21 @@ export async function siedlungDingSetzen(siedlungId: string, l: DingLageZeile): 
   }
   const { error } = await supabase.rpc('siedlung_ding_setzen', werte)
   if (error) throw new Error(tg('fehler.siedlung_ding_setzen', { grund: errText(error) }))
+}
+
+/** Bringt ein Ding (dingId) oder alle Dinge der Siedlung (ohne dingId oder
+ *  null) zurueck an ihren Startplatz, indem ihre gespeicherten Lagen
+ *  geloescht werden (0048). Nur der Besitzer; alle anderen bekommen einen
+ *  Fehler (kistly:siedlung.nur_besitzer). Gibt die Zahl der geloeschten
+ *  Lagen zurueck (0: es war keins bewegt). Was andere gerade live sehen,
+ *  aendert das nicht; das sagt die Oberflaeche ueber den Kanal. */
+export async function siedlungDingeZuruecksetzen(siedlungId: string, dingId?: string | null): Promise<number> {
+  const { data, error } = await supabase.rpc('siedlung_dinge_zuruecksetzen', { p_siedlung: siedlungId, p_ding: dingId ?? null })
+  if (error) throw new Error(tg('fehler.siedlung_dinge_zuruecksetzen', { grund: errText(error) }))
+  // Eine Antwort, die es nicht geben duerfte (keine ganze Zahl ab 0):
+  // sichtbar, nicht still.
+  if (typeof data !== 'number' || !Number.isInteger(data) || data < 0) throw new Error(tg('zustand.unbekannter_fehler'))
+  return data
 }
 
 /** Darf ich diesen Grundriss sehen (bin ich im Umzug)? Dann sein Umzug,

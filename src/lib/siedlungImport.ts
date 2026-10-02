@@ -14,7 +14,13 @@
  *
  * stadt (E87) ist die Umgebung aus scripts/stadt-aus-osm.mjs. Fehlt der
  * Schluessel, bleibt eine schon gespeicherte Stadt, wie sie ist; null
- * nimmt sie heraus. */
+ * nimmt sie heraus. stadtPruefen lehnt seit E87b auch Hauskennungen ab,
+ * aus denen sich keine Ding-Kennung bauen laesst (HAUS_ID in stadt.ts),
+ * damit eine solche Datei nicht erst beim Hinstellen scheitert.
+ *
+ * Welche Siedlung eine Datei ersetzt, entscheidet api.ts: auf der Seite
+ * einer Siedlung genau diese (siedlungImportieren mit ersetzeId), beim
+ * ersten Laden die eigene mit derselben Wohnung. */
 import { tg } from './i18n'
 import { siedlungInnenPruefen } from './siedlungInnen'
 import { stadtPruefen } from './stadt'

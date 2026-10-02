@@ -9,7 +9,13 @@
 //  - der Aufruf als Programm (Datei rein, Datei raus, Deko bleibt),
 //  - stadtPruefen (src/lib/stadt.ts) mit guten und kaputten Staedten,
 //  - siedlungDateiLesen (src/lib/siedlungImport.ts) mit und ohne Stadt,
-//  - api.ts, Migration 0047 und das Woerterbuch passen zusammen (am Text).
+//  - api.ts, Migration 0047 und das Woerterbuch passen zusammen (am Text),
+//  - Nacharbeit E87b: Haustuer nie auf einer Brandwand und bei Gleichstand
+//    an der Fassade zum Weg (Reihenhaeuser, gemischte Umlaufrichtung,
+//    schraeger Weg), Luecken in Zaeunen an Tor, Wegen und Strassen,
+//    Flaechen mit Loechern als ein Ring mit Bruecken (gerade-ungerade,
+//    nonzero, Rasterzeile), Wohnhaus mit shop= am Umriss, Haltestellen als
+//    bus_stop, Hauskennungen im Zeichensatz der Ding-Kennungen, 0048 am Text.
 // Alle Namen, Lagen und Kennungen hier sind erfunden.
 // Das Woerterbuch (src/lib/i18n) braucht React; ein Lade-Haken ersetzt es
 // durch tg(key, vars) = 'key {json}'.
@@ -35,7 +41,7 @@ registerHooks({
   },
 })
 const osm = await import('../src/lib/osm.ts')
-const { stadtPruefen, gelaendeHoehe, STADT_GRENZEN } = await import('../src/lib/stadt.ts')
+const { stadtPruefen, gelaendeHoehe, STADT_GRENZEN, HAUS_ID } = await import('../src/lib/stadt.ts')
 const { siedlungDateiLesen } = await import('../src/lib/siedlungImport.ts')
 const umwandler = await import('./stadt-aus-osm.mjs')
 
@@ -193,6 +199,48 @@ weg(6101, [[195, -190], [195, -150]], { waterway: 'river' })
 weg(6102, [[-100, -190], [-100, -180]], { waterway: 'stream', tunnel: 'culvert' })
 weg(6200, [[40, 60], [60, 60], [60, 80]], { barrier: 'hedge' })
 
+/* ---------------------------------------- Nacharbeit E87b (erfunden) */
+
+// Reihenhauszeile ohne Eingaenge, gemischte Umlaufrichtung, schraeger Weg
+// im Norden: jede Tuer muss nach Norden, keine auf eine Brandwand.
+flaeche(8001, [[110, 70], [118, 70], [118, 80], [110, 80]], { building: 'terrace' })
+flaeche(8002, [[126, 70], [118, 70], [118, 80], [126, 80]], { building: 'terrace' })
+flaeche(8003, [[126, 70], [134, 70], [134, 80], [126, 80]], { building: 'terrace' })
+weg(8100, [[100, 66], [145, 61]], { highway: 'residential' })
+// Zwei Haeuser Wand an Wand, Weg 6 m noerdlich, naechster Punkt an der Ecke
+// (frueher Gleichstand Fassade gegen Seitenwand).
+flaeche(8011, [[128, 110], [140, 110], [140, 100], [128, 100]], { building: 'house' })
+flaeche(8012, [[140, 110], [152, 110], [152, 100], [140, 100]], { building: 'house' })
+weg(8101, [[120, 94], [160, 94]], { highway: 'residential' })
+// Eingezaeunte Anlage als geschlossener Ring: Tor-Knoten im Norden, ein
+// Fussweg endet an einem Knoten des Zauns, eine Strasse kreuzt im Osten,
+// ein Fussweg im Sueden.
+{
+  const ring = [[-130, -130], [-122, -130], [-115, -130], [-100, -130], [-100, -105], [-130, -105]]
+  const ids = [8501, 8502, 8503, 8504, 8505, 8506]
+  elemente.push({ type: 'way', id: 8500, nodes: [...ids, ids[0]], geometry: [...ring, ring[0]].map(grad), tags: { barrier: 'fence' } })
+  elemente.push({ type: 'node', id: 8503, ...grad([-115, -130]), tags: { barrier: 'gate' } })
+  elemente.push({ type: 'way', id: 8510, nodes: [8502, laufNr++], geometry: [[-122, -130], [-122, -140]].map(grad), tags: { highway: 'footway' } })
+}
+weg(8511, [[-110, -118], [-90, -118]], { highway: 'residential' })
+weg(8512, [[-120, -115], [-120, -95]], { highway: 'footway' })
+// Wald mit zwei Lichtungen als Multipolygon.
+elemente.push({
+  type: 'relation',
+  id: 7100,
+  tags: { type: 'multipolygon', natural: 'wood' },
+  members: [
+    { type: 'way', ref: 7101, role: 'outer', geometry: [...rechteck(-60, 150, -20, 175), [-60, 150]].map(grad) },
+    { type: 'way', ref: 7102, role: 'inner', geometry: [...rechteck(-50, 155, -40, 165), [-50, 155]].map(grad) },
+    { type: 'way', ref: 7103, role: 'inner', geometry: [...rechteck(-35, 158, -25, 168), [-35, 158]].map(grad) },
+  ],
+})
+// Wohnhaus mit shop= am Umriss: bleibt Wohnhaus, der Laden steht in laeden.
+flaeche(8300, rechteck(-60, 60, -45, 75), { building: 'apartments', shop: 'bakery', name: 'Baeckerei am Umriss' })
+// Haltestelle: highway=bus_stop (mit Wartehaus) und der Bahnsteig daneben.
+knoten(8, [30, -60], { highway: 'bus_stop', amenity: 'shelter', name: 'Haltestelle Erfunden' })
+knoten(9, [30, -45], { public_transport: 'platform', bus: 'yes', name: 'Haltestelle Erfunden' })
+
 // Gelaende: steigt nach Osten (0,1) und Sueden (0,02); Gitter alle 10 m.
 const HOEHEN = { x0: -200, z0: -200, schritt: 10, nx: 41, nz: 41, m: [] }
 const meer = (x, z) => 300 + 0.1 * x + 0.02 * z
@@ -241,6 +289,12 @@ const ARTEN = {
   w4000: ['einkaufszentrum', 2, 4.5, 'flach'],
   w4100: ['supermarkt', 1, 4.5, 'flach'],
   r7000: ['wohnen', 5, 3, 'flach'],
+  w8001: ['haus', 2, 3, 'sattel'],
+  w8002: ['haus', 2, 3, 'sattel'],
+  w8003: ['haus', 2, 3, 'sattel'],
+  w8011: ['haus', 2, 3, 'sattel'],
+  w8012: ['haus', 2, 3, 'sattel'],
+  w8300: ['wohnen', 3, 3, 'flach'],
 }
 for (const [id, soll] of Object.entries(ARTEN)) {
   const h = haus(id)
@@ -282,15 +336,15 @@ gleich('Tuer am Eingang aus der Karte', haus('w2004')?.tuer, { kante: 2, t: 0.5 
 wahr('Zaehler Tuer am Eingang', zahlen.tuerEingang >= 1)
 {
   const { tuerBreite } = await import('../src/components/plan3d/stadtMasse.ts')
-  let schlecht = 0
+  const schlecht = []
   for (const h of stadt.haeuser) {
     const a = h.umriss[h.tuer.kante]
     const b = h.umriss[(h.tuer.kante + 1) % h.umriss.length]
     const l = Math.hypot(b[0] - a[0], b[1] - a[1])
     const rand = tuerBreite(h.art) / 2 + 0.3
-    if (l >= 2 * rand && (h.tuer.t * l < rand - 0.01 || (1 - h.tuer.t) * l < rand - 0.01)) schlecht++
+    if (l >= 2 * rand && (h.tuer.t * l < rand - 0.01 || (1 - h.tuer.t) * l < rand - 0.01)) schlecht.push([h.id, h.tuer, h.umriss])
   }
-  gleich('jede Tuer passt auf ihre Kante', schlecht, 0)
+  gleich('jede Tuer passt auf ihre Kante', schlecht, [])
 }
 
 /* ============================================ 2. Gelaende */
@@ -338,14 +392,14 @@ gleich('fast gerade Linie auf 2 Punkte vereinfacht (0,3 m)', strasse((s) => s.pu
 gleich('Knick von 1 m bleibt', strasse((s) => s.punkte[0][0] === 0 && s.punkte[0][1] === -40)[0]?.punkte.length, 3)
 gleich('Platz als Flaeche (area=yes) ist keine Linie', strasse((s) => s.punkte[0][0] === -190 && s.punkte[0][1] === 100).length, 0)
 gleich('Gewaesser (Bach 3 m, Fluss 25 m, Durchlass weg)', stadt.gewaesser.map((w) => w.breite).sort((a, b) => a - b), [3, 25])
-gleich('Hecke', stadt.zaeune.map((z) => [z.art, z.punkte.length]), [['hecke', 3]])
+gleich('Hecke', stadt.zaeune.filter((z) => z.art === 'hecke').map((z) => [z.art, z.punkte.length]), [['hecke', 3]])
 
 /* ============================================ 4. Flaechen, Baeume, Orte */
 
 const wald = stadt.flaechen.find((f) => f.art === 'wald')
 wahr('Wald am Rahmen gekappt', !!wald && Math.max(...wald.punkte.map((p) => p[0])) === 200 && Math.min(...wald.punkte.map((p) => p[0])) === 150)
 wahr('Schwimmbad und Parkplatz', stadt.flaechen.some((f) => f.art === 'schwimmbad') && stadt.flaechen.some((f) => f.art === 'parkplatz'))
-wahr('Feuerwehr- und Spitalflaeche sind keine Flaechen zum Zeichnen', stadt.flaechen.length === 3)
+wahr('Feuerwehr- und Spitalflaeche sind keine Flaechen zum Zeichnen', stadt.flaechen.length === 4)
 {
   const fl = stadt.flaechen.map((f) => Math.abs(umwandler.flaeche(f.punkte)))
   wahr('grosse Flaechen zuerst', fl.every((v, i) => i === 0 || v <= fl[i - 1]))
@@ -370,6 +424,161 @@ wahr('Ort am Haus steht an der Tuer', (() => {
   const b = h.umriss[(h.tuer.kante + 1) % h.umriss.length]
   return Math.hypot(a[0] + h.tuer.t * (b[0] - a[0]) - o.x, a[1] + h.tuer.t * (b[1] - a[1]) - o.z) < 0.1
 })())
+
+/* ============================================ 4b. Nacharbeit E87b */
+
+/** Tuerpunkt und Normale nach aussen (Flaeche > 0: Haus links der Kante). */
+function tuerLage(h) {
+  if (!h) return null
+  const u = h.umriss
+  const a = u[h.tuer.kante]
+  const b = u[(h.tuer.kante + 1) % u.length]
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+  const s = umwandler.flaeche(u) > 0 ? 1 : -1
+  return { p: [a[0] + h.tuer.t * (b[0] - a[0]), a[1] + h.tuer.t * (b[1] - a[1])], n: [(s * (b[1] - a[1])) / l, (-s * (b[0] - a[0])) / l] }
+}
+const imHaus = (q, h) => umwandler.imRing(q, h.umriss) && !(h.loecher ?? []).some((l) => umwandler.imRing(q, l))
+/** Abstand Punkt zu Strecke. */
+function abstandPS(q, a, b) {
+  const dx = b[0] - a[0]
+  const dz = b[1] - a[1]
+  const l2 = dx * dx + dz * dz
+  const t = l2 > 0 ? Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dz) / l2)) : 0
+  return Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dz)
+}
+/** Umlaufzahl (fuer Fuellen nach nonzero, wie canvas und SVG). */
+function umlauf(q, ring) {
+  let w = 0
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]
+    const b = ring[(i + 1) % ring.length]
+    const kreuz = (b[0] - a[0]) * (q[1] - a[1]) - (q[0] - a[0]) * (b[1] - a[1])
+    if (a[1] <= q[1] && b[1] > q[1] && kreuz > 0) w++
+    else if (a[1] > q[1] && b[1] <= q[1] && kreuz < 0) w--
+  }
+  return w
+}
+/** Rasterzeile wie flaechenRaster in stadt3d.ts: ist x auf Hoehe z innen? */
+function inZeile(x, z, ring) {
+  const xs = []
+  for (let a = 0, b = ring.length - 1; a < ring.length; b = a++) {
+    const p0 = ring[a]
+    const p1 = ring[b]
+    if (p0[1] > z !== p1[1] > z) xs.push(p0[0] + ((z - p0[1]) * (p1[0] - p0[0])) / (p1[1] - p0[1]))
+  }
+  xs.sort((u, v) => u - v)
+  for (let q = 0; q + 1 < xs.length; q += 2) if (x >= xs[q] && x <= xs[q + 1]) return true
+  return false
+}
+
+// Haustuer: nie auf der Brandwand, bei Gleichstand die Fassade zum Weg.
+for (const id of ['w8001', 'w8002', 'w8003', 'w8011', 'w8012']) {
+  const t = tuerLage(haus(id))
+  wahr(`Tuer ${id} an der Fassade zum Weg im Norden (ist ${JSON.stringify(haus(id)?.tuer)})`, !!t && t.n[1] < -0.99)
+}
+gleich('Wand an Wand, Weg 6 m noerdlich: Tuer auf Kante 2, nicht auf der Seitenwand', [haus('w8011')?.tuer.kante, haus('w8012')?.tuer.kante], [2, 2])
+gleich(
+  'vor keiner Tuer steht ein anderes Haus (0,9 m nach aussen)',
+  stadt.haeuser
+    .filter((h) => {
+      const t = tuerLage(h)
+      const q = [t.p[0] + t.n[0] * 0.9, t.p[1] + t.n[1] * 0.9]
+      return stadt.haeuser.some((g) => g !== h && imHaus(q, g))
+    })
+    .map((h) => h.id),
+  [],
+)
+
+// Zaeune: Luecken an Tor, Wegen und Strassen; der Ring wird zu Stuecken.
+{
+  const zaun = stadt.zaeune.filter((x) => x.art === 'zaun')
+  const abstand = (q) => Math.min(...zaun.flatMap((x) => x.punkte.slice(1).map((p, i) => abstandPS(q, x.punkte[i], p))))
+  gleich('eingezaeunter Ring: 4 Stuecke (Tor, Fussweg am Knoten, Strasse, Fussweg)', zaun.length, 4)
+  wahr(`Tor offen (1,2 m), Abstand ${abstand([-115, -130]).toFixed(2)}`, abstand([-115, -130]) >= 0.5)
+  wahr(`Fussweg am Knoten des Zauns offen, Abstand ${abstand([-122, -130]).toFixed(2)}`, abstand([-122, -130]) >= 0.9)
+  wahr(`Strasse offen (5,5 m + 1 m), Abstand ${abstand([-100, -118]).toFixed(2)}`, abstand([-100, -118]) >= 3.1)
+  wahr(`Fussweg durch den Zaun offen, Abstand ${abstand([-120, -105]).toFixed(2)}`, abstand([-120, -105]) >= 0.9)
+  wahr('Zaun sonst durchgehend (Suedwestecke, Nordostecke)', abstand([-130, -105]) < 0.01 && abstand([-100, -130]) < 0.01)
+  nahe('Laenge des Zauns = Umfang ohne Luecken', zaun.reduce((acc, x) => acc + x.punkte.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - x.punkte[i][0], p[1] - x.punkte[i][1]), 0), 0), 110 - (2 + 1.2 + 6.5 + 2), 0.5)
+  wahr('Zaehler Luecken in Zaeunen', zahlen.zaunLuecken >= 4)
+  const runden = (teile) => teile.map((t) => t.map((p) => [umwandler.r1(p[0]), umwandler.r1(p[1])]))
+  gleich('linieTeilen: offene Linie, Luecke in der Mitte', runden(umwandler.linieTeilen([[0, 0], [10, 0]], [{ s: 5, halb: 1 }], false)), [[[0, 0], [4, 0]], [[6, 0], [10, 0]]])
+  gleich('linieTeilen: offene Linie, Luecke am Ende', runden(umwandler.linieTeilen([[0, 0], [10, 0]], [{ s: 10, halb: 1 }], false)), [[[0, 0], [9, 0]]])
+  const ring = [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]
+  gleich('linieTeilen: Ring, Luecke ueber den Anfang', runden(umwandler.linieTeilen(ring, [{ s: 0, halb: 1 }], true)), [[[1, 0], [10, 0], [10, 10], [0, 10], [0, 1]]])
+  gleich('linieTeilen: Ring, zwei Luecken, Stueck ueber den Anfang bleibt eines', runden(umwandler.linieTeilen(ring, [{ s: 5, halb: 1 }, { s: 25, halb: 1 }], true)), [
+    [[6, 0], [10, 0], [10, 10], [6, 10]],
+    [[4, 10], [0, 10], [0, 0], [4, 0]],
+  ])
+  gleich('linieTeilen: Luecke groesser als der Ring', umwandler.linieTeilen(ring, [{ s: 3, halb: 30 }], true), [])
+  gleich('linieTeilen: ohne Luecken bleibt die Linie', umwandler.linieTeilen([[0, 0], [1, 0]], [], false), [[[0, 0], [1, 0]]])
+}
+
+// Flaechen mit Loechern: ein Ring mit Bruecken, Lichtungen bleiben frei.
+{
+  const imKasten = (f) => f.punkte.every((p) => p[0] >= -60 && p[0] <= -20 && p[1] >= 150 && p[1] <= 175)
+  const w = stadt.flaechen.find((f) => f.art === 'wald' && imKasten(f))
+  wahr('Wald mit zwei Lichtungen ist eine Flaeche', !!w)
+  if (w) {
+    nahe('Flaeche des Rings = Wald ohne Lichtungen (1000 - 100 - 100 m2)', umwandler.flaeche(w.punkte), 800, 1e-6)
+    wahr('Lichtungen frei bei gerade-ungerade (Punkt im Vieleck)', !umwandler.imRing([-45, 160], w.punkte) && !umwandler.imRing([-30, 163], w.punkte))
+    wahr('Wald drumherum und dazwischen innen', [[-55, 152], [-37.5, 160], [-22, 172], [-45, 170]].every((q) => umwandler.imRing(q, w.punkte)))
+    gleich('Fuellen nach nonzero (canvas, SVG): Lichtung 0, Wald 1', [umlauf([-45, 160], w.punkte), umlauf([-30, 163], w.punkte), umlauf([-55, 152], w.punkte), umlauf([-37.5, 160], w.punkte)], [0, 0, 1, 1])
+    wahr('Rasterzeile wie stadt3d: Lichtung frei, Wald daneben innen', !inZeile(-45, 160, w.punkte) && !inZeile(-30, 163.3, w.punkte) && inZeile(-55, 160, w.punkte) && inZeile(-37.5, 160, w.punkte))
+  }
+  wahr('alle Flaechen laufen positiv', stadt.flaechen.every((f) => umwandler.flaeche(f.punkte) > 0))
+  gleich('Zaehler Loecher ohne Bruecke', zahlen.loecherOhneBruecke, 0)
+  const zwei = umwandler.lochBruecken(rechteck(0, 0, 10, 10), [rechteck(2, 2, 4, 4), rechteck(6, 6, 8, 8)])
+  gleich('lochBruecken: zwei Loecher, Punkte und Flaeche', [zwei.ohne, zwei.ring.length, umwandler.flaeche(zwei.ring)], [0, 16, 92])
+  wahr('lochBruecken: Loecher frei, dazwischen innen', !umwandler.imRing([3, 3], zwei.ring) && !umwandler.imRing([7, 7], zwei.ring) && umwandler.imRing([5, 5], zwei.ring) && umwandler.imRing([1, 9], zwei.ring))
+  const zuViel = umwandler.lochBruecken(rechteck(0, 0, 10, 10), [rechteck(4, 4, 6, 6)], 6)
+  gleich('lochBruecken: ueber maxPunkte faellt das Loch weg (gezaehlt)', [zuViel.ohne, zuViel.ring.length], [1, 4])
+  // Ein Loch im Loch (kaputte Karte): keine Bruecke kreuzt das grosse Loch,
+  // also faellt das kleine weg (gezaehlt), das grosse bleibt frei.
+  const imLoch = umwandler.lochBruecken(rechteck(0, 0, 30, 10), [rechteck(4, 2, 26, 8), rechteck(12, 4, 18, 6)])
+  gleich('lochBruecken: Loch im Loch wird nicht verbunden, sondern gezaehlt', [imLoch.ohne, umwandler.imRing([15, 5], imLoch.ring), umwandler.imRing([8, 5], imLoch.ring), umwandler.imRing([2, 5], imLoch.ring)], [1, false, false, true])
+  // Ein Loch hinter einem anderen: die naechste Bruecke kreuzte das erste.
+  const hinten = umwandler.lochBruecken([[0, 0], [30, 0], [30, 10], [15, 10], [0, 10]], [rechteck(5, 2, 25, 8), rechteck(14, 0.5, 16, 1.5)])
+  wahr('lochBruecken: Loch im Schatten eines anderen, Bruecke kreuzt nichts', hinten.ohne === 0 && !umwandler.imRing([15, 1], hinten.ring) && !umwandler.imRing([10, 5], hinten.ring) && umwandler.imRing([15, 9], hinten.ring) && umwandler.imRing([2, 1], hinten.ring))
+}
+
+// Wohnhaus mit shop= am Umriss, Haltestellen, Kennungen.
+{
+  const leer = { bereiche: new Set(), knoten: [], landuse: null, geschosse: null, flaeche: 300 }
+  gleich(
+    'hausArt: Wohnhaus mit shop= oder Gastro am Umriss bleibt Wohnhaus',
+    [
+      umwandler.hausArt({ building: 'apartments', shop: 'bakery' }, leer),
+      umwandler.hausArt({ building: 'apartments', shop: 'supermarket' }, leer),
+      umwandler.hausArt({ building: 'house', amenity: 'restaurant' }, leer),
+      umwandler.hausArt({ building: 'residential', amenity: 'cafe' }, leer),
+    ],
+    ['wohnen', 'wohnen', 'haus', 'wohnen'],
+  )
+  gleich(
+    'hausArt: offene Haeuser mit shop= bleiben Laden',
+    [umwandler.hausArt({ building: 'yes', shop: 'bakery' }, leer), umwandler.hausArt({ building: 'retail', shop: 'clothes' }, leer), umwandler.hausArt({ building: 'yes', amenity: 'restaurant' }, leer), umwandler.hausArt({ building: 'yes', shop: 'supermarket' }, leer)],
+    ['laden', 'laden', 'laden', 'supermarkt'],
+  )
+  gleich('Wohnhaus mit shop= am Umriss: Laden in laeden', haus('w8300')?.laeden, [{ name: 'Baeckerei am Umriss', art: 'bakery' }])
+  gleich('Haltestelle (bus_stop mit Wartehaus und Bahnsteig) einmal, als bus_stop', orte('Haltestelle Erfunden').map((o) => [o.art, o.x, o.z, o.haus ?? null]), [['bus_stop', 30, -60, null]])
+  wahr('alle Hauskennungen im Zeichensatz der Ding-Kennungen (HAUS_ID)', stadt.haeuser.every((h) => HAUS_ID.test(h.id)) && stadt.haeuser.every((h) => /^[A-Za-z0-9:._-]{1,120}$/.test(`stadt:${h.id}:d0:ding`)))
+  gleich('keine Kennung ersetzt', zahlen.kennungErsetzt, 0)
+  wahr('HAUS_ID: w123, r123_2 gut; Leerzeichen, Doppelpunkt, Umlaut, leer, 65 Zeichen schlecht', ['w123', 'r123_2', 'x0a1b2c3d_2'].every((k) => HAUS_ID.test(k)) && !['Haus 1', 'a:1', 'B' + String.fromCharCode(0xe4) + 'ckerei', '', 'x'.repeat(65)].some((k) => HAUS_ID.test(k)))
+  // Ein von Hand gebauter Auszug mit Kennungen, die nicht passen.
+  const hand = []
+  const hausWeg = (id, r) => hand.push({ type: 'way', id, nodes: [1, 2, 3, 4, 1], geometry: [...r, r[0]].map(grad), tags: { building: 'yes' } })
+  hausWeg('a b', rechteck(100, -60, 110, -50))
+  hausWeg(77, rechteck(120, -60, 130, -50))
+  hausWeg('c:d', rechteck(140, -60, 150, -50))
+  const lauf = () => umwandler.stadtAusOsm({ osm: { elements: hand }, hoehen: HOEHEN, siedlung: SIEDLUNG })
+  const h1 = lauf()
+  const h2 = lauf()
+  const ids1 = h1.stadt.haeuser.map((h) => h.id)
+  wahr(`Hand-Auszug: Kennungen ersetzt und gueltig (${ids1.join(' ')})`, h1.zahlen.kennungErsetzt === 2 && ids1.includes('w77') && ids1.every((k) => HAUS_ID.test(k)) && new Set(ids1).size === 3)
+  gleich('Hand-Auszug: ersetzte Kennungen bei jedem Lauf gleich', h2.stadt.haeuser.map((h) => h.id), ids1)
+  gleich('Hand-Auszug: stadtPruefen', stadtPruefen(h1.stadt), [])
+}
 
 /* ============================================ 5. Runden und Rahmen */
 {
@@ -428,7 +637,7 @@ try {
   gleich('Programm: alles andere unveraendert (auch deko)', ohne, DATEI)
   gleich('Programm: alte Datei bleibt', readFileSync(pfad('siedlung.json'), 'utf8'), dateiText)
   wahr('Programm druckt keine Namen', !/Erfunden|Wache|Spital Erf|Mode|Gasse/.test(aus))
-  wahr('Programm druckt Zahlen', /Haeuser 11 /.test(aus) && /Byte/.test(aus))
+  wahr('Programm druckt Zahlen', /Haeuser 17 /.test(aus) && /Byte/.test(aus))
   let abgelehnt = false
   try {
     execFileSync(process.execPath, [skript, '--osm', pfad('osm.json'), '--hoehen', pfad('hoehen.json'), '--siedlung', pfad('siedlung.json'), '--aus', pfad('siedlung.json')], { stdio: 'pipe' })
@@ -452,6 +661,9 @@ try {
   const kaputt = tiefKopie(neu)
   kaputt.siedlung.stadt.haeuser[0].tuer.kante = 99
   wirft('Import: kaputte Tuer', () => siedlungDateiLesen(JSON.stringify(kaputt)), 'stadt haeuser[0].tuer')
+  const kaputteKennung = tiefKopie(neu)
+  kaputteKennung.siedlung.stadt.haeuser[0].id = 'Haus 1'
+  wirft('Import: Hauskennung mit Leerzeichen (E87b)', () => siedlungDateiLesen(JSON.stringify(kaputteKennung)), 'stadt haeuser[0].id')
   const falscheArt = tiefKopie(neu)
   falscheArt.siedlung.stadt.art = 'etwas'
   wirft('Import: falsche Art der Stadt', () => siedlungDateiLesen(JSON.stringify(falscheArt)), 'stadt art')
@@ -496,6 +708,11 @@ kaputt('unbekanntes Dach', (s) => (s.haeuser[0].dach = 'kuppel'), 'haeuser[0].da
 kaputt('Boden als Text', (s) => (s.haeuser[0].boden = '3'), 'haeuser[0].boden')
 kaputt('Farbe als Wort', (s) => (s.haeuser[0].farbe = 'red'), 'haeuser[0].farbe')
 kaputt('Kennung doppelt', (s) => (s.haeuser[1].id = s.haeuser[0].id), 'haeuser[1].id')
+kaputt('Kennung mit Leerzeichen', (s) => (s.haeuser[1].id = 'Haus 12'), 'haeuser[1].id')
+kaputt('Kennung mit Doppelpunkt', (s) => (s.haeuser[1].id = 'a:1'), 'haeuser[1].id')
+kaputt('Kennung mit Umlaut', (s) => (s.haeuser[1].id = 'B' + String.fromCharCode(0xe4) + 'ckerei'), 'haeuser[1].id')
+kaputt('Kennung mit 65 Zeichen', (s) => (s.haeuser[1].id = 'x'.repeat(65)), 'haeuser[1].id')
+kaputt('Kennung als Zahl', (s) => (s.haeuser[1].id = 12), 'haeuser[1].id')
 kaputt('Laden ohne Namen', (s) => (s.haeuser[0].laeden = [{ name: '', art: 'bakery' }]), 'haeuser[0].laeden[0]')
 kaputt('Gelaende zu kurz', (s) => s.gelaende.dm.pop(), 'gelaende.dm')
 kaputt('Gelaende mit Bruch', (s) => (s.gelaende.dm[7] = 1.5), 'gelaende.dm[7]')
@@ -562,6 +779,35 @@ for (const hint of new Set([...code.matchAll(/hint = 'kistly:([\w.]+)'/g)].map((
 for (const k of ['fehler.db.siedlung.stadt_ungueltig', 'fehler.siedlung_stadt', 'fehler.siedlung_dinge_laden', 'fehler.siedlung_ding_setzen']) {
   wahr(`Woerterbuch: ${k}`, woerter.includes(`'${k}'`))
 }
+
+// 0048 (E87b): Dinge mit erstellt_von, Grenze je Konto, Zuruecksetzen.
+{
+  const sql48 = lesen('supabase/migrations/0048_siedlung_nacharbeit.sql')
+  const code48 = sql48.replace(/--[^\n]*/g, '')
+  const flach48 = code48.replace(/\s+/g, ' ')
+  const fn = (name) => flach48.match(new RegExp(`create (?:or replace )?function public\\.${name}\\(.*?\\$fn\\$(.*?)\\$fn\\$`))?.[1] ?? ''
+  const setzen = fn('siedlung_ding_setzen')
+  const zurueck = fn('siedlung_dinge_zuruecksetzen')
+  const weg = fn('siedlung_entfernen')
+  wahr('0048: erstellt_von neu, alte Zeilen aus geaendert_von', flach48.includes('alter table public.siedlung_dinge add column erstellt_von uuid references auth.users(id) on delete set null;') && flach48.includes('update public.siedlung_dinge set erstellt_von = geaendert_von where erstellt_von is null;'))
+  wahr('0048: erstellt_von nur beim ersten Eintrag', /insert into public\.siedlung_dinge as d \([^)]*erstellt_von[^)]*\)/.test(setzen) && !/set [^;]*erstellt_von/.test(setzen.slice(setzen.indexOf('on conflict'))))
+  wahr('0048: Grenzen 5000 je Siedlung und 500 je Konto unter der Sperre, ausser Besitzer', setzen.indexOf('pg_advisory_xact_lock') < setzen.indexOf('>= 5000') && setzen.indexOf('>= 5000') < setzen.indexOf('>= 500 then') && setzen.includes('d.erstellt_von = v_uid) >= 500') && setzen.includes('if not exists (select 1 from public.siedlungen s where s.id = p_siedlung and s.owner_id = v_uid)'))
+  wahr('0048: Kennung der Dinge wie die Tabelle (0047)', (code48.match(/\^\[A-Za-z0-9:\._-\]\{1,120\}\$/g) ?? []).length === 1)
+  wahr('0048: Zuruecksetzen nur Besitzer, freigeschaltet, eins oder alle, Zahl zurueck', zurueck.includes("hint = 'kistly:siedlung.nur_besitzer'") && zurueck.includes('public.ist_freigegeben() and exists (select 1 from public.siedlungen s where s.id = p_siedlung and s.owner_id = v_uid)') && zurueck.includes('(p_ding is null or d.ding_id = p_ding)') && zurueck.includes('get diagnostics v_n = row_count'))
+  wahr('0048: Zuruecksetzen security definer, integer', /create function public\.siedlung_dinge_zuruecksetzen\(p_siedlung uuid, p_ding text default null\) returns integer language plpgsql security definer set search_path = public as/.test(flach48))
+  wahr('0048: Herausnehmen nimmt die Dinge des Gastes mit (nach der Pruefung)', weg.indexOf('if not found then') < weg.indexOf('delete from public.siedlung_dinge d where d.siedlung_id = p_siedlung and d.erstellt_von = p_user'))
+  for (const hint of new Set([...code48.matchAll(/hint = 'kistly:([\w.]+)'/g)].map((m) => m[1]))) {
+    const k = `'fehler.db.${hint}'`
+    wahr(`Woerterbuch (0048): ${k} mit de und ar`, new RegExp(`${k.replace(/\./g, '\\.')}: \\{\\s*de: '[^']+',\\s*ar: '[^']+'`).test(woerter))
+  }
+  for (const k of ['fehler.siedlung_dinge_zuruecksetzen', 'fehler.siedlung_ersetzen']) wahr(`Woerterbuch: ${k}`, woerter.includes(`'${k}'`))
+  const sqlParameter = [...(flach48.match(/create function public\.siedlung_dinge_zuruecksetzen\(([^)]*)\)/)?.[1] ?? '').matchAll(/(p_\w+)/g)].map((m) => m[1])
+  const fnApi = zwischen(api, 'export async function siedlungDingeZuruecksetzen', '\n}')
+  gleich('api: Parameter von siedlung_dinge_zuruecksetzen', [...(fnApi.match(/rpc\('siedlung_dinge_zuruecksetzen', \{([^}]*)\}/)?.[1] ?? '').matchAll(/(p_\w+):/g)].map((m) => m[1]), sqlParameter)
+  wahr('api: siedlungDingeZuruecksetzen wie vereinbart', /export async function siedlungDingeZuruecksetzen\(siedlungId: string, dingId\?: string \| null\): Promise<number>/.test(api))
+  wahr('api: siedlungImportieren mit opt.ersetzeId', /export async function siedlungImportieren\(\s*d: import\('\.\/siedlungImport'\)\.SiedlungDatei,\s*opt\?: \{ ersetzeId\?: string \},\s*\)/.test(api))
+}
+
 for (const datei of [
   'scripts/stadt-aus-osm.mjs',
   'scripts/stadt-daten-pruefen.mjs',
@@ -570,6 +816,7 @@ for (const datei of [
   'src/lib/api.ts',
   'src/lib/i18n/bausteine/fehler.ts',
   'supabase/migrations/0047_siedlung_stadt_dinge.sql',
+  'supabase/migrations/0048_siedlung_nacharbeit.sql',
 ]) {
   wahr(`${datei} ohne langen Gedankenstrich`, !lesen(datei).includes(String.fromCharCode(0x2014)))
 }

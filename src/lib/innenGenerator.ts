@@ -4314,7 +4314,10 @@ function kircheEinrichten(c: Ctx, st: Stock, r: number): void {
 
 /* ============================================================ Dinge */
 
-const DING_MASSE: Record<DingArt, [number, number, number]> = {
+/** Breite, Tiefe und Hoehe (Meter) je Art. E87b: auch fuer innen3d.ts, das
+ *  ein weggetragenes Ding allein aus seiner Kennung wieder baut (die Art
+ *  steht am Ende der Kennung, die Masse kommen von hier). */
+export const DING_MASSE: Record<DingArt, [number, number, number]> = {
   ball: [0.22, 0.22, 0.22],
   buch: [0.17, 0.24, 0.035],
   tasse: [0.09, 0.09, 0.1],

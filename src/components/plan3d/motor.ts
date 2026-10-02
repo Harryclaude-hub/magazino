@@ -89,6 +89,17 @@
  * Ebene (strahlZiel), nie gegen die Dreiecke der ganzen Stadt: das kostete
  * am Rechner Millisekunden je Bild. Klick, Tipp oder hinstellen() stellen
  * es hin, R, Umschalt+R, Mausrad und drehen() drehen es um 45 Grad.
+ *
+ * Nacharbeit (E87b): greifen und zielen nur auf Dinge im eigenen Geschoss
+ * (dingGreifbar in hinstellen.ts; die Ebenen kennen keine Decke). Die
+ * Sichtbarkeit unbewegter Dinge bestimmt die Welt. Lenkt ein Mitspieler
+ * ein Fahrzeug, das es hier nicht gibt, sitzt seine Figur an ihrer
+ * Stellung. Dieselbe Lage noch einmal (Neubau der Welt) wirft nichts aus
+ * der Hand. Beim Abbau und wenn die Welt beim Fahren geht, meldet bewegt()
+ * die Lage des Fahrzeugs. Fehlt nach einer neuen Welt die Ebene, auf der
+ * man stand, wartet der Motor bis zu 5 s auf sie (EBENE_WARTEN_MS). Fuer
+ * gemerkte Lagen unbekannter Kennungen baut die Welt das Ding einzeln
+ * (Welt3D.dingErzeugen).
  */
 import {
   AmbientLight,
@@ -166,6 +177,7 @@ import {
 import {
   DREH_STUFE_RAD,
   REICHWEITE_M,
+  dingGreifbar,
   hinstellenPruefen,
   stellErgebnis,
   strahlTreffer,
@@ -257,10 +269,150 @@ export function ankunftsEbene(eb: Ebenen, ziel: number, y: number): number {
 export function ebeneWiederfinden(eb: Ebenen, m: EbeneMerk): number {
   if (m.wohnung) return eb.wohnIndex
   if (m.id !== null) {
-    if (eb.gibt(m.index) && eb.liste[m.index].id === m.id) return m.index
+    if (m.index >= 0 && eb.gibt(m.index) && eb.liste[m.index].id === m.id) return m.index
     for (let i = 0; i < eb.liste.length; i++) if (eb.liste[i].id === m.id && eb.gibt(i)) return i
   }
   return naechsteOderAktive(eb, m.y)
+}
+
+/** So lange (ms) wartet der Motor nach einer neuen Welt beim Begehen auf
+ *  die Ebene, auf der man stand, wenn es ihre Kennung (noch) nicht gibt
+ *  (E87b): die Geschosse eines Hauses der Stadt kommen erst, wenn es fertig
+ *  gebaut ist. */
+export const EBENE_WARTEN_MS = 5000
+
+/** Warten auf eine Ebene (E87b): ihre Kennung, der Boden, auf dem man
+ *  stand, die Treppe darauf (Kennung oder null) und bis wann (ms, Uhr von
+ *  performance.now). */
+export interface EbeneWarten {
+  id: string
+  y: number
+  treppe: string | null
+  bis: number
+}
+
+/** Index der ersten begehbaren Ebene mit dieser Kennung, sonst -1. */
+export function ebeneMitKennung(eb: Ebenen, id: string): number {
+  for (let i = 0; i < eb.liste.length; i++) if (eb.liste[i].id === id && eb.gibt(i)) return i
+  return -1
+}
+
+/** Nach einer neuen Welt beim Begehen (E87b): muss man auf die Ebene von
+ *  vorher warten? Ja, wenn man nicht auf der Wohnung stand, die Welt eine
+ *  version() hat (nur dann kann die Ebene spaeter kommen) und es ihre
+ *  Kennung in eb (schon mit den neuen Ebenen) nicht gibt. Wartete man schon
+ *  auf dieselbe Kennung (neue Welt mitten im Warten), gilt die alte Frist.
+ *  Sonst null: dann wie bisher ebeneWiederfinden. */
+export function ebeneWartenAb(eb: Ebenen, m: EbeneMerk, mitVersion: boolean, treppe: string | null, jetzt: number, alt: EbeneWarten | null): EbeneWarten | null {
+  if (m.wohnung || m.id === null || !mitVersion || !Number.isFinite(jetzt)) return null
+  if (ebeneMitKennung(eb, m.id) >= 0) return null
+  const bis = alt && alt.id === m.id && Number.isFinite(alt.bis) ? alt.bis : jetzt + EBENE_WARTEN_MS
+  return { id: m.id, y: m.y, treppe, bis }
+}
+
+/** Beim Warten (E87b, jedes Bild und nach jeder neuen version()): der
+ *  Index der Ebene, sobald es sie gibt; -1, solange weiter gewartet wird;
+ *  -2, wenn die Frist um ist (dann wie ohne Warten). */
+export function ebeneWartenPruefen(eb: Ebenen, w: EbeneWarten, jetzt: number): number {
+  const i = ebeneMitKennung(eb, w.id)
+  if (i >= 0) return i
+  return jetzt >= w.bis ? -2 : -1
+}
+
+/** Bis so weit (Meter) und so viel Drehung (rad) gelten zwei Lagen als
+ *  dieselbe (E87b): Neubau der Welt, Umrechnung in den Rahmen der Siedlung
+ *  und zurueck. */
+export const LAGE_GLEICH_M = 0.01
+export const LAGE_GLEICH_RAD = 0.01
+
+/** Dieselbe Lage (E87b)? Gleiche Kennung und Art, Stelle auf LAGE_GLEICH_M
+ *  und Drehung auf LAGE_GLEICH_RAD (ueber +-pi hinweg), gleiche Ebene;
+ *  fehlt die Ebene auf einer Seite (''), zaehlt sie nicht. Kaputte Zahlen:
+ *  nein. */
+export function lageGleich(a: DingLage3D, b: DingLage3D): boolean {
+  if (a.id !== b.id || a.art !== b.art) return false
+  if (a.ebene && b.ebene && a.ebene !== b.ebene) return false
+  // winkelDiff kaeme mit unendlich nie zurueck.
+  if (!Number.isFinite(a.gier) || !Number.isFinite(b.gier)) return false
+  const g = Math.abs(winkelDiff(a.gier, b.gier))
+  return Math.abs(a.x - b.x) <= LAGE_GLEICH_M && Math.abs(a.y - b.y) <= LAGE_GLEICH_M && Math.abs(a.z - b.z) <= LAGE_GLEICH_M && g <= LAGE_GLEICH_RAD
+}
+
+/** Sichtbarkeit eines Dings der Welt in diesem Bild (E87b, teileSichtbar):
+ *  bewegt (vom Motor hingestellt, abgelegt, Lage aus lage()) oder in der
+ *  Hand: immer zu sehen. Sonst entscheidet die Welt (o.visible, etwa je
+ *  Geschoss), und der Motor setzt nichts, ausser herkunftSichtbar ist
+ *  falsch (der Elternteil in der Welt, aus dem es kam, ist aus): dann aus,
+ *  vermerkt in d.versteckt, und nur dieses eigene Ausblenden nimmt er
+ *  zurueck, sobald der Elternteil wieder an ist. Ohne neues Objekt. */
+export function dingSichtbarkeit(o: { visible: boolean }, d: { versteckt: boolean }, bewegt: boolean, herkunftSichtbar: boolean): void {
+  if (bewegt) {
+    d.versteckt = false
+    if (!o.visible) o.visible = true
+  } else if (!herkunftSichtbar) {
+    if (o.visible) {
+      o.visible = false
+      d.versteckt = true
+    }
+  } else if (d.versteckt) {
+    d.versteckt = false
+    o.visible = true
+  }
+}
+
+/** Kennungen, fuer die die Welt ein Ding einzeln bauen soll (E87b,
+ *  Welt3D.dingErzeugen): gemerkte Lagen, deren Kennung in der Welt fehlt.
+ *  Je Welt wird jede Kennung hoechstens einmal gefragt, je Bild nur wenige
+ *  (schritt). */
+export class ErzeugenListe {
+  private gefragt = new Set<string>()
+  private readonly warte: string[] = []
+  private readonly drin = new Set<string>()
+
+  /** Neue Welt (oder keine): nichts wartet, jede Kennung darf wieder
+   *  einmal gefragt werden. */
+  neu(): void {
+    this.gefragt = new Set()
+    this.warte.length = 0
+    this.drin.clear()
+  }
+
+  /** Wie viele warten. */
+  get laenge(): number {
+    return this.warte.length
+  }
+
+  /** Wurde id in dieser Welt schon gefragt? */
+  schonGefragt(id: string): boolean {
+    return this.gefragt.has(id)
+  }
+
+  /** id vormerken (sie fehlt in der Welt, eine Lage ist gemerkt), wenn sie
+   *  in dieser Welt noch nicht gefragt wurde und nicht schon wartet. */
+  vormerken(id: string): void {
+    if (this.gefragt.has(id) || this.drin.has(id)) return
+    this.drin.add(id)
+    this.warte.push(id)
+  }
+
+  /** Ein Bild: fuer wartende Kennungen, die noch fehlen (fehlt(id); sonst
+   *  fallen sie still weg, die Welt hat sie inzwischen), erzeugen(id) rufen
+   *  (true: gebaut). Hoechstens jeBild gebaute und fragen Fragen; die
+   *  gebauten Kennungen kommen nach gebaut. Gibt zurueck, wie oft gefragt
+   *  wurde. Fehler faengt erzeugen selbst ab. */
+  schritt(fehlt: (id: string) => boolean, erzeugen: (id: string) => boolean, jeBild: number, fragen: number, gebaut: string[]): number {
+    gebaut.length = 0
+    let n = 0
+    while (this.warte.length && gebaut.length < jeBild && n < fragen) {
+      const id = this.warte.pop() as string
+      this.drin.delete(id)
+      if (this.gefragt.has(id) || !fehlt(id)) continue
+      this.gefragt.add(id)
+      n++
+      if (erzeugen(id)) gebaut.push(id)
+    }
+    return n
+  }
 }
 
 /** Steht die Mitte x, z im Grundriss der Kabine k (x0, z0, x1, z1, Meter),
@@ -393,23 +545,46 @@ export interface Motor {
    *  und dinge neu, rastert nur Ebenen, deren Feld hindernisse ein anderes
    *  ist (oder die neu sind), und bleibt auf der Ebene mit derselben
    *  Kennung an derselben Stelle (auf einer Treppe, wenn es sie noch gibt).
+   *  E87b: Gibt es diese Kennung in einer neuen Welt (noch) nicht (ein Haus
+   *  der Stadt baut seine Geschosse erst), wartet der Motor bis
+   *  EBENE_WARTEN_MS darauf: Stelle und Hoehe bleiben, man faellt nicht,
+   *  nichts schiebt einen, gehen und springen ruhen (umschauen geht),
+   *  ebeneJetzt meldet null. Kommt die Ebene mit einer neuen version(),
+   *  steht man auf ihr (auch wieder auf der Treppe); sonst nach der Frist
+   *  wie ohne Warten. Ein Sprung, ebeneWechseln oder begehen beenden das
+   *  Warten.
    *  E87, wem Fahrzeuge und Dinge gehoeren: Fahrzeug3D.gruppe und
    *  WeltDing3D.objekt nimmt der Motor mit scene.attach() in seine Szene
    *  (die Lage in der Welt bleibt), sobald sie in fahrzeuge oder dinge
    *  stehen (bei welt() und bei jeder neuen version()); er setzt ab dann
-   *  ihre Lage und Sichtbarkeit. Stehen sie nicht mehr darin oder geht die
+   *  ihre Lage. Sichtbarkeit (E87b): ein Ding, das der Motor bewegt hat
+   *  (hingestellt, abgelegt, Lage aus lage()) oder das man haelt, zeigt er
+   *  immer; bei allen anderen entscheidet die Welt (objekt.visible, etwa je
+   *  Geschoss), der Motor setzt es nicht, ausser ihr Elternteil in der Welt
+   *  ist aus (dann ist es mit ihm aus, und nur dieses Ausblenden nimmt er
+   *  wieder zurueck). Fahrzeuge weiter als 150 m sind nicht zu sehen.
+   *  Stehen sie nicht mehr darin oder geht die
    *  Welt, nimmt er sie heraus (scene.remove, ohne dispose: Geometrie und
    *  Material gibt die Welt frei). Lagen aus lage() fuer Kennungen, die es
    *  noch nicht gibt, merkt er sich und setzt sie, sobald die Kennung
-   *  auftaucht (auch nach Entladen und neuem Laden). Ist ein Ding in der
+   *  auftaucht (auch nach Entladen und neuem Laden). E87b: hat die Welt
+   *  dingErzeugen(), fragt er sie fuer jede gemerkte Lage einer Kennung,
+   *  die weder in dinge noch in fahrzeuge steht, hoechstens einmal je Welt
+   *  (wenige je Bild); was sie baut, steht danach in dinge und bekommt die
+   *  Lage. Ist ein Ding in der
    *  Hand verschwunden, weil die Welt es entladen hat, ist es still nicht
    *  mehr in der Hand (kein Fehler, kein bewegt()); kommt es unter
    *  derselben Kennung wieder (neue Welt, etwa ein anderes Farbschema),
-   *  bleibt es in der Hand; ebenso bleibt man in einem Fahrzeug sitzen. */
+   *  bleibt es in der Hand; ebenso bleibt man in einem Fahrzeug sitzen.
+   *  E87b: geht die Welt, waehrend man faehrt (welt(null) oder eine andere
+   *  Welt), meldet bewegt() vorher die Lage des Fahrzeugs (noch in den
+   *  Metern der alten Welt), wenn sie neu ist; kommt das Fahrzeug in der
+   *  neuen Welt nicht wieder, steigt man aus, und es bleibt dort. */
   welt(w: Welt3D | null): void
   /** Meldet beim Begehen die Ebene, auf der man steht (beim Start, bei
-   *  jedem Wechsel, nach jeder Aufzugfahrt); null ohne Ebenen und wenn das
-   *  Begehen endet. Gleich beim Setzen einmal. */
+   *  jedem Wechsel, nach jeder Aufzugfahrt); null ohne Ebenen, wenn das
+   *  Begehen endet und solange der Motor nach einer neuen Welt auf die
+   *  Ebene wartet (E87b, siehe welt()). Gleich beim Setzen einmal. */
   ebeneJetzt(fn: ((e: EbeneJetzt | null) => void) | null): void
   /** Beim Begehen auf Ebene index (aus welt().ebenen) wechseln: gleiche
    *  Stelle in x und z, die Hoehe gleitet in 0,8 s hinueber. Wer sitzt
@@ -459,8 +634,10 @@ export interface Motor {
    *  auf der anderen Seite, sonst hinter oder vor dem Wagen, sonst die
    *  naechste freie Stelle rundherum (bis gut 6 m), nie in einem Hindernis
    *  und nicht durch eine Wand. Nur wenn rundherum alles zu ist, bleibt man
-   *  sitzen (Warnung in der Konsole). Nicht im Fahrzeug: nichts. */
-  aussteigen(): void
+   *  sitzen (Warnung in der Konsole). Nicht im Fahrzeug: nichts. E87b:
+   *  true, wenn man danach zu Fuss ist (auch wenn man es schon war); false,
+   *  wenn nirgends Platz war und man sitzen bleibt. */
+  aussteigen(): boolean
   /** Sicht beim Fahren: vom Fahrersitz oder von hinten (Taste V). Gilt
    *  auch fuer das naechste Einsteigen. */
   fahrSicht(s: 'innen' | 'hinten'): void
@@ -489,15 +666,27 @@ export interface Motor {
   hinstellen(): void
   /** Lage eines Dings oder Fahrzeugs der Welt setzen (gespeichert oder von
    *  Mitspielern). Ist es (noch) nicht da, merkt der Motor sich die Lage
-   *  und setzt sie, sobald es auftaucht. Haelt man es gerade, gilt die
-   *  neue Lage, und es ist nicht mehr in der Hand. Ein Fahrzeug, in dem
-   *  man selbst sitzt, bleibt, wo es ist. Unbrauchbare Angaben (keine
+   *  und setzt sie, sobald es auftaucht (und fragt die Welt mit
+   *  dingErzeugen, E87b). Haelt man es gerade, gilt die
+   *  neue Lage, und es ist nicht mehr in der Hand; E87b: ist es dieselbe
+   *  Lage wie die gemerkte oder die, auf der es vor dem Aufheben stand (auf
+   *  1 cm, lageGleich), bleibt es in der Hand und nichts geschieht (Neubau
+   *  der Welt spielt Lagen erneut ab). Ebenso aendert dieselbe Lage nichts
+   *  an einem Fahrzeug, das gerade ein Mitspieler lenkt. Ein Fahrzeug, in
+   *  dem man selbst sitzt, bleibt, wo es ist. Unbrauchbare Angaben (keine
    *  Kennung, kaputte Zahlen): Warnung in der Konsole, sonst nichts. */
   lage(l: DingLage3D): void
   /** Meldet, wenn man ein Ding der Welt hingestellt oder abgelegt oder ein
    *  Fahrzeug abgestellt (ausgestiegen) hat: zum Speichern und fuer die
-   *  Mitspieler. Dinge der Wohnung (aus der Szene) melden sich nicht. */
+   *  Mitspieler. Dinge der Wohnung (aus der Szene) melden sich nicht.
+   *  E87b: auch das Fahrzeug, in dem man sitzt, wenn die Welt geht oder der
+   *  Motor abgebaut wird (dispose), und das Ding in der Hand beim Abbau
+   *  (abgelegt). Ein Fahrzeug an derselben Stelle wie zuletzt gemerkt
+   *  (lageGleich) meldet sich nicht noch einmal. */
   bewegt(fn: ((l: DingLage3D) => void) | null): void
+  /** Abbauen. E87b: zuerst steigt man aus einem Fahrzeug aus (es bleibt
+   *  stehen) und legt ein Ding in der Hand ab; beides meldet bewegt(),
+   *  solange der Abnehmer noch angeschlossen ist. */
   dispose(): void
 }
 
@@ -723,16 +912,21 @@ interface Ding {
   lg: number
   /** Ding der Welt: Kennung der Ebene, auf der es steht. */
   ebeneId: string
-  /** Ding der Welt: Elternteil in der Welt, als der Motor es nahm. Solange
-   *  es nicht bewegt wurde, ist es nur mit ihm zu sehen (ein Haus innen,
-   *  das gerade nicht gezeigt wird). */
+  /** Ding der Welt: Elternteil in der Welt, als der Motor es nahm. Ist er
+   *  aus (etwa eine Gruppe je Geschoss), ist ein unbewegtes Ding mit ihm
+   *  aus (E87b, teileSichtbar). */
   herkunft: Object3D | null
+  /** Ding der Welt: vom Motor bewegt (hingestellt, abgelegt, Lage aus
+   *  lage()); dann zeigt er es immer. */
   verlegt: boolean
+  /** Ding der Welt: der Motor hat es ausgeblendet, weil herkunft aus war
+   *  (E87b); nur das nimmt er wieder zurueck. */
+  versteckt: boolean
 }
 
 /** Ein neues, leeres Ding (Teile und Masse kommen danach). */
 function dingNeu(id: string): Ding {
-  return { id, teile: [], cx: 0, cy: 0, cz: 0, breite: 0.3, tiefe: 0.3, hoehe: 0.3, objekt: null, lx: 0, ly: 0, lz: 0, lg: 0, ebeneId: '', herkunft: null, verlegt: false }
+  return { id, teile: [], cx: 0, cy: 0, cz: 0, breite: 0.3, tiefe: 0.3, hoehe: 0.3, objekt: null, lx: 0, ly: 0, lz: 0, lg: 0, ebeneId: '', herkunft: null, verlegt: false, versteckt: false }
 }
 
 /** Ein Fahrzeug der Welt, wie der Motor es fuehrt (E87). */
@@ -766,6 +960,11 @@ const FOV_GEHEN = 70
 /** Ein Ding der Welt laesst sich hoechstens so weit weg (Meter, von den
  *  Augen) aufheben. */
 const AUFHEBEN_M = 6
+/** E87b: Dinge, die die Welt fuer gemerkte Lagen einzeln baut
+ *  (dingErzeugen), hoechstens so viele je Bild; gefragt wird je Bild
+ *  hoechstens so oft (unbekannte Kennungen kosten fast nichts). */
+const ERZEUGEN_JE_BILD = 3
+const ERZEUGEN_FRAGEN_JE_BILD = 50
 /** Umschauen beim Fahren kehrt in dieser Zeit (s) nach vorne zurueck,
  *  solange der Wagen faehrt und niemand zieht. */
 const FAHR_BLICK_ZURUECK_S = 1.2
@@ -817,6 +1016,9 @@ interface Person {
   zuletzt: number
   /** E87: Kennung des Fahrzeugs, das diese Person lenkt, sonst null. */
   fahrzeug: string | null
+  /** E87b: zuletzt gemeldete Lage dieses Fahrzeugs (Pose3D.lenkt). Gibt es
+   *  das Fahrzeug hier erst spaeter (neue Welt), faehrt es ab da mit. */
+  lenkt: { x: number; y: number; z: number; gier: number }
 }
 
 const ACHSE_X = new Vector3(1, 0, 0)
@@ -2446,6 +2648,27 @@ export function motorStarten(host: HTMLElement): Motor | null {
     return i >= 0 && i < ebenen.liste.length ? ebenen.liste[i].id : sonst
   }
 
+  /** Kennung der Ebene fuer ein Ding, das man an (x, z) mit Unterkante y
+   *  hinstellt (E87b): auf einer Treppe die ihrer beiden Ebenen, auf deren
+   *  Boden (samt Gelaende) es steht, also den hoechsten Boden darunter
+   *  (oben auf dem Absatz die obere); sonst die, auf der man steht. So
+   *  findet dingErreichbar das Geschoss des Dings. */
+  function ebeneIdFuer(x: number, y: number, z: number, sonst: string): string {
+    const t = treppeJetzt
+    if (t < 0 || t >= treppen.liste.length) return ebeneIdJetzt(sonst)
+    let best = -1
+    let bestY = -Infinity
+    for (const k of [treppen.von[t], treppen.nach[t]]) {
+      if (!ebenen.gibt(k)) continue
+      const b = ebenen.boden(k) + ebenen.gelaende(k, x, z)
+      if (b <= y + 0.05 && b > bestY) {
+        best = k
+        bestY = b
+      }
+    }
+    return best >= 0 ? ebenen.liste[best].id : ebeneIdJetzt(sonst)
+  }
+
   /** Ein Ding der Welt wurde hingestellt oder abgelegt (E87): merken und melden. */
   function dingMelden(d: Ding) {
     const l: DingLage3D = { id: d.id, art: 'ding', x: d.lx, y: d.ly, z: d.lz, gier: d.lg, ebene: d.ebeneId }
@@ -2458,7 +2681,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
   function dingHinstellen(d: Ding, x: number, y: number, z: number, g: number) {
     geistAus()
     if (d.objekt) {
-      weltDingSetzen(d, x, y, z, g, ebeneIdJetzt(d.ebeneId))
+      weltDingSetzen(d, x, y, z, g, ebeneIdFuer(x, y, z, d.ebeneId))
       dingMelden(d)
     } else {
       dingAnwenden(d, x, y + d.hoehe / 2, z, g)
@@ -2549,7 +2772,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     halt.y += boden - unten
     if (d.objekt) {
       // Ding der Welt (E87): Lage merken und melden.
-      weltDingSetzen(d, halt.x, halt.y - d.hoehe / 2, halt.z, halt.d, ebeneIdJetzt(d.ebeneId))
+      weltDingSetzen(d, halt.x, halt.y - d.hoehe / 2, halt.z, halt.d, ebeneIdFuer(halt.x, halt.y - d.hoehe / 2, halt.z, d.ebeneId))
       dingMelden(d)
       handLeeren()
       return
@@ -2572,6 +2795,14 @@ export function motorStarten(host: HTMLElement): Motor | null {
   /** Lagen aus lage() und eigene (hingestellt, abgestellt) je Kennung: gelten,
    *  sobald die Kennung (wieder) auftaucht. */
   const lagenMerk = new Map<string, DingLage3D>()
+  /** E87b: Kennungen gemerkter Lagen, fuer die die Welt das Ding einzeln
+   *  bauen soll (dingErzeugen, je Welt hoechstens einmal). */
+  const erzeugen = new ErzeugenListe()
+  /** Was dingErzeugen in einem Bild gebaut hat (ohne neues Feld je Bild). */
+  const erzeugtJetzt: string[] = []
+  /** E87b: Kennungen, die dingErzeugen gebaut hat, die aber danach nicht in
+   *  dinge standen (einmal gewarnt). */
+  const erzeugtFehlt = new Set<string>()
   let bewegtFn: ((l: DingLage3D) => void) | null = null
   /** Zuletzt gewarnte kaputte Eintraege der Welt (nicht bei jeder Version neu). */
   let teileWarnung = ''
@@ -2608,8 +2839,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
 
   /** Index der Ebene mit dieser Kennung (die erste begehbare), sonst -1. */
   function ebeneIndexVon(id: string): number {
-    for (let i = 0; i < ebenen.liste.length; i++) if (ebenen.liste[i].id === id && ebenen.gibt(i)) return i
-    return -1
+    return ebeneMitKennung(ebenen, id)
   }
 
   /** Blickrichtung (gier, 0 = nach -z) aus einer Drehung in der Welt. */
@@ -2816,7 +3046,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
 
   /** Sitzt man in einem Fahrzeug, das nicht mehr in der Liste steht: unter
    *  derselben Kennung neu (neue Welt), dann weiter darin (Lage, Tempo und
-   *  Blaulicht bleiben); sonst, wenn endgueltig, aussteigen, wo es war. */
+   *  Blaulicht bleiben); sonst, wenn endgueltig, aussteigen, wo es war, und
+   *  (E87b) seine Lage melden, wenn sie neu ist: sonst sprang es beim
+   *  naechsten Laden an die alte Stelle zurueck. */
   function fahrtPruefen(endgueltig: boolean) {
     const ft = fahrt
     if (!ft || fzNachId.get(ft.e.f.id) === ft.e) return
@@ -2835,7 +3067,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       fzAlt = true
       return
     }
-    if (endgueltig) fahrtEnde(null, false)
+    if (endgueltig) fahrtEnde(null, true)
   }
 
   /** Raster der Fahrzeuge fuer die aktive Ebene, ohne ohne (das eigene beim
@@ -2869,8 +3101,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
   }
 
   /** Fahrzeuge weiter als FAHRZEUG_SICHT_M weg sind nicht zu sehen (ausser
-   *  dem eigenen und fremd gelenkten); Dinge der Welt nur mit ihrem Haus,
-   *  solange niemand sie bewegt hat. Jedes Bild, ohne neues Objekt. */
+   *  dem eigenen und fremd gelenkten). Dinge der Welt (E87b): bewegte und
+   *  das in der Hand immer; bei den anderen entscheidet die Welt (sie
+   *  blendet etwa die Dinge eines Geschosses aus, das man nicht sieht), der
+   *  Motor setzt nichts, ausser ihr Elternteil in der Welt ist aus: dann
+   *  aus, und nur dieses eigene Ausblenden nimmt er wieder zurueck. Jedes
+   *  Bild, ohne neues Objekt. */
   function teileSichtbar() {
     const p = camera.position
     const weit2 = FAHRZEUG_SICHT_M * FAHRZEUG_SICHT_M
@@ -2886,8 +3122,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       const d = weltDingListe[i]
       const o = d.objekt
       if (!o) continue
-      const an = d === halt.ding || d.verlegt || sichtbar(d.herkunft)
-      if (o.visible !== an) o.visible = an
+      const bewegt = d === halt.ding || d.verlegt
+      dingSichtbarkeit(o, d, bewegt, bewegt || sichtbar(d.herkunft))
     }
   }
 
@@ -2911,7 +3147,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       !(aufzug.an && aufzug.mit) &&
       !senk.luft &&
       !sprung.an &&
-      !uebergang.an
+      !uebergang.an &&
+      !ebeneWarten
     )
   }
 
@@ -2979,15 +3216,16 @@ export function motorStarten(host: HTMLElement): Motor | null {
   }
 
   /** Aussteigen (E87): Stelle suchen (fahren.ts, aussteigenSuchen), sonst
-   *  sitzen bleiben. */
-  function aussteigen() {
+   *  sitzen bleiben. E87b: true, wenn man danach zu Fuss ist (auch wenn
+   *  man gar nicht sass), false, wenn rundherum kein Platz war. */
+  function aussteigen(): boolean {
     const ft = fahrt
-    if (!ft) return
+    if (!ft) return true
     const e = ft.e
     if (e.ebene < 0 || !ebenen.gibt(e.ebene)) {
       // Die Ebene gibt es nicht (mehr): dort heraus, wo der Wagen steht.
       fahrtEnde(null, true)
-      return
+      return fahrt === null
     }
     ebenen.wechseln(e.ebene)
     // Mit allen Fahrzeugen (auch dem eigenen): man steht nicht darin.
@@ -3003,17 +3241,33 @@ export function motorStarten(host: HTMLElement): Motor | null {
     }
     if (aussteigenSuchen(e.f, e.zust, frei, weg, ausStelle)) {
       fahrtEnde(ausStelle, true)
-      return
+      return fahrt === null
     }
-    // Rundherum alles zu: sitzen bleiben, aber nicht still.
+    // Rundherum alles zu: sitzen bleiben, aber nicht still (Warnung, und
+    // false fuer die Anzeige).
     fzAlt = true
     console.warn(`[3d] Aussteigen: rund um ${e.f.id} ist kein Platz, man bleibt sitzen`)
+    return false
   }
   const ausStelle: Stelle = { x: 0, z: 0 }
   const ausWeg: Stelle = { x: 0, z: 0 }
 
+  /** Lage des Fahrzeugs e an bewegt() melden und merken (E87), wenn sie
+   *  neu ist (E87b: dieselbe wie gemerkt, lageGleich, nicht noch einmal).
+   *  Nur mit bekannter Ebene. */
+  function fahrzeugLageMelden(e: FzEintrag) {
+    if (e.ebene < 0) return
+    const z = e.zust
+    const l: DingLage3D = { id: e.f.id, art: 'fahrzeug', x: z.x, y: z.y, z: z.z, gier: winkelDiff(z.gier, 0), ebene: e.ebeneId }
+    const alt = lagenMerk.get(l.id)
+    if (alt && lageGleich(alt, l)) return
+    lagenMerk.set(l.id, l)
+    bewegtFn?.({ ...l })
+  }
+
   /** Das Fahren endet (E87). stelle: wo man steht (null: am Wagen, aus
-   *  allem heraus). melden: bewegt() mit der Lage des Fahrzeugs. */
+   *  allem heraus). melden: bewegt() mit der Lage des Fahrzeugs (E87b: nur
+   *  wenn sie neu ist, fahrzeugLageMelden). */
   function fahrtEnde(stelleAus: Stelle | null, melden: boolean) {
     const ft = fahrt
     if (!ft) return
@@ -3027,7 +3281,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
     camera.updateProjectionMatrix()
     ichGruppe.visible = gehen
     const blick = winkelDiff(z.gier + gier, 0)
-    if (e.ebene >= 0 && ebenen.gibt(e.ebene)) ebenen.wechseln(e.ebene)
+    // Die Ebene des Fahrzeugs ueber ihre Kennung (E87b: nach einer neuen
+    // Welt kann der alte Index eine andere Ebene sein).
+    const ei = e.ebene >= 0 && ebenen.gibt(e.ebene) && ebenen.liste[e.ebene].id === e.ebeneId ? e.ebene : ebeneIndexVon(e.ebeneId)
+    if (ei >= 0) ebenen.wechseln(ei)
     bodenY = ebenen.boden()
     uebergang.an = false
     treppeJetzt = -1
@@ -3054,11 +3311,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     vx = 0
     vz = 0
     camera.rotation.set(neigung, gier, 0, 'YXZ')
-    if (melden && e.ebene >= 0) {
-      const l: DingLage3D = { id: e.f.id, art: 'fahrzeug', x: z.x, y: z.y, z: z.z, gier: winkelDiff(z.gier, 0), ebene: e.ebeneId }
-      lagenMerk.set(l.id, l)
-      bewegtFn?.({ ...l })
-    }
+    if (melden) fahrzeugLageMelden(e)
     const jetzt = performance.now()
     fahrzeugMelden(jetzt, true)
     poseMelden(jetzt, true)
@@ -3232,6 +3485,40 @@ export function motorStarten(host: HTMLElement): Motor | null {
     return Math.abs(f.x - z.x) > 0.002 || Math.abs(f.z - z.z) > 0.002 || Math.abs(dg) > 0.001 || Math.abs(weg) > 1e-4
   }
 
+  /** Das Fahrzeug, das m lenkt, wenn es hier eins ist (E87b) und man nicht
+   *  selbst darin sitzt; sonst null. Nur dann ist die Figur nicht zu sehen:
+   *  lenkt jemand ein Fahrzeug, das es hier (noch) nicht gibt (Stadt nicht
+   *  geladen, anderer Stand), sitzt die Figur an ihrer Stellung. */
+  function personFz(m: Person): FzEintrag | null {
+    if (!m.fahrzeug) return null
+    const e = fzNachId.get(m.fahrzeug)
+    return e && !(fahrt && fahrt.e === e) ? e : null
+  }
+
+  /** e faehrt mit m (E87): Ziel ist die zuletzt gemeldete Lage (m.lenkt).
+   *  Erst jetzt gelenkt, von jemand anderem uebernommen oder weit weg:
+   *  gleich dort. */
+  function fernFolgen(m: Person, e: FzEintrag) {
+    const f = e.fern
+    const l = m.lenkt
+    const springt = !f.an || f.uid !== m.uid || Math.hypot(e.zust.x - l.x, e.zust.z - l.z) > 25
+    f.an = true
+    f.uid = m.uid
+    f.x = l.x
+    f.y = l.y
+    f.z = l.z
+    f.gier = l.gier
+    if (springt) {
+      e.zust.x = l.x
+      e.zust.y = l.y
+      e.zust.z = l.z
+      e.zust.gier = winkelDiff(l.gier, 0)
+      fzAufBoden(e)
+      fzAnwenden(e)
+      fzAlt = true
+    }
+  }
+
   /** Eine Person lenkt kein Fahrzeug mehr (lenkt null, oder sie ist weg):
    *  das Fahrzeug bleibt, wo es ist. */
   function fernAus(m: Person) {
@@ -3247,7 +3534,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
 
   /** lage() (E87): gespeichert oder von Mitspielern. Merken; gibt es die
    *  Kennung schon, gleich setzen (nicht das Fahrzeug, in dem man sitzt;
-   *  ein Ding in der Hand ist danach nicht mehr in der Hand). */
+   *  ein Ding in der Hand ist danach nicht mehr in der Hand). E87b:
+   *  dieselbe Lage noch einmal (Neubau der Welt) laesst ein Ding in der
+   *  Hand und ein fremd gelenktes Fahrzeug, wie sie sind. Unbekannte
+   *  Kennung: die Welt bauen lassen (dingErzeugen), wenn sie kann. */
   function lageSetzen(l: DingLage3D) {
     const gut =
       !!l &&
@@ -3263,10 +3553,20 @@ export function motorStarten(host: HTMLElement): Motor | null {
       return
     }
     const ebene = typeof l.ebene === 'string' && l.ebene ? l.ebene : null
-    lagenMerk.set(l.id, { id: l.id, art: l.art, x: l.x, y: l.y, z: l.z, gier: l.gier, ebene: ebene ?? '' })
+    const neu: DingLage3D = { id: l.id, art: l.art, x: l.x, y: l.y, z: l.z, gier: l.gier, ebene: ebene ?? '' }
+    const alt = lagenMerk.get(l.id)
+    const wieGemerkt = !!alt && lageGleich(alt, neu)
+    lagenMerk.set(l.id, neu)
     if (l.art === 'fahrzeug') {
       const e = fzNachId.get(l.id)
-      if (!e || (fahrt && fahrt.e === e)) return
+      if (!e) {
+        if (!weltDingNachId.has(l.id)) erzeugenVormerken(l.id)
+        anstossen()
+        return
+      }
+      if (fahrt && fahrt.e === e) return
+      // E87b: lenkt es gerade jemand, glitte es sonst zur alten Stelle.
+      if (wieGemerkt && e.fern.an) return
       const z = e.zust
       z.x = l.x
       z.y = l.y
@@ -3289,8 +3589,18 @@ export function motorStarten(host: HTMLElement): Motor | null {
       fzAlt = true
     } else {
       const d = weltDingNachId.get(l.id)
-      if (!d) return
-      if (halt.ding === d) handLeeren()
+      if (!d) {
+        if (!fzNachId.has(l.id)) erzeugenVormerken(l.id)
+        anstossen()
+        return
+      }
+      if (halt.ding === d) {
+        // E87b: dieselbe Lage wie gemerkt oder wie vor dem Aufheben (d.l*
+        // bleibt beim Halten stehen): nichts Neues, es bleibt in der Hand.
+        const vorher: DingLage3D = { id: d.id, art: 'ding', x: d.lx, y: d.ly, z: d.lz, gier: d.lg, ebene: d.ebeneId }
+        if (wieGemerkt || lageGleich(vorher, neu)) return
+        handLeeren()
+      }
       weltDingSetzen(d, l.x, l.y, l.z, l.gier, ebene)
     }
     anstossen()
@@ -3433,11 +3743,11 @@ export function motorStarten(host: HTMLElement): Motor | null {
       s.tiefe = e.f.laenge
       s.hoehe = e.f.hoehe
     }
-    // Andere Leute.
+    // Andere Leute (wer ein Fahrzeug lenkt, das es hier gibt, sitzt darin).
     stellAndere.length = 0
     for (let i = 0; i < leuteListe.length; i++) {
       const m = leuteListe[i]
-      if (!m.hat || m.fahrzeug || Math.abs(m.x - x) > nah || Math.abs(m.z - z) > nah) continue
+      if (!m.hat || personFz(m) || Math.abs(m.x - x) > nah || Math.abs(m.z - z) > nah) continue
       let a = stellAndereVorrat[stellAndere.length]
       if (!a) {
         a = { x: 0, z: 0, boden: 0 }
@@ -3493,7 +3803,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
         if (hit.distance >= best) break
         if (!sichtbar(hit.object)) continue
         const d = dingVon(hit.object)
-        if (!d || d === ohne) continue
+        // Nicht auf ein Ding eines anderen Geschosses (E87b): die Decke
+        // dazwischen kennt die Ebene nicht.
+        if (!d || d === ohne || !dingErreichbar(d)) continue
         trefferNormale(hit, ray.direction)
         best = hit.distance
         hat = true
@@ -3693,7 +4005,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
   }
 
   /** Das Ding der Welt unter dem Strahl (strahl ist gesetzt), nicht
-   *  verdeckt und hoechstens AUFHEBEN_M weit. */
+   *  verdeckt, hoechstens AUFHEBEN_M weit und (E87b) im eigenen Geschoss
+   *  (dingErreichbar): durch eine Decke greift man nicht. */
   function weltDingUnterStrahl(): Ding | null {
     weltNaheSammeln(strahl.ray.origin.x, strahl.ray.origin.z, AUFHEBEN_M)
     if (!weltNahe.length) return null
@@ -3701,11 +4014,35 @@ export function motorStarten(host: HTMLElement): Motor | null {
       if (hit.distance > AUFHEBEN_M) return null
       if (!sichtbar(hit.object)) continue
       const d = dingVon(hit.object)
-      if (!d) continue
+      if (!d || !dingErreichbar(d)) continue
       if (wohnungDavor(hit.distance) || weltDavor(hit.distance)) return null
       return d
     }
     return null
+  }
+
+  /** Boeden der Ebenen, auf denen man steht, an der Stelle eines Dings
+   *  (fuer dingGreifbar), ohne neues Feld je Aufruf. */
+  const greifBoeden: number[] = []
+  /** Steht ein Ding der Welt im eigenen Geschoss (E87b, Regeln in
+   *  hinstellen.ts, dingGreifbar)? Verglichen wird an seiner Stelle: seine
+   *  Unterkante und der Boden seiner Ebene mit dem Boden der Ebene, auf der
+   *  man steht (auf einer Treppe auch dem am anderen Ende). Ohne Ebenen
+   *  (die Wohnung allein) zaehlt ihr Boden bei 0. */
+  function dingErreichbar(d: Ding): boolean {
+    const j = d.ebeneId ? ebeneIndexVon(d.ebeneId) : -1
+    const dingBoden = j >= 0 ? ebenen.boden(j) + ebenen.gelaende(j, d.lx, d.lz) : null
+    greifBoeden.length = 0
+    const i = ebenen.index
+    greifBoeden.push(ebenen.boden(i) + ebenen.gelaende(i, d.lx, d.lz))
+    const t = treppeJetzt
+    if (t >= 0 && t < treppen.liste.length) {
+      const von = treppen.von[t]
+      const nach = treppen.nach[t]
+      if (von !== i && ebenen.gibt(von)) greifBoeden.push(ebenen.boden(von) + ebenen.gelaende(von, d.lx, d.lz))
+      if (nach !== i && ebenen.gibt(nach)) greifBoeden.push(ebenen.boden(nach) + ebenen.gelaende(nach, d.lx, d.lz))
+    }
+    return dingGreifbar(d.ly, dingBoden, greifBoeden)
   }
 
   /** Steht auf der Ebene etwas (Wand, Mauer, Boden) naeher als abstand im
@@ -3752,6 +4089,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
    *  Farbschema neu), steht man dort auf derselben Ebene; sonst geht es im
    *  naechsten Bild auf die Wohnung allein hinunter. */
   let weltMerk: EbeneMerk | null = null
+  /** E87b: nach einer neuen Welt gibt es die Ebene, auf der man stand,
+   *  (noch) nicht: worauf und bis wann gewartet wird (ebeneWartenAb), sonst
+   *  null. Solange ruht das Gehen (wartenBild). */
+  let ebeneWarten: EbeneWarten | null = null
 
   /** Fehler in schritt(), fahrt() oder kamera() der Welt: einmal in die
    *  Konsole, danach ruhen alle drei fuer diese Welt, damit Wohnung und
@@ -3824,6 +4165,69 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const fz = w && Array.isArray(w.fahrzeuge) ? w.fahrzeuge : []
     const di = w && Array.isArray(w.dinge) ? w.dinge : []
     teileAbgleichen(fz, di)
+    // E87b: gemerkte Lagen, deren Kennung jetzt fehlt, an dingErzeugen.
+    erzeugenAlleVormerken()
+  }
+
+  /* ------------------------------- Dinge einzeln bauen lassen (E87b) */
+
+  /** Kann die Welt Dinge einzeln bauen (dingErzeugen), und laeuft sie? */
+  function erzeugenGeht(): boolean {
+    const w = weltJetzt
+    return !!w && !weltKaputt && typeof w.dingErzeugen === 'function'
+  }
+
+  /** Fehlt die Kennung in der Welt (weder Ding noch Fahrzeug), und ist eine
+   *  Lage dafuer gemerkt? */
+  const dingFehlt = (id: string): boolean => !weltDingNachId.has(id) && !fzNachId.has(id) && lagenMerk.has(id)
+
+  /** Kennung id vormerken, wenn sie fehlt (dingFehlt) und die Welt Dinge
+   *  einzeln bauen kann; je Welt hoechstens einmal (ErzeugenListe). */
+  function erzeugenVormerken(id: string) {
+    if (erzeugenGeht() && dingFehlt(id)) erzeugen.vormerken(id)
+  }
+
+  /** Alle gemerkten Lagen pruefen (neue Welt, neue version()). */
+  function erzeugenAlleVormerken() {
+    if (!erzeugenGeht()) return
+    for (const id of lagenMerk.keys()) if (dingFehlt(id)) erzeugen.vormerken(id)
+  }
+
+  /** dingErzeugen der Welt fuer eine Kennung; true, wenn sie etwas gebaut
+   *  hat. Wirft sie, steht das in der Konsole (die naechste kommt dran). */
+  const erzeugenFrag = (id: string): boolean => {
+    const w = weltJetzt
+    if (!w || typeof w.dingErzeugen !== 'function') return false
+    try {
+      return w.dingErzeugen(id) != null
+    } catch (err) {
+      console.error(`[3d] Welt.dingErzeugen(${id}):`, err)
+      return false
+    }
+  }
+
+  /** Ein Bild: die Welt fuer vorgemerkte Kennungen fragen, hoechstens
+   *  ERZEUGEN_JE_BILD gebaute und ERZEUGEN_FRAGEN_JE_BILD Fragen. Was sie
+   *  baut, steht danach in dinge (version() zaehlt hoch): weltVersionPruefen
+   *  nimmt es, dingNehmen setzt die gemerkte Lage. Steht etwas Gebautes
+   *  danach nicht in dinge, einmal eine Warnung. true, solange noch welche
+   *  warten (die Schleife laeuft weiter). */
+  function erzeugenSchritt(): boolean {
+    if (!erzeugen.laenge) return false
+    if (!erzeugenGeht()) {
+      erzeugen.neu()
+      return false
+    }
+    const gefragt = erzeugen.schritt(dingFehlt, erzeugenFrag, ERZEUGEN_JE_BILD, ERZEUGEN_FRAGEN_JE_BILD, erzeugtJetzt)
+    if (gefragt > 0) {
+      weltVersionPruefen()
+      for (const id of erzeugtJetzt) {
+        if (weltDingNachId.has(id) || fzNachId.has(id) || erzeugtFehlt.has(id)) continue
+        erzeugtFehlt.add(id)
+        console.warn(`[3d] Welt.dingErzeugen(${id}): gebaut, steht aber nicht in dinge (version() nicht hochgezaehlt?)`)
+      }
+    }
+    return erzeugen.laenge > 0
   }
 
   /** Auf Treppe mit Kennung id bleiben (E87), wenn es sie noch gibt, man
@@ -3865,6 +4269,16 @@ export function motorStarten(host: HTMLElement): Motor | null {
       anstossen()
       return
     }
+    if (ebeneWarten) {
+      // E87b: wartet man auf eine Ebene, ist sie vielleicht jetzt da; sonst
+      // bleibt man stehen (die aktive ist nur die naechste nach der Hoehe,
+      // ohne dass sie einen schiebt).
+      wartenPruefen()
+      if (ebeneWarten) ebenen.wechseln(ebeneWiederfinden(ebenen, merk))
+      ebeneMelden(false)
+      anstossen()
+      return
+    }
     const i = ebeneWiederfinden(ebenen, merk)
     treppeJetzt = treppeWiederfinden(treppeId, i)
     // Neue Hindernisse koennen dort stehen, wo man steht: heraus (ausser auf der Treppe).
@@ -3878,6 +4292,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
    *  der Boden des Ziels. */
   function ebeneMerken(): EbeneMerk {
     const i = ebenen.index
+    // E87b: wartet man auf eine Ebene, zaehlt sie (auch fuer die naechste Welt).
+    if (ebeneWarten) return { id: ebeneWarten.id, index: -1, y: ebeneWarten.y, wohnung: false }
     return {
       id: i >= 0 && i < ebenen.liste.length ? ebenen.liste[i].id : null,
       index: i,
@@ -3887,15 +4303,54 @@ export function motorStarten(host: HTMLElement): Motor | null {
   }
 
   /** Die Ebene, auf der man beim Begehen steht, melden (nur Aenderungen,
-   *  ausser erzwingen). Ohne Begehen oder ohne Ebenen: null. */
+   *  ausser erzwingen). Ohne Begehen oder ohne Ebenen: null; ebenso, solange
+   *  auf eine Ebene gewartet wird (E87b: die aktive ist dann nur ein
+   *  Platzhalter). */
   function ebeneMelden(erzwingen: boolean) {
     if (!ebeneFn) return
     const i = ebenen.index
-    const e = gehen && i >= 0 ? ebenen.liste[i] : null
+    const e = gehen && i >= 0 && !ebeneWarten ? ebenen.liste[i] : null
     const key = e ? `${i}|${e.id}|${e.name}` : '-'
     if (!erzwingen && key === ebeneZuletzt) return
     ebeneZuletzt = key
     ebeneFn(e ? { index: i, id: e.id, name: e.name } : null)
+  }
+
+  /** Wartet man auf eine Ebene (E87b, ebeneWarten): ist sie da, steht man
+   *  auf ihr (auf der Treppe von vorher, wenn es sie gibt) und kommt aus
+   *  neuen Hindernissen heraus; ist die Frist um, wie ohne Warten
+   *  (ebeneWiederfinden, also nach der Hoehe). Sonst bleibt alles. Ohne
+   *  Begehen oder im Fahrzeug endet das Warten still. */
+  function wartenPruefen() {
+    const w = ebeneWarten
+    if (!w) return
+    if (!gehen || fahrt) {
+      ebeneWarten = null
+      return
+    }
+    const r = ebeneWartenPruefen(ebenen, w, performance.now())
+    if (r === -1) return
+    ebeneWarten = null
+    const i = r >= 0 ? r : ebeneWiederfinden(ebenen, { id: w.id, index: -1, y: w.y, wohnung: false })
+    treppeJetzt = treppeWiederfinden(w.treppe, i)
+    ebeneAktivieren(i, fussUeberAuf(i))
+    hoeheGleiten()
+    ebeneMelden(false)
+    anstossen()
+  }
+
+  /** Ein Bild, waehrend auf eine Ebene gewartet wird (E87b): Stelle und
+   *  Hoehe bleiben, man faellt nicht und nichts schiebt (gehen ruht); nur
+   *  Umschauen, das Ding in der Hand und die eigene Stellung laufen. true:
+   *  die Schleife laeuft weiter, bis die Ebene da oder die Frist um ist. */
+  function wartenBild(dt: number, zeit: number): boolean {
+    vx = 0
+    vz = 0
+    blickSchritt(dt)
+    camera.rotation.set(neigung, gier, 0, 'YXZ')
+    if (halt.ding) haltSchritt(zeit)
+    poseMelden(zeit, false)
+    return true
   }
 
   /** Auf Ebene i umschalten (Raster) und dort aus allem heraus, worin man
@@ -3998,7 +4453,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (!gehen || fahrt || (aufzug.an && aufzug.mit)) return
     // Ebenen der Welt koennen seit dem letzten Bild dazugekommen sein (E87).
     weltVersionPruefen()
-    if (!ebenen.gibt(index) || index === ebenen.index) return
+    if (!ebenen.gibt(index)) return
+    // Wer auf eine Ebene wartet (E87b), waehlt selbst: das Warten endet,
+    // auch auf der Ebene, die gerade nur Platzhalter ist.
+    const warte = ebeneWarten !== null
+    ebeneWarten = null
+    if (index === ebenen.index && !warte) return
     sofortStehen()
     // Von der Treppe herunter, ein Sprung endet (E87); die Hoehe gleitet.
     treppeJetzt = -1
@@ -4117,6 +4577,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       aufzug.gefahren = false
     }
     weltMerk = null
+    // Ein Sprung beendet das Warten auf eine Ebene (E87b).
+    ebeneWarten = null
     uebergang.an = false
     // Von jeder Treppe herunter, ein Sprung in die Hoehe endet (E87).
     treppeJetzt = -1
@@ -4299,9 +4761,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
   }
 
   /** Springen ginge jetzt grundsaetzlich (fuer moeglich()): beim Begehen,
-   *  stehend, nicht auf einer Treppe, nicht mitfahrend im Aufzug. */
+   *  stehend, nicht auf einer Treppe, nicht mitfahrend im Aufzug, nicht
+   *  beim Warten auf eine Ebene (E87b). */
   function hupfenMoeglich(): boolean {
-    return gehen && !fahrt && haltungJetzt === 'stehen' && !wechsel.an && treppeJetzt < 0 && !(aufzug.an && aufzug.mit)
+    return gehen && !fahrt && haltungJetzt === 'stehen' && !wechsel.an && treppeJetzt < 0 && !(aufzug.an && aufzug.mit) && !ebeneWarten
   }
 
   /** Abspringen (Leertaste, Knopf). Zusaetzlich nicht ohne Eingabe, nicht
@@ -4325,6 +4788,22 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (!erzwingen && key === moeglichZuletzt) return
     moeglichZuletzt = key
     moeglichFn({ einsteigen: ein, aussteigen: aus, halten: haelt, hinstellen: hin, hupfen: h })
+  }
+
+  /** Umschauen weich zum Ziel (gierZiel, neigungZiel). true, solange der
+   *  Blick noch gleitet. */
+  function blickSchritt(dt: number): boolean {
+    const kb = 1 - Math.exp(-dt / BLICK_S)
+    const dg = gierZiel - gier
+    const dn = neigungZiel - neigung
+    if (Math.abs(dg) > 1e-4 || Math.abs(dn) > 1e-4) {
+      gier += dg * kb
+      neigung += dn * kb
+      return true
+    }
+    gier = gierZiel
+    neigung = neigungZiel
+    return false
   }
 
   /** Ein Bild Gehen: Eingabe lesen, weich beschleunigen, gleiten, umschauen.
@@ -4415,19 +4894,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (haltungJetzt === 'stehen' && !wechsel.an) {
       if (hoeheSchritt(dt, zeit)) unruhig = true
     } else senkFrei = true
-    if (!wechsel.an) {
-      const kb = 1 - Math.exp(-dt / BLICK_S)
-      const dg = gierZiel - gier
-      const dn = neigungZiel - neigung
-      if (Math.abs(dg) > 1e-4 || Math.abs(dn) > 1e-4) {
-        gier += dg * kb
-        neigung += dn * kb
-        unruhig = true
-      } else {
-        gier = gierZiel
-        neigung = neigungZiel
-      }
-    }
+    if (!wechsel.an && blickSchritt(dt)) unruhig = true
     camera.rotation.set(neigung, gier, 0, 'YXZ')
     if (halt.ding && haltSchritt(zeit)) unruhig = true
     poseMelden(zeit, false)
@@ -4479,13 +4946,20 @@ export function motorStarten(host: HTMLElement): Motor | null {
       m.tempo += (zielTempo - m.tempo) * k
       m.haltung = z.haltung
       if (Math.abs(z.x - m.x) > 0.001 || Math.abs(z.y - m.y) > 0.001 || Math.abs(z.z - m.z) > 0.001 || Math.abs(dg) > 0.002 || m.tempo > 0.02) unruhig = true
-      if (m.fahrzeug) {
-        // Lenkt ein Fahrzeug (E87): das Fahrzeug gleitet, die Figur ist nicht zu sehen.
-        const e = fzNachId.get(m.fahrzeug)
-        if (e && e.fern.an && e.fern.uid === m.uid && (!fahrt || fahrt.e !== e) && fernSchritt(e, k, zeit)) unruhig = true
+      const f = m.figur
+      const e = personFz(m)
+      if (e) {
+        // Lenkt ein Fahrzeug, das es hier gibt (E87): das Fahrzeug gleitet,
+        // die Figur ist nicht zu sehen. Kam es eben erst (neue Welt), faehrt
+        // es ab jetzt mit (E87b), sofern es niemand sonst lenkt.
+        if (!e.fern.an) fernFolgen(m, e)
+        if (f.gruppe.visible) f.gruppe.visible = false
+        if (e.fern.an && e.fern.uid === m.uid && fernSchritt(e, k, zeit)) unruhig = true
         continue
       }
-      const f = m.figur
+      // Sonst (auch wer ein Fahrzeug lenkt, das es hier nicht gibt, E87b)
+      // ist die Figur an ihrer Stellung zu sehen.
+      if (!f.gruppe.visible) f.gruppe.visible = true
       f.gruppe.position.set(m.x, m.y - KAMERA_AUGE[m.haltung], m.z)
       f.gruppe.rotation.y = m.gier
       f.pose(m.haltung, m.tempo, zeit / 1000)
@@ -4520,6 +4994,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
     }
     if (weltMerk) {
       weltMerk = null
+      // Ohne Welt wartet man auf keine Ebene mehr (E87b).
+      ebeneWarten = null
       if (gehen) {
         ebeneAktivieren(ebenen.index)
         hoeheGleiten()
@@ -4532,12 +5008,19 @@ export function motorStarten(host: HTMLElement): Motor | null {
     // Neue Daten der Welt (E87: ein Haus innen nachgeladen) vor dem Gehen;
     // auch ohne Begehen, damit Fahrzeuge und Dinge stimmen.
     weltVersionPruefen()
+    // E87b: Frist beim Warten auf eine Ebene; Dinge fuer gemerkte Lagen
+    // einzeln bauen lassen (wenige je Bild).
+    wartenPruefen()
+    if (erzeugenSchritt()) weiter = true
     if (gehen) {
       // Ein Sprung (E84) tauscht die Stelle vor dem Gehen dieses Bilds.
       if (sprungSchritt(zeit)) weiter = true
-      // Im Fahrzeug (E87) faehrt man statt zu gehen.
+      // Im Fahrzeug (E87) faehrt man statt zu gehen; wartet man auf eine
+      // Ebene (E87b), steht man still.
       if (fahrt) {
         if (fahrBild(dt, zeit, echt)) weiter = true
+      } else if (ebeneWarten) {
+        if (wartenBild(dt, zeit)) weiter = true
       } else if (gehSchritt(dt, zeit, echt)) weiter = true
     } else {
       // Beim Begehen fuehrt gehSchritt die Kamera; update() wuerde sie zum
@@ -4548,7 +5031,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (tuerBewegt) {
       // Geht eine Tuer zu, wo man steht, schiebt sie einen hinaus (nur auf
       // der Ebene der Wohnung; anderswo stehen ihre Tueren nicht im Weg).
-      if (gehen && !fahrt && haltungJetzt === 'stehen' && !wechsel.an && ebenen.aufWohnung && treppeJetzt < 0) {
+      if (gehen && !fahrt && haltungJetzt === 'stehen' && !wechsel.an && ebenen.aufWohnung && treppeJetzt < 0 && !ebeneWarten) {
         stelle.x = camera.position.x
         stelle.z = camera.position.z
         ebenen.aktiv.herausdruecken(stelle, KOERPER_RADIUS_M, fussUeber(), fzZusatz())
@@ -4779,8 +5262,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
         return
       }
     }
-    // Sitzen und Liegen nur auf der Ebene der Wohnung (E83).
-    const wohnen = ebenen.aufWohnung
+    // Sitzen und Liegen nur auf der Ebene der Wohnung (E83), nicht beim
+    // Warten auf eine Ebene (E87b: die aktive ist nur Platzhalter).
+    const wohnen = ebenen.aufWohnung && !ebeneWarten
     for (const hit of strahl.intersectObjects(gruppe.children, false)) {
       const o = hit.object
       if (!o.visible) continue
@@ -4872,6 +5356,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     aufzug.ruhe()
     fahrtZiel = -1
     weltMerk = null
+    ebeneWarten = null
     sprungAbbrechen()
     treppeJetzt = -1
     treppeMerk = null
@@ -4920,6 +5405,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     aufzug.ruhe()
     fahrtZiel = -1
     weltMerk = null
+    ebeneWarten = null
     sprungAbbrechen()
     ebeneMelden(false)
     halten.clear()
@@ -5004,15 +5490,29 @@ export function motorStarten(host: HTMLElement): Motor | null {
   }
 
   function weltSetzen(w: Welt3D | null) {
+    // E87b: geht die Welt, waehrend man faehrt, zuerst die Lage des
+    // Fahrzeugs melden, wenn sie neu ist: noch in den Metern der alten Welt,
+    // solange die Seite sie kennt (kommt keine neue, steigt man im naechsten
+    // Bild aus, wird man abgebaut, ebenso). Kommt es in der neuen Welt
+    // wieder, faehrt man weiter.
+    if (fahrt && weltJetzt && w !== weltJetzt) fahrzeugLageMelden(fahrt.e)
     // Wo man beim Begehen steht, bevor die Ebenen neu kommen (E84); ging die
     // Welt eben erst weg (welt(null)), zaehlt die Stelle von davor.
     const vorher = gehen ? (weltMerk ?? ebeneMerken()) : null
-    // Die Treppe, auf der man steht (E87), ueber ihre Kennung.
-    const treppeId = gehen ? (treppeJetzt >= 0 ? treppen.liste[treppeJetzt].id : treppeMerk) : null
+    // Die Treppe, auf der man steht (E87), ueber ihre Kennung (E87b: auch
+    // die, auf die man mit der Ebene wartet).
+    const treppeId = gehen ? (treppeJetzt >= 0 ? treppen.liste[treppeJetzt].id : (treppeMerk ?? ebeneWarten?.treppe ?? null)) : null
+    // E87b: wartete man schon auf eine Ebene, gilt fuer dieselbe die alte
+    // Frist. Ohne neue Welt bleibt das Warten bis zum naechsten Bild stehen
+    // (dort endet es mit weltMerk, wenn keine kam).
+    const wartenAlt = ebeneWarten
+    if (w) ebeneWarten = null
     weltMerk = null
     treppeMerk = null
     treppeJetzt = -1
     if (weltJetzt) scene.remove(weltJetzt.gruppe)
+    // E87b: dingErzeugen fragt jede neue Welt wieder (einmal je Kennung).
+    if (w !== weltJetzt) erzeugen.neu()
     weltJetzt = w
     weltKaputt = false
     weltLaeuft = false
@@ -5037,12 +5537,26 @@ export function motorStarten(host: HTMLElement): Motor | null {
         // steht man dort wieder auf derselben Ebene, ohne Ruck.
         weltMerk = vorher
       } else {
-        // Auf derselben Ebene bleiben (Kennung, nicht Hoehe: Haeuser haben
-        // Geschosse gleicher Hoehe) und aus neuen Hindernissen heraus.
-        const i = ebeneWiederfinden(ebenen, vorher)
-        treppeJetzt = treppeWiederfinden(treppeId, i)
-        ebeneAktivieren(i, fussUeberAuf(i))
-        hoeheGleiten()
+        // E87b: gibt es die Ebene (noch) nicht, etwa ein Geschoss eines
+        // Hauses der Stadt, das die neue Welt erst baut, darauf warten:
+        // Stelle und Hoehe bleiben, nichts schiebt, nicht fallen. Aktiv ist
+        // solange die naechste nach der Hoehe, nur als Platzhalter.
+        const warten = w && !fahrt ? ebeneWartenAb(ebenen, vorher, typeof w.version === 'function', treppeId, performance.now(), wartenAlt) : null
+        if (warten) {
+          ebeneWarten = warten
+          ebenen.wechseln(ebeneWiederfinden(ebenen, vorher))
+          uebergang.an = false
+          bodenY = warten.y
+          vx = 0
+          vz = 0
+        } else {
+          // Auf derselben Ebene bleiben (Kennung, nicht Hoehe: Haeuser haben
+          // Geschosse gleicher Hoehe) und aus neuen Hindernissen heraus.
+          const i = ebeneWiederfinden(ebenen, vorher)
+          treppeJetzt = treppeWiederfinden(treppeId, i)
+          ebeneAktivieren(i, fussUeberAuf(i))
+          hoeheGleiten()
+        }
       }
     }
     if (fahrt && fahrt.e.ebene >= 0 && ebenen.gibt(fahrt.e.ebene)) {
@@ -5073,6 +5587,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     /* E87: Springen (Paket Physik), Fahren und Hinstellen. */
     hupfen,
     einsteigen,
+    // E87b: true, wenn man danach zu Fuss ist; false, wenn kein Platz war.
     aussteigen,
     fahrSicht: fahrSichtSetzen,
     blaulicht: blaulichtSetzen,
@@ -5181,10 +5696,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
         leuteGruppe.remove(m.figur.gruppe)
         m.figur.dispose()
         if (f) {
-          // Neue Figur fuer dieselbe Person: Stellung bleibt (wer faehrt,
-          // ist nicht zu sehen, E87).
+          // Neue Figur fuer dieselbe Person: Stellung bleibt (wer ein
+          // Fahrzeug lenkt, das es hier gibt, ist nicht zu sehen, E87b).
           m.figur = f
-          f.gruppe.visible = m.hat && !m.fahrzeug
+          f.gruppe.visible = m.hat && !personFz(m)
           leuteGruppe.add(f.gruppe)
         } else {
           // Weg: ein Fahrzeug, das sie lenkte, bleibt, wo es ist (E87).
@@ -5209,6 +5724,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
           hat: false,
           zuletzt: 0,
           fahrzeug: null,
+          lenkt: { x: 0, y: 0, z: 0, gier: 0 },
         })
       }
       leuteListe = [...leuteNachUid.values()]
@@ -5227,37 +5743,22 @@ export function motorStarten(host: HTMLElement): Motor | null {
       z.tempo = p.tempo
       m.zuletzt = performance.now()
       // E87: lenkt sie ein Fahrzeug, faehrt es weich mit, und die Figur ist
-      // nicht zu sehen; lenkt sie keins mehr, bleibt es stehen.
+      // nicht zu sehen; lenkt sie keins mehr, bleibt es stehen. E87b: nur,
+      // wenn es das Fahrzeug hier gibt (und man nicht selbst darin sitzt);
+      // sonst sitzt die Figur an ihrer Stellung, bis es kommt.
       const l = p.lenkt
       const lenkt = !!l && typeof l.id === 'string' && Number.isFinite(l.x) && Number.isFinite(l.y) && Number.isFinite(l.z) && Number.isFinite(l.gier)
       if (lenkt && l) {
         if (m.fahrzeug && m.fahrzeug !== l.id) fernAus(m)
         m.fahrzeug = l.id
-        const e = fzNachId.get(l.id)
-        if (e && !(fahrt && fahrt.e === e)) {
-          const f = e.fern
-          // Erst jetzt gelenkt oder weit weg: gleich dort.
-          const springt = !f.an || f.uid !== uid || Math.hypot(e.zust.x - l.x, e.zust.z - l.z) > 25
-          f.an = true
-          f.uid = uid
-          f.x = l.x
-          f.y = l.y
-          f.z = l.z
-          f.gier = l.gier
-          if (springt) {
-            e.zust.x = l.x
-            e.zust.y = l.y
-            e.zust.z = l.z
-            e.zust.gier = winkelDiff(l.gier, 0)
-            fzAufBoden(e)
-            fzAnwenden(e)
-            fzAlt = true
-          }
-        }
-        m.figur.gruppe.visible = false
+        m.lenkt.x = l.x
+        m.lenkt.y = l.y
+        m.lenkt.z = l.z
+        m.lenkt.gier = l.gier
+        const e = personFz(m)
+        if (e) fernFolgen(m, e)
       } else if (m.fahrzeug) {
         fernAus(m)
-        m.figur.gruppe.visible = m.hat
       }
       if (!m.hat) {
         // Die erste Stellung: gleich dort, ohne Gleiten.
@@ -5268,8 +5769,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
         m.gier = p.gier
         m.tempo = p.tempo
         m.haltung = p.haltung
-        m.figur.gruppe.visible = !m.fahrzeug
       }
+      m.figur.gruppe.visible = !personFz(m)
       anstossen()
     },
     ich(figur) {
@@ -5292,6 +5793,18 @@ export function motorStarten(host: HTMLElement): Motor | null {
       anstossen()
     },
     dispose() {
+      if (weg) return
+      // E87b: zuerst melden, was man bewegt hat, solange die Abnehmer
+      // (bewegt(): Speichern und Mitspieler) noch angeschlossen sind: aus
+      // dem Fahrzeug aussteigen (es bleibt stehen, seine Lage geht hinaus)
+      // und ein Ding in der Hand ablegen. Geht dabei etwas schief, wird
+      // trotzdem abgebaut, aber nicht still.
+      try {
+        if (fahrt) fahrtEnde(null, true)
+        if (halt.ding) ablegen()
+      } catch (err) {
+        console.error('[3d] Abbau: Fahrzeug oder Ding in der Hand nicht gemeldet:', err)
+      }
       weg = true
       if (lauf) cancelAnimationFrame(lauf)
       lauf = 0
@@ -5352,6 +5865,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       weltJetzt = null
       ebeneFn = null
       weltMerk = null
+      ebeneWarten = null
+      erzeugen.neu()
       blende?.remove()
       blende = null
       scene.fog = null

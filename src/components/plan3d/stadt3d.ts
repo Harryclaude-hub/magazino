@@ -59,10 +59,12 @@
  *   Siedlung (hoechstens FAHRZEUG_MAX = 25; ferne blendet der Motor aus), je Feuerwehrhaus zwei
  *   Loeschfahrzeuge vor der Tuer, zwei Rettungswagen vor dem hoechsten
  *   Spital, ein Polizeiauto beim groessten Einkaufszentrum, ein Bus an
- *   einer Haltestelle. Kennungen 'stadt:f<n>', gleiche Daten, gleiche
- *   Kennungen.
+ *   einer Haltestelle. Kennungen 'stadt:f:<x>:<z>:<art>' aus der Stelle
+ *   (Siedlungsmeter in Dezimetern, E87b): gleiche Daten, gleiche
+ *   Kennungen, auch wenn anderswo ein Haus oder Parkplatz dazukommt.
  * - Dinge zum Aufheben (Ball, Leitkegel, Kuebel, Tonne) auf Spielplaetzen
- *   und in Parks nahe der Siedlung, Kennungen 'stadt:d<n>'.
+ *   und in Parks nahe der Siedlung, Kennungen 'stadt:d:<x>:<z>:<art>'.
+ *   Dinge im Inneren heissen 'stadt:<hausId>:d<n>:<art>' (innen3d.ts).
  *
  * Billig fuers Handy: Haeuser, Strassen und Zaeune in einem Mesh je
  * Kachel von KACHEL m (Farben je Ecke als Bytes, flach schattiert, ohne
@@ -94,10 +96,26 @@
  * das Erdgeschoss durch die offene Tuer, drinnen das Geschoss und je eins
  * darueber und darunter); weiter weg ist es aus und die Tuer zu. Ebenen
  * kommen nur hinten dazu; beim Entladen (weiter als INNEN_ENTLADEN_M, je
- * Bild eins) fallen Meshes und Dinge weg, Ebenen und Treppen bleiben. Beim
- * erneuten Laden bleiben es dieselben Ebenen (gleiche Objekte, gleiche
- * Kennungen). Ein Haus, dessen Ding oder Fahrzeug jemand weggetragen oder
- * weggefahren hat, bleibt geladen (weggetragene Dinge bleiben zu sehen).
+ * Bild eins) fallen Meshes, Dinge und die Treppen des Hauses (auch die
+ * Schwelle: die Tuer ist dann zu wie bei einem nie geladenen Haus) weg, die
+ * Ebenen bleiben. Beim erneuten Laden bleiben es dieselben Ebenen (gleiche
+ * Objekte, gleiche Kennungen), die Treppen kommen wieder. Ein Haus, dessen
+ * Fahrzeug jemand weggefahren hat, bleibt geladen.
+ *
+ * Weggetragene Dinge (E87b): wer ein Ding aus einem Haus traegt (oder es
+ * darin verstellt), dessen Haus darf trotzdem entladen; das Ding steht dann
+ * einzeln weiter (gleiche Kennung, gleiche Form, Farbe aus der Kennung).
+ * dingErzeugen baut ein Ding allein aus seiner Kennung (gespeicherte Lage,
+ * Lage eines Mitspielers), auch wenn sein Haus nie geladen war. Laedt das
+ * Haus spaeter, baut es diese Dinge nicht noch einmal. Hoechstens LOSE_MAX.
+ *
+ * Sichtbarkeit der Dinge (E87b, Regel mit dem Motor): die Stadt setzt
+ * objekt.visible ihrer Dinge selbst (siehe sichtSetzen); der Motor nur bei
+ * denen, die er bewegt hat.
+ *
+ * Neue Welt mitten in einem Haus (Farbschema, Neuladen): beim ersten
+ * kamera() wird das Haus an dieser Stelle sofort in einem Zug geladen
+ * (sofortLaden), seine Ebenen sind dann da, bevor der Motor sie sucht.
  *
  * Einbau (Siedlung): zuWelt ist die Matrix der Gruppe, in der die
  * Siedlung ihre Haeuser zeichnet (Siedlungsmeter -> Welt), bodenY die Hoehe
@@ -105,7 +123,8 @@
  * gedrehte), Fahrzeuge und Dinge haengen schon darin. Auf die Ebene
  * bodenEbene: hindernisse() dazu, hoehe als Ebene3D.hoehe; ebenen() hinten
  * anhaengen; treppen(), fahrzeuge(), dinge() weiterreichen und bei jeder
- * neuen version() neu lesen; kamera() und schritt() jedes Bild weitergeben.
+ * neuen version() neu lesen; kamera() und schritt() jedes Bild weitergeben,
+ * dingErzeugen() weiterreichen.
  *
  * Pruefung ohne Browser: node scripts/stadt-pruefen.mjs */
 import {
@@ -145,7 +164,7 @@ import type { StadtDaten, StadtFlaechenArt, StadtHaus, StadtHausArt, StadtStrass
 import { gelaendeHoehe } from '../../lib/stadt.ts'
 import { innenPlanen, tuerLage, type InnenEingabe, type InnenPlan } from '../../lib/innenGenerator.ts'
 import type { InnenAnfrage, InnenAntwort } from '../../lib/innenWerker.ts'
-import { innenBauen, innenVorbereiten, type InnenBau, type InnenTeil } from './innen3d.ts'
+import { innenBauen, innenDingArt, innenDingBauen, innenVorbereiten, type InnenBau, type InnenTeil } from './innen3d.ts'
 import { baueFahrzeug } from './fahrzeug3d.ts'
 import {
   AUSSENWAND_M,
@@ -322,8 +341,14 @@ export interface StadtWelt {
   sprungziele: Sprungziel3D[]
   karte: Pick<Karte3D, 'haeuser' | 'flaechen' | 'strassen' | 'orte'> & { rahmen: [number, number, number, number] }
   version: () => number
+  /** Welt3D.dingErzeugen (E87b): ein Ding, das nicht in dinge() steht, aus
+   *  seiner Kennung einzeln bauen (aus einem Haus 'stadt:<hausId>:d<n>:<art>',
+   *  draussen 'stadt:d:<x>:<z>:<art>'), in gruppe und dinge(), version()
+   *  zaehlt hoch. Steht es schon da: dasselbe. null: unbekannte Kennung. */
+  dingErzeugen: (id: string) => WeltDing3D | null
   /** Stelle der Kamera (Welt) in jedem Bild beim Begehen: laedt Haeuser
-   *  innen in der Naehe nach und entlaedt ferne. */
+   *  innen in der Naehe nach und entlaedt ferne. Beim ersten Aufruf: steht
+   *  man in einem Haus, ist sein Inneres danach schon ganz da (E87b). */
   kamera: (x: number, y: number, z: number) => void
   /** Jedes Bild: Ampeln, Blaulicht, nachladen in Stuecken. true = es tut sich noch was. */
   schritt: (dt: number) => boolean
@@ -399,6 +424,11 @@ const SPRUNG_STELLEN: readonly (readonly [number, number])[] = [
 const SPRUNG_WICHTIG: ReadonlySet<StadtHausArt> = new Set<StadtHausArt>(['einkaufszentrum', 'spital', 'feuerwehr', 'schule', 'kirche', 'supermarkt', 'kindergarten'])
 /** Frei heisst: so weit (Meter) von jedem Hindernis. */
 const FREI_R = 0.3
+/** Hoechstens so viele einzelne Dinge (weggetragen oder aus einer Kennung
+ *  gebaut, E87b): jedes kostet einen Zeichenaufruf. */
+const LOSE_MAX = 400
+/** Zeichen einer Kennung, wie siedlung_ding_setzen sie annimmt. */
+const DING_KENNUNG = /^[A-Za-z0-9:._-]{1,120}$/
 /** Laternen entlang der Haupt- und Nebenstrassen. */
 const LAMPE_ABSTAND = 40
 const LAMPE_MAX = 300
@@ -1166,6 +1196,9 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
 
   const hausRaster = new Raster(ZELLE, haeuser.length)
   for (const h of haeuser) hausRaster.dazu(h.nr, h.box[0], h.box[1], h.box[2], h.box[3])
+  /** Haeuser nach Kennung (das erste, falls eine doppelt ist). */
+  const hausNachId = new Map<string, Haus>()
+  for (const h of haeuser) if (!hausNachId.has(h.id)) hausNachId.set(h.id, h)
 
   /** Liegt (x, z) in einem Haus oder naeher als rand an seinem Umriss? */
   const inHaus = (x: number, z: number, rand: number): boolean => {
@@ -2690,6 +2723,19 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
   /* ------------------------------------------------ Fahrzeuge */
   const fahrzeugeDraussen: Fahrzeug3D[] = []
   const fzRechs: Rech[] = []
+  /** Vergebene Kennungen von Fahrzeugen und Dingen draussen (eindeutig). */
+  const kennungen = new Set<string>()
+  /** Kennung aus der Stelle (Siedlungsmeter, auf Dezimeter) und der Art
+   *  (E87b): gleiche Daten, gleiche Kennung, egal was sonst dazukommt oder
+   *  wegfaellt; nur wenn zwei auf denselben Dezimeter fallen, haengt ':2'
+   *  usw. an. */
+  const kennungAus = (vorne: string, x: number, z: number, art: string): string => {
+    const basis = `${vorne}:${Math.round(x * 10)}:${Math.round(z * 10)}:${art}`
+    let id = basis
+    for (let k = 2; kennungen.has(id); k++) id = `${basis}:${k}`
+    kennungen.add(id)
+    return id
+  }
   const fzRech = (x: number, z: number, gierS: number, laenge: number, breite: number): Rech => ({
     x,
     z,
@@ -2713,9 +2759,10 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
     if (!rechFrei(q)) return false
     return !fzRechs.some((r) => rechUeber(r, q))
   }
-  /** Stellt ein Fahrzeug auf: Lage in Siedlungsmetern, gierS dort. */
+  /** Stellt ein Fahrzeug auf: Lage in Siedlungsmetern, gierS dort. Kennung
+   *  'stadt:f:<x>:<z>:<art>' (Stelle in Dezimetern, E87b). */
   const aufstellen = (art: FahrzeugArt, farbe: string, x: number, z: number, gierS: number): Fahrzeug3D => {
-    const id = `stadt:f${fahrzeugeDraussen.length}`
+    const id = kennungAus('stadt:f', x, z, art)
     const xw = weltX(x, z)
     const zw = weltZ(x, z)
     const gw = gierS + gier0
@@ -2909,6 +2956,16 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
   const dingeDraussen: WeltDing3D[] = []
   const dingGeos: BufferGeometry[] = []
   const dingMats: Material[] = []
+  /** Die Arten draussen nach ihrem Namen in der Kennung (E87b). */
+  type DraussenArt = { geos: [BufferGeometry, Material][]; b: number; t: number; h: number }
+  const draussenArten = new Map<string, DraussenArt>()
+  /** Ein Ding draussen dieser Art als Gruppe (Ursprung unten in der Mitte). */
+  const draussenObjekt = (art: DraussenArt, id: string): Group => {
+    const objekt = new Group()
+    for (const [geo, m] of art.geos) objekt.add(new Mesh(geo, m))
+    objekt.name = id
+    return objekt
+  }
   {
     const ballGeo = new SphereGeometry(0.11, 16, 12)
     ballGeo.translate(0, 0.11, 0)
@@ -2934,15 +2991,15 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
     const orange = mat(F.rot.clone().lerp(F.gelb, 0.45))
     const dunkel = mat(F.schwarz.clone().lerp(F.metall, 0.2))
     const tonneMat = mat(F.hecke.clone().multiplyScalar(0.7))
-    type DingArt = { geos: [BufferGeometry, Material][]; b: number; t: number; h: number }
-    const ARTEN: DingArt[] = [
-      { geos: [[ballGeo, rot]], b: 0.22, t: 0.22, h: 0.22 },
-      { geos: [[kegelGeo, orange], [fussGeo, dunkel]], b: 0.34, t: 0.34, h: 0.51 },
-      { geos: [[eimerGeo, blau]], b: 0.28, t: 0.28, h: 0.28 },
-      { geos: [[tonneGeo, tonneMat], [deckelGeo, dunkel]], b: 0.45, t: 0.45, h: 0.77 },
-      { geos: [[ballGeo, blau]], b: 0.22, t: 0.22, h: 0.22 },
-      { geos: [[eimerGeo, gelb]], b: 0.28, t: 0.28, h: 0.28 },
+    const ARTEN: [string, DraussenArt][] = [
+      ['ballrot', { geos: [[ballGeo, rot]], b: 0.22, t: 0.22, h: 0.22 }],
+      ['kegel', { geos: [[kegelGeo, orange], [fussGeo, dunkel]], b: 0.34, t: 0.34, h: 0.51 }],
+      ['eimerblau', { geos: [[eimerGeo, blau]], b: 0.28, t: 0.28, h: 0.28 }],
+      ['tonne', { geos: [[tonneGeo, tonneMat], [deckelGeo, dunkel]], b: 0.45, t: 0.45, h: 0.77 }],
+      ['ballblau', { geos: [[ballGeo, blau]], b: 0.22, t: 0.22, h: 0.22 }],
+      ['eimergelb', { geos: [[eimerGeo, gelb]], b: 0.28, t: 0.28, h: 0.28 }],
     ]
+    for (const [name, art] of ARTEN) draussenArten.set(name, art)
     const flaechen = s.flaechen
       .filter((fl) => fl && (fl.art === 'spielplatz' || fl.art === 'park'))
       .map((fl) => {
@@ -2980,11 +3037,12 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
         if (!imVieleck(x, z, f.poly) || inHaus(x, z, 0.8) || !punktFrei(x, z, 0.6) || aufStrasse(x, z, 0.5)) continue
         if (gesetzt.some(([gx, gz]) => Math.hypot(gx - x, gz - z) < 2)) continue
         if (fzRechs.some((q) => rechAbstand(q, x, z) < 0.8)) continue
-        const art = ARTEN[dingeDraussen.length % ARTEN.length]
-        const objekt = new Group()
-        for (const [geo, m] of art.geos) objekt.add(new Mesh(geo, m))
-        const id = `stadt:d${dingeDraussen.length}`
-        objekt.name = id
+        // Die Art haengt an der Stelle, nicht an der Zahl davor: kommt
+        // anderswo ein Spielplatz dazu, bleibt hier dasselbe Ding (E87b).
+        const [artName, art] = ARTEN[saatText(`${Math.round(x * 10)}:${Math.round(z * 10)}`) % ARTEN.length]
+        // Kennung 'stadt:d:<x>:<z>:<art>' (Stelle in Dezimetern, E87b).
+        const id = kennungAus('stadt:d', x, z, artName)
+        const objekt = draussenObjekt(art, id)
         const xw = weltX(x, z)
         const zw = weltZ(x, z)
         objekt.position.set(xw, o.bodenY + hs(x, z), zw)
@@ -3100,6 +3158,18 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
   const dingStart = new Map<WeltDing3D, [number, number, number]>()
   /** Geschoss, in dem ein Ding des Inneren liegt. */
   const dingStock = new Map<WeltDing3D, number>()
+  /** Einzelne Dinge (E87b): aus einem Haus getragen, dessen Inneres weg ist,
+   *  oder per dingErzeugen aus einer Kennung gebaut (gespeicherte Lage,
+   *  Lage eines Mitspielers). Sie haengen direkt in gruppe, sind immer zu
+   *  sehen und bleiben bis dispose; laedt ihr Haus, baut es sie nicht noch
+   *  einmal (bauFertig laesst sie aus). geo: eigene Geometrie (Dinge aus
+   *  Haeusern), null bei Dingen draussen (geteilte Geometrie). */
+  const lose = new Map<string, { ding: WeltDing3D; geo: BufferGeometry | null }>()
+  /** Material der einzelnen Dinge aus Haeusern (Farben je Ecke), erst bei Bedarf. */
+  let loseMat: MeshLambertMaterial | null = null
+  let loseVoll = false
+  /** Listen neu und version() hoch, sobald schritt() fertig ist (Entladen). */
+  let listenAlt = false
 
   const listenNeu = () => {
     const dinge = dingeDraussen.slice()
@@ -3109,8 +3179,76 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
       dinge.push(...h.teil.dinge)
       fz.push(...h.teil.fahrzeuge)
     }
+    for (const l of lose.values()) dinge.push(l.ding)
     dingeAktuell = dinge
     fahrzeugeAktuell = fz
+  }
+
+  /** Ein Ding draussen auf dem Gelaende bei (x, z) Siedlungsmetern. */
+  const aufGelaende = (o3: Object3D, x: number, z: number) => {
+    o3.position.set(weltX(x, z), o.bodenY + hs(x, z), weltZ(x, z))
+  }
+  /** Ein einzelnes Ding aus seiner Kennung bauen (ohne es einzutragen):
+   *  draussen 'stadt:d:<x>:<z>:<art>' an seiner Stelle, aus einem Haus
+   *  'stadt:<hausId>:d<n>:<art>' (innen3d.ts) vor der Tuer seines Hauses
+   *  (ohne das Haus bei der Siedlung). Die Lage setzt danach der Motor.
+   *  null: keine Kennung, die die Stadt kennt. */
+  const einzelBauen = (id: string): { ding: WeltDing3D; geo: BufferGeometry | null } | null => {
+    const draussen = /^stadt:d:(-?\d+):(-?\d+):([a-z]+)(?::\d+)?$/.exec(id)
+    if (draussen) {
+      const art = draussenArten.get(draussen[3])
+      if (!art) return null
+      const x = Number(draussen[1]) / 10
+      const z = Number(draussen[2]) / 10
+      const objekt = draussenObjekt(art, id)
+      aufGelaende(objekt, x, z)
+      return { ding: { id, objekt, breite: art.b, tiefe: art.t, hoehe: art.h, ebene: o.bodenEbene }, geo: null }
+    }
+    const innen = /^stadt:(.+):d\d+:[a-z]+$/.exec(id)
+    if (!innen || !innenDingArt(id)) return null
+    if (!loseMat) {
+      loseMat = new MeshLambertMaterial({ vertexColors: true })
+      dingMats.push(loseMat)
+    }
+    const teil = innenDingBauen(id, o.farben, loseMat)
+    if (!teil) return null
+    const h = hausNachId.get(innen[1])
+    const t = h?.tuer
+    if (t) aufGelaende(teil.objekt, t.x + t.k.nx * (SCHWELLE_VOR + 0.5), t.z + t.k.nz * (SCHWELLE_VOR + 0.5))
+    else aufGelaende(teil.objekt, 0, 0)
+    return { ding: { id, objekt: teil.objekt, breite: teil.breite, tiefe: teil.tiefe, hoehe: teil.hoehe, ebene: o.bodenEbene }, geo: teil.objekt.geometry }
+  }
+  /** Ein einzelnes Ding eintragen: in gruppe, zu sehen, in lose. */
+  const loseDazu = (l: { ding: WeltDing3D; geo: BufferGeometry | null }) => {
+    l.ding.objekt.visible = true
+    gruppe.add(l.ding.objekt)
+    lose.set(l.ding.id, l)
+  }
+
+  /** Vertrag Welt3D.dingErzeugen (E87b): ein Ding, das nicht in dinge()
+   *  steht, aus seiner Kennung bauen. Steht es schon da, dasselbe zurueck.
+   *  Hoechstens LOSE_MAX einzelne Dinge (dann eine Warnung, null). */
+  const dingErzeugen = (id: string): WeltDing3D | null => {
+    if (weg || typeof id !== 'string' || !DING_KENNUNG.test(id)) return null
+    const da = dingeAktuell.find((d) => d.id === id) ?? lose.get(id)?.ding
+    if (da) return da
+    if (lose.size >= LOSE_MAX) {
+      if (!loseVoll) console.warn(`stadt3d: mehr als ${LOSE_MAX} einzelne Dinge, weitere werden nicht gebaut`)
+      loseVoll = true
+      return null
+    }
+    let l: { ding: WeltDing3D; geo: BufferGeometry | null } | null = null
+    try {
+      l = einzelBauen(id)
+    } catch (e) {
+      console.error(`stadt3d: Ding ${id} nicht gebaut`, e)
+      return null
+    }
+    if (!l) return null
+    loseDazu(l)
+    versionNr++
+    listenNeu()
+    return l.ding
   }
 
   const fehlerMelden = (h: Haus, was: string, e: unknown) => {
@@ -3154,7 +3292,16 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
   }
   /** Das Innere eines geladenen Hauses so weit zeigen: die Meshes dieser
    *  Geschosse, Glas und Schrift und die Dinge dort (weggetragene immer);
-   *  ohne Sicht ist die Tuer zu, so sieht man nie durch ein leeres Haus. */
+   *  ohne Sicht ist die Tuer zu, so sieht man nie durch ein leeres Haus.
+   *
+   *  Regel mit dem Motor (E87b, Pruefung E87): Die Stadt schaltet
+   *  objekt.visible jedes ihrer Dinge selbst (Geschoss, Abstand), auch
+   *  wenn der Motor das Objekt in seine Szene gehaengt hat; darum haengt es
+   *  nicht an einer Gruppe je Geschoss, die der Motor nicht mehr sieht. Der
+   *  Motor setzt visible nur bei Dingen, die er bewegt hat (in der Hand,
+   *  hingestellt, mit gespeicherter oder fremder Lage): die bleiben immer zu
+   *  sehen, und die Stadt blendet weggetragene nie aus. Unbewegte Dinge
+   *  fasst der Motor nicht an. Einzelne Dinge (lose) sind immer zu sehen. */
   const sichtSetzen = (h: Haus, s: [number, number] | null) => {
     const teil = h.teil
     if (!teil) return
@@ -3248,6 +3395,13 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
     planer.planen(h.eingabe, (plan, fehler) => {
       if (nebenher) planOffen = Math.max(0, planOffen - 1)
       if (weg) return
+      if (h.planStand !== 1) {
+        // Inzwischen sofort hier geplant und gebaut (sofortLaden): der Plan
+        // kommt nur in den Vorrat, ein Fehler nur in die Konsole.
+        if (plan) planMerken(k, plan)
+        else console.error(`stadt3d: Haus ${h.id} innen nicht geplant (Worker, schon sofort gebaut)`, fehler)
+        return
+      }
       if (!plan) {
         h.planStand = 0
         fehlerMelden(h, 'geplant', fehler)
@@ -3296,12 +3450,24 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
         ebenenListe.push(e)
       }
     }
+    // Treppen (auch die Schwelle) gibt es nur, solange das Haus geladen ist.
     for (const tr of teil.treppen) {
       const i = treppeNachId.get(tr.id)
       if (i === undefined) {
         treppeNachId.set(tr.id, treppenListe.length)
         treppenListe.push(tr)
       } else treppenListe[i] = tr
+    }
+    // Was schon einzeln in der Welt steht (weggetragen, aus einer Kennung
+    // gebaut), baut das Haus nicht noch einmal: aus dem Teil heraus (die
+    // Geometrie gibt teil.dispose frei).
+    if (lose.size) {
+      const bleiben: WeltDing3D[] = []
+      for (const d of teil.dinge) {
+        if (lose.has(d.id)) teil.gruppe.remove(d.objekt)
+        else bleiben.push(d)
+      }
+      if (bleiben.length !== teil.dinge.length) teil.dinge = bleiben
     }
     const vorne = `stadt:${h.id}:`
     for (const d of teil.dinge) {
@@ -3320,9 +3486,12 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
     listenNeu()
   }
 
-  /** Hat jemand ein Ding oder Fahrzeug aus dem Haus weggebracht? */
+  /** Hat jemand ein Fahrzeug aus dem Haus weggefahren? Dann bleibt es
+   *  geladen (Fahrzeuge lassen sich nicht einzeln bauen). Weggetragene
+   *  Dinge halten ihr Haus nicht mehr: sie werden beim Entladen einzeln
+   *  (E87b). */
   const wegGebracht = (h: Haus): boolean => {
-    if (!h.teil) return false
+    if (!h.teil || !h.teil.fahrzeuge.length) return false
     const v = new Vector3()
     const [x0, z0, x1, z1] = h.box
     const draussen = (obj: Object3D) => {
@@ -3333,7 +3502,44 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
       const z = c8 * dx + c10 * dz
       return x < x0 - 3 || x > x1 + 3 || z < z0 - 3 || z > z1 + 3
     }
-    return h.teil.dinge.some((d) => draussen(d.objekt)) || h.teil.fahrzeuge.some((f) => draussen(f.gruppe))
+    return h.teil.fahrzeuge.some((f) => draussen(f.gruppe))
+  }
+
+  const weltLage = new Vector3()
+  const weltDrehung = new Quaternion()
+  const weltGroesse = new Vector3()
+  /** Ein Ding aus einem Haus, das gerade entladen wird, einzeln weiter
+   *  (E87b): gleiche Kennung, gleiche Form, dieselbe Stelle und Drehung;
+   *  das alte Objekt kommt aus der Szene (seine Geometrie gibt teil.dispose
+   *  frei). Der Motor findet das neue unter derselben Kennung (auch in der
+   *  Hand) nach dem naechsten version(). */
+  const einzelWeiter = (d: WeltDing3D) => {
+    if (lose.has(d.id)) return
+    if (lose.size >= LOSE_MAX) {
+      if (!loseVoll) console.warn(`stadt3d: mehr als ${LOSE_MAX} einzelne Dinge, ${d.id} geht mit seinem Haus weg`)
+      loseVoll = true
+      return
+    }
+    let l: { ding: WeltDing3D; geo: BufferGeometry | null } | null = null
+    try {
+      l = einzelBauen(d.id)
+    } catch (e) {
+      console.error(`stadt3d: Ding ${d.id} nicht einzeln gebaut, es geht mit seinem Haus weg`, e)
+      return
+    }
+    if (!l) {
+      console.error(`stadt3d: Ding ${d.id} laesst sich nicht einzeln bauen, es geht mit seinem Haus weg`)
+      return
+    }
+    const alt = d.objekt
+    alt.updateWorldMatrix(true, false)
+    alt.matrixWorld.decompose(weltLage, weltDrehung, weltGroesse)
+    const e = alt.matrixWorld.elements
+    l.ding.objekt.position.copy(weltLage)
+    l.ding.objekt.rotation.set(0, Math.atan2(e[8], e[10]), 0)
+    l.ding.ebene = d.ebene
+    if (alt.parent) alt.parent.remove(alt)
+    loseDazu(l)
   }
 
   const entladen = (h: Haus) => {
@@ -3341,6 +3547,12 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
     const teil = h.teil
     gruppe.remove(teil.gruppe)
     for (const d of teil.dinge) {
+      // Weggetragen (oder in der Hand): einzeln weiter, nicht mit dem Haus
+      // weg. Was der Motor sonst noch in seiner Szene hat, kommt dort heraus
+      // (seine Geometrie wird gleich frei).
+      if (weggetragen(d)) einzelWeiter(d)
+      const o3 = d.objekt
+      if (o3.parent && o3.parent !== teil.gruppe) o3.parent.remove(o3)
       dingStart.delete(d)
       dingStock.delete(d)
     }
@@ -3350,16 +3562,103 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
       // Nicht still: melden; das Haus gilt trotzdem als entladen.
       console.error(`stadt3d: Haus ${h.id} innen nicht freigegeben`, e)
     }
+    // Ohne Inneres keine Treppen (auch keine Schwelle): die Tuer ist zu wie
+    // bei einem Haus, das nie geladen war. Ebenen bleiben (Vertrag).
+    const vorne = `stadt:${h.id}:`
+    let raus = false
+    for (let i = treppenListe.length - 1; i >= 0; i--) {
+      if (treppenListe[i].id.startsWith(vorne)) {
+        treppenListe.splice(i, 1)
+        raus = true
+      }
+    }
+    if (raus) {
+      treppeNachId.clear()
+      treppenListe.forEach((t, i) => treppeNachId.set(t.id, i))
+    }
     if (h.sicht) tuerZeigen(h, true)
     h.teil = null
     h.sicht = null
     geladen.delete(h)
     entladeWarte.delete(h)
     schnittSetzen(h, false)
+    listenAlt = true
   }
   /** Haeuser, die weit genug weg sind: je Bild eins entladen (dispose
    *  kostet Zeit, ein Sprung laesst sonst viele auf einmal fallen). */
   const entladeWarte = new Set<Haus>()
+
+  /** Das Haus, in dessen Umriss (x, z Siedlungsmeter) die Kamera steht,
+   *  auf seiner Hoehe (yWelt zwischen Keller und Dach), sonst null. */
+  const hausAn = (x: number, z: number, yWelt: number): Haus | null => {
+    let wo: Haus | null = null
+    hausRaster.suche(x, z, x, z, (i) => {
+      const h = haeuser[i]
+      if (x < h.box[0] || x > h.box[2] || z < h.box[1] || z > h.box[3]) return
+      if (!imVieleck(x, z, h.umriss) || h.loecher.some((r) => imVieleck(x, z, r))) return
+      const y = yWelt - o.bodenY
+      if (Number.isFinite(y) && (y < h.unten - 2 || y > h.oben + 2)) return
+      wo = h
+      return true
+    })
+    return wo
+  }
+  /** Das Innere eines Hauses jetzt in einem Zug laden (E87b): Plan aus dem
+   *  Vorrat, sonst hier gerechnet, dann ganz gebaut, ohne auf schritt() zu
+   *  warten. Fuer eine neue Welt (Farbschema, Neuladen), waehrend man in
+   *  diesem Haus steht: seine Ebenen sind dann da, bevor der Motor sie im
+   *  naechsten Bild sucht. Ein anderer Bau, der gerade laeuft, hoert auf
+   *  und wartet wieder. Fehler: gemeldet, das Haus bleibt zu. */
+  const sofortLaden = (h: Haus): void => {
+    if (weg || h.teil || h.fehler || !h.tuer) return
+    if (imBau && imBau.h !== h) {
+      const alt = imBau
+      alt.bau.abbrechen()
+      imBau = null
+      if (!alt.h.teil && !alt.h.fehler && !alt.h.wartet) {
+        alt.h.wartet = true
+        warte.unshift(alt.h)
+      }
+    }
+    if (!imBau) {
+      if (h.planStand !== 2 || !h.plan) {
+        const k = JSON.stringify(h.eingabe)
+        let plan = planVorrat(k)
+        if (!plan) {
+          try {
+            plan = innenPlanen(h.eingabe)
+          } catch (e) {
+            fehlerMelden(h, 'geplant', e)
+            return
+          }
+          planMerken(k, plan)
+        }
+        h.plan = plan
+        h.planStand = 2
+        mitPlan.add(h)
+      }
+      try {
+        bauStarten(h)
+      } catch (e) {
+        fehlerMelden(h, 'gebaut', e)
+        return
+      }
+    }
+    const jetzt = imBau
+    if (!jetzt) return
+    try {
+      jetzt.bau.weiter(Infinity)
+      imBau = null
+      if (jetzt.bau.teil) bauFertig(jetzt.h, jetzt.bau.teil)
+    } catch (e) {
+      imBau = null
+      if (jetzt.h.teil) entladen(jetzt.h)
+      else jetzt.bau.abbrechen()
+      fehlerMelden(jetzt.h, 'gebaut', e)
+    }
+  }
+  /** Erst beim ersten kamera() einer neuen Welt: steht man in einem Haus? */
+  let start = true
 
   let letzteX = NaN
   let letzteY = NaN
@@ -3390,6 +3689,15 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
       letzteX = xs
       letzteY = y
       letzteZ = zs
+      // Neue Welt, waehrend man in einem Haus steht (Farbschema, Neuladen):
+      // dieses Haus sofort ganz, damit seine Ebenen da sind (E87b). Nur beim
+      // ersten Aufruf; danach ist man nie in einem Haus, das nicht geladen
+      // ist (es laedt ab INNEN_LADEN_M, die Tuer ist bis dahin zu).
+      if (start) {
+        start = false
+        const h = hausAn(xs, zs, y)
+        if (h) sofortLaden(h)
+      }
       // Plaene ab PLAN_M, Laden ab INNEN_LADEN_M (Raster, kein Durchlauf ueber alle).
       const plaeneNeu: { h: Haus; d: number }[] = []
       const neu: Haus[] = []
@@ -3519,11 +3827,11 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
   const schritt = (_dt: number): boolean => {
     if (weg) return false
     const bis = performance.now() + (schnell ? BAU_SCHNELL_MS : BAU_MS)
-    // 0. Entladen: je Bild eins (mehr am Ende, wenn Zeit bleibt).
-    let entladen1 = false
+    // 0. Entladen: je Bild eins (mehr am Ende, wenn Zeit bleibt). Jedes
+    // Entladen (auch im Fehlerweg unten) setzt listenAlt: am Ende neue
+    // Listen und version() hoch, damit der Motor Treppen und Dinge neu liest.
     for (const h of entladeWarte) {
       entladen(h)
-      entladen1 = true
       break
     }
     // 1. Plaene: beim Worker hoechstens PLAN_OFFEN zugleich, die naechsten
@@ -3588,9 +3896,9 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
     for (const h of entladeWarte) {
       if (performance.now() >= bis) break
       entladen(h)
-      entladen1 = true
     }
-    if (entladen1) {
+    if (listenAlt) {
+      listenAlt = false
       versionNr++
       listenNeu()
     }
@@ -3616,6 +3924,8 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
     mitPlan.clear()
     dingStart.clear()
     dingStock.clear()
+    for (const l of lose.values()) l.geo?.dispose()
+    lose.clear()
     entladeWarte.clear()
     warte = []
     planWarte = []
@@ -3663,6 +3973,7 @@ export function baueStadt(o: StadtOptionen): StadtWelt {
     sprungziele,
     karte,
     version: () => versionNr,
+    dingErzeugen,
     kamera,
     schritt,
     dispose,

@@ -854,7 +854,9 @@ export interface SiedlungMitglied {
   user_id: string
   name: string
   avatar3d: Avatar3D | null
-  rolle: 'besitzer' | 'gast'
+  /** E87b: 'umzug' = Mitglied im Umzug der eigenen Wohnung des Besitzers
+   *  (darf hinein, laesst sich aber nicht als Gast herausnehmen). */
+  rolle: 'besitzer' | 'gast' | 'umzug'
 }
 
 /** Antwort beim Einladen. */

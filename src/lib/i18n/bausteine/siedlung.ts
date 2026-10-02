@@ -251,6 +251,13 @@ export const siedlungWoerter: Woerterbuch = {
   },
   'siedlung.rolle_besitzer': { de: 'Besitzer', ar: 'المالك' },
   'siedlung.rolle_gast': { de: 'Gast', ar: 'ضيف' },
+  // E87b: Leute im Umzug der eigenen Wohnung des Besitzers (kein Gast).
+  'siedlung.rolle_umzug': { de: 'im Umzug', ar: 'في النقلة' },
+  'siedlung.umzug_hinweis': {
+    de: 'Du bist über den Umzug dieser Wohnung dabei. Einladen kann nur, wem die Siedlung gehört.',
+    ar: 'أنت مشارك عبر نقلة هذه الشقة. الدعوة متاحة لمالك المجمّع السكني فقط.',
+  },
+  'siedlung.gaeste_zahl': { de: 'Gäste: {n} von {max}', ar: 'الضيوف: {n} من {max}' },
   'siedlung.du': { de: 'Du', ar: 'أنت' },
   'siedlung.entfernen': { de: 'Entfernen', ar: 'إزالة' },
   'siedlung.entfernen_name': { de: '{name} entfernen', ar: 'إزالة {name}' },
@@ -325,12 +332,43 @@ export const siedlungWoerter: Woerterbuch = {
     de: 'Wo das Ding jetzt steht, wurde nicht gespeichert: {grund}',
     ar: 'لم يُحفظ المكان الجديد للشيء: {grund}',
   },
+  // E87b: Fehler je Ding; mehrere nicht gespeichert, dazu der juengste Grund.
+  'siedlung.dinge_speichern_fehler_n': {
+    de: 'Wo verschobene Dinge jetzt stehen, wurde nicht gespeichert (Anzahl: {anzahl}): {grund}',
+    ar: 'لم تُحفظ الأماكن الجديدة لأشياء منقولة (العدد: {anzahl}): {grund}',
+  },
+  'siedlung.dinge_ohne_rahmen': {
+    de: 'Wo Dinge und Autos stehen, wird gerade weder geladen noch gespeichert: Diese Siedlung kann ihre Lage noch nicht umrechnen.',
+    ar: 'لا يتم الآن تحميل أماكن الأشياء والسيارات ولا حفظها: هذا المجمّع لا يستطيع بعد تحويل مواقعها.',
+  },
+  'siedlung.dinge_umrechnen_fehler': {
+    de: 'Einige Dinge konnten nicht an ihren gespeicherten Platz gestellt oder dort gespeichert werden.',
+    ar: 'تعذّر وضع بعض الأشياء في أماكنها المحفوظة أو حفظها هناك.',
+  },
+  'siedlung.dinge_zuruecksetzen': { de: 'Dinge zurücksetzen', ar: 'إعادة الأشياء إلى أماكنها' },
+  'siedlung.dinge_zuruecksetzen_hilfe': {
+    de: 'Alle verschobenen Dinge und Autos wieder an ihren Startplatz stellen',
+    ar: 'أعد كل الأشياء والسيارات المنقولة إلى أماكنها الأصلية',
+  },
+  'siedlung.dinge_zuruecksetzen_frage': {
+    de: 'Alle verschobenen Dinge und Autos wieder an ihren Startplatz stellen? Das gilt für alle in der Siedlung und lässt sich nicht rückgängig machen.',
+    ar: 'إعادة كل الأشياء والسيارات المنقولة إلى أماكنها الأصلية؟ ينطبق ذلك على الجميع في المجمّع السكني ولا يمكن التراجع عنه.',
+  },
+  'siedlung.dinge_zuruecksetzen_ja': { de: 'Zurücksetzen', ar: 'إعادة' },
+  'siedlung.dinge_zurueckgesetzt': { de: 'Dinge zurückgesetzt: {n}', ar: 'تمت إعادة الأشياء: {n}' },
+  'siedlung.dinge_zuruecksetzen_fehler': { de: 'Zurücksetzen ging nicht: {grund}', ar: 'تعذّرت الإعادة: {grund}' },
+  // E87b: herausgenommen, waehrend die Siedlung offen war.
+  'siedlung.nicht_mehr_dabei': { de: 'Du bist nicht mehr in dieser Siedlung.', ar: 'لم تعد ضمن هذا المجمّع السكني.' },
+  'siedlung.nicht_mehr_dabei_hinweis': {
+    de: 'Wem die Siedlung gehört, hat dich herausgenommen. Die Verbindung zu den anderen ist beendet. Lädt man dich wieder ein, kannst du sie wieder öffnen.',
+    ar: 'أخرجك مالك المجمّع السكني منه. انتهى الاتصال بالآخرين. إذا دُعيت من جديد يمكنك فتحه مرة أخرى.',
+  },
 
   // ------------------------------- Aus Datei aktualisieren, Umgebung (E87)
   'siedlung.aus_datei': { de: 'Aus Datei aktualisieren', ar: 'تحديث من ملف' },
   'siedlung.aus_datei_hilfe': {
-    de: 'Die Siedlung aus einer neuen Datei (.json) laden, etwa mit der Umgebung. Sie ersetzt die Siedlung mit derselben Wohnung.',
-    ar: 'حمّل المجمّع السكني من ملف جديد (.json)، مثلًا مع المنطقة المحيطة. يحلّ محل المجمّع الذي فيه الشقة نفسها.',
+    de: 'Die Siedlung aus einer neuen Datei (.json) laden, etwa mit der Umgebung. Sie ersetzt diese Siedlung; Gäste und verschobene Dinge bleiben.',
+    ar: 'حمّل المجمّع السكني من ملف جديد (.json)، مثلًا مع المنطقة المحيطة. يحلّ محل هذا المجمّع، ويبقى الضيوف والأشياء المنقولة.',
   },
   'siedlung.aus_datei_laeuft': { de: 'Siedlung wird aktualisiert', ar: 'جارٍ تحديث المجمّع السكني' },
   'siedlung.aktualisiert': { de: 'Siedlung aktualisiert', ar: 'تم تحديث المجمّع السكني' },

@@ -117,11 +117,15 @@
  * Haeuser ohne Plaene fragen innenGenerator.ts nach erfundenen Wohnungen
  * und werden dann gebaut wie Haeuser mit Plaenen (das eigene mit Kern und
  * Laubengang als allgemeinen Flaechen). Die Autos am Parkplatz sind
- * Fahrzeuge (fahrzeug3d.ts, 'siedlung:f<n>'), dazu etwa zehn Dinge zum
- * Aufheben auf dem Spielplatz und in Gaerten ('siedlung:d<n>'), beide in
+ * Fahrzeuge (fahrzeug3d.ts, 'siedlung:f:<x>:<z>:<art>' aus dem Stellplatz),
+ * dazu etwa zehn Dinge zum Aufheben auf dem Spielplatz und in Gaerten
+ * ('siedlung:d<n>:<art>', n die Stelle in einer festen Liste), beide in
  * Weltkoordinaten direkt in gruppe und ohne Hindernisse (die kennt der
- * Motor). eigeneWohnung: ein freies Ziel in der geplanten Wohnung, in der
- * die eigene liegt (nur ohne Rahmen). Mit siedlung.stadt baut stadt3d.ts
+ * Motor). dingErzeugen baut ein Ding allein aus seiner Kennung (die der
+ * Stadt baut die Stadt); rahmen rechnet Weltmeter in Siedlungsmeter und
+ * zurueck, unabhaengig von der Lage der Wohnung (E87b). eigeneWohnung: ein
+ * freies Ziel in der geplanten Wohnung, in der die eigene liegt (nur ohne
+ * Rahmen). Mit siedlung.stadt baut stadt3d.ts
  * die Umgebung: ihre Gruppe in gruppe, Gelaende (hoehe) und Hindernisse
  * auf der Ebene des Bodens (Index 0, ohne Plaene mit eigenem Haus auch auf
  * 'garten'; die eigenen Ziele draussen liegen dann auch auf Index 0), ihre
@@ -219,9 +223,29 @@ export interface SiedlungWelt3D extends Welt3D {
   /** Die Stadt ringsum (siedlung.stadt) liess sich nicht bauen: warum.
    *  Dann steht die Siedlung wie ohne Stadt. Sonst null. */
   readonly stadtFehler: string | null
+  /** E87b: Umrechnung Weltmeter <-> Siedlungsmeter. siedlung_dinge
+   *  speichert Lagen in Siedlungsmetern; die Oberflaeche rechnet beim Laden
+   *  (zuWelt) und Speichern (zuSiedlung) damit um. */
+  readonly rahmen: SiedlungRahmen
+  /** E87b: wie Welt3D.dingErzeugen; Dinge der Siedlung
+   *  ('siedlung:d<n>:<art>') baut sie selbst, die der Stadt die Stadt. */
+  dingErzeugen(id: string): WeltDing3D | null
+}
+
+/** Weltmeter <-> Siedlungsmeter (E87b). Siedlungsmeter: x Osten, z Sueden
+ *  (wie die Daten der Siedlung und der Stadt), y ueber dem Boden der
+ *  Siedlung (0), gier wie Pose3D (0 = Blick nach -z), Winkel in (-pi, pi].
+ *  Beide Richtungen geben [x, y, z, gier]. */
+export interface SiedlungRahmen {
+  zuSiedlung(x: number, y: number, z: number, gier: number): [number, number, number, number]
+  zuWelt(x: number, y: number, z: number, gier: number): [number, number, number, number]
 }
 
 /* ------------------------------------------------ Zahlen */
+
+/** Hoechstens so viele Dinge baut dingErzeugen der Siedlung dazu (E87b;
+ *  jedes kostet einen Zeichenaufruf). */
+const EIGENE_DINGE_MAX = 100
 
 /** Dunst: ab hier beginnt er, hier ist alles Himmelfarbe (Meter). */
 const NEBEL_NAH = 80
@@ -4487,20 +4511,28 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
 
   /* ------------------------------------------------ Fahrzeuge und Dinge (E87) */
   /* In Weltkoordinaten direkt in der Gruppe (der Motor setzt ihre Lage),
-   * auf der Ebene des Bodens. Kennungen stabil: 'siedlung:f<n>' in der
-   * Reihenfolge der Stellplaetze, 'siedlung:d<n>' in der Reihenfolge der
-   * Liste unten. Keine Hindernisse: bewegliche Dinge kennt der Motor. */
+   * auf der Ebene des Bodens. Kennungen stabil (E87b), ohne Laufnummer der
+   * Daten: 'siedlung:f:<x>:<z>:<art>' aus dem Stellplatz (Siedlungsmeter in
+   * Dezimetern; Besitzer und Gast haben so dieselbe Kennung fuer dasselbe
+   * Auto, auch wenn beim Besitzer eins neben der Wohnung fehlt),
+   * 'siedlung:d<n>:<art>' mit n der Stelle in der festen Liste unten. Keine
+   * Hindernisse: bewegliche Dinge kennt der Motor. */
   const bodenKennung = ebenen[0].id
   const bodenY = ebenen[0].y
   let fahrzeugFehler = 0
   const meineFahrzeuge: Fahrzeug3D[] = []
-  geparkt.forEach((a, i) => {
+  const fzKennungen = new Set<string>()
+  geparkt.forEach((a) => {
     const c = nachWelt(a.c)
     const d = richtungWelt(a.vorne)
     const gier = Math.atan2(-d[0], -d[1])
+    const basis = `siedlung:f:${Math.round(a.c[0] * 10)}:${Math.round(a.c[1] * 10)}:${a.art}`
+    let id = basis
+    for (let k = 2; fzKennungen.has(id); k++) id = `${basis}:${k}`
+    fzKennungen.add(id)
     let f: Fahrzeug3D
     try {
-      f = baueFahrzeug(a.art, a.farbe, `siedlung:f${i}`, { x: c[0], z: c[1], gier, ebene: bodenKennung })
+      f = baueFahrzeug(a.art, a.farbe, id, { x: c[0], z: c[1], gier, ebene: bodenKennung })
     } catch (err) {
       console.warn('[siedlung] Auto nicht gebaut:', err)
       fahrzeugFehler++
@@ -4514,6 +4546,19 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   })
 
   const meineDinge: WeltDing3D[] = []
+  /** Die Dinge der Siedlung, feste Liste: die Stelle n ist ihre Kennung. */
+  const dingListe: { art: DingArt; farbe: Color; wo: 'spiel' | 'garten' }[] = [
+    { art: 'ball', farbe: F.rot, wo: 'spiel' },
+    { art: 'kuebel', farbe: F.gelb, wo: 'spiel' },
+    { art: 'schaufel', farbe: F.blau, wo: 'spiel' },
+    { art: 'form', farbe: F.rot, wo: 'spiel' },
+    { art: 'ball', farbe: F.blau, wo: 'spiel' },
+    { art: 'kuebel', farbe: F.rot, wo: 'spiel' },
+    { art: 'schaufel', farbe: F.gelb, wo: 'spiel' },
+    { art: 'sessel', farbe: F.weiss, wo: 'garten' },
+    { art: 'sessel', farbe: F.weiss, wo: 'garten' },
+    { art: 'ball', farbe: F.gelb, wo: 'garten' },
+  ]
   {
     const zd = zufallMit(saatAus([...alle.flat(), 87]))
     const boden0 = ebenen[0]
@@ -4551,19 +4596,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
     }
     const spielDa = !!spielPoly && spielgeraete > 0
     const gaerten = innenListe.flatMap((ih) => (ih.nachK.get(0)?.flaechen ?? []).filter((f) => f.art === 'draussen' && !f.weg).map((f) => f.poly))
-    const liste: { art: DingArt; farbe: Color; wo: 'spiel' | 'garten' }[] = [
-      { art: 'ball', farbe: F.rot, wo: 'spiel' },
-      { art: 'kuebel', farbe: F.gelb, wo: 'spiel' },
-      { art: 'schaufel', farbe: F.blau, wo: 'spiel' },
-      { art: 'form', farbe: F.rot, wo: 'spiel' },
-      { art: 'ball', farbe: F.blau, wo: 'spiel' },
-      { art: 'kuebel', farbe: F.rot, wo: 'spiel' },
-      { art: 'schaufel', farbe: F.gelb, wo: 'spiel' },
-      { art: 'sessel', farbe: F.weiss, wo: 'garten' },
-      { art: 'sessel', farbe: F.weiss, wo: 'garten' },
-      { art: 'ball', farbe: F.gelb, wo: 'garten' },
-    ]
-    liste.forEach((d, i) => {
+    dingListe.forEach((d, i) => {
       const form = dingForm(d.art, d.farbe)
       const r = Math.hypot(form.b, form.t) / 2
       let p: P | null = null
@@ -4577,7 +4610,7 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       }
       gesetzt.push(p)
       geometrien.push(geo)
-      const id = `siedlung:d${i}`
+      const id = `siedlung:d${i}:${d.art}`
       const m = new Mesh(geo, welt)
       m.name = `ding:${id}`
       const w = nachWelt(p)
@@ -4586,6 +4619,39 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       gruppe.add(m)
       meineDinge.push({ id, objekt: m, breite: form.b, tiefe: form.t, hoehe: form.h, ebene: bodenKennung })
     })
+  }
+  /** Zahl der Dinge, die dingErzeugen dazugebaut hat (E87b): zaehlt mit in version(). */
+  let eigeneDazu = 0
+  let eigeneVoll = false
+  /** Ein Ding der Siedlung allein aus seiner Kennung 'siedlung:d<n>:<art>'
+   *  bauen (E87b), etwa wenn es beim Bau keinen Platz fand: Farbe aus der
+   *  Liste an der Stelle n (passt die Art nicht, die erste dieser Art), am
+   *  Start vor dem Haus; die Lage setzt danach der Motor. null: keine
+   *  solche Kennung. */
+  const eigenesDing = (id: string): WeltDing3D | null => {
+    const m = /^siedlung:d(\d+):([a-z]+)$/.exec(id)
+    if (!m) return null
+    if (eigeneDazu >= EIGENE_DINGE_MAX) {
+      if (!eigeneVoll) console.warn(`[siedlung] mehr als ${EIGENE_DINGE_MAX} Dinge aus Kennungen, weitere werden nicht gebaut`)
+      eigeneVoll = true
+      return null
+    }
+    const n = Number(m[1])
+    const vorlage = dingListe[n]?.art === m[2] ? dingListe[n] : dingListe.find((x) => x.art === m[2])
+    if (!vorlage) return null
+    const form = dingForm(vorlage.art, vorlage.farbe)
+    const geo = form.p.bauen()
+    if (!geo) return null
+    geometrien.push(geo)
+    const objekt = new Mesh(geo, welt)
+    objekt.name = `ding:${id}`
+    const ziel = sprungziele[0]
+    objekt.position.set(ziel ? ziel.x : 0, bodenY, ziel ? ziel.z : 0)
+    gruppe.add(objekt)
+    const ding: WeltDing3D = { id, objekt, breite: form.b, tiefe: form.t, hoehe: form.h, ebene: bodenKennung }
+    meineDinge.push(ding)
+    eigeneDazu++
+    return ding
   }
 
   /** Ein Ding als ein Mesh (Eckfarben, Ursprung unten in der Mitte). */
@@ -5335,31 +5401,66 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
   let dingeJetzt: WeltDing3D[] = meineDinge
   /** Die Hindernisse der Stadt beim letzten Abgleich (dasselbe Feld: nichts neu). */
   let stadtHindernisse: Hindernis3D[] | null = null
+  /** eigeneDazu beim letzten Abgleich (dingErzeugen, E87b). */
+  let eigeneStand = 0
   if (stadt) for (const i of bodenEbenen) ebenen[i].hoehe = stadt.hoehe
   const abgleichen = (): void => {
-    if (!stadt || weg) return
-    const v = stadt.version()
-    if (v === stadtStand) return
-    const erstes = stadtStand === null
-    stadtStand = v
-    // Am Boden nur dann ein neues Feld, wenn die Stadt eins hat: der Motor
-    // rastert eine Ebene neu, sobald ihr Feld ein anderes ist (zehntausende
-    // Rechtecke), und die Stadt behaelt ihres (Tueren bleiben Hindernisse).
-    const sh = stadt.hindernisse()
-    if (sh !== stadtHindernisse) {
-      stadtHindernisse = sh
-      bodenEbenen.forEach((i, j) => {
-        ebenen[i].hindernisse = bodenEigen[j].concat(sh)
-      })
+    if (weg) return
+    let dingeNeu = false
+    if (eigeneDazu !== eigeneStand) {
+      eigeneStand = eigeneDazu
+      dingeNeu = true
+      stand++
     }
-    const se = stadt.ebenen()
-    for (let i = 0; i < se.length; i++) ebenen[meineEbenen + i] = se[i]
-    treppenJetzt = meineTreppen.concat(stadt.treppen())
-    fahrzeugeJetzt = meineFahrzeuge.concat(stadt.fahrzeuge())
-    dingeJetzt = meineDinge.concat(stadt.dinge())
-    if (!erstes) stand++
+    if (stadt) {
+      const v = stadt.version()
+      if (v !== stadtStand) {
+        const erstes = stadtStand === null
+        stadtStand = v
+        // Am Boden nur dann ein neues Feld, wenn die Stadt eins hat: der Motor
+        // rastert eine Ebene neu, sobald ihr Feld ein anderes ist (zehntausende
+        // Rechtecke), und die Stadt behaelt ihres (Tueren bleiben Hindernisse).
+        const sh = stadt.hindernisse()
+        if (sh !== stadtHindernisse) {
+          stadtHindernisse = sh
+          bodenEbenen.forEach((i, j) => {
+            ebenen[i].hindernisse = bodenEigen[j].concat(sh)
+          })
+        }
+        const se = stadt.ebenen()
+        for (let i = 0; i < se.length; i++) ebenen[meineEbenen + i] = se[i]
+        treppenJetzt = meineTreppen.concat(stadt.treppen())
+        fahrzeugeJetzt = meineFahrzeuge.concat(stadt.fahrzeuge())
+        dingeNeu = true
+        if (!erstes) stand++
+      }
+    }
+    if (dingeNeu) dingeJetzt = stadt ? meineDinge.concat(stadt.dinge()) : meineDinge
   }
   abgleichen()
+
+  /* ------------------------------------------------ Rahmen der Siedlung (E87b) */
+  /* Weltmeter <-> Siedlungsmeter (x Osten, z Sueden wie die Daten, y ueber
+   * dem Boden der Siedlung = 0, gier wie Pose3D): unabhaengig davon, wo die
+   * Wohnung liegt (x, z, drehung, geschoss) oder ob es eine gibt. So
+   * speichert siedlung_dinge Lagen, die ein geaenderter Rahmen nicht
+   * verschiebt. Winkel kommen in (-pi, pi]. */
+  const winkelNorm = (a: number): number => {
+    let w = a % (2 * Math.PI)
+    if (w <= -Math.PI) w += 2 * Math.PI
+    else if (w > Math.PI) w -= 2 * Math.PI
+    return w
+  }
+  const rahmenSiedlung: SiedlungRahmen = {
+    zuSiedlung(x: number, y: number, z: number, gier: number): [number, number, number, number] {
+      const p = nachLokal([x, z])
+      return [p[0], y + absenk, p[1], winkelNorm(gier - rad)]
+    },
+    zuWelt(x: number, y: number, z: number, gier: number): [number, number, number, number] {
+      const p = nachWelt([x, z])
+      return [p[0], y - absenk, p[1], winkelNorm(gier + rad)]
+    },
+  }
 
   gruppe.userData = {
     baeume,
@@ -5416,6 +5517,23 @@ export function baueSiedlung(o: SiedlungOptionen): SiedlungWelt3D {
       abgleichen()
       return stand
     },
+    dingErzeugen(id: string): WeltDing3D | null {
+      if (weg || typeof id !== 'string') return null
+      abgleichen()
+      const da = dingeJetzt.find((d) => d.id === id)
+      if (da) return da
+      let neu: WeltDing3D | null = null
+      try {
+        if (id.startsWith('siedlung:')) neu = eigenesDing(id)
+        else if (stadt) neu = stadt.dingErzeugen(id)
+      } catch (e) {
+        console.error(`[siedlung] Ding ${id} nicht gebaut:`, e)
+        return null
+      }
+      abgleichen()
+      return neu
+    },
+    rahmen: rahmenSiedlung,
     stadtFehler,
     get kabine() {
       if (weg) return null

@@ -111,6 +111,15 @@ export interface Welt3D {
    *  entfernt oder umsortiert, Indizes bleiben gueltig. Hindernisse einer
    *  Ebene duerfen sich aendern. */
   version?(): number
+  /** E87b: ein Ding der Welt einzeln bauen, das (noch) nicht in dinge
+   *  steht, etwa weil es aus einem Haus getragen wurde, das gerade nicht
+   *  geladen ist (gespeicherte Lage oder Lage eines Mitspielers). Die
+   *  Kennung allein muss reichen (sie traegt Haus und Art). null: die Welt
+   *  kennt es nicht. Der Motor fragt das fuer jede gemerkte Lage einer
+   *  unbekannten Kennung hoechstens einmal je Welt; das Ding steht danach in
+   *  dinge (version zaehlt hoch). Kommt spaeter sein Haus, baut die Welt es
+   *  nicht noch einmal. */
+  dingErzeugen?(id: string): WeltDing3D | null
   dispose(): void
 }
 

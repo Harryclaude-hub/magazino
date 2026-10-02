@@ -1,25 +1,26 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, Building2, ChevronRight, DoorOpen, FileUp, House, MapPin, Search, Sofa, Users, X } from 'lucide-react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { AlertTriangle, Building2, ChevronRight, DoorOpen, FileUp, House, MapPin, RotateCcw, Search, Sofa, UserX, Users, X } from 'lucide-react'
 import { AppHeader } from '../components/AppShell'
 import { Ansicht3D } from '../components/plan3d/oeffnen'
 import type { Raum3DLive, Raum3DSteuer } from '../components/plan3d/Raum3D'
 import type { Farben3D } from '../components/plan3d/szene'
 import type { DingLage3D, Sprungziel3D } from '../components/plan3d/vertrag3d'
-import SiedlungLeute from '../components/SiedlungLeute'
+import SiedlungLeute, { type SiedlungLeuteDaten } from '../components/SiedlungLeute'
 import { Button, Empty, ErrorBox, IconButton, Input, Loading, useToast } from '../components/ui'
 import {
   grundrissDarf,
   ladeSiedlung,
   SiedlungStadtFehler,
   siedlungDinge,
+  siedlungDingeZuruecksetzen,
   siedlungDingSetzen,
   siedlungImportieren,
   siedlungMitglieder,
 } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { useSprache } from '../lib/i18n'
+import { SPRACHEN, uebersetzen, useSprache } from '../lib/i18n'
 import { siedlungWoerter } from '../lib/i18n/bausteine/siedlung'
 import { woerterNachladen } from '../lib/i18n/woerter'
 import { OSM_HINWEIS } from '../lib/osm'
@@ -91,7 +92,32 @@ woerterNachladen(siedlungWoerter)
  * trotzdem gespeichert und wird neu geladen. Ohne Dialog: Knopf mit
  * Ladezustand, Hinweise als Toast, Fehler zusaetzlich als Zeile unter dem
  * Kopf. Laesst sich die Umgebung nicht bauen (SiedlungWelt3D.stadtFehler),
- * steht unten ein kleiner Hinweis; Antippen zeigt den Grund. */
+ * steht unten ein kleiner Hinweis; Antippen zeigt den Grund.
+ *
+ * E87b, nach der Pruefung:
+ * - Wer dazugehoert, laedt alle 60 s neu (und sobald die Datenbank beim
+ *   Speichern "kein Zugriff" sagt). Raum3D laesst live nur diese Leute zu
+ *   (Besitzer, Gaeste, Leute im Umzug). Wurde man selbst herausgenommen
+ *   (die Liste sagt dann "kein Zugriff", nachdem sie einmal ging), endet
+ *   die Verbindung, und statt 3D steht ein klarer Satz da.
+ * - siedlung_dinge haelt Siedlungsmeter (rahmen der Welt, Paket welt): die
+ *   Seite rechnet beim Laden in Weltmeter um und beim Speichern zurueck.
+ *   Im Kanal bleiben es Weltmeter (alle haben dieselbe Welt). Kennt die
+ *   Welt ihren Rahmen nicht, wird nichts gespeichert und nichts gesetzt,
+ *   mit Hinweis.
+ * - Fehler beim Speichern gelten je Ding (ein spaeteres gelungenes
+ *   Speichern eines anderen loescht sie nicht), mit Nochmal und
+ *   Schliessen. Ein Ladefehler der Dinge versucht es von selbst noch
+ *   dreimal (2, 4, 8 s) und wieder, sobald das Netz zurueck ist, dazu
+ *   Nochmal und Schliessen. Was noch wartet, geht hinaus, sobald die Seite
+ *   verdeckt oder verlassen wird (so gut der Browser es zulaesst).
+ * - "Aus Datei aktualisieren" ersetzt genau diese Siedlung (ersetzeId) und
+ *   wechselt nur dann die Seite, wenn man noch auf ihr ist. Das erste Laden
+ *   (Siedlungen.tsx) kann einen Hinweis mitgeben, er steht dann als Zeile.
+ * - Der Besitzer kann alle verschobenen Dinge zuruecksetzen (Knopf, am
+ *   Handy unter "Mehr", Rueckfrage in einer Zeile unter dem Kopf); danach
+ *   laedt die Seite die Dinge neu und baut 3D frisch auf.
+ * - Das Stockwerk oben steht nur, solange 3D wirklich laeuft. */
 
 /** So lange (ms) muss ein Ding ruhig liegen, bevor seine Lage gespeichert wird. */
 // eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
@@ -108,41 +134,84 @@ const ECHTE_UHR: Uhr = {
   clearTimeout: (h) => window.clearTimeout(h as number),
 }
 
+/** Was dingSpeicherer meldet (E87b): der Grund des juengsten Fehlers und
+ *  wie viele Dinge gerade nicht gespeichert sind. */
+export interface DingSpeicherMeldung {
+  grund: string
+  anzahl: number
+}
+
 /** Speichert Lagen von Dingen entprellt (E87): je Kennung erst, wenn sie ms
  *  lang ruhig liegt; die letzte Lage gewinnt. Je Kennung laeuft hoechstens
  *  ein Speichern, das naechste wartet darauf (die Reihenfolge bleibt).
- *  melden(grund) bei einem Fehler (und in der Konsole), melden(null) nach
- *  einem gelungenen Speichern. beenden() speichert sofort, was noch wartet
- *  (Seite zu), danach nimmt setzen nichts mehr an und melden schweigt; die
- *  Konsole nicht. */
+ *  E87b: Fehler gelten je Kennung. Nach jedem Speichern meldet melden den
+ *  Stand: null, wenn kein Ding mehr ungespeichert ist, sonst den Grund des
+ *  juengsten Fehlers und die Zahl (Fehler auch in der Konsole). Ein
+ *  gelungenes Speichern loescht nur den Fehler desselben Dings.
+ *  flush() schickt sofort, was noch wartet (Seite verdeckt oder verlassen),
+ *  und nimmt danach weiter an. nochmal() speichert die gescheiterten
+ *  noch einmal. verwerfen() vergisst, was wartet und was scheiterte (ohne
+ *  Speichern), und ist fertig, wenn alles Laufende fertig ist.
+ *  beenden() speichert sofort, was noch wartet (Seite zu), danach nimmt
+ *  setzen nichts mehr an und melden schweigt; die Konsole nicht. */
 // eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
 export function dingSpeicherer(
   speichern: (l: DingLage3D) => Promise<void>,
-  melden: (grund: string | null) => void,
+  melden: (m: DingSpeicherMeldung | null) => void,
   ms: number = DING_SPEICHERN_MS,
   uhr: Uhr = ECHTE_UHR,
-): { setzen(l: DingLage3D): void; beenden(): void; wartend(): number } {
+): {
+  setzen(l: DingLage3D): void
+  flush(): void
+  nochmal(): void
+  verwerfen(): Promise<void>
+  beenden(): void
+  wartend(): number
+  fehlerhaft(): number
+} {
   const warten = new Map<string, { l: DingLage3D; h: unknown }>()
   const laeuft = new Map<string, Promise<void>>()
+  // Gescheitert, je Kennung; der juengste Fehler steht hinten.
+  const fehler = new Map<string, { l: DingLage3D; grund: string }>()
   let aus = false
+  let runde = 0
+  const stand = (): DingSpeicherMeldung | null => {
+    let grund: string | null = null
+    for (const f of fehler.values()) grund = f.grund
+    return grund === null ? null : { grund, anzahl: fehler.size }
+  }
   const los = (l: DingLage3D) => {
     const vorher = laeuft.get(l.id) ?? Promise.resolve()
+    const meine = runde
     const jetzt = vorher
       .then(() => speichern(l))
       .then(
         () => {
-          if (!aus) melden(null)
+          // Nach verwerfen() zaehlt ein altes Ergebnis nicht mehr.
+          if (meine !== runde) return
+          fehler.delete(l.id)
+          if (!aus) melden(stand())
         },
         (err: unknown) => {
           const grund = err instanceof Error ? err.message : String(err)
           console.warn('[siedlung] Lage eines Dings nicht gespeichert:', grund)
-          if (!aus) melden(grund)
+          if (meine !== runde) return
+          fehler.delete(l.id)
+          fehler.set(l.id, { l, grund })
+          if (!aus) melden(stand())
         },
       )
     laeuft.set(l.id, jetzt)
     void jetzt.then(() => {
       if (laeuft.get(l.id) === jetzt) laeuft.delete(l.id)
     })
+  }
+  const allesLos = () => {
+    for (const { l, h } of warten.values()) {
+      uhr.clearTimeout(h)
+      los(l)
+    }
+    warten.clear()
   }
   return {
     setzen(l) {
@@ -155,17 +224,106 @@ export function dingSpeicherer(
       }, ms)
       warten.set(l.id, { l, h })
     },
+    flush() {
+      if (!aus) allesLos()
+    },
+    nochmal() {
+      if (aus) return
+      // Was inzwischen neu wartet, gewinnt ohnehin; der Rest noch einmal.
+      for (const { l } of [...fehler.values()]) if (!warten.has(l.id)) los(l)
+    },
+    async verwerfen() {
+      runde += 1
+      for (const { h } of warten.values()) uhr.clearTimeout(h)
+      warten.clear()
+      fehler.clear()
+      if (!aus) melden(null)
+      await Promise.all([...laeuft.values()])
+    },
     beenden() {
       if (aus) return
-      for (const { l, h } of warten.values()) {
-        uhr.clearTimeout(h)
-        los(l)
-      }
-      warten.clear()
+      allesLos()
       aus = true
     },
     wartend: () => warten.size,
+    fehlerhaft: () => fehler.size,
   }
+}
+
+/** Sagt die Datenbank "kein Zugriff auf diese Siedlung" (E87b,
+ *  kistly:siedlung.kein_zugriff)? Die Fehler aus api.ts tragen nur den
+ *  Satz (errText), darum der Vergleich mit ihm in beiden Sprachen; eine
+ *  Kennung am Fehler (hint) zaehlt auch. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function istKeinZugriff(f: unknown): boolean {
+  if (!f) return false
+  const hint = typeof f === 'object' ? (f as { hint?: unknown }).hint : undefined
+  if (hint === 'kistly:siedlung.kein_zugriff') return true
+  const text = typeof f === 'string' ? f : f instanceof Error ? f.message : ''
+  if (!text) return false
+  return SPRACHEN.some((s) => {
+    const satz = uebersetzen(s, 'fehler.db.siedlung.kein_zugriff')
+    return satz !== 'fehler.db.siedlung.kein_zugriff' && text.includes(satz)
+  })
+}
+
+/** Umrechnung zwischen Welt- und Siedlungsmetern (E87b,
+ *  SiedlungWelt3D.rahmen aus dem Paket welt): x nach Osten, z nach Sueden,
+ *  y ueber dem Boden der Siedlung, gier wie Pose3D. */
+export interface LagenRahmen {
+  zuSiedlung(x: number, y: number, z: number, gier: number): [number, number, number, number]
+  zuWelt(x: number, y: number, z: number, gier: number): [number, number, number, number]
+}
+
+/** Der Rahmen der gebauten Welt, ohne den Typ gelesen (wie eigeneWohnung);
+ *  fehlt er oder ist er kaputt: null. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function rahmenVon(welt: unknown): LagenRahmen | null {
+  if (!welt || typeof welt !== 'object') return null
+  const r = (welt as { rahmen?: unknown }).rahmen
+  if (!r || typeof r !== 'object') return null
+  const { zuSiedlung, zuWelt } = r as Partial<Record<keyof LagenRahmen, unknown>>
+  return typeof zuSiedlung === 'function' && typeof zuWelt === 'function' ? (r as LagenRahmen) : null
+}
+
+/** Eine Lage mit dem Rahmen umrechnen (Kennung, Art und Ebene bleiben).
+ *  Wirft der Rahmen oder kommt keine Liste aus vier endlichen Zahlen:
+ *  null, mit Hinweis in der Konsole. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function lageUmrechnen(l: DingLage3D, r: LagenRahmen, richtung: 'zuSiedlung' | 'zuWelt'): DingLage3D | null {
+  let v: unknown
+  try {
+    v = r[richtung](l.x, l.y, l.z, l.gier)
+  } catch (err) {
+    console.warn(`[siedlung] Lage ${l.id} nicht umgerechnet (${richtung}):`, err instanceof Error ? err.message : err)
+    return null
+  }
+  if (!Array.isArray(v) || v.length !== 4 || !v.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+    console.warn(`[siedlung] Lage ${l.id} nicht umgerechnet (${richtung}): keine vier Zahlen`)
+    return null
+  }
+  const [x, y, z, gier] = v as [number, number, number, number]
+  return { id: l.id, art: l.art, x, y, z, gier, ebene: l.ebene }
+}
+
+/** siedlungDingeZuruecksetzen aus api.ts (E87b): nur der Besitzer, gibt
+ *  die Zahl der geloeschten Zeilen zurueck. */
+type DingeZuruecksetzen = (siedlungId: string, dingId?: string | null) => Promise<number>
+const DINGE_ZURUECKSETZEN: DingeZuruecksetzen | null = siedlungDingeZuruecksetzen
+
+/** So oft versucht die Seite das Laden der Dinge nach einem Fehler von
+ *  selbst noch einmal (nach 2, 4, 8 s), dann nur noch per Knopf oder wenn
+ *  das Netz zurueck ist. */
+const DINGE_WIEDERHOLEN = 3
+
+/** So oft (ms) laedt die Seite die Leute neu, solange sie offen ist. */
+const MITGLIEDER_NEU_MS = 60_000
+
+/** Ein Hinweis, den Siedlungen.tsx beim ersten Laden mitgibt (Zustand der
+ *  Navigation, E87b): Text oder null. */
+function hinweisAus(zustand: unknown): string | null {
+  const h = zustand && typeof zustand === 'object' ? (zustand as { hinweis?: unknown }).hinweis : null
+  return typeof h === 'string' && h.trim() ? h : null
 }
 
 /** Das Sprungziel der eigenen Wohnung, wenn die Welt es nennt (E87,
@@ -214,22 +372,27 @@ export interface AusDateiErgebnis {
 
 /** "Aus Datei aktualisieren" ohne Browser pruefbar (E87): liest den Text
  *  der Datei (lesen, siedlungDateiLesen) und traegt ihn ein (importieren,
- *  siedlungImportieren; es ersetzt die eigene Siedlung mit derselben
- *  Wohnung). Toasts wie beim ersten Laden (Siedlungen.tsx). Scheitert nur
- *  die Umgebung (SiedlungStadtFehler), ist die Siedlung trotzdem
- *  gespeichert: id gesetzt, der Satz als Toast und als fehler. Jeder andere
- *  Fehler: id null, Toast und fehler, nichts verschwiegen. */
+ *  siedlungImportieren). E87b: mit ersetzeId = sid, so ersetzt es genau
+ *  die offene Siedlung, auch ohne Wohnung in der Datei oder mit einer
+ *  anderen (nie eine zweite). Toasts wie beim ersten Laden
+ *  (Siedlungen.tsx). Scheitert nur die Umgebung (SiedlungStadtFehler), ist
+ *  die Siedlung trotzdem gespeichert: id gesetzt, der Satz als Toast und
+ *  als fehler. Jeder andere Fehler: id null, Toast und fehler, nichts
+ *  verschwiegen. */
 // eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
 export async function ausDateiAktualisieren(
   text: string,
   sid: string,
   t: (k: string, v?: Record<string, string | number>) => string,
   lesen: (text: string) => SiedlungDatei,
-  importieren: (d: SiedlungDatei) => Promise<{ siedlung: { id: string }; deko: 'ok' | 'keine' | { fehler: string } }>,
+  importieren: (
+    d: SiedlungDatei,
+    opt?: { ersetzeId?: string },
+  ) => Promise<{ siedlung: { id: string }; deko: 'ok' | 'keine' | { fehler: string } }>,
 ): Promise<AusDateiErgebnis> {
   const toasts: AusDateiErgebnis['toasts'] = []
   try {
-    const r = await importieren(lesen(text))
+    const r = await importieren(lesen(text), { ersetzeId: sid })
     const id = r.siedlung.id
     toasts.push({ text: t(id === sid ? 'siedlung.aktualisiert' : 'siedlung.geladen'), art: 'ok' })
     if (r.deko === 'ok') toasts.push({ text: t('siedlung.deko_ok'), art: 'ok' })
@@ -290,6 +453,7 @@ type TeilLaden = { art: 'laedt' } | { art: 'fehler'; text: string } | { art: 'fe
 export default function SiedlungAnsicht() {
   const { t } = useSprache()
   const nav = useNavigate()
+  const ort = useLocation()
   const { sid = '' } = useParams()
   const { user } = useAuth()
   const ich = user?.id ?? null
@@ -300,7 +464,29 @@ export default function SiedlungAnsicht() {
     return { siedlung, besitzer: !!ich && siedlung.owner_id === ich }
   }, [sid, ich])
   // Wer dazugehoert (E86): fuer die Figuren in 3D und den Dialog "Leute".
-  const mitglieder = useAsync(() => siedlungMitglieder(sid), [sid])
+  // E87b: mit der Kennung, fuer die die Liste gilt (useAsync behaelt beim
+  // Wechsel der Siedlung die alte), und alle 60 s neu (unten).
+  const mitgliederRoh = useAsync(async () => ({ fuer: sid, liste: await siedlungMitglieder(sid) }), [sid])
+  const mitgliederListe = mitgliederRoh.data && mitgliederRoh.data.fuer === sid ? mitgliederRoh.data.liste : null
+  const mitgliederNeu = mitgliederRoh.reload
+  const mitglieder = useMemo<SiedlungLeuteDaten>(
+    () => ({ data: mitgliederListe, loading: mitgliederRoh.loading, error: mitgliederRoh.error, reload: mitgliederNeu }),
+    [mitgliederListe, mitgliederRoh.loading, mitgliederRoh.error, mitgliederNeu],
+  )
+  // E87b: herausgenommen (oder die Siedlung ist weg)? Erst, wenn die Liste
+  // fuer diese Siedlung schon einmal kam und mich enthielt und jetzt "kein
+  // Zugriff" sagt. Sagt sie das gleich beim ersten Mal, bleibt alles wie
+  // bisher: der Kanal entscheidet, das Zeichen am Knopf Leute zeigt es.
+  const warDabei = !!ich && !!mitgliederListe && mitgliederListe.some((m) => m.user_id === ich)
+  const entzogen = warDabei && istKeinZugriff(mitgliederRoh.error)
+  useEffect(() => {
+    if (!sid || entzogen) return
+    // Nur, solange die Seite zu sehen ist; danach ohnehin beim naechsten Mal.
+    const h = window.setInterval(() => {
+      if (document.visibilityState !== 'hidden') mitgliederNeu()
+    }, MITGLIEDER_NEU_MS)
+    return () => window.clearInterval(h)
+  }, [sid, entzogen, mitgliederNeu])
 
   // Der Bau der Haeuser (mit three) laedt gleichzeitig mit den Daten.
   const [teil, setTeil] = useState<TeilLaden>({ art: 'laedt' })
@@ -319,17 +505,43 @@ export default function SiedlungAnsicht() {
   const besitzer = ergebnis?.besitzer ?? false
   // E87: Aus Datei aktualisieren (ausDatei unten): laeuft, Fehler. Nach dem
   // Speichern laedt die Siedlung neu, die alte Welt bleibt so lange stehen.
+  // E87b: ein Hinweis vom ersten Laden (Siedlungen.tsx, Zustand der
+  // Navigation) steht anfangs als dieselbe Zeile da.
   const toast = useToast()
   const datei = useRef<HTMLInputElement>(null)
   const [ausDateiLaeuft, setAusDateiLaeuft] = useState(false)
-  const [ausDateiFehler, setAusDateiFehlerRoh] = useState<string | null>(null)
+  const [ausDateiFehler, setAusDateiFehlerRoh] = useState<string | null>(() => hinweisAus(ort.state))
   const [ausDateiFehlerGanz, setAusDateiFehlerGanz] = useState(false)
   const setAusDateiFehler = (f: string | null) => {
     setAusDateiFehlerRoh(f)
     setAusDateiFehlerGanz(false)
   }
+  // Den Hinweis nur einmal: aus dem Verlauf nehmen, sonst kaeme er beim
+  // Neuladen der Seite wieder.
+  const hinweisOffen = useRef(hinweisAus(ort.state) !== null)
+  useEffect(() => {
+    if (!hinweisOffen.current) return
+    hinweisOffen.current = false
+    nav({ pathname: ort.pathname, search: ort.search, hash: ort.hash }, { replace: true, state: null })
+  }, [nav, ort.pathname, ort.search, ort.hash])
+  // E87b: "Aus Datei" und "Dinge zuruecksetzen" handeln nach dem Warten
+  // nur, solange die Seite steht und noch dieselbe Siedlung zeigt.
+  const eingebaut = useRef(true)
+  useEffect(() => {
+    eingebaut.current = true
+    return () => {
+      eingebaut.current = false
+    }
+  }, [])
+  const sidJetzt = useRef(sid)
+  useLayoutEffect(() => {
+    sidJetzt.current = sid
+  })
   const neuLaden = zustand.loading && !!ergebnis && ergebnis.siedlung.id === sid
   const ausDateiLaeuftAnzeige = ausDateiLaeuft || neuLaden
+  // Waehrend die neue Siedlung laedt, bleibt die alte Welt stehen (kein
+  // Laden ueber die ganze Flaeche); nur eine andere Siedlung wartet.
+  const ladeAnzeige = zustand.loading && !neuLaden
   // Die Lage der Wohnung legt fuer alle denselben Ursprung der Welt fest
   // (E86). Nur wenn ihr Haus fehlt, faellt sie weg, sonst liesse sich die
   // Welt nicht bauen.
@@ -353,14 +565,29 @@ export default function SiedlungAnsicht() {
   // eine neue Welt beginnt wieder bei "noch nicht gebaut" (Knopf aus).
   // Raum3D meldet sie in einem Effekt, also nach dem Setzen der Ref hier.
   // E87: dazu, ob die Umgebung (Stadt) gebaut werden konnte (stadtFehler).
-  const [ziele, setZiele] = useState<{ fuer: unknown; liste: Sprungziel3D[]; ebenen: string[]; eigene: number | null; stadtFehler: string | null } | null>(null)
+  // E87b: und der Rahmen der Welt fuer die Lagen der Dinge (rahmen).
+  const [ziele, setZiele] = useState<{
+    fuer: unknown
+    liste: Sprungziel3D[]
+    ebenen: string[]
+    eigene: number | null
+    stadtFehler: string | null
+    rahmen: LagenRahmen | null
+  } | null>(null)
   const weltJetzt = useRef(welt)
   useLayoutEffect(() => {
     weltJetzt.current = welt
   })
   const zieleMelden = useCallback((liste: Sprungziel3D[], ebenen: string[]) => {
     const gebaut = weltJetzt.current ? GEBAUT.get(weltJetzt.current) : null
-    setZiele({ fuer: weltJetzt.current, liste, ebenen, eigene: eigeneWohnungIndex(gebaut, liste), stadtFehler: stadtFehlerVon(gebaut) })
+    setZiele({
+      fuer: weltJetzt.current,
+      liste,
+      ebenen,
+      eigene: eigeneWohnungIndex(gebaut, liste),
+      stadtFehler: stadtFehlerVon(gebaut),
+      rahmen: rahmenVon(gebaut),
+    })
   }, [])
   const sprung = ziele && welt && ziele.fuer === welt ? ziele : null
   const stadtFehler = sprung?.stadtFehler ?? null
@@ -380,84 +607,200 @@ export default function SiedlungAnsicht() {
   const wohnung = besitzer ? (siedlung?.wohnung ?? null) : null
   const haus = wohnung ? siedlung?.gebaeude.find((g) => g.id === wohnung.gebaeudeId) : undefined
   const stock = wohnung ? (wohnung.geschoss === 0 ? t('siedlung.geschoss_eg') : t('siedlung.geschoss_n', { n: wohnung.geschoss })) : null
+  const bereit = Boolean(welt) && !!siedlung
+  // E87b: das Stockwerk nur, solange 3D wirklich steht (nicht ueber einem
+  // Fehler, dem Laden oder dem Satz "nicht mehr dabei").
+  const ebeneAnzeige = bereit && !ladeAnzeige && !zustand.error && !entzogen && teil.art === 'fertig' ? ebene : null
   // Unter dem Namen: beim Gehen das Stockwerk, sonst Haus und Stockwerk der
   // Wohnung (kurz, die Zeile ist am Handy schmal).
-  const unterzeile = ausDateiLaeuftAnzeige
-    ? t('siedlung.aus_datei_laeuft')
-    : ebene
-    ? t('siedlung.ebene_jetzt', { name: ebene })
-    : wohnung && haus && stock
-      ? t('siedlung.haus_stock', { haus: haus.name, stock })
-      : siedlung && !besitzer
-        ? t('siedlung.zu_gast')
-        : null
-  const bereit = Boolean(welt) && !!siedlung
+  const unterzeile = entzogen
+    ? null
+    : ausDateiLaeuftAnzeige
+      ? t('siedlung.aus_datei_laeuft')
+      : ebeneAnzeige
+        ? t('siedlung.ebene_jetzt', { name: ebeneAnzeige })
+        : wohnung && haus && stock
+          ? t('siedlung.haus_stock', { haus: haus.name, stock })
+          : siedlung && !besitzer
+            ? t('siedlung.zu_gast')
+            : null
 
   // Zusammen in 3D (E86): live, sobald ausser einem selbst noch jemand
   // dazugehoert; laesst sich die Liste nicht laden, trotzdem (der Kanal
-  // laesst ohnehin nur Mitglieder hinein, Fehler zeigt Raum3D).
+  // laesst ohnehin nur Mitglieder hinein, Fehler zeigt Raum3D). E87b:
+  // Raum3D laesst nur die Leute der Liste zu (ohneListe: alle, die der
+  // Kanal hineinlaesst); herausgenommen: gar nicht mehr live.
   const siedlungId = siedlung?.id ?? null
   const leute = useMemo(
-    () => (mitglieder.data ?? []).filter((m) => m.user_id !== ich).map((m) => ({ uid: m.user_id, name: m.name, look: m.avatar3d })),
-    [mitglieder.data, ich],
+    () => (mitgliederListe ?? []).filter((m) => m.user_id !== ich).map((m) => ({ uid: m.user_id, name: m.name, look: m.avatar3d })),
+    [mitgliederListe, ich],
   )
-  const mitAnderen = leute.length > 0 || !!mitglieder.error
+  const ohneListe = !mitgliederListe
+  const mitAnderen = leute.length > 0 || (ohneListe && !!mitgliederRoh.error)
   const live = useMemo<Raum3DLive | null>(
-    () => (siedlungId && ich && mitAnderen ? { kanal: `siedlung:${siedlungId}`, uid: ich, leute } : null),
-    [siedlungId, ich, mitAnderen, leute],
+    () =>
+      siedlungId && ich && mitAnderen && !entzogen
+        ? { kanal: `siedlung:${siedlungId}`, uid: ich, leute, ...(ohneListe ? { ohneListe: true } : {}) }
+        : null,
+    [siedlungId, ich, mitAnderen, entzogen, leute, ohneListe],
   )
 
   // E87: Dinge und Fahrzeuge, wo sie zuletzt standen: geladen, sobald die
-  // Welt gebaut ist (einmal je Siedlung; nach einem Fehler beim naechsten
-  // Bau wieder). Laden: alles steht, wie die Welt es baut; leer: ebenso;
-  // Fehler: ein Hinweis in der Ansicht.
+  // Welt gebaut ist (einmal je Siedlung). Laden: alles steht, wie die Welt
+  // es baut; leer: ebenso; Fehler: ein Hinweis in der Ansicht. E87b: nach
+  // einem Fehler von selbst noch DINGE_WIEDERHOLEN-mal (2, 4, 8 s), wenn
+  // das Netz zurueck ist, und per Nochmal am Hinweis.
   const weltGebaut = !!sprung
   const [dinge, setDinge] = useState<{ fuer: string; liste: DingLage3D[] } | null>(null)
   const [dingeFehler, setDingeFehler] = useState<{ fuer: string; grund: string } | null>(null)
+  const [dingeVersuch, setDingeVersuch] = useState(0)
+  const dingeFehlversuche = useRef({ fuer: null as string | null, n: 0 })
   const dingeGeladen = useRef<string | null>(null)
   useEffect(() => {
     if (!siedlungId || !weltGebaut || dingeGeladen.current === siedlungId) return
+    if (dingeFehlversuche.current.fuer !== siedlungId) dingeFehlversuche.current = { fuer: siedlungId, n: 0 }
     let alive = true
+    let wieder: number | undefined
     siedlungDinge(siedlungId).then(
       (liste) => {
         if (!alive) return
         dingeGeladen.current = siedlungId
+        dingeFehlversuche.current = { fuer: siedlungId, n: 0 }
         setDinge({ fuer: siedlungId, liste })
         setDingeFehler(null)
       },
       (err: unknown) => {
         const grund = err instanceof Error ? err.message : String(err)
         console.warn('[siedlung] Lagen der Dinge nicht geladen:', grund)
-        if (alive) setDingeFehler({ fuer: siedlungId, grund })
+        if (!alive) return
+        setDingeFehler({ fuer: siedlungId, grund })
+        const n = dingeFehlversuche.current.n
+        if (n < DINGE_WIEDERHOLEN) {
+          dingeFehlversuche.current = { fuer: siedlungId, n: n + 1 }
+          wieder = window.setTimeout(() => setDingeVersuch((v) => v + 1), 2000 * 2 ** n)
+        }
       },
     )
     return () => {
       alive = false
+      if (wieder !== undefined) window.clearTimeout(wieder)
     }
-  }, [siedlungId, weltGebaut])
-  const dingLagen = dinge && dinge.fuer === siedlungId ? dinge.liste : null
+  }, [siedlungId, weltGebaut, dingeVersuch])
+  const dingeFehlerJetzt = dingeFehler && dingeFehler.fuer === siedlungId ? dingeFehler : null
+  useEffect(() => {
+    if (!dingeFehlerJetzt) return
+    const zurueck = () => setDingeVersuch((v) => v + 1)
+    window.addEventListener('online', zurueck)
+    return () => window.removeEventListener('online', zurueck)
+  }, [dingeFehlerJetzt])
+  const dingeNochmal = useCallback(() => {
+    dingeFehlversuche.current = { fuer: null, n: 0 }
+    setDingeVersuch((v) => v + 1)
+  }, [])
+
+  // E87b: die Datenbank haelt Siedlungsmeter, Raum3D und der Kanal
+  // Weltmeter: beim Laden mit dem Rahmen der gebauten Welt umrechnen (nach
+  // jedem Neubau neu; Raum3D schickt nur Geaendertes an den Motor).
+  const rahmen = sprung?.rahmen ?? null
+  const rahmenJetzt = useRef(rahmen)
+  useLayoutEffect(() => {
+    rahmenJetzt.current = rahmen
+  })
+  const dingRechnung = useMemo(() => {
+    if (!dinge || dinge.fuer !== siedlungId || !rahmen) return null
+    const liste: DingLage3D[] = []
+    let kaputt = 0
+    for (const l of dinge.liste) {
+      const w = lageUmrechnen(l, rahmen, 'zuWelt')
+      if (w) liste.push(w)
+      else kaputt += 1
+    }
+    return { liste, kaputt }
+  }, [dinge, siedlungId, rahmen])
+  const dingLagen = dingRechnung ? dingRechnung.liste : null
+
   // Speichern, entprellt je Ding; beim Verlassen sofort, was noch wartet.
-  const [speicherFehler, setSpeicherFehler] = useState<{ fuer: string; grund: string } | null>(null)
+  // E87b: Fehler je Ding (Zahl und juengster Grund); "kein Zugriff" fragt
+  // die Liste der Leute neu, ob man noch dabei ist.
+  const [speicherFehler, setSpeicherFehler] = useState<({ fuer: string } & DingSpeicherMeldung) | null>(null)
   const speicherer = useRef<ReturnType<typeof dingSpeicherer> | null>(null)
   useEffect(() => {
     if (!siedlungId) return
     const sp = dingSpeicherer(
       (l) => siedlungDingSetzen(siedlungId, l),
-      (grund) => setSpeicherFehler(grund === null ? null : { fuer: siedlungId, grund }),
+      (m) => {
+        setSpeicherFehler(m === null ? null : { fuer: siedlungId, ...m })
+        if (m && istKeinZugriff(m.grund)) mitgliederNeu()
+      },
     )
     speicherer.current = sp
+    // E87b: verdeckt (App gewechselt, Tab im Hintergrund) oder verlassen
+    // (Neuladen, Tab zu): sofort hinaus, was noch wartet. Ob eine Anfrage
+    // beim Verlassen noch ankommt, entscheidet der Browser.
+    const weg = () => sp.flush()
+    const sicht = () => {
+      if (document.visibilityState === 'hidden') sp.flush()
+    }
+    window.addEventListener('pagehide', weg)
+    document.addEventListener('visibilitychange', sicht)
     return () => {
       sp.beenden()
+      window.removeEventListener('pagehide', weg)
+      document.removeEventListener('visibilitychange', sicht)
       if (speicherer.current === sp) speicherer.current = null
     }
-  }, [siedlungId])
-  const dingBewegt = useCallback((l: DingLage3D) => speicherer.current?.setzen(l), [])
+  }, [siedlungId, mitgliederNeu])
+  // Weltmeter aus Raum3D in Siedlungsmeter, dann speichern. Ohne Rahmen
+  // nichts (der Hinweis steht schon da), kaputt umgerechnet: Hinweis.
+  const [umrechnenFehler, setUmrechnenFehler] = useState(false)
+  const dingBewegt = useCallback((l: DingLage3D) => {
+    const r = rahmenJetzt.current
+    if (!r) {
+      console.warn('[siedlung] Lage nicht gespeichert: die Welt nennt keinen Rahmen (SiedlungWelt3D.rahmen)')
+      return
+    }
+    const s = lageUmrechnen(l, r, 'zuSiedlung')
+    if (s) speicherer.current?.setzen(s)
+    else setUmrechnenFehler(true)
+  }, [])
+  const speicherNochmal = useCallback(() => speicherer.current?.nochmal(), [])
+  const [umrechnenZu, setUmrechnenZu] = useState<unknown>(null)
+  const umrechnenKaputt = umrechnenFehler || (!!dingRechnung && dingRechnung.kaputt > 0 && umrechnenZu !== dingRechnung)
+  const ohneRahmen = !!sprung && !rahmen
+  const [ohneRahmenZu, setOhneRahmenZu] = useState<unknown>(null)
+  const speicherFehlerJetzt = speicherFehler && speicherFehler.fuer === siedlungId ? speicherFehler : null
+  // Ein Hinweis zur Zeit, der wichtigste zuerst, mit Nochmal (Speichern,
+  // Laden) und Schliessen.
+  const seiteArt: 'speichern' | 'rahmen' | 'umrechnen' | 'laden' | null = speicherFehlerJetzt
+    ? 'speichern'
+    : ohneRahmen && ohneRahmenZu !== welt
+      ? 'rahmen'
+      : umrechnenKaputt
+        ? 'umrechnen'
+        : dingeFehlerJetzt
+          ? 'laden'
+          : null
   const seitenFehler =
-    speicherFehler && speicherFehler.fuer === siedlungId
-      ? t('siedlung.dinge_speichern_fehler', { grund: speicherFehler.grund })
-      : dingeFehler && dingeFehler.fuer === siedlungId
-        ? t('siedlung.dinge_laden_fehler', { grund: dingeFehler.grund })
-        : null
+    seiteArt === 'speichern' && speicherFehlerJetzt
+      ? speicherFehlerJetzt.anzahl > 1
+        ? t('siedlung.dinge_speichern_fehler_n', { grund: speicherFehlerJetzt.grund, anzahl: speicherFehlerJetzt.anzahl })
+        : t('siedlung.dinge_speichern_fehler', { grund: speicherFehlerJetzt.grund })
+      : seiteArt === 'rahmen'
+        ? t('siedlung.dinge_ohne_rahmen')
+        : seiteArt === 'umrechnen'
+          ? t('siedlung.dinge_umrechnen_fehler')
+          : seiteArt === 'laden' && dingeFehlerJetzt
+            ? t('siedlung.dinge_laden_fehler', { grund: dingeFehlerJetzt.grund })
+            : null
+  const seiteNochmal = seiteArt === 'speichern' ? speicherNochmal : seiteArt === 'laden' ? dingeNochmal : null
+  const seiteZu = () => {
+    if (seiteArt === 'speichern') setSpeicherFehler(null)
+    else if (seiteArt === 'rahmen') setOhneRahmenZu(() => welt)
+    else if (seiteArt === 'umrechnen') {
+      setUmrechnenFehler(false)
+      setUmrechnenZu(dingRechnung)
+    } else if (seiteArt === 'laden') setDingeFehler(null)
+  }
 
   // E87: "Zu unserer Wohnung" (Besitzer, wenn die Welt sie kennt) und
   // "Eingerichtet ansehen" (wer im Umzug ist). Kann grundrissDarf nicht
@@ -486,9 +829,13 @@ export default function SiedlungAnsicht() {
 
   // E87: "Aus Datei aktualisieren" (nur der Besitzer). Das Feld fuer die
   // Datei liegt ausserhalb der Kopfzeile: am Handy steht der Knopf im Blatt
-  // "Mehr", das sich nach dem Tippen schliesst.
+  // "Mehr", das sich nach dem Tippen schliesst. E87b: ersetzt genau diese
+  // Siedlung (ersetzeId in ausDateiAktualisieren); nach dem Warten nur,
+  // wenn man noch auf ihr ist (sonst zoege es einen zurueck). Die Toasts
+  // kommen trotzdem: gespeichert ist gespeichert.
   async function ausDatei(f: File | undefined) {
     if (!f) return
+    const start = sid
     setAusDateiFehler(null)
     setAusDateiLaeuft(true)
     try {
@@ -497,6 +844,7 @@ export default function SiedlungAnsicht() {
       })
       const e = await ausDateiAktualisieren(text, sid, t, siedlungDateiLesen, siedlungImportieren)
       for (const m of e.toasts) toast(m.text, m.art)
+      if (!eingebaut.current || sidJetzt.current !== start) return
       setAusDateiFehler(e.fehler)
       if (e.id !== null) {
         // Die neue Welt bauen: Daten neu laden (die Dinge auch, sobald sie steht).
@@ -507,15 +855,53 @@ export default function SiedlungAnsicht() {
     } catch (err) {
       const text = err instanceof Error ? err.message : String(err)
       console.warn('[siedlung] Aus Datei aktualisieren:', text)
-      setAusDateiFehler(text)
       toast(text, 'error')
+      if (eingebaut.current && sidJetzt.current === start) setAusDateiFehler(text)
     } finally {
-      setAusDateiLaeuft(false)
+      if (eingebaut.current) setAusDateiLaeuft(false)
     }
   }
-  // Waehrend die neue Siedlung laedt, bleibt die alte Welt stehen (kein
-  // Laden ueber die ganze Flaeche); nur eine andere Siedlung wartet.
-  const ladeAnzeige = zustand.loading && !neuLaden
+
+  // E87b: "Dinge zuruecksetzen" (nur der Besitzer): alle verschobenen
+  // Dinge und Autos wieder an den Startplatz (siedlungDingeZuruecksetzen).
+  // Rueckfrage in einer Zeile unter dem Kopf, fuer genau diese Siedlung.
+  // Danach die Dinge neu laden und 3D frisch aufbauen (ansichtNeu), sonst
+  // behielte der Motor die Lagen dieser Sitzung. Was noch wartet, gilt
+  // nicht mehr; Laufendes wird erst abgewartet, sonst kaeme es nach dem
+  // Loeschen wieder hinein. Die anderen sehen es nach ihrem Neuladen.
+  const kannZuruecksetzen = besitzer && !!DINGE_ZURUECKSETZEN
+  useEffect(() => {
+    if (besitzer && !DINGE_ZURUECKSETZEN) console.info('[siedlung] siedlungDingeZuruecksetzen fehlt in api.ts, der Knopf "Dinge zuruecksetzen" steht nicht da')
+  }, [besitzer])
+  const [zuruecksetzenFuer, setZuruecksetzenFuer] = useState<string | null>(null)
+  const zuruecksetzenOffen = kannZuruecksetzen && !!siedlungId && zuruecksetzenFuer === siedlungId && !entzogen
+  const [zuruecksetzenLaeuft, setZuruecksetzenLaeuft] = useState(false)
+  const [ansichtNeu, setAnsichtNeu] = useState(0)
+  async function dingeZuruecksetzen() {
+    const f = DINGE_ZURUECKSETZEN
+    const id = siedlungId
+    if (!f || !id || zuruecksetzenLaeuft) return
+    const start = sid
+    setZuruecksetzenLaeuft(true)
+    try {
+      await speicherer.current?.verwerfen()
+      const n = await f(id)
+      toast(t('siedlung.dinge_zurueckgesetzt', { n: typeof n === 'number' && Number.isFinite(n) ? n : 0 }), 'ok')
+      if (!eingebaut.current || sidJetzt.current !== start) return
+      setZuruecksetzenFuer(null)
+      dingeGeladen.current = null
+      setDinge(null)
+      setSpeicherFehler(null)
+      setAnsichtNeu((v) => v + 1)
+      setDingeVersuch((v) => v + 1)
+    } catch (err) {
+      const grund = err instanceof Error ? err.message : String(err)
+      console.warn('[siedlung] Dinge zuruecksetzen:', grund)
+      toast(t('siedlung.dinge_zuruecksetzen_fehler', { grund }), 'error')
+    } finally {
+      if (eingebaut.current) setZuruecksetzenLaeuft(false)
+    }
+  }
 
   return (
     // Die Hoehe laesst der unteren Leiste (Handy) und der Suchzeile (Computer)
@@ -527,7 +913,7 @@ export default function SiedlungAnsicht() {
         back="/app"
         sticky={false}
         actions={
-          siedlung ? (
+          siedlung && !entzogen ? (
             <>
               {/* Zuerst die Leute (E86): am Handy bleibt nur der erste Knopf
                   sichtbar, der Rest steht unter "Mehr". Mit der Zahl der
@@ -606,6 +992,22 @@ export default function SiedlungAnsicht() {
                   {ausDateiLaeuft ? null : <FileUp size={18} />}
                 </Button>
               ) : null}
+              {/* E87b: nur der Besitzer: alle verschobenen Dinge zuruecksetzen
+                  (am Handy unter "Mehr"; die Rueckfrage steht unter dem Kopf). */}
+              {kannZuruecksetzen ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  loading={zuruecksetzenLaeuft}
+                  aria-label={t('siedlung.dinge_zuruecksetzen')}
+                  title={t('siedlung.dinge_zuruecksetzen_hilfe')}
+                  aria-expanded={zuruecksetzenOffen}
+                  disabled={!siedlungId}
+                  onClick={() => setZuruecksetzenFuer(siedlungId)}
+                >
+                  {zuruecksetzenLaeuft ? null : <RotateCcw size={18} />}
+                </Button>
+              ) : null}
             </>
           ) : null
         }
@@ -643,10 +1045,32 @@ export default function SiedlungAnsicht() {
           </IconButton>
         </div>
       ) : null}
-      {sprung && listeAuf ? (
+      {zuruecksetzenOffen ? (
+        // E87b: Rueckfrage in einer Zeile (kein Fenster ueber 3D).
+        <div
+          role="group"
+          aria-label={t('siedlung.dinge_zuruecksetzen')}
+          data-zuruecksetzen=""
+          className="flex shrink-0 flex-wrap items-center gap-2 border-b border-danger/30 bg-danger/8 px-3 py-2 text-sm text-ink"
+        >
+          <RotateCcw size={16} className="shrink-0 text-danger" aria-hidden="true" />
+          <p dir="auto" className="min-w-0 flex-1">
+            {t('siedlung.dinge_zuruecksetzen_frage')}
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <Button size="sm" variant="ghost" disabled={zuruecksetzenLaeuft} onClick={() => setZuruecksetzenFuer(null)}>
+              {t('aktion.abbrechen')}
+            </Button>
+            <Button size="sm" variant="danger" loading={zuruecksetzenLaeuft} onClick={() => void dingeZuruecksetzen()}>
+              {t('siedlung.dinge_zuruecksetzen_ja')}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {sprung && listeAuf && !entzogen ? (
         <WohnungenBlatt ziele={sprung.liste} ebenen={sprung.ebenen} onWahl={hingehen} onClose={listeZu} />
       ) : null}
-      {siedlung && ich ? (
+      {siedlung && ich && !entzogen ? (
         <SiedlungLeute
           open={leuteAuf}
           onClose={leuteZu}
@@ -660,6 +1084,22 @@ export default function SiedlungAnsicht() {
       <div className="flex min-h-0 flex-1 flex-col">
         {ladeAnzeige ? (
           <Loading label={t('siedlung.ansicht_laedt')} />
+        ) : entzogen ? (
+          // E87b: herausgenommen (oder die Siedlung ist weg): keine 3D, keine
+          // Verbindung, ein klarer Satz.
+          <div className="p-4" role="alert" data-entzogen="">
+            <Empty
+              zeichnung="keine"
+              icon={<UserX size={34} />}
+              title={besitzer ? t('siedlung.nicht_gefunden') : t('siedlung.nicht_mehr_dabei')}
+              hint={besitzer ? undefined : t('siedlung.nicht_mehr_dabei_hinweis')}
+              action={
+                <Button variant="outline" onClick={() => nav('/app', { replace: true })}>
+                  {t('siedlung.zurueck_start')}
+                </Button>
+              }
+            />
+          </div>
         ) : zustand.error ? (
           <div className="p-4">
             <ErrorBox error={zustand.error} onRetry={zustand.reload} />
@@ -693,6 +1133,7 @@ export default function SiedlungAnsicht() {
           <>
             <div className="min-h-0 flex-1">
               <Ansicht3D
+                key={ansichtNeu}
                 daten={OHNE_WOHNUNG}
                 welt={welt}
                 // Ohne Wohnung gibt es keine Rundumsicht, die etwas zeigt:
@@ -705,6 +1146,8 @@ export default function SiedlungAnsicht() {
                 dingLagen={dingLagen}
                 onDingBewegt={dingBewegt}
                 seitenFehler={seitenFehler}
+                onSeitenFehlerNochmal={seiteNochmal}
+                onSeitenFehlerZu={seiteArt ? seiteZu : null}
               />
             </div>
             {/* Pflichtangabe der Kartendaten (ODbL), unter dem Bild statt

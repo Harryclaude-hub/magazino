@@ -93,6 +93,19 @@ import type { DingLage3D, Ebene3D, FahrzeugArt, FahrzeugJetzt, Karte3D, Moeglich
  * Name, solange man darauf steht. startGehen beginnt das Begehen gleich
  * beim Oeffnen, einmal (Grundriss mit ?begehen=1).
  *
+ * E87b, nach der Pruefung: Mit live zaehlt nur, wer in live.leute steht
+ * (Besitzer, Gaeste, Leute im Umzug). Wer herausgenommen wurde, ist nach
+ * der naechsten Liste weg: keine Figur, kein Sprechen, seine Stellungen,
+ * Signale und Dinge fallen weg, ohne neu zu verbinden. Laesst sich die
+ * Liste nicht laden (live.ohneListe), gilt wie bisher, wen der Kanal
+ * hineinlaesst. Gemerkte Lagen sind begrenzt (LAGEN_MAX, fremde zuerst
+ * weg), und an den Motor geht nur Neues oder Geaendertes: ein Neubau der
+ * Welt spielt nichts erneut ab (der Motor behaelt seine Lagen selbst), und
+ * ein Ding in der Hand bleibt in der Hand. Aussteigen ohne freien Platz
+ * sagt es (Hinweis, im Vollbild auch oben); Esc dann noch einmal beendet
+ * das Begehen. Beim Abbau geht null als Stockwerk an die Seite. Ein Fehler
+ * der Seite kann Nochmal und Schliessen haben.
+ *
  * Die Farben kommen aus den Tokens (getComputedStyle) und werden bei
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
  */
@@ -185,8 +198,12 @@ export interface Raum3DProps {
    *  niemand sonst da ist. */
   onDingBewegt?: (l: DingLage3D) => void
   /** E87: Ein Fehler der Seite (etwa beim Speichern der Dinge), als
-   *  kleiner Hinweis unten rechts in der Ansicht, auch im Vollbild. */
+   *  kleiner Hinweis oben in der Mitte der Ansicht, auch im Vollbild. */
   seitenFehler?: string | null
+  /** E87b: Knopf Nochmal am Fehler der Seite (etwa Laden der Dinge). */
+  onSeitenFehlerNochmal?: (() => void) | null
+  /** E87b: Knopf Schliessen am Fehler der Seite. */
+  onSeitenFehlerZu?: (() => void) | null
   /** E87: gleich begehen, sobald 3D laeuft (einmal je Ansicht), etwa wenn
    *  der Grundriss mit ?begehen=1 geoeffnet wurde. Spaeter wechseln wirkt
    *  nicht mehr; ohne Raeume und ohne Welt nichts. */
@@ -199,6 +216,10 @@ export interface Raum3DLive {
   kanal: string
   uid: string
   leute: { uid: string; name: string; look: Avatar3D | null }[]
+  /** E87b: true, solange die Liste der Mitglieder nicht geladen werden
+   *  konnte. Dann gilt, wen der Kanal hineinlaesst; sonst nur, wer in leute
+   *  steht. */
+  ohneListe?: boolean
 }
 
 
@@ -214,6 +235,69 @@ function startPunkt(daten: GrundrissDaten, raumId: string | null): [number, numb
 /** E87: so viele selbst bewegte Dinge bekommt jemand, der neu dazukommt
  *  (der Kanal nimmt je Absender 20 je Sekunde an). */
 const DINGE_NACHREICHEN = 20
+
+/** E87b: so viele Lagen merkt sich Raum3D hoechstens (je Liste). Wer im
+ *  Kanal immer neue Kennungen schickt, fuellt so nicht den Speicher. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export const LAGEN_MAX = 5000
+
+/** Eine Lage (oder einen Wert) unter id merken, als juengsten Eintrag
+ *  (eine Map behaelt die Reihenfolge des Einfuegens). Sind es danach mehr
+ *  als max, fallen die aeltesten weg, ausser denen in schuetzen und id
+ *  selbst. Gibt die verworfenen Kennungen zurueck (E87b). */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function lageMerken<T>(karte: Map<string, T>, id: string, wert: T, schuetzen: { has(id: string): boolean } | null, max: number = LAGEN_MAX): string[] {
+  karte.delete(id)
+  karte.set(id, wert)
+  const weg: string[] = []
+  if (karte.size <= max) return weg
+  for (const k of karte.keys()) {
+    if (karte.size <= max) break
+    if (k === id || schuetzen?.has(k)) continue
+    karte.delete(k)
+    weg.push(k)
+  }
+  return weg
+}
+
+/** Dieselbe Lage (Art, Ort, Drehung, Ebene)? Dann muss sie nicht noch
+ *  einmal an den Motor (E87b). */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function lageGleich(a: DingLage3D | undefined | null, b: DingLage3D): boolean {
+  return !!a && a.id === b.id && a.art === b.art && a.x === b.x && a.y === b.y && a.z === b.z && a.gier === b.gier && a.ebene === b.ebene
+}
+
+/** Eine Lage als dem Motor bekannt merken (lagen); was dabei wegfaellt,
+ *  faellt auch aus frisch. eigene (selbst Bewegtes) faellt nie weg. */
+function lageVermerken(lagen: Map<string, DingLage3D>, frisch: Set<string>, eigene: Map<string, DingLage3D>, l: DingLage3D): void {
+  for (const k of lageMerken(lagen, l.id, l, eigene)) frisch.delete(k)
+}
+
+/** Wer live dabei sein darf, als Zeichen (E87b): '*' heisst alle, die der
+ *  Kanal hineinlaesst (Umzug ohne live, oder die Liste liess sich nicht
+ *  laden); sonst die Kennungen aus live.leute, klein, sortiert, mit Komma.
+ *  Gleiches Zeichen, gleiche Leute: eine neue Liste mit denselben Leuten
+ *  aendert nichts. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function erlaubtZeichenVon(live: Raum3DLive | null | undefined): string {
+  if (!live || live.ohneListe) return '*'
+  return live.leute
+    .map((l) => String(l.uid).toLowerCase())
+    .sort()
+    .join(',')
+}
+
+/** Die Pruefung zu einem Zeichen aus erlaubtZeichenVon (gross oder klein egal). */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
+export function erlaubtPruefen(zeichen: string): (u: string) => boolean {
+  if (zeichen === '*') return () => true
+  const s = new Set(zeichen ? zeichen.split(',') : [])
+  return (u) => typeof u === 'string' && s.has(u.toLowerCase())
+}
+
+/** So lange (ms) steht der Hinweis "kein Platz zum Aussteigen"; so lange
+ *  beendet ein zweites Esc das Begehen (E87b). */
+const KEIN_PLATZ_MS = 5000
 
 /** Eine ruhige Farbe je Person, fest aus der Kennung. */
 function farbeFuer(uid: string): string {
@@ -354,43 +438,44 @@ export const BEDIEN_NAME: Record<BedienKnopf, string> = {
 
 /** Was der Motor auf einen Knopf hin tut (eine Stelle, auch fuer die
  *  Pruefung). Sicht und Blaulicht schalten um, ausgehend von dem, was
- *  der Motor zuletzt gemeldet hat. */
+ *  der Motor zuletzt gemeldet hat. E87b: false, wenn es nicht ging
+ *  (Aussteigen ohne freien Platz: motor.aussteigen() meldet false), sonst
+ *  true. */
 // eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
 export function knopfAusfuehren(
   k: BedienKnopf,
   m: Pick<Motor, 'hupfen' | 'aufstehen' | 'einsteigen' | 'aussteigen' | 'fahrSicht' | 'blaulicht' | 'hinstellen' | 'drehen' | 'ablegen'>,
   fahrt: Pick<FahrzeugJetzt, 'sicht' | 'blaulicht'> | null,
-): void {
+): boolean {
   switch (k) {
     case 'springen':
       m.hupfen()
-      return
+      return true
     case 'aufstehen':
       m.aufstehen()
-      return
+      return true
     case 'einsteigen':
       m.einsteigen()
-      return
+      return true
     case 'aussteigen':
-      m.aussteigen()
-      return
+      return m.aussteigen() !== false
     case 'sicht':
       m.fahrSicht(fahrt?.sicht === 'hinten' ? 'innen' : 'hinten')
-      return
+      return true
     case 'blaulicht':
       m.blaulicht(!fahrt?.blaulicht)
-      return
+      return true
     case 'hinstellen':
       m.hinstellen()
-      return
+      return true
     case 'drehen':
       m.drehen(1)
-      return
+      return true
     case 'ablegen':
       m.ablegen()
-      return
+      return true
     case 'kmh':
-      return
+      return true
   }
 }
 
@@ -558,6 +643,8 @@ export default function Raum3D({
   dingLagen = null,
   onDingBewegt,
   seitenFehler = null,
+  onSeitenFehlerNochmal = null,
+  onSeitenFehlerZu = null,
   startGehen = false,
   className,
 }: Raum3DProps) {
@@ -662,9 +749,16 @@ export default function Raum3D({
   // Kennung (aus dingLagen, eigenen Bewegungen und von den anderen).
   // frisch: in dieser Sitzung bewegt, gilt vor dingLagen. eigeneLagen:
   // selbst bewegt, fuer alle, die neu in den Kanal kommen (juengste zuletzt).
+  // E87b: lagen ist, was der Motor schon bekommen hat (nur Neues oder
+  // Geaendertes geht hin); alle drei hoechstens LAGEN_MAX, fremde zuerst
+  // weg (frisch nur, was noch in lagen steht). nachher: gespeicherte Lage
+  // eines Dings, das man gerade in der Hand hat; sie gilt, sobald es aus
+  // der Hand ist, ohne dass man es hingestellt hat.
   const lagen = useRef(new Map<string, DingLage3D>())
   const frisch = useRef(new Set<string>())
   const eigeneLagen = useRef(new Map<string, DingLage3D>())
+  const nachher = useRef(new Map<string, DingLage3D>())
+  const inHandRef = useRef<string | null>(null)
   const dingRueck = useRef(onDingBewegt)
   useLayoutEffect(() => {
     dingRueck.current = onDingBewegt
@@ -782,7 +876,20 @@ export default function Raum3D({
     const m = motor.current
     if (!m) return
     m.haltung(setHaltung)
-    m.inHand(setInHand)
+    // E87b: ist ein Ding aus der Hand, ohne dass man es hingestellt hat,
+    // gilt seine gespeicherte Lage, die kam, waehrend man es hielt (nach
+    // dem Rueckruf, nicht mitten im Motor).
+    m.inHand((id) => {
+      const vorher = inHandRef.current
+      inHandRef.current = id
+      setInHand(id)
+      const l = vorher && vorher !== id ? nachher.current.get(vorher) : undefined
+      if (!l) return
+      nachher.current.delete(l.id)
+      queueMicrotask(() => {
+        if (!frisch.current.has(l.id) && inHandRef.current !== l.id) motor.current?.lage(l)
+      })
+    })
     // E87: Knoepfe und Fahrzeug. Neu gesetzt nur bei echter Aenderung.
     m.moeglich((x) => setMoeglich((alt) => (gleichMoeglich(alt, x) ? alt : { ...x })))
     m.fahrzeug((f) => {
@@ -810,23 +917,32 @@ export default function Raum3D({
     const m = motor.current
     if (!m) return
     m.bewegt((l) => {
-      lagen.current.set(l.id, l)
+      // Erst die eigenen (sie schuetzen sich in lagen), dann lagen.
+      lageMerken(eigeneLagen.current, l.id, l, null)
+      lageVermerken(lagen.current, frisch.current, eigeneLagen.current, l)
       frisch.current.add(l.id)
-      eigeneLagen.current.delete(l.id)
-      eigeneLagen.current.set(l.id, l)
+      nachher.current.delete(l.id)
       dingSenden.current?.(l)
       dingRueck.current?.(l)
     })
     return () => m.bewegt(null)
   }, [geht])
   // Gespeicherte Lagen (E87): an den Motor; was in dieser Sitzung schon
-  // bewegt wurde, bleibt, wie es jetzt ist.
+  // bewegt wurde, bleibt, wie es jetzt ist. E87b: nur Neues oder
+  // Geaendertes (die Liste kommt nach jedem Neubau der Welt neu umgerechnet,
+  // der Motor kennt die Lagen dann schon); ein Ding in der Hand bleibt in
+  // der Hand, seine Lage gilt erst danach (nachher).
   useEffect(() => {
     const m = motor.current
     if (!m || geht !== 'ja' || !dingLagen) return
     for (const l of dingLagen) {
       if (frisch.current.has(l.id)) continue
-      lagen.current.set(l.id, l)
+      if (lageGleich(lagen.current.get(l.id), l)) continue
+      lageVermerken(lagen.current, frisch.current, eigeneLagen.current, l)
+      if (inHandRef.current === l.id) {
+        nachher.current.set(l.id, l)
+        continue
+      }
       m.lage(l)
     }
   }, [dingLagen, geht])
@@ -897,8 +1013,10 @@ export default function Raum3D({
     const mw = mitWelt(m)
     if (mw.welt) mw.welt(w)
     else m.umgebung({ gruppe: w.gruppe, nebel: w.nebel, himmel: w.himmel })
-    // E87: die bekannten Lagen der Dinge und Fahrzeuge auch in der neuen Welt.
-    for (const l of lagen.current.values()) m.lage(l)
+    // E87b: die bekannten Lagen der Dinge und Fahrzeuge setzt der Motor in
+    // der neuen Welt selbst (er merkt sich jede, die er bekam oder meldete).
+    // Hier noch einmal alle zu schicken, nahm ein Ding aus der Hand und
+    // schob gelenkte Fahrzeuge zurueck (Pruefung E87).
     // Zum Waehlen ohne die Zwischenpodeste (E87); oben steht trotzdem der
     // Name der Ebene, auf der man gerade ist, auch eines Podests.
     const liste = ebenenZumWaehlen(w.ebenen)
@@ -934,6 +1052,15 @@ export default function Raum3D({
   useEffect(() => {
     ebeneRueck.current?.(ebeneJetzt)
   }, [ebeneJetzt])
+  // E87b: beim Abbau einmal null, sonst stuende oben weiter das letzte
+  // Stockwerk (nur hier, nicht bei jeder Aenderung: das meldete zwischen
+  // zwei Stockwerken kurz null).
+  useEffect(
+    () => () => {
+      ebeneRueck.current?.(null)
+    },
+    [],
+  )
   /** Bedienung mit Fingern (Handy, Tablet): anderer Hinweis. */
   const beruehren = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
   const traeger = useMemo(() => traegerKarte(daten), [daten])
@@ -1031,6 +1158,36 @@ export default function Raum3D({
   const faehrt = gehen && (fahrt !== null || moeglich.aussteigen)
   const haelt = gehen && !faehrt && (inHand !== null || moeglich.halten)
 
+  // E87b: Aussteigen ohne freien Platz (motor.aussteigen() meldet false):
+  // ein Hinweis (Toast, im Vollbild auch oben in der Ansicht, wo Toasts
+  // nicht zu sehen sind), KEIN_PLATZ_MS lang. Kam es von Esc, beendet ein
+  // zweites Esc in dieser Zeit das Begehen (die Fahrt endet dabei mit).
+  // Die Taste E liest der Motor selbst, sie meldet sich hier nicht.
+  const [keinPlatz, setKeinPlatz] = useState<{ n: number; esc: boolean } | null>(null)
+  const escKeinPlatz = useRef(false)
+  const keinPlatzMelden = (esc: boolean) => {
+    escKeinPlatz.current = esc
+    toast(t(esc ? 'plan3d.aussteigen_kein_platz_esc' : 'plan3d.aussteigen_kein_platz'), 'error')
+    setKeinPlatz((v) => ({ n: (v?.n ?? 0) + 1, esc }))
+  }
+  const keinPlatzRef = useRef(keinPlatzMelden)
+  useLayoutEffect(() => {
+    keinPlatzRef.current = keinPlatzMelden
+  })
+  useEffect(() => {
+    if (!keinPlatz) return
+    const h = window.setTimeout(() => {
+      escKeinPlatz.current = false
+      setKeinPlatz(null)
+    }, KEIN_PLATZ_MS)
+    return () => window.clearTimeout(h)
+  }, [keinPlatz])
+  // Wieder zu Fuss (oder Begehen aus): der Hinweis ist erledigt.
+  const keinPlatzJetzt = faehrt ? keinPlatz : null
+  useEffect(() => {
+    if (!faehrt) escKeinPlatz.current = false
+  }, [faehrt])
+
   // Esc der Reihe nach (E82): erst die Kistenkarte, dann (E87) beim Fahren
   // aussteigen, dann aufstehen, dann das Begehen beenden, dann das
   // Vollbild; erst danach schliesst 3D.
@@ -1049,8 +1206,10 @@ export default function Raum3D({
       if (fremd) return
       const z = escLage.current
       if (z.karte) setKarte(null)
-      else if (z.gehen && z.faehrt) motor.current?.aussteigen()
-      else if (z.gehen && z.haltung !== 'stehen') motor.current?.aufstehen()
+      else if (z.gehen && z.faehrt && escKeinPlatz.current) setGehen(false)
+      else if (z.gehen && z.faehrt) {
+        if (motor.current?.aussteigen() === false) keinPlatzRef.current(true)
+      } else if (z.gehen && z.haltung !== 'stehen') motor.current?.aufstehen()
       else if (z.gehen) setGehen(false)
       else if (z.vollbild) setVollbild(false)
       else return
@@ -1087,6 +1246,22 @@ export default function Raum3D({
       return { name: displayNameOf(prof, '?'), look: prof?.avatar3d ?? null }
     }
   })
+  // E87b: wer live dabei sein darf. Mit live (Siedlung) nur, wer in
+  // live.leute steht (Besitzer, Gaeste, Leute im Umzug); laesst sich die
+  // Liste nicht laden (ohneListe), wie bisher alle, die der Kanal
+  // hineinlaesst. Im Umzug (ohne live) entscheidet der Kanal. In einer Ref
+  // wie werRef; aendert sich die Liste, wendet die Verbindung die letzte
+  // Anwesenheit neu an (erlaubtNeu): wer herausgenommen wurde, verschwindet,
+  // das Sprechen zu ihm endet, ohne neu zu verbinden.
+  const erlaubtZeichen = useMemo(() => erlaubtZeichenVon(gemeinsam), [gemeinsam])
+  const erlaubtRef = useRef<(u: string) => boolean>(() => true)
+  useLayoutEffect(() => {
+    erlaubtRef.current = erlaubtPruefen(erlaubtZeichen)
+  }, [erlaubtZeichen])
+  const erlaubtNeu = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    erlaubtNeu.current?.()
+  }, [erlaubtZeichen])
   const [leuteDa, setLeuteDa] = useState<string[]>([])
   const [sprech, setSprech] = useState<SprechZustand | null>(null)
   // Fehler der Live-Verbindung auch in der Ansicht: im echten Vollbild sind
@@ -1167,37 +1342,53 @@ export default function Raum3D({
       const liste = [...eigeneLagen.current.values()].slice(-DINGE_NACHREICHEN)
       for (const l of liste) verbindung?.ding(l)
     }
+    // E87b: die letzte Anwesenheit, wie sie kam; gezeigt wird nur, wer im
+    // eigenen Grundriss ist und dazugehoert (erlaubtRef).
+    let anwesend: { uid: string; grundrissId: string | null }[] = []
+    const darf = (u: string) => erlaubtRef.current(u)
+    const werAnwenden = () => {
+      const hier = anwesend.filter((l) => l.grundrissId === grundrissId && darf(l.uid)).map((l) => l.uid)
+      // Synchron, damit fruehe Signale nicht verloren gehen (sprechen.ts).
+      sprechen.leute(hier)
+      for (const u of [...fremde.keys()]) if (!hier.includes(u)) fremde.delete(u)
+      figurenSetzen(hier)
+      setLeuteDa(hier)
+      if (hier.some((u) => !bekannt.has(u))) dingeNachreichen()
+      bekannt = new Set(hier)
+    }
+    erlaubtNeu.current = werAnwenden
     verbindung = wohnungBeitreten({
       projectId: raum ?? projectId,
       grundrissId,
       uid: liveUid,
       ...(liveKanal ? { kanal: liveKanal } : {}),
       onWer: (leute) => {
-        const hier = leute.filter((l) => l.grundrissId === grundrissId).map((l) => l.uid)
-        // Synchron, damit fruehe Signale nicht verloren gehen (sprechen.ts).
-        sprechen.leute(hier)
-        for (const u of [...fremde.keys()]) if (!hier.includes(u)) fremde.delete(u)
-        figurenSetzen(hier)
-        setLeuteDa(hier)
-        if (hier.some((u) => !bekannt.has(u))) dingeNachreichen()
-        bekannt = new Set(hier)
+        anwesend = leute
+        werAnwenden()
       },
       onPose: (u, p) => {
+        if (!darf(u)) return
         fremde.set(u, p)
         motor.current?.leutePose(u, p)
         if (eigene.p) sprechen.lautstaerke(u, abstand(eigene.p, p))
       },
-      onSignal: (von, d) => sprechen.empfangen(von, d),
+      onSignal: (von, d) => {
+        if (darf(von)) sprechen.empfangen(von, d)
+      },
       onFehler: (text) => {
         setWohnungFehler(text)
         toast(text, 'error')
       },
       onVerbunden: () => setWohnungFehler(null),
-      // E87: jemand anderes hat ein Ding hingestellt oder ein Fahrzeug abgestellt.
-      onDing: (_von, l) => {
-        lagen.current.set(l.id, l)
-        frisch.current.add(l.id)
+      // E87: jemand anderes hat ein Ding hingestellt oder ein Fahrzeug
+      // abgestellt. E87b: nur von dem, der dazugehoert; schon so bekannt:
+      // nichts; gemerkt hoechstens LAGEN_MAX (fremde zuerst weg).
+      onDing: (von, l) => {
+        if (!darf(von) || lageGleich(lagen.current.get(l.id), l)) return
         eigeneLagen.current.delete(l.id)
+        nachher.current.delete(l.id)
+        lageVermerken(lagen.current, frisch.current, eigeneLagen.current, l)
+        frisch.current.add(l.id)
         motor.current?.lage(l)
       },
     })
@@ -1215,6 +1406,7 @@ export default function Raum3D({
       hoerer.delete(aufPose)
       dingSenden.current = null
       figurenNeu.current = null
+      erlaubtNeu.current = null
       sprechen.beenden()
       verbindung?.verlassen()
       sprechenRef.current = null
@@ -1310,7 +1502,8 @@ export default function Raum3D({
               aus={knopfAus(k, moeglich)}
               onClick={() => {
                 const m = motor.current
-                if (m) knopfAusfuehren(k, m, fahrt)
+                // E87b: ging es nicht (kein Platz zum Aussteigen), ein Hinweis statt Stille.
+                if (m && !knopfAusfuehren(k, m, fahrt)) keinPlatzMelden(false)
               }}
             />
           ),
@@ -1324,8 +1517,39 @@ export default function Raum3D({
   const chip = 'max-w-md rounded-xl border bg-surface/95 px-3 py-2 text-center text-sm font-bold shadow'
   const hinweise = [
     seitenFehler ? (
-      <p key="seite" dir="auto" className={cx(chip, 'border-danger text-danger')} role="alert">
-        {seitenFehler}
+      // E87b: mit Nochmal und Schliessen, wenn die Seite es anbietet (der
+      // Hinweis faengt Finger, er soll sich also wegtippen lassen).
+      <div key="seite" dir="auto" className={cx(chip, 'flex items-center gap-2 border-danger text-danger')} role="alert">
+        <span className="min-w-0 flex-1">{seitenFehler}</span>
+        {onSeitenFehlerNochmal ? (
+          <button
+            type="button"
+            data-seite-nochmal=""
+            onClick={onSeitenFehlerNochmal}
+            className="shrink-0 rounded-lg border border-danger px-2 py-1 text-xs font-bold text-danger hover:bg-danger/8"
+          >
+            {t('aktion.nochmal')}
+          </button>
+        ) : null}
+        {onSeitenFehlerZu ? (
+          <button
+            type="button"
+            data-seite-zu=""
+            aria-label={t('aktion.schliessen')}
+            title={t('aktion.schliessen')}
+            onClick={onSeitenFehlerZu}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-danger hover:bg-danger/8"
+          >
+            <X size={15} />
+          </button>
+        ) : null}
+      </div>
+    ) : null,
+    // E87b: kein Platz zum Aussteigen. Der Toast ist im Vollbild nicht zu
+    // sehen, darum dort auch hier.
+    vollbild && keinPlatzJetzt ? (
+      <p key={`platz-${keinPlatzJetzt.n}`} dir="auto" className={cx(chip, 'border-warn text-ink')} role="status">
+        {t(keinPlatzJetzt.esc ? 'plan3d.aussteigen_kein_platz_esc' : 'plan3d.aussteigen_kein_platz')}
       </p>
     ) : null,
     weltFehlerText ? (

@@ -43,7 +43,7 @@ registerHooks({
   },
 })
 const { lokal } = await import('../src/lib/osm.ts')
-const { gelaendeHoehe, stadtPruefen } = await import('../src/lib/stadt.ts')
+const { gelaendeHoehe, stadtPruefen, HAUS_ID, STADT_GRENZEN } = await import('../src/lib/stadt.ts')
 const { tuerBreite } = await import('../src/components/plan3d/stadtMasse.ts')
 
 /* ============================================================ Regeln */
@@ -60,6 +60,8 @@ export const UEBERGANG_M = 25
 export const ZIEL_BYTES = 2_500_000
 /** Kanten fuer eine Tuer muessen so viel laenger sein als die Tuer (Meter). */
 const TUER_SPIEL_M = 0.6
+/** So weit vor einer Tuer darf kein anderes Haus stehen (Meter). */
+const TUER_FREI_M = 0.9
 /** Namen werden hier abgeschnitten (Zeichen). */
 const NAME_MAX = 80
 /** Baeume in einer Baumreihe (Abstand in Metern). */
@@ -464,6 +466,153 @@ export function linieKappen(p, rahmen) {
   return teile.filter((t) => t.length >= 2)
 }
 
+/** Eine Linie an Luecken teilen (E87b, Tore in Zaeunen). luecken: [{ s,
+ *  halb }], s = Laenge entlang der Linie (Meter), halb = halbe Breite der
+ *  Luecke. zu: die Linie ist geschlossen (erster = letzter Punkt), dann
+ *  reicht eine Luecke ueber den Anfang hinweg, und das Stueck ueber den
+ *  Anfang bleibt eines. Gibt die Stuecke zurueck; ohne Luecken die Linie. */
+export function linieTeilen(p, luecken, zu) {
+  if (!luecken.length || p.length < 2) return [p]
+  const cum = [0]
+  for (let i = 1; i < p.length; i++) cum.push(cum[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]))
+  const L = cum[cum.length - 1]
+  if (!(L > 0)) return []
+  // Was wegfaellt, als Bereiche in [0, L].
+  const weg = []
+  for (const { s, halb } of luecken) {
+    const a = s - halb
+    const b = s + halb
+    if (!zu) weg.push([Math.max(0, a), Math.min(L, b)])
+    else if (b - a >= L) return []
+    else if (a < 0) weg.push([a + L, L], [0, b])
+    else if (b > L) weg.push([a, L], [0, b - L])
+    else weg.push([a, b])
+  }
+  const zusammen = []
+  for (const w of weg.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0])) {
+    const l = zusammen[zusammen.length - 1]
+    if (l && w[0] <= l[1]) l[1] = Math.max(l[1], w[1])
+    else zusammen.push([w[0], w[1]])
+  }
+  if (!zusammen.length) return [p]
+  const bleibt = []
+  let von = 0
+  for (const [a, b] of zusammen) {
+    if (a > von) bleibt.push([von, a])
+    von = Math.max(von, b)
+  }
+  if (von < L) bleibt.push([von, L])
+  const punktBei = (s) => {
+    let i = 0
+    while (i + 2 < cum.length && cum[i + 1] < s) i++
+    const l = cum[i + 1] - cum[i]
+    const t = l > 0 ? Math.min(Math.max((s - cum[i]) / l, 0), 1) : 0
+    return [p[i][0] + t * (p[i + 1][0] - p[i][0]), p[i][1] + t * (p[i + 1][1] - p[i][1])]
+  }
+  const teile = bleibt.map(([u, v]) => {
+    const out = [punktBei(u)]
+    for (let i = 0; i < p.length; i++) if (cum[i] > u && cum[i] < v) out.push(p[i])
+    out.push(punktBei(v))
+    return out
+  })
+  // Geschlossen: das letzte und das erste Stueck haengen am Anfang zusammen.
+  if (zu && bleibt.length >= 2 && bleibt[0][0] === 0 && bleibt[bleibt.length - 1][1] === L) {
+    const erstes = teile.shift()
+    const letztes = teile.pop()
+    teile.push([...letztes, ...erstes.slice(1)])
+  }
+  return teile
+}
+
+/** Schneiden sich die Strecken a-b und c-d (auch beruehrend oder
+ *  ueberlappend)? Mit kleiner Toleranz fuer gerundete Punkte. */
+function streckenTreffen(a, b, c, d) {
+  const o = (p, q, r) => {
+    const v = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+    return Math.abs(v) < 1e-9 ? 0 : Math.sign(v)
+  }
+  const auf = (p, q, r) => Math.min(p[0], r[0]) - 1e-9 <= q[0] && q[0] <= Math.max(p[0], r[0]) + 1e-9 && Math.min(p[1], r[1]) - 1e-9 <= q[1] && q[1] <= Math.max(p[1], r[1]) + 1e-9
+  const o1 = o(a, b, c)
+  const o2 = o(a, b, d)
+  const o3 = o(c, d, a)
+  const o4 = o(c, d, b)
+  if (o1 !== o2 && o3 !== o4) return true
+  return (o1 === 0 && auf(a, c, b)) || (o2 === 0 && auf(a, d, b)) || (o3 === 0 && auf(c, a, d)) || (o4 === 0 && auf(c, b, d))
+}
+
+/** Eine Flaeche mit Loechern als ein einziger Ring (E87b): jedes Loch
+ *  haengt ueber eine Bruecke (hin und zurueck auf derselben Strecke) am
+ *  Aussenring. StadtFlaeche kennt keine Loecher; so bleiben Lichtung, Teich
+ *  und Insel trotzdem frei, beim Fuellen (nonzero und gerade-ungerade), im
+ *  Rastern (Scanline) und bei "Punkt im Vieleck". Der Aussenring laeuft
+ *  danach positiv (Flaeche > 0), die Loecher negativ. Ein Loch, fuer das
+ *  sich keine Bruecke findet, die nichts schneidet, oder das ueber
+ *  maxPunkte fuehren wuerde, faellt weg (gezaehlt in ohne). */
+export function lochBruecken(aussen, loecher, maxPunkte = Infinity) {
+  let ring = flaeche(aussen) >= 0 ? aussen.slice() : aussen.slice().reverse()
+  const offen = loecher
+    .map((l) => (flaeche(l) <= 0 ? l.slice() : l.slice().reverse()))
+    .sort((x, y) => Math.abs(flaeche(y)) - Math.abs(flaeche(x)))
+  const gleich = (p, q) => p[0] === q[0] && p[1] === q[1]
+  let ohne = 0
+  for (let h = 0; h < offen.length; h++) {
+    const l = offen[h]
+    if (ring.length + l.length + 2 > maxPunkte) {
+      ohne++
+      continue
+    }
+    const rest = offen.slice(h + 1)
+    // Punkte, die schon zweimal im Ring stehen (Enden frueherer Bruecken),
+    // taugen nicht als Anfang: dort waere nicht klar, auf welcher Seite.
+    const zahl = new Map()
+    for (const p of ring) zahl.set(p[0] + ',' + p[1], (zahl.get(p[0] + ',' + p[1]) ?? 0) + 1)
+    // Kandidaten: je Punkt des Lochs die naechsten Punkte des Rings.
+    const kandidaten = []
+    for (let j = 0; j < l.length; j++) {
+      const naechste = []
+      for (let i = 0; i < ring.length; i++) {
+        if (zahl.get(ring[i][0] + ',' + ring[i][1]) > 1) continue
+        const d = Math.hypot(ring[i][0] - l[j][0], ring[i][1] - l[j][1])
+        if (naechste.length < 8 || d < naechste[naechste.length - 1].d) {
+          naechste.push({ i, j, d })
+          naechste.sort((x, y) => x.d - y.d)
+          if (naechste.length > 8) naechste.pop()
+        }
+      }
+      kandidaten.push(...naechste)
+    }
+    kandidaten.sort((x, y) => x.d - y.d)
+    const frei = ({ i, j }) => {
+      const a = ring[i]
+      const b = l[j]
+      const kreuzt = (r) => {
+        for (let k = 0; k < r.length; k++) {
+          const c = r[k]
+          const d = r[(k + 1) % r.length]
+          if (gleich(c, a) || gleich(d, a) || gleich(c, b) || gleich(d, b)) continue
+          if (streckenTreffen(a, b, c, d)) return true
+        }
+        return false
+      }
+      if (kreuzt(ring) || kreuzt(l) || rest.some(kreuzt)) return false
+      const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+      if (gleich(a, b)) return true
+      return imRing(m, ring) && !imRing(m, l) && !rest.some((r) => imRing(m, r))
+    }
+    const best = kandidaten.slice(0, 400).find(frei)
+    if (!best) {
+      ohne++
+      continue
+    }
+    const { i, j } = best
+    ring = [...ring.slice(0, i + 1), ...l.slice(j), ...l.slice(0, j + 1), ...ring.slice(i)]
+  }
+  // Doppelte Nachbarn (Loch beruehrt den Rand) weg.
+  const out = ring.filter((p, k) => k === 0 || !gleich(p, ring[k - 1]))
+  while (out.length > 1 && gleich(out[0], out[out.length - 1])) out.pop()
+  return { ring: out, ohne }
+}
+
 /** Einen Ring auf das Rechteck kappen (Sutherland-Hodgman). */
 export function ringKappen(ring, [x0, z0, x1, z1]) {
   const sx = (a, b, x) => [x, a[1] + ((x - a[0]) / (b[0] - a[0])) * (b[1] - a[1])]
@@ -528,6 +677,16 @@ function kurz(s, n = NAME_MAX) {
   const t = Array.from(s.trim().replace(/\s+/g, ' '))
   if (!t.length) return undefined
   return t.slice(0, n).join('').trim()
+}
+
+/** Kurze Kennung aus einem Text (FNV-1a, 32 Bit, hex): gleich bei jedem Lauf. */
+function kennungAus(s) {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h.toString(16).padStart(8, '0')
 }
 
 /** Geschosse aus building:levels, sonst aus height (3 m je Geschoss). */
@@ -624,13 +783,15 @@ export function hausArt(t, u) {
   if (a === 'hospital' || t.healthcare === 'hospital' || b === 'hospital' || nAmenity.has('hospital') || drin('spital')) return 'spital'
   if (a === 'clinic' || t.healthcare === 'clinic' || b === 'clinic') return 'spital'
   if (s === 'mall' || b === 'mall' || drin('einkaufszentrum')) return 'einkaufszentrum'
-  if (s === 'supermarket' || b === 'supermarket') return 'supermarkt'
+  // Ein Wohnhaus mit shop= oder Gastro am Umriss bleibt ein Wohnhaus (E87b);
+  // das Geschaeft steht dann in laeden (wie ein Knoten im Haus).
+  if ((s === 'supermarket' && !wohnt) || b === 'supermarket') return 'supermarkt'
   if (b === 'school' || b === 'college' || b === 'university' || a === 'school' || a === 'college' || a === 'university') return 'schule'
   if (drin('schule')) return 'schule'
   if (b === 'kindergarten' || a === 'kindergarten' || a === 'childcare' || drin('kindergarten')) return 'kindergarten'
   if (KIRCHE.has(b) || a === 'place_of_worship' || drin('kirche')) return 'kirche'
-  if (s && s !== 'vacant') return 'laden'
-  if (LADEN_AMENITY.has(a)) return 'laden'
+  if (!wohnt && s && s !== 'vacant') return 'laden'
+  if (!wohnt && LADEN_AMENITY.has(a)) return 'laden'
   if (BUERO_AMENITY.has(a)) return 'buero'
   if (HALLE_AMENITY.has(a) || HALLE_LEISURE.has(t.leisure)) return 'halle'
   if (a === 'parking') return 'garage'
@@ -748,6 +909,27 @@ function flaechenArt(t) {
 }
 
 const ZAUN = { wall: 'mauer', retaining_wall: 'mauer', city_wall: 'mauer', fence: 'zaun', hedge: 'hecke' }
+/** Durchgaenge in Zaeunen, Mauern und Hecken (barrier= an einem Knoten, E87b). */
+const TORE = new Set([
+  'gate',
+  'lift_gate',
+  'swing_gate',
+  'sliding_gate',
+  'kissing_gate',
+  'entrance',
+  'stile',
+  'turnstile',
+  'bollard',
+  'cycle_barrier',
+  'motorcycle_barrier',
+  'chain',
+])
+/** Luecke an einem Tor und an einem Fussweg, der durch den Zaun geht (Meter). */
+const TOR_M = 1.2
+/** So viel breiter als die Strasse ist die Luecke, wo sie einen Zaun kreuzt (Meter). */
+const TOR_RAND_M = 1
+/** Diese Wege brauchen nur eine schmale Luecke. */
+const SCHMALE_WEGE = new Set(['fuss', 'rad', 'treppe'])
 
 /* ====================================================== Gelaende */
 
@@ -835,6 +1017,9 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
     tuerWeg: 0,
     tuerNotfall: 0,
     gemischt: 0,
+    kennungErsetzt: 0,
+    loecherOhneBruecke: 0,
+    zaunLuecken: 0,
   }
 
   /* ---------------------------------------------- 1. Gelaende */
@@ -892,22 +1077,46 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
   const nutzungRaster = new Raster(100)
   nutzung.forEach((b, i) => nutzungRaster.einfuegen(b.box, i))
 
-  // Knoten: Orte (shop, amenity), Eingaenge, Baeume.
+  // Knoten: Orte (shop, amenity, Bushaltestellen), Eingaenge, Baeume, Tore.
   const orteRoh = []
   const eingaenge = []
   const baeumeRoh = []
+  const toreId = new Set()
+  const toreOrt = new Set()
   for (const e of elemente) {
     if (e.type !== 'node' || !e.tags || !Number.isFinite(e.lat) || !Number.isFinite(e.lon)) continue
     const p = zuM(e)
     if (e.tags.natural === 'tree') baeumeRoh.push(p)
     if (typeof e.tags.entrance === 'string' && e.tags.entrance !== 'no') eingaenge.push({ p, rang: EINGANG_RANG[e.tags.entrance] ?? 5 })
-    if (e.tags.shop || e.tags.amenity || e.tags.healthcare) orteRoh.push({ p, tags: e.tags, haus: null })
+    // Haltestellen (E87b): highway=bus_stop oder ein Bahnsteig fuer Busse.
+    // stadt3d stellt den Bus an einen Ort mit 'bus' in der Art.
+    const halt = e.tags.highway === 'bus_stop' || (e.tags.public_transport === 'platform' && e.tags.bus === 'yes')
+    if (e.tags.shop || e.tags.amenity || e.tags.healthcare || halt) orteRoh.push({ p, tags: e.tags, haus: null, halt })
+    if (TORE.has(e.tags.barrier)) {
+      toreId.add(e.id)
+      toreOrt.add(e.lat + ',' + e.lon)
+    }
   }
   const eingangRaster = new Raster(50)
   eingaenge.forEach((g, i) => eingangRaster.einfuegen([g.p[0], g.p[1], g.p[0], g.p[1]], i))
 
   /* ---------------------------------------------- 3. Haeuser */
   const kandidaten = []
+  // Kennungen der Haeuser im Zeichensatz der Ding-Kennungen (HAUS_ID in
+  // src/lib/stadt.ts, E87b). Aus der Karte kommen nur 'w123' und 'r123_2';
+  // was anders aussieht (von Hand gebaute Auszuege), bekommt eine Kennung
+  // aus seinem Text (gleich bei jedem Lauf) und wird gezaehlt.
+  const vergeben = new Set()
+  const hausKennung = (roh) => {
+    let id = roh
+    if (!HAUS_ID.test(id) || vergeben.has(id)) {
+      z.kennungErsetzt++
+      id = 'x' + kennungAus(String(roh))
+      for (let k = 2; vergeben.has(id); k++) id = 'x' + kennungAus(String(roh)) + '_' + k
+    }
+    vergeben.add(id)
+    return id
+  }
   for (const f of flaechenRoh) {
     if (!istGebaeude(f.tags)) continue
     if (f.osmWeg !== null && siedlungWege.has(f.osmWeg)) {
@@ -925,7 +1134,7 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
         z.ausserhalb++
         return
       }
-      kandidaten.push({ id: k === 0 ? f.id : `${f.id}_${k + 1}`, tags: f.tags, aussen: p.aussen, loecher: p.loecher, box: b, knoten: [] })
+      kandidaten.push({ id: hausKennung(k === 0 ? f.id : `${f.id}_${k + 1}`), tags: f.tags, aussen: p.aussen, loecher: p.loecher, box: b, knoten: [] })
     })
   }
   const hausRaster = new Raster(50)
@@ -957,19 +1166,43 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
 
   /** Die Haustuer: ein Eingang aus der Karte auf dem Umriss, sonst die
    *  Stelle des Umrisses, die dem naechsten Weg am naechsten ist (nur
-   *  Kanten, auf die die Tuer passt), sonst die Mitte der laengsten Kante. */
-  function tuerFinden(umriss, art, hb) {
+   *  Kanten, auf die die Tuer passt), sonst die Mitte der laengsten Kante.
+   *  E87b: gemessen wird von der Stelle, an der die Tuer wirklich sitzt
+   *  (nach passen), nicht von der Ecke; bei Gleichstand gewinnt die Kante,
+   *  die zum Weg schaut. Eine Kante, vor der (TUER_FREI_M nach aussen) ein
+   *  anderes Haus steht, bekommt keine Tuer (Brandwand im Reihenhaus);
+   *  nur wenn keine frei ist, gilt die Regel ohne diese Pruefung. */
+  function tuerFinden(umriss, art, hb, selbst) {
     const tb = tuerBreite(art)
     const n = umriss.length
+    // Nach aussen: bei positiver Flaeche (x, z) liegt das Haus links der
+    // Kante, aussen ist also (dz, -dx).
+    const s = flaeche(umriss) > 0 ? 1 : -1
     const kanten = []
     for (let k = 0; k < n; k++) {
       const a = umriss[k]
       const b = umriss[(k + 1) % n]
-      kanten.push({ k, a, b, l: Math.hypot(b[0] - a[0], b[1] - a[1]) })
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+      kanten.push({ k, a, b, l, n: l > 0 ? [(s * (b[1] - a[1])) / l, (-s * (b[0] - a[0])) / l] : [0, 0] })
     }
+    // Auf 0,001 gerundet und dabei nach innen, damit das Runden die Tuer
+    // nicht ueber den Rand der Kante schiebt.
     const passen = (e, t) => {
       const rand = (tb / 2 + 0.3) / e.l
-      return rand >= 0.5 ? 0.5 : Math.min(Math.max(t, rand), 1 - rand)
+      const lo = Math.ceil(rand * 1000 - 1e-9) / 1000
+      const hi = Math.floor((1 - rand) * 1000 + 1e-9) / 1000
+      return rand >= 0.5 || lo > hi ? 0.5 : Math.min(Math.max(r3(t), lo), hi)
+    }
+    const punktBei = (e, t) => [e.a[0] + t * (e.b[0] - e.a[0]), e.a[1] + t * (e.b[1] - e.a[1])]
+    /** Steht vor der Tuer (Kante e, Anteil t) kein anderes Haus? */
+    const frei = (e, t) => {
+      const p = punktBei(e, t)
+      const q = [p[0] + e.n[0] * TUER_FREI_M, p[1] + e.n[1] * TUER_FREI_M]
+      for (const i of hausRaster.suchen([q[0], q[1], q[0], q[1]])) {
+        const h = kandidaten[i]
+        if (h !== selbst && imPolygon(q, h.aussen, h.loecher)) return false
+      }
+      return true
     }
     // 1. Eingang aus der Karte (hoechstens 1 m neben dem vereinfachten Umriss).
     let best = null
@@ -979,35 +1212,49 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
         if (e.l < tb) continue
         const r = punktStrecke(g.p, e.a, e.b)
         if (r.d > 1) continue
-        if (!best || g.rang < best.rang || (g.rang === best.rang && r.d < best.d)) best = { rang: g.rang, d: r.d, k: e.k, t: passen(e, r.t) }
+        if (!best || g.rang < best.rang || (g.rang === best.rang && r.d < best.d)) {
+          const t = passen(e, r.t)
+          if (frei(e, t)) best = { rang: g.rang, d: r.d, k: e.k, t }
+        }
       }
     }
     if (best) {
       z.tuerEingang++
       return { kante: best.k, t: r3(best.t) }
     }
-    // 2. Naechster Weg.
+    // 2. Naechster Weg, gemessen von der Tuer aus.
     const lang = kanten.filter((e) => e.l >= tb + TUER_SPIEL_M)
-    for (const weit of [60, 250]) {
-      if (!lang.length) break
-      const strecken = wegRaster.suchen([hb[0] - weit, hb[1] - weit, hb[2] + weit, hb[3] + weit])
-      if (!strecken.size) continue
-      let min = null
-      for (const e of lang) {
-        for (const si of strecken) {
-          const [c, d] = wegStrecken[si]
-          const r = streckeStrecke(e.a, e.b, c, d)
-          if (!min || r.d < min.d - 1e-9) min = { d: r.d, k: e.k, t: passen(e, r.t) }
+    for (const pruefen of [true, false]) {
+      for (const weit of [60, 250]) {
+        if (!lang.length) break
+        const strecken = wegRaster.suchen([hb[0] - weit, hb[1] - weit, hb[2] + weit, hb[3] + weit])
+        if (!strecken.size) continue
+        let min = null
+        for (const e of lang) {
+          for (const si of strecken) {
+            const [c, d] = wegStrecken[si]
+            const t = passen(e, streckeStrecke(e.a, e.b, c, d).t)
+            const p = punktBei(e, t)
+            const r = punktStrecke(p, c, d)
+            // Wie sehr die Kante zum Weg schaut (1 = gerade darauf zu).
+            const qx = c[0] + r.t * (d[0] - c[0]) - p[0]
+            const qz = c[1] + r.t * (d[1] - c[1]) - p[1]
+            const ql = Math.hypot(qx, qz)
+            const schaut = ql > 1e-9 ? (e.n[0] * qx + e.n[1] * qz) / ql : 0
+            const besser = !min || r.d < min.d - 1e-6 || (r.d <= min.d + 1e-6 && schaut > min.schaut + 1e-9)
+            if (besser && (!pruefen || frei(e, t))) min = { d: r.d, schaut, k: e.k, t }
+          }
+        }
+        if (min) {
+          z.tuerWeg++
+          return { kante: min.k, t: r3(min.t) }
         }
       }
-      if (min) {
-        z.tuerWeg++
-        return { kante: min.k, t: r3(min.t) }
-      }
     }
-    // 3. Mitte der laengsten Kante.
+    // 3. Mitte der laengsten freien Kante, sonst der laengsten.
     z.tuerNotfall++
-    const l = kanten.reduce((x, y) => (y.l > x.l ? y : x))
+    const freie = kanten.filter((e) => e.l > 0 && frei(e, 0.5))
+    const l = (freie.length ? freie : kanten).reduce((x, y) => (y.l > x.l ? y : x))
     return { kante: l.k, t: 0.5 }
   }
 
@@ -1044,7 +1291,7 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
     const ausKarte = geschosseAusKarte(h.tags)
     const art = hausArt(h.tags, { bereiche: inBereichen, knoten: h.knoten, landuse, flaeche: grund, geschosse: ausKarte })
     const geschosse = ausKarte ?? geschosseSchaetzen(art, grund)
-    const tuer = tuerFinden(umriss, art, h.box)
+    const tuer = tuerFinden(umriss, art, h.box, h)
     const a = umriss[tuer.kante]
     const b = umriss[(tuer.kante + 1) % umriss.length]
     const tuerPunkt = [a[0] + tuer.t * (b[0] - a[0]), a[1] + tuer.t * (b[1] - a[1])]
@@ -1068,10 +1315,13 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
     const name = kurz(h.tags.name) ?? bereichNamen.get(art) ?? knotenName
     if (name) haus.name = name
     // Geschaefte: im Einkaufszentrum und in Wohnhaeusern mit Laeden unten.
-    if (art === 'einkaufszentrum' || (wohnArt && h.knoten.some((k) => k.shop))) {
+    // Traegt der Umriss eines Wohnhauses selbst shop= (E87b), zaehlt er wie
+    // ein Knoten darin.
+    const ladenQuellen = wohnArt && h.tags.shop ? [h.tags, ...h.knoten] : h.knoten
+    if (art === 'einkaufszentrum' || (wohnArt && ladenQuellen.some((k) => k.shop))) {
       const gesehen = new Set()
       const laeden = []
-      for (const k of h.knoten) {
+      for (const k of ladenQuellen) {
         const n = kurz(k.name)
         const sa = typeof k.shop === 'string' ? k.shop.split(';')[0].trim().slice(0, 60) : ''
         if (!n || !sa || sa === 'vacant' || gesehen.has(n + '|' + sa)) continue
@@ -1098,12 +1348,60 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
   const zaeune = []
   const baumreihen = []
   /** Linie in Metern -> vereinfacht, gekappt, gerundet; Stuecke ab 0,5 m. */
-  const linie = (geo) => {
-    const p = geo.filter((q) => q && Number.isFinite(q.lat) && Number.isFinite(q.lon)).map(zuM)
+  const linieM = (p) => {
     if (p.length < 2) return []
     return linieKappen(vereinfachen(p, VEREINFACHEN_M), rahmen)
       .map((t) => saeubern(t, false))
       .filter((t) => t.length >= 2 && laenge(t) >= 0.5)
+  }
+  const linie = (geo) => linieM(geo.filter((q) => q && Number.isFinite(q.lat) && Number.isFinite(q.lon)).map(zuM))
+
+  // Wo Wege durch Zaeune, Mauern und Hecken gehen (E87b): Knoten, die ein
+  // Weg mit dem Zaun teilt, und Strecken, die ihn kreuzen. Tunnel und
+  // Bruecken gehen unten durch oder oben drueber und oeffnen nichts.
+  const wegKnoten = new Map()
+  const zaunWege = []
+  const zaunWegRaster = new Raster(40)
+  for (const e of elemente) {
+    if (e.type !== 'way' || !e.tags || !Array.isArray(e.geometry)) continue
+    const hw = STRASSEN[e.tags.highway?.replace(/_link$/, '')]
+    if (!hw || e.tags.area === 'yes' || e.tags.indoor === 'yes') continue
+    if ((e.tags.tunnel && e.tags.tunnel !== 'no') || (e.tags.bridge && e.tags.bridge !== 'no')) continue
+    const [art, breite] = hw
+    const luecke = SCHMALE_WEGE.has(art) ? Math.max(TOR_M, breite) : breite + TOR_RAND_M
+    for (const id of Array.isArray(e.nodes) ? e.nodes : []) wegKnoten.set(id, Math.max(wegKnoten.get(id) ?? 0, luecke))
+    const p = e.geometry.filter((q) => q && Number.isFinite(q.lat) && Number.isFinite(q.lon)).map(zuM)
+    for (let i = 0; i + 1 < p.length; i++) {
+      zaunWegRaster.einfuegen(box([p[i], p[i + 1]]), zaunWege.length)
+      zaunWege.push({ c: p[i], d: p[i + 1], luecke })
+    }
+  }
+  /** Ein Zaun als Stuecke in Metern, mit Luecken an Toren und Wegen. */
+  const zaunStuecke = (e) => {
+    const roh = e.geometry
+    if (!roh.every((q) => q && Number.isFinite(q.lat) && Number.isFinite(q.lon))) return [roh.filter((q) => q && Number.isFinite(q.lat) && Number.isFinite(q.lon)).map(zuM)]
+    const p = roh.map(zuM)
+    const ids = Array.isArray(e.nodes) && e.nodes.length === roh.length ? e.nodes : null
+    const zu = p.length >= 3 && (ids ? ids[0] === ids[ids.length - 1] : roh[0].lat === roh[roh.length - 1].lat && roh[0].lon === roh[roh.length - 1].lon)
+    const luecken = []
+    let s = 0
+    for (let i = 0; i < p.length; i++) {
+      if (i > 0) s += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])
+      const id = ids ? ids[i] : undefined
+      let breite = toreId.has(id) || toreOrt.has(roh[i].lat + ',' + roh[i].lon) ? TOR_M : 0
+      if (id !== undefined) breite = Math.max(breite, wegKnoten.get(id) ?? 0)
+      if (breite) luecken.push({ s, halb: breite / 2 })
+      if (i + 1 < p.length) {
+        const l = Math.hypot(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1])
+        for (const j of zaunWegRaster.suchen(box([p[i], p[i + 1]]))) {
+          const w = zaunWege[j]
+          const t = schnitt(p[i], p[i + 1], w.c, w.d)
+          if (t !== null) luecken.push({ s: s + t * l, halb: w.luecke / 2 })
+        }
+      }
+    }
+    z.zaunLuecken += luecken.length
+    return linieTeilen(p, luecken, zu)
   }
   for (const e of elemente) {
     if (e.type !== 'way' || !e.tags || !Array.isArray(e.geometry)) continue
@@ -1125,23 +1423,32 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
       for (const punkte of linie(e.geometry)) gewaesser.push({ breite, punkte })
     }
     if (ZAUN[t.barrier]) {
-      for (const punkte of linie(e.geometry)) zaeune.push({ art: ZAUN[t.barrier], punkte })
+      for (const stueck of zaunStuecke(e)) for (const punkte of linieM(stueck)) zaeune.push({ art: ZAUN[t.barrier], punkte })
     }
     if (t.natural === 'tree_row') baumreihen.push(e.geometry.filter(Boolean).map(zuM))
   }
 
   /* ---------------------------------------------- 5. Flaechen */
-  const flaechen = []
+  // Aussenring und Innenringe (Lichtung, Teich, Insel) je fuer sich
+  // vereinfacht, gekappt und gerundet. Erst flaechenAus haengt die Loecher
+  // ueber Bruecken an den Ring (E87b), damit verkleinern jeden Ring fuer
+  // sich vereinfachen kann.
+  const flaechenTeile = { liste: [] }
   for (const f of flaechenRoh) {
     const art = flaechenArt(f.tags)
     if (!art) continue
     for (const p of f.polys) {
       const ring = saeubern(ringKappen(vereinfachenRing(p.aussen, VEREINFACHEN_M), rahmen), true)
-      if (ring.length >= 3 && Math.abs(flaeche(ring)) >= 1) flaechen.push({ art, punkte: ring })
+      if (ring.length < 3 || Math.abs(flaeche(ring)) < 1) continue
+      const loecher = p.loecher
+        .map((l) => saeubern(ringKappen(vereinfachenRing(l, VEREINFACHEN_M), rahmen), true))
+        .filter((l) => l.length >= 3 && Math.abs(flaeche(l)) >= 1)
+      flaechenTeile.liste.push({ art, punkte: ring, loecher })
     }
   }
   // Grosse zuerst, damit kleine beim Zeichnen oben liegen.
-  flaechen.sort((a, b) => Math.abs(flaeche(b.punkte)) - Math.abs(flaeche(a.punkte)))
+  flaechenTeile.liste.sort((a, b) => nettoFlaeche(b) - nettoFlaeche(a))
+  const flaechen = flaechenAus(flaechenTeile.liste, z)
 
   /* ---------------------------------------------- 6. Baeume */
   const baeume = []
@@ -1183,7 +1490,8 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
   }
   for (const o of orteRoh) {
     const fertig = o.haus ? hausFertig.get(o.haus) : null
-    ortDazu(kurz(o.tags.name), o.tags.shop ?? o.tags.amenity ?? o.tags.healthcare, o.p, fertig?.haus.id)
+    // Eine Haltestelle heisst bus_stop, auch mit amenity=shelter oder bench.
+    ortDazu(kurz(o.tags.name), o.halt ? 'bus_stop' : (o.tags.shop ?? o.tags.amenity ?? o.tags.healthcare), o.p, fertig?.haus.id)
   }
   for (const f of flaechenRoh) {
     if (istGebaeude(f.tags)) continue
@@ -1213,7 +1521,7 @@ export function stadtAusOsm({ osm, hoehen, siedlung, rahmen: rahmenWunsch = null
     baeume: baeume.slice(0, 50000),
     orte: orte.slice(0, 5000),
   }
-  const bytes = verkleinern(stadt)
+  const bytes = verkleinern(stadt, flaechenTeile, z)
 
   let dmMin = Infinity
   let dmMax = -Infinity
@@ -1248,22 +1556,52 @@ function standAus(stand, osm) {
 
 const groesse = (stadt) => Buffer.byteLength(JSON.stringify(stadt), 'utf8')
 
+/** Flaeche ohne ihre Loecher (m2). */
+function nettoFlaeche(f) {
+  return Math.abs(flaeche(f.punkte)) - (f.loecher ?? []).reduce((acc, l) => acc + Math.abs(flaeche(l)), 0)
+}
+
+/** Die Flaechen, wie sie in die Stadt gehen: ein Ring je Flaeche, positiv
+ *  umlaufend, Loecher ueber Bruecken angehaengt (lochBruecken). Zaehlt in
+ *  z.loecherOhneBruecke, wie viele Loecher dabei wegfielen. */
+function flaechenAus(teile, z) {
+  let ohne = 0
+  const out = []
+  for (const f of teile) {
+    const { ring, ohne: o } = lochBruecken(f.punkte, f.loecher ?? [], STADT_GRENZEN.punkte)
+    ohne += o
+    if (ring.length >= 3) out.push({ art: f.art, punkte: ring })
+  }
+  z.loecherOhneBruecke = ohne
+  return out
+}
+
 /** Ist die Stadt groesser als ZIEL_BYTES, wird sie stufenweise groeber:
- *  Flaechen, Zaeune und kleine Wege staerker vereinfacht, dann winzige
- *  Flaechen weg. Haeuser, Strassen und Orte bleiben genau. Gibt die
- *  Groesse zurueck; wirft, wenn es nicht reicht. */
-function verkleinern(stadt) {
+ *  Flaechen (Aussenring und Loecher je fuer sich), Zaeune und kleine Wege
+ *  staerker vereinfacht, dann winzige Flaechen weg. Haeuser, Strassen und
+ *  Orte bleiben genau. Gibt die Groesse zurueck; wirft, wenn es nicht
+ *  reicht. */
+function verkleinern(stadt, flaechenTeile, z) {
   let bytes = groesse(stadt)
+  const ringe = (tol) => {
+    flaechenTeile.liste = flaechenTeile.liste
+      .map((f) => ({
+        ...f,
+        punkte: saeubern(vereinfachenRing(f.punkte, tol), true),
+        loecher: f.loecher.map((l) => saeubern(vereinfachenRing(l, tol), true)).filter((l) => l.length >= 3 && Math.abs(flaeche(l)) >= 1),
+      }))
+      .filter((f) => f.punkte.length >= 3)
+    stadt.flaechen = flaechenAus(flaechenTeile.liste, z)
+  }
   const stufen = [
-    () => {
-      stadt.flaechen = stadt.flaechen.map((f) => ({ ...f, punkte: saeubern(vereinfachenRing(f.punkte, 1), true) })).filter((f) => f.punkte.length >= 3)
-    },
+    () => ringe(1),
     () => {
       stadt.zaeune = stadt.zaeune.map((x) => ({ ...x, punkte: saeubern(vereinfachen(x.punkte, 1), false) })).filter((x) => x.punkte.length >= 2)
-      stadt.flaechen = stadt.flaechen.filter((f) => Math.abs(flaeche(f.punkte)) >= 25)
+      flaechenTeile.liste = flaechenTeile.liste.filter((f) => nettoFlaeche(f) >= 25)
+      stadt.flaechen = flaechenAus(flaechenTeile.liste, z)
     },
     () => {
-      stadt.flaechen = stadt.flaechen.map((f) => ({ ...f, punkte: saeubern(vereinfachenRing(f.punkte, 2.5), true) })).filter((f) => f.punkte.length >= 3)
+      ringe(2.5)
       stadt.strassen = stadt.strassen.map((x) => (x.art === 'fuss' || x.art === 'dienst' || x.art === 'feldweg' ? { ...x, punkte: saeubern(vereinfachen(x.punkte, 1), false) } : x))
     },
   ]
@@ -1307,9 +1645,10 @@ export function hauptprogramm(argv) {
   const text = JSON.stringify({ ...datei, siedlung: { ...datei.siedlung, stadt } })
   writeFileSync(a.aus, text)
   console.log('Haeuser', zahlen.haeuser, JSON.stringify(zahlen.haeuserArt))
-  console.log('  weg wegen Siedlung', zahlen.wegenSiedlung, '| ausserhalb', zahlen.ausserhalb, '| zu klein', zahlen.zuKlein, '| mit Laeden unten', zahlen.gemischt)
+  console.log('  weg wegen Siedlung', zahlen.wegenSiedlung, '| ausserhalb', zahlen.ausserhalb, '| zu klein', zahlen.zuKlein, '| mit Laeden unten', zahlen.gemischt, '| Kennung ersetzt', zahlen.kennungErsetzt)
   console.log('  Tuer: Eingang', zahlen.tuerEingang, '| am Weg', zahlen.tuerWeg, '| Notfall', zahlen.tuerNotfall, '| max. Geschosse', zahlen.maxGeschosse)
   console.log('Strassen', zahlen.strassen, '| Flaechen', zahlen.flaechen, '| Gewaesser', zahlen.gewaesser, '| Zaeune', zahlen.zaeune, '| Baeume', zahlen.baeume, '| Orte', zahlen.orte)
+  console.log('  Luecken in Zaeunen', zahlen.zaunLuecken, '| Loecher ohne Bruecke', zahlen.loecherOhneBruecke)
   console.log('Gelaende', zahlen.gitter, '| relativ', zahlen.gelaendeMinM, 'bis', zahlen.gelaendeMaxM, 'm')
   console.log('Stadt', zahlen.bytes, 'Byte | Datei', Buffer.byteLength(text, 'utf8'), 'Byte')
   return zahlen

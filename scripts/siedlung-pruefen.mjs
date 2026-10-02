@@ -49,6 +49,13 @@
 //   aus kollision.ts), seitlich zu, seine Linie auf den Stufen (Strahl),
 // - Fahrzeuge und Dinge: Kennungen stabil und eindeutig, auf dem Boden,
 //   frei; das Ziel in der eigenen Wohnung frei und in ihr,
+// - E87b: Kennungen 'siedlung:f:<x>:<z>:<art>' aus dem Stellplatz und
+//   'siedlung:d<n>:<art>', bei Besitzer und Gast gleich; rahmen rechnet
+//   Weltmeter in Siedlungsmeter und zurueck (hin und zurueck gleich, auch
+//   gedreht und abgesenkt, gier mit, Winkel in (-pi, pi]), Siedlungsmeter
+//   haengen nicht an der Lage der Wohnung; dingErzeugen gibt Vorhandenes
+//   zurueck, baut fehlende Dinge der Siedlung aus der Kennung und reicht
+//   die der Stadt an die Stadt weiter, Unbekanntes gibt null,
 // - Stadt (erfunden, mit der echten baueStadt und einer mitschreibenden
 //   darum): Gelaende und Hindernisse am Boden, Ebenen hinten an, version,
 //   kamera und schritt reichen weiter, Ziele mit der Ebene des Bodens,
@@ -551,8 +558,14 @@ function beweglichePruefen(name, a, b) {
   const F0 = a.fahrzeuge
   const D = a.dinge
   wahr(`${name}: so viele Fahrzeuge wie Autos (${F0.length})`, F0.length === a.gruppe.userData.autos && F0.length > 0)
-  wahr(`${name}: Kennungen der Fahrzeuge`, F0.every((f, i) => f.id === `siedlung:f${i}`))
-  wahr(`${name}: Dinge (${D.length})`, D.length >= 8 && D.length <= 12 && new Set(D.map((d) => d.id)).size === D.length && D.every((d) => /^siedlung:d\d+$/.test(d.id)))
+  // E87b: Kennung aus dem Stellplatz (Siedlungsmeter in Dezimetern) und der Art.
+  wahr(`${name}: Kennungen der Fahrzeuge aus Stellplatz und Art`, F0.every((f) => {
+    const m = /^siedlung:f:(-?\d+):(-?\d+):([a-z]+)$/.exec(f.id)
+    const [sx, , sz] = a.rahmen.zuSiedlung(f.x, 0, f.z, 0)
+    return !!m && m[3] === f.art && Math.abs(Number(m[1]) / 10 - sx) <= 0.05 + 1e-9 && Math.abs(Number(m[2]) / 10 - sz) <= 0.05 + 1e-9
+  }) && new Set(F0.map((f) => f.id)).size === F0.length)
+  wahr(`${name}: Dinge (${D.length})`, D.length >= 8 && D.length <= 12 && new Set(D.map((d) => d.id)).size === D.length && D.every((d) => /^siedlung:d\d+:(ball|kuebel|schaufel|form|sessel)$/.test(d.id)))
+  wahr(`${name}: Kennungen mit den Zeichen von siedlung_ding_setzen`, [...F0, ...D].every((x) => /^[A-Za-z0-9:._-]{1,120}$/.test(x.id)))
   for (const f of F0) {
     wahr(`${name}: ${f.id} auf dem Boden`, f.ebene === E0.id && f.gruppe.parent === a.gruppe && Math.abs(f.gruppe.position.y - E0.y) < 1e-9)
     wahr(`${name}: ${f.id} Lage`, Math.abs(f.gruppe.position.x - f.x) < 1e-9 && Math.abs(f.gruppe.position.z - f.z) < 1e-9 && Math.abs(f.gruppe.rotation.y - f.gier) < 1e-9)
@@ -569,6 +582,81 @@ function beweglichePruefen(name, a, b) {
   }
   const lagen = (w) => JSON.stringify([...w.fahrzeuge.map((f) => [f.id, f.art, r6(f.x), r6(f.z), r6(f.gier)]), ...w.dinge.map((d) => [d.id, r6(d.objekt.position.x), r6(d.objekt.position.z)])])
   wahr(`${name}: Fahrzeuge und Dinge stabil`, lagen(a) === lagen(b))
+}
+
+/** Rahmen der Siedlung (E87b): Weltmeter <-> Siedlungsmeter. Siedlungsmeter
+ *  sind die der Daten (Umrisse), y ueber dem Boden der Siedlung, gier wie
+ *  Pose3D; hin und zurueck gleich, auch gedreht und abgesenkt. */
+function rahmenPruefen(name, w) {
+  const R = w.rahmen
+  const boden = w.ebenen.find((e) => e.id === 'boden') ?? w.ebenen[0]
+  wahr(`${name}: rahmen da`, !!R && typeof R.zuSiedlung === 'function' && typeof R.zuWelt === 'function')
+  if (!R) return
+  // Umrisse der Haeuser (Daten) liegen in der Welt genau dort, wo die Karte sie hat.
+  let daneben = 0
+  HAEUSER.forEach((h, i) => {
+    const k = w.karte.haeuser[i]
+    h.umriss.forEach((p, j) => {
+      const [x, y, z] = R.zuWelt(p[0], 0, p[1], 0)
+      if (Math.hypot(x - k.punkte[j][0], z - k.punkte[j][1]) > 1e-9 || Math.abs(y - boden.y) > 1e-9) daneben++
+    })
+  })
+  wahr(`${name}: rahmen.zuWelt wie die Karte, Boden der Siedlung bei y ${boden.y} (${daneben} daneben)`, daneben === 0)
+  // Hin und zurueck (zufaellige Stellen, Hoehen und Winkel).
+  let r = 4711
+  const zz = () => {
+    r = (Math.imul(r, 1664525) + 1013904223) >>> 0
+    return r / 4294967296
+  }
+  const winkelGleich = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) < 1e-9
+  let fehlHin = 0
+  let fehlWinkel = 0
+  for (let i = 0; i < 200; i++) {
+    const p = [-150 + zz() * 300, -12 + zz() * 30, -150 + zz() * 300, -10 + zz() * 20]
+    const s1 = R.zuSiedlung(...p)
+    const w1 = R.zuWelt(...s1)
+    const w2 = R.zuWelt(...p)
+    const s2 = R.zuSiedlung(...w2)
+    if ([0, 1, 2].some((k) => Math.abs(w1[k] - p[k]) > 1e-9 || Math.abs(s2[k] - p[k]) > 1e-9) || !winkelGleich(w1[3], p[3]) || !winkelGleich(s2[3], p[3])) fehlHin++
+    for (const g of [s1[3], w1[3], w2[3], s2[3]]) if (!(g > -Math.PI - 1e-12 && g <= Math.PI + 1e-12)) fehlWinkel++
+  }
+  wahr(`${name}: rahmen hin und zurueck (${fehlHin} von 200 daneben)`, fehlHin === 0)
+  wahr(`${name}: rahmen Winkel in (-pi, pi] (${fehlWinkel})`, fehlWinkel === 0)
+  // gier: eine Richtung in den Daten (Kante eines Hauses) gibt in der Welt
+  // die Richtung zwischen den beiden Weltpunkten.
+  let fehlGier = 0
+  for (const h of HAEUSER) {
+    const [a, b] = h.umriss
+    const gs = Math.atan2(-(b[0] - a[0]), -(b[1] - a[1]))
+    const A = R.zuWelt(a[0], 0, a[1], 0)
+    const B = R.zuWelt(b[0], 0, b[1], 0)
+    const gw = Math.atan2(-(B[0] - A[0]), -(B[2] - A[2]))
+    if (!winkelGleich(R.zuWelt(a[0], 0, a[1], gs)[3], gw) || !winkelGleich(R.zuSiedlung(A[0], 0, A[2], gw)[3], gs)) fehlGier++
+  }
+  wahr(`${name}: rahmen dreht gier mit der Siedlung (${fehlGier})`, fehlGier === 0)
+  // Dinge am Boden: in Siedlungsmetern auf y 0.
+  wahr(`${name}: Dinge am Boden in Siedlungsmetern bei y 0`, w.dinge.every((d) => d.ebene !== boden.id || Math.abs(R.zuSiedlung(d.objekt.position.x, d.objekt.position.y, d.objekt.position.z, 0)[1]) < 1e-9))
+}
+
+/** dingErzeugen der Siedlung (E87b): vorhandene gleich, fehlende aus der
+ *  Kennung, Unbekanntes null. */
+function erzeugenPruefen(name, w) {
+  const D = w.dinge
+  const v0 = w.version()
+  wahr(`${name}: dingErzeugen gibt Vorhandenes zurueck`, D.every((d) => w.dingErzeugen(d.id) === d) && w.version() === v0)
+  const n0 = w.dinge.length
+  const neu = w.dingErzeugen('siedlung:d77:ball')
+  wahr(`${name}: dingErzeugen baut ein fehlendes Ding der Siedlung`, !!neu && neu.id === 'siedlung:d77:ball' && w.dinge.length === n0 + 1 && w.dinge.includes(neu) && w.version() === v0 + 1)
+  if (neu) {
+    const E0 = w.ebenen[0]
+    const s0 = w.sprungziele[0]
+    wahr(`${name}: dingErzeugen: am Start auf dem Boden, in der Gruppe`, neu.ebene === E0.id && neu.objekt.parent === w.gruppe && Math.abs(neu.objekt.position.y - E0.y) < 1e-9 && Math.abs(neu.objekt.position.x - s0.x) < 1e-9 && Math.abs(neu.objekt.position.z - s0.z) < 1e-9)
+    wahr(`${name}: dingErzeugen: Masse wie ein Ball`, Math.abs(neu.breite - 0.22) < 1e-9 && Math.abs(neu.hoehe - 0.22) < 1e-9)
+    wahr(`${name}: dingErzeugen: zweimal dasselbe`, w.dingErzeugen('siedlung:d77:ball') === neu && w.version() === v0 + 1)
+  }
+  const v1 = w.version()
+  const unsinn = ['siedlung:d0:rakete', 'siedlung:f:1:2:auto', 'siedlung:d:1:ball', 'garten', '', 'stadt:d:1:2:ballrot']
+  wahr(`${name}: dingErzeugen: Unbekanntes (ohne Stadt auch die der Stadt) gibt null`, unsinn.every((id) => w.dingErzeugen(id) === null) && w.dingErzeugen(7) === null && w.version() === v1)
 }
 
 /** Das Ziel in der eigenen Wohnung (E87): ohne Rahmen da, auf dem
@@ -1012,6 +1100,8 @@ for (const [name, wohnung, rahmen] of FAELLE) {
   const c = bau({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen })
   gleich(name, b, c)
   beweglichePruefen(name, b, c)
+  rahmenPruefen(name, b)
+  erzeugenPruefen(name, c)
   hoechst = Math.max(hoechst, a.summe)
   hoechstAufrufe = Math.max(hoechstAufrufe, a.aufrufe)
   langsamst = Math.max(langsamst, a.zeit)
@@ -1036,11 +1126,48 @@ for (const [name, wohnung, rahmen] of FAELLE) {
   const besitzer = bau({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen })
   const gast = pruefen(n, wohnung, null).w
   gleicheWelt(n, besitzer, gast)
+  // E87b: dasselbe Auto hat bei Besitzer und Gast dieselbe Kennung (beim
+  // Besitzer fehlen hoechstens welche neben der eingerichteten Wohnung).
+  const gastFz = new Map(gast.fahrzeuge.map((f) => [f.id, f]))
+  wahr(`${n}: Fahrzeuge des Besitzers beim Gast mit derselben Kennung an derselben Stelle`, besitzer.fahrzeuge.length > 0 && besitzer.fahrzeuge.every((f) => {
+    const g = gastFz.get(f.id)
+    return !!g && g.art === f.art && Math.abs(g.x - f.x) < 1e-9 && Math.abs(g.z - f.z) < 1e-9
+  }))
+  wahr(`${n}: Dinge des Besitzers beim Gast mit derselben Kennung`, besitzer.dinge.every((d) => gast.dinge.some((q) => q.id === d.id)))
   const haus = HAEUSER.find((h) => h.id === wohnung.gebaeudeId)
   const drin = inWohnung(meshesVon(gast.gruppe), rahmen, haus.geschossHoehe, true)
   wahr(`${n}: Fassade dort nicht ausgespart (${drin} Dreiecke)`, drin > 0)
   freigeben(`${n} (Besitzer)`, besitzer)
   freigeben(n, gast)
+}
+
+// E87b: Siedlungsmeter haengen nicht an der Wohnung. Dieselbe Siedlung mit
+// Wohnungen an verschiedenen Stellen (gedreht, abgesenkt) und ohne: jedes
+// Fahrzeug und Ding liegt in Siedlungsmetern gleich, die Welt nicht.
+{
+  const welten = FAELLE.map(([, wohnung, rahmen]) => bau({ siedlung: siedlung(wohnung), farben: F, wohnungRahmen: rahmen }))
+  const inSiedlung = (w) => new Map([...w.fahrzeuge.map((f) => [f.id, [f.x, f.z, f.gier]]), ...w.dinge.map((d) => [d.id, [d.objekt.position.x, d.objekt.position.z, 0]])].map(([id, [x, z, g]]) => {
+    const s1 = w.rahmen.zuSiedlung(x, 0, z, g)
+    return [id, s1]
+  }))
+  const karten = welten.map(inSiedlung)
+  let gemeinsam = 0
+  let anders = 0
+  let weltAnders = 0
+  for (const [id, s0] of karten[0]) {
+    for (let i = 1; i < karten.length; i++) {
+      const s1 = karten[i].get(id)
+      if (!s1) continue
+      gemeinsam++
+      if (Math.abs(s1[0] - s0[0]) > 1e-9 || Math.abs(s1[2] - s0[2]) > 1e-9 || (id.startsWith('siedlung:f') && Math.abs(Math.atan2(Math.sin(s1[3] - s0[3]), Math.cos(s1[3] - s0[3]))) > 1e-9)) anders++
+      const f0 = welten[0].fahrzeuge.find((f) => f.id === id)
+      const f1 = welten[i].fahrzeuge.find((f) => f.id === id)
+      if (f0 && f1 && Math.hypot(f0.x - f1.x, f0.z - f1.z) > 0.5) weltAnders++
+    }
+  }
+  wahr(`Siedlungsmeter gleich, egal wo die Wohnung liegt (${anders} von ${gemeinsam} anders)`, gemeinsam > 20 && anders === 0)
+  wahr(`dabei liegen die Fahrzeuge in der Welt woanders (${weltAnders})`, weltAnders > 0)
+  welten.forEach((w, i) => freigeben(`Siedlungsmeter ${i}`, w))
 }
 
 // Unsinnige Daten werfen laut.
@@ -2297,6 +2424,18 @@ for (const [name, wohnung, rahmen] of [
   wahr(`Stadt laedt innen: version zaehlt (${v0} -> ${w.version()})`, w.version() > v0 && w.ebenen.some((e) => e.id.startsWith('stadt:w1:')))
   wahr('Stadt laedt innen: Hindernisse am Boden dasselbe Feld', E[0].hindernisse === boden && boden.length === eintraege.length && boden.every((h, i) => h === eintraege[i]))
   wahr('Stadt laedt innen: im Garten auch', !garten || garten.hindernisse === gartenVorher)
+  // E87b: dingErzeugen reicht Kennungen der Stadt an die Stadt weiter.
+  const dingStadt = w.dinge.find((d) => d.id.startsWith('stadt:w1:'))
+  wahr('Stadt: Dinge im Laden mit Art in der Kennung', !!dingStadt && /^stadt:w1:d\d+:[a-z]+$/.test(dingStadt.id))
+  const vA = w.version()
+  wahr('Stadt: dingErzeugen gibt Vorhandenes der Stadt zurueck', !!dingStadt && w.dingErzeugen(dingStadt.id) === dingStadt && w.version() === vA)
+  const draussen = w.dingErzeugen('stadt:d:300:-200:tonne')
+  wahr('Stadt: dingErzeugen baut ein Ding der Stadt, version zaehlt', !!draussen && draussen.id === 'stadt:d:300:-200:tonne' && w.dinge.includes(draussen) && w.version() > vA)
+  if (draussen) {
+    const [x, y, z] = w.rahmen.zuSiedlung(draussen.objekt.position.x, draussen.objekt.position.y, draussen.objekt.position.z, 0)
+    wahr('Stadt: das Ding liegt in Siedlungsmetern dort, wo die Kennung sagt', Math.abs(x - 30) < 1e-9 && Math.abs(z + 20) < 1e-9 && Number.isFinite(y))
+  }
+  wahr('Stadt: dingErzeugen mit unbekannter Kennung null', w.dingErzeugen('stadt:d:1:2:rakete') === null)
   freigeben('Stadt, Feld bleibt', w)
 }
 

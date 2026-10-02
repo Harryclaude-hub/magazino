@@ -492,6 +492,19 @@ export const fehler: Woerterbuch = {
     de: 'Ding abstellen: {grund}',
     ar: 'تعذّر وضع الشيء: {grund}',
   },
+  // Nacharbeit (E87b, 0048).
+  'fehler.db.siedlung.zu_viele_eigene_dinge': {
+    de: 'Du hast in dieser Siedlung schon 500 Dinge verschoben. Wem die Siedlung gehört, kann sie zurücksetzen.',
+    ar: 'لقد نقلت بالفعل 500 شيء في هذا المجمّع السكني. يمكن لمالك المجمّع إعادتها إلى أماكنها.',
+  },
+  'fehler.siedlung_dinge_zuruecksetzen': {
+    de: 'Dinge zurücksetzen: {grund}',
+    ar: 'تعذّرت إعادة الأشياء إلى أماكنها: {grund}',
+  },
+  'fehler.siedlung_ersetzen': {
+    de: 'Diese Siedlung lässt sich nicht ersetzen, es wurde nichts geändert: {grund}',
+    ar: 'لا يمكن استبدال هذا المجمّع السكني، ولم يتم تغيير أي شيء: {grund}',
+  },
   'fehler.db.grundriss.grundriss_fehlt': {
     de: 'Diesen Grundriss gibt es nicht mehr.',
     ar: 'هذا المخطط لم يعد موجودًا.',

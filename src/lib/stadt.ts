@@ -97,6 +97,11 @@ const FLAECHEN_ARTEN: readonly StadtFlaechenArt[] = [
 const DAECHER: readonly string[] = ['flach', 'sattel', 'walm']
 const ZAUN_ARTEN: readonly string[] = ['mauer', 'zaun', 'hecke']
 const FARBE = /^#[0-9a-fA-F]{6}$/
+/** Kennung eines Hauses (E87b): nur Zeichen, die auch die Kennung eines
+ *  Dings tragen darf (siedlung_ding_setzen, 0047: ^[A-Za-z0-9:._-]{1,120}$),
+ *  aber ohne Doppelpunkt, damit 'stadt:<Haus>:...' eindeutig zerfaellt.
+ *  Der Umwandler vergibt 'w123' und 'r123_2'. */
+export const HAUS_ID = /^[A-Za-z0-9._-]{1,64}$/
 
 const istObjekt = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const zahl = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -133,8 +138,10 @@ function utf8Laenge(s: string): number {
  *  'gelaende.dm'. Geprueft wird der Aufbau: Typen, endliche Zahlen in
  *  Grenzen, Umrisse mit mindestens 3 Punkten, Tueren auf einer echten
  *  Kante, Gitter passend zu nx und nz, Orte nur in Haeusern, die es gibt,
- *  hoechstens STADT_GRENZEN. Unbekannte Schluessel stoeren nicht. Ob ein
- *  Umriss sich selbst schneidet, prueft niemand (das zeichnet nur schief). */
+ *  Hauskennungen nach HAUS_ID (sonst liesse sich kein Ding aus dem Haus
+ *  speichern), hoechstens STADT_GRENZEN. Unbekannte Schluessel stoeren
+ *  nicht. Ob ein Umriss sich selbst schneidet, prueft niemand (das
+ *  zeichnet nur schief). */
 export function stadtPruefen(s: unknown): string[] {
   if (!istObjekt(s)) return ['stadt']
   if (s.art !== 'kistly-stadt' || s.v !== 1) return ['art']
@@ -197,7 +204,7 @@ export function stadtPruefen(s: unknown): string[] {
   const ids = new Set<string>()
   liste('haeuser', STADT_GRENZEN.haeuser, (h, pfad) => {
     if (!istObjekt(h)) return melde(pfad)
-    if (!text(h.id, 1, 64) || ids.has(h.id)) melde(`${pfad}.id`)
+    if (typeof h.id !== 'string' || !HAUS_ID.test(h.id) || ids.has(h.id)) melde(`${pfad}.id`)
     else ids.add(h.id)
     const umrissOk = punkte(h.umriss, 3)
     if (!umrissOk) melde(`${pfad}.umriss`)

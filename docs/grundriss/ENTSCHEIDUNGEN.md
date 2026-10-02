@@ -718,3 +718,17 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   startet gleich im Begehen am Hauseingang. Grenzen: Innenraeume sind nicht
   1:1, keine Firmenlogos, Gelaende auf 25 m genau, nach einem Sprung in
   ein fernes Viertel kann das erste Bild kurz haengen.
+- **E87b Nacharbeit nach der Pruefung:** Eine gegnerische Pruefung fand 33
+  echte Maengel (keiner kritisch), alle behoben. Wichtigste Entscheidungen:
+  Wer im Umzug der eigenen Wohnung ist, gehoert ohne Einladung zur Siedlung
+  (Rolle "im Umzug", Migration 0048); der Besitzer kann bewegte Dinge
+  zuruecksetzen; ein Gast darf hoechstens 500 neue Dinge hinstellen, und
+  was er hinstellte, geht mit ihm, wenn er herausgenommen wird oder geht.
+  Lagen werden in Metern der Siedlung gespeichert, nicht der Welt; Dinge
+  und Autos haben feste Kennungen aus Haus und Art, darum tauchen auch aus
+  einem Haus getragene Dinge nach dem Neuladen und bei allen wieder auf.
+  Ein entfernter Gast wird bei den anderen sofort (Besitzer) oder nach
+  spaetestens 60 s ausgeblendet; serverseitig gilt die Sperre ab seinem
+  naechsten Beitritt. Haustueren nicht mehr auf Brandwaenden, Zaeune mit
+  Luecken an Wegen, Bushaltestellen als Orte.
+

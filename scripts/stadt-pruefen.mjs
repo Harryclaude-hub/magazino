@@ -13,10 +13,21 @@
 //   Plaene ab 60 m, gebaut ab INNEN_LADEN_M in Stuecken; innenBauen bekommt
 //   Rahmen, Kennung, Ebene und Schwelle richtig; die Schwelle liegt quer
 //   ueber dem Tuerrechteck; Ebenen kommen nur hinten dazu, beim Entladen
-//   bleiben sie, die Dinge gehen weg; erneut geladen dieselben Ebenen
-//   (Objekte), Treppen und Kennungen, der Plan aus dem Vorrat; wer ein Ding
-//   wegtraegt, haelt sein Haus geladen; weit weg ist das Innere aus und die
+//   bleiben sie, die Dinge und die Treppen des Hauses (auch die Schwelle)
+//   gehen weg; erneut geladen dieselben Ebenen (Objekte), Treppen und
+//   Kennungen, der Plan aus dem Vorrat; weit weg ist das Innere aus und die
 //   Tuer zu, nah offen,
+// - E87b: ein weggetragenes Ding haelt sein Haus nicht mehr; beim Entladen
+//   steht es einzeln weiter (gleiche Kennung, Stelle, Drehung, zu sehen),
+//   beim erneuten Laden nicht doppelt; dingErzeugen baut Dinge aus Haeusern
+//   und draussen allein aus der Kennung (gleich wie im Haus), unbekannte
+//   Kennungen geben null, hoechstens 400 einzelne; Kennungen der Fahrzeuge
+//   und Dinge aus der Stelle (bleiben, wenn andere Daten dazukommen, eine
+//   Feuerwehr, ein Parkplatz), alle mit den Zeichen von siedlung_ding_setzen;
+//   eine neue Welt mitten in einem Haus laedt es beim ersten kamera() in
+//   einem Zug (Plan aus dem Vorrat oder gleich gerechnet), von hoch oben
+//   oder draussen nicht; die Stadt blendet Dinge je Geschoss selbst aus,
+//   weggetragene nie,
 // - ohne Worker (node) rechnet die Stadt selbst, je Bild hoechstens ein Plan,
 // - Fenster: nah als Glas genau nach fensterReihe und fensterOhneTuer (je
 //   Kante und Geschoss), fern nur das Muster, ganz fern freigegeben,
@@ -31,7 +42,8 @@
 //   Rettungswagen vor dem hoechsten Spital, ein Polizeiauto beim
 //   groessten Einkaufszentrum, ein Bus an der Haltestelle, hoechstens 25
 //   geparkte, alle bis 700 m um die Siedlung, keins in einem Haus,
-//   Kennungen 'stadt:f<n>'; Dinge auf Spielplatz und Park,
+//   Kennungen 'stadt:f:<x>:<z>:<art>'; Dinge auf Spielplatz und Park,
+//   Kennungen 'stadt:d:<x>:<z>:<art>',
 // - gleiche Daten geben dieselbe Welt, unsinnige Daten werfen laut,
 // - Budget an einer erfundenen Stadt mit 4000 Haeusern und 2500 Strassen:
 //   Bauzeit, Dreiecke, Zeichenaufrufe; Gehen und Fahren mit dem echten
@@ -47,7 +59,7 @@ import v8 from 'node:v8'
 import vm from 'node:vm'
 import { PerformanceObserver } from 'node:perf_hooks'
 import { Worker as NodeWorker } from 'node:worker_threads'
-import { Frustum, Matrix4, PerspectiveCamera, Raycaster, Sphere, Vector3 } from 'three'
+import { Frustum, Group, Matrix4, PerspectiveCamera, Raycaster, Sphere, Vector3 } from 'three'
 
 /* Das Innere mitzaehlen: Aufrufe, fertige Teile, Freigaben, Bauzeit je Stueck. */
 const ECHT_INNEN = new URL('../src/components/plan3d/innen3d.ts', import.meta.url).href
@@ -56,6 +68,11 @@ const HUELLE =
   encodeURIComponent(`
 import * as echt from ${JSON.stringify(ECHT_INNEN)};
 export const innenVorbereiten = echt.innenVorbereiten;
+export const innenDingArt = echt.innenDingArt;
+export function innenDingBauen(id, farben, mat) {
+  globalThis.__innen.einzeln.push(id);
+  return echt.innenDingBauen(id, farben, mat);
+}
 export function innenBauen(o) {
   const g = globalThis.__innen;
   g.aufrufe.push(o);
@@ -98,7 +115,7 @@ registerHooks({
     return nextResolve(specifier, context)
   },
 })
-globalThis.__innen = { aufrufe: [], teile: new Map(), gesehen: new WeakSet(), freigegeben: 0, abgebrochen: 0, stueck: 0 }
+globalThis.__innen = { aufrufe: [], teile: new Map(), gesehen: new WeakSet(), freigegeben: 0, abgebrochen: 0, stueck: 0, einzeln: [] }
 
 const { baueStadt } = await import('../src/components/plan3d/stadt3d.ts')
 const { gelaendeHoehe } = await import('../src/lib/stadt.ts')
@@ -758,7 +775,8 @@ let treppenErst = null
   wahr('fern: Hindernisse dasselbe Feld', w.hindernisse() === H0)
   wahr('fern: keine Ebene weg oder umsortiert', ebenenVorher.every((e, i) => w.ebenen()[i] === e))
   wahr('fern: dieselben Ebenen-Objekte', ebenenErst.every((e) => w.ebenen().includes(e)))
-  wahr('fern: Treppen bleiben', treppenErst.every((id) => w.treppen().some((t) => t.id === id)))
+  wahr('fern: Treppen des Hauses weg (auch die Schwelle)', treppenErst.length > 0 && !w.treppen().some((t) => t.id.startsWith('stadt:a1:')))
+  wahr('fern: Tuer zu (Tuerrechteck bleibt)', w.hindernisse().some((q) => abstandH(q, tuerInnen[0], tuerInnen[1]) <= 0))
   wahr('fern: Dinge weg', !w.dinge().some((d) => dingErst.includes(d.id)))
   // Ganz fern: Glas freigegeben.
   const [gx, gz] = welt([900, 800])
@@ -784,17 +802,44 @@ let treppenErst = null
   wahr('zurueck: dieselben Ebenen-Objekte', eb2.length === ebenenErst.length && eb2.every((e, i) => e === ebenenErst[i]))
   wahr('zurueck: dieselben Dinge (Kennungen)', JSON.stringify(globalThis.__innen.teile.get('stadt:a1').dinge.map((d) => d.id)) === JSON.stringify(dingErst) && dingErst.every((id) => w.dinge().some((d) => d.id === id)))
   wahr('zurueck: Treppen nicht doppelt', new Set(w.treppen().map((t) => t.id)).size === w.treppen().length)
+  wahr('zurueck: Treppen des Hauses wieder da', treppenErst.every((id) => w.treppen().some((t) => t.id === id)))
   wahr('zurueck: Hindernisse dasselbe Feld', w.hindernisse() === H0)
-  // Ding weggetragen: das Haus bleibt geladen, das Ding zu sehen.
+  // E87b: Ding weggetragen (wie der Motor: in seine Szene gehaengt, dort
+  // verschoben und gedreht): das Haus entlaedt trotzdem, das Ding steht
+  // einzeln weiter, an derselben Stelle, zu sehen; beim erneuten Laden
+  // nicht doppelt.
   const ding = w.dinge().find((d) => dingErst.includes(d.id))
   if (ding) {
+    const szene = new Group()
+    szene.attach(ding.objekt)
     const [wx, wz] = welt([-300, 250])
-    ding.objekt.position.set(wx, 0, wz)
+    ding.objekt.position.set(wx, BODEN_Y + 0.4, wz)
+    ding.objekt.rotation.set(0, 1.1, 0)
     ding.objekt.updateMatrixWorld(true)
+    const teilVorher = globalThis.__innen.teile.get('stadt:a1')
+    const v2 = w.version()
     w.kamera(fx, BODEN_Y + 1.6, fz)
     ruhe(w)
-    wahr('Ding weggetragen: Haus bleibt geladen', w.dinge().some((d) => d.id === ding.id))
-    wahr('Ding weggetragen: bleibt zu sehen, das Haus innen aus', ding.objekt.visible && !globalThis.__innen.teile.get('stadt:a1').fest.visible)
+    const neu = w.dinge().filter((d) => d.id === ding.id)
+    wahr('Ding weggetragen: Haus entlaedt trotzdem', w.version() > v2 && !teilVorher.gruppe.parent)
+    wahr(`Ding weggetragen: einzeln weiter, einmal (${neu.length})`, neu.length === 1 && neu[0] !== ding && neu[0].objekt.parent === w.gruppe)
+    if (neu[0]) {
+      const o = neu[0].objekt
+      wahr('Ding weggetragen: an derselben Stelle und Drehung', Math.abs(o.position.x - wx) < 1e-9 && Math.abs(o.position.y - (BODEN_Y + 0.4)) < 1e-9 && Math.abs(o.position.z - wz) < 1e-9 && Math.abs(o.rotation.y - 1.1) < 1e-9)
+      wahr('Ding weggetragen: zu sehen, gleiche Masse', o.visible && neu[0].breite === ding.breite && neu[0].hoehe === ding.hoehe)
+      wahr('Ding weggetragen: das alte Objekt ist aus der Szene', ding.objekt.parent === null)
+    }
+    const andere = dingErst.filter((id) => id !== ding.id)
+    wahr('Ding weggetragen: die anderen Dinge gehen mit dem Haus', !w.dinge().some((d) => andere.includes(d.id)))
+    // Zurueck: das Haus laedt, baut das Ding aber nicht noch einmal.
+    const v3 = w.version()
+    w.kamera(kx, BODEN_Y + 1.6, kz)
+    ruhe(w)
+    const teilNeu = globalThis.__innen.teile.get('stadt:a1')
+    wahr('Ding weggetragen, zurueck: Haus wieder geladen', w.version() > v3 && teilNeu !== teilVorher && !!teilNeu.gruppe.parent)
+    wahr('Ding weggetragen, zurueck: nicht doppelt', w.dinge().filter((d) => d.id === ding.id).length === 1 && !teilNeu.dinge.some((d) => d.id === ding.id) && !teilNeu.gruppe.children.some((c) => c.name === ding.id))
+    wahr('Ding weggetragen, zurueck: die anderen wieder da', andere.every((id) => teilNeu.dinge.some((d) => d.id === id)))
+    wahr('Ding weggetragen, zurueck: Kennungen eindeutig', new Set(w.dinge().map((d) => d.id)).size === w.dinge().length)
   } else wahr('a1 hat innen Dinge', false)
 }
 
@@ -932,7 +977,13 @@ let treppenErst = null
 /* ------------------------------------------------ 7. Fahrzeuge und Dinge */
 {
   const fz = w.fahrzeuge().filter((f) => f.id.startsWith('stadt:f'))
-  wahr('Kennungen der Fahrzeuge der Reihe nach', fz.every((f, i) => f.id === `stadt:f${i}`))
+  // E87b: Kennung aus der Stelle (Siedlungsmeter in Dezimetern) und der Art.
+  wahr('Kennungen der Fahrzeuge aus Stelle und Art', fz.length > 0 && fz.every((f) => {
+    const m = /^stadt:f:(-?\d+):(-?\d+):([a-z]+)$/.exec(f.id)
+    const [sx, sz] = siedlung([f.x, f.z])
+    return !!m && m[3] === f.art && Math.abs(Number(m[1]) / 10 - sx) <= 0.05 + 1e-9 && Math.abs(Number(m[2]) / 10 - sz) <= 0.05 + 1e-9
+  }))
+  wahr('Kennungen der Fahrzeuge eindeutig, Zeichen wie siedlung_ding_setzen', new Set(fz.map((f) => f.id)).size === fz.length && fz.every((f) => /^[A-Za-z0-9:._-]{1,120}$/.test(f.id)))
   wahr('Fahrzeuge auf bodenEbene', fz.every((f) => f.ebene === 'boden'))
   wahr('Fahrzeuge haengen in der Gruppe', fz.every((f) => f.gruppe.parent === w.gruppe))
   wahr('Fahrzeuge auf dem Gelaende', fz.every((f) => Math.abs(f.gruppe.position.y - (BODEN_Y + w.hoehe(f.x, f.z))) < 1e-6))
@@ -990,13 +1041,199 @@ let treppenErst = null
   const farben = new Set(geparkt.map((f) => globalThis.__fahrzeuge.get(f.id)?.farbe))
   wahr(`geparkte Autos in verschiedenen Farben (${farben.size})`, farben.size >= 3 && [...farben].every((c) => /^#[0-9a-f]{6}$/.test(c)))
   wahr('Feuerwehr rot', fw.every((f) => globalThis.__fahrzeuge.get(f.id)?.farbe === '#c8102e'))
-  const dinge = w.dinge().filter((d) => /^stadt:d\d+$/.test(d.id))
+  const dinge = w.dinge().filter((d) => d.id.startsWith('stadt:d:'))
   wahr(`Dinge draussen: einige, hoechstens 15 (${dinge.length})`, dinge.length > 3 && dinge.length <= 15)
-  wahr('Dinge: Kennungen der Reihe nach', dinge.every((d, i) => d.id === `stadt:d${i}`))
+  wahr('Dinge: Kennungen aus Stelle und Art', dinge.every((d) => {
+    const m = /^stadt:d:(-?\d+):(-?\d+):(ballrot|kegel|eimerblau|tonne|ballblau|eimergelb)$/.exec(d.id)
+    const [sx, sz] = siedlung([d.objekt.position.x, d.objekt.position.z])
+    return !!m && Math.abs(Number(m[1]) / 10 - sx) <= 0.05 + 1e-9 && Math.abs(Number(m[2]) / 10 - sz) <= 0.05 + 1e-9
+  }) && new Set(dinge.map((d) => d.id)).size === dinge.length)
   const spiel = [FLAECHEN[3].punkte, FLAECHEN[4].punkte]
   wahr('Dinge auf Spielplatz oder im Park', dinge.every((d) => spiel.some((p) => imVieleck(...siedlung([d.objekt.position.x, d.objekt.position.z]), p))))
   wahr('Dinge mit echter Groesse', dinge.every((d) => d.breite > 0.1 && d.breite < 1 && d.hoehe > 0.1 && d.hoehe < 1 && d.ebene === 'boden'))
   wahr('Dinge auf dem Gelaende', dinge.every((d) => Math.abs(d.objekt.position.y - (BODEN_Y + w.hoehe(d.objekt.position.x, d.objekt.position.z))) < 1e-6))
+}
+
+/* ------------------------------------------------ 7b. E87b: Dinge aus der Kennung (dingErzeugen) */
+{
+  const x = baueStadt(OPT)
+  const A2 = HAEUSER[1]
+  const [nx, nz] = vorDer(A2, 4)
+  x.kamera(nx, BODEN_Y + 1.6, nz)
+  ruhe(x)
+  const teil = globalThis.__innen.teile.get('stadt:a2')
+  wahr('dingErzeugen: a2 geladen', !!teil && teil.dinge.length > 0)
+  const vorbild = teil.dinge[0]
+  const id0 = vorbild.id
+  wahr(`dingErzeugen: Kennung im Haus mit Art (${id0})`, /^stadt:a2:d\d+:[a-z]+$/.test(id0))
+  const geoVorbild = ['position', 'color'].map((n) => Array.from(vorbild.objekt.geometry.getAttribute(n).array))
+  wahr('dingErzeugen: was schon da ist, kommt zurueck (kein zweites)', x.dingErzeugen(id0) === vorbild && x.dinge().filter((d) => d.id === id0).length === 1)
+  // Weit weg: a2 entlaedt (das Ding blieb, wo es war: es geht mit dem Haus).
+  const [fx, fz] = vorDer(A2, INNEN_ENTLADEN_M + 40)
+  x.kamera(fx, BODEN_Y + 1.6, fz)
+  ruhe(x)
+  wahr('dingErzeugen: a2 entladen, Ding weg', !x.dinge().some((d) => d.id === id0) && !teil.gruppe.parent)
+  const v0 = x.version()
+  const e = x.dingErzeugen(id0)
+  wahr('dingErzeugen: Ding aus einem entladenen Haus', !!e && e.id === id0 && x.dinge().includes(e) && x.version() > v0)
+  if (e) {
+    wahr('dingErzeugen: in der Gruppe, zu sehen, Masse wie im Haus', e.objekt.parent === x.gruppe && e.objekt.visible && e.breite === vorbild.breite && e.tiefe === vorbild.tiefe && e.hoehe === vorbild.hoehe && e.ebene === 'boden')
+    const gleich = ['position', 'color'].every((n, i) => {
+      const a = Array.from(e.objekt.geometry.getAttribute(n).array)
+      return a.length === geoVorbild[i].length && a.every((v, j) => Math.abs(v - geoVorbild[i][j]) < 1e-6)
+    })
+    wahr('dingErzeugen: dieselbe Form und Farbe wie im Haus', gleich)
+    const t = tuerVon(A2)
+    const [dx, dz] = welt([t.x + t.k.nx * (SCHWELLE_VOR + 0.5), t.z + t.k.nz * (SCHWELLE_VOR + 0.5)])
+    wahr('dingErzeugen: vor der Tuer seines Hauses auf dem Gelaende', Math.hypot(e.objekt.position.x - dx, e.objekt.position.z - dz) < 1e-6 && Math.abs(e.objekt.position.y - (BODEN_Y + x.hoehe(dx, dz))) < 1e-6)
+    const v1 = x.version()
+    wahr('dingErzeugen: zweimal dasselbe, version ruhig', x.dingErzeugen(id0) === e && x.version() === v1)
+  }
+  // Das Haus laedt wieder: es baut das Ding nicht noch einmal.
+  x.kamera(nx, BODEN_Y + 1.6, nz)
+  ruhe(x)
+  const teil2 = globalThis.__innen.teile.get('stadt:a2')
+  wahr('dingErzeugen: Haus wieder geladen, Ding nicht doppelt', teil2 !== teil && !!teil2.gruppe.parent && !teil2.dinge.some((d) => d.id === id0) && x.dinge().filter((d) => d.id === id0).length === 1)
+  wahr('dingErzeugen: die anderen Dinge des Hauses da', teil.dinge.slice(1).every((d) => teil2.dinge.some((q) => q.id === d.id)))
+  wahr('dingErzeugen: alle Kennungen eindeutig', new Set(x.dinge().map((d) => d.id)).size === x.dinge().length)
+  // Aus einem Haus, das nie geladen war (a12), und aus einem, das es nicht gibt.
+  const vNie = x.version()
+  const nie = x.dingErzeugen('stadt:a12:d3:kerze')
+  wahr('dingErzeugen: Haus nie geladen, Ding trotzdem da', !!nie && nie.id === 'stadt:a12:d3:kerze' && x.dinge().includes(nie) && x.version() > vNie && !x.ebenen().some((q) => q.id.startsWith('stadt:a12:')))
+  const fremd = x.dingErzeugen('stadt:zz9:d0:teddy')
+  const [ux, uz] = welt([0, 0])
+  wahr('dingErzeugen: Haus unbekannt, an der Mitte der Siedlung', !!fremd && Math.hypot(fremd.objekt.position.x - ux, fremd.objekt.position.z - uz) < 1e-6)
+  // Draussen: dieselbe Kennung gibt dasselbe Ding, eine andere Stelle ein neues dort.
+  const draussen = x.dinge().find((d) => d.id.startsWith('stadt:d:'))
+  wahr('dingErzeugen: Ding draussen, schon da', !!draussen && x.dingErzeugen(draussen.id) === draussen)
+  const neuDraussen = x.dingErzeugen('stadt:d:123:-456:kegel')
+  const [kx, kz] = welt([12.3, -45.6])
+  wahr('dingErzeugen: Ding draussen aus der Kennung, an seiner Stelle auf dem Gelaende', !!neuDraussen && Math.hypot(neuDraussen.objekt.position.x - kx, neuDraussen.objekt.position.z - kz) < 1e-6 && Math.abs(neuDraussen.objekt.position.y - (BODEN_Y + x.hoehe(kx, kz))) < 1e-6 && neuDraussen.hoehe === 0.51)
+  // Unbekannt oder unsinnig: null, nichts aendert sich.
+  const vU = x.version()
+  const zahl = x.dinge().length
+  const unsinn = ['stadt:d:1:2:rakete', 'stadt:a2:d0:rakete', 'stadt:f:1:2:auto', 'siedlung:d0:ball', 'stadt:a2:d0', 'stadt:a 2:d0:ball', 'stadt:a2:d0:ball;', '', 'x'.repeat(130), 'stadt:a2:dX:ball']
+  wahr('dingErzeugen: Unbekanntes gibt null', unsinn.every((id) => x.dingErzeugen(id) === null) && x.dingErzeugen(42) === null)
+  wahr('dingErzeugen: Unbekanntes aendert nichts', x.version() === vU && x.dinge().length === zahl)
+  // Gleiche Daten, gleiche Kennungen: eine zweite Stadt baut dasselbe Ding gleich.
+  const y = baueStadt(OPT)
+  const e2 = y.dingErzeugen(id0)
+  wahr('dingErzeugen: andere Sitzung, gleiche Kennung, gleiches Ding', !!e2 && !!e && Array.from(e2.objekt.geometry.getAttribute('color').array).join() === Array.from(e.objekt.geometry.getAttribute('color').array).join())
+  y.dispose()
+  // dispose gibt die einzelnen Dinge frei (eigene Geometrie, ihr Material).
+  const frei = []
+  const einzelne = [e, nie, fremd].filter(Boolean)
+  for (const d of einzelne) d.objekt.geometry.addEventListener('dispose', () => frei.push(d.id))
+  let matFrei = 0
+  if (e) e.objekt.material.addEventListener('dispose', () => matFrei++)
+  x.dispose()
+  wahr(`dingErzeugen: dispose gibt die einzelnen Dinge frei (${frei.length} von ${einzelne.length})`, einzelne.length === 3 && frei.length === 3 && matFrei === 1 && x.gruppe.children.length === 0 && x.dinge().length === 0)
+  // Hoechstens 400 einzelne Dinge, dann eine Warnung.
+  const z = baueStadt(OPT)
+  const alt = console.warn
+  const warnungen = []
+  console.warn = (...a) => warnungen.push(a.map(String).join(' '))
+  let gebaut = 0
+  try {
+    for (let i = 0; i < 405; i++) if (z.dingErzeugen(`stadt:d:${i}:7:ballrot`)) gebaut++
+  } finally {
+    console.warn = alt
+  }
+  wahr(`dingErzeugen: hoechstens 400 einzelne (${gebaut}, ${warnungen.length} Warnung)`, gebaut === 400 && warnungen.length === 1)
+  z.dispose()
+}
+
+/* ------------------------------------------------ 7c. E87b: Kennungen bleiben, wenn Daten dazukommen */
+{
+  const a = baueStadt(OPT)
+  // Vorne eine Feuerwehr mehr (alte Laufnummern wuerden alle verschieben),
+  // ein Parkplatz und ein Spielplatz mehr.
+  const mehr = {
+    ...STADT,
+    haeuser: [haus('n1', 'feuerwehr', rechteck(-100, 250, 24, 14, 0), { geschosse: 2 }), ...HAEUSER],
+    flaechen: [...FLAECHEN, { art: 'parkplatz', punkte: rechteck(100, -250, 30, 20, 0) }, { art: 'spielplatz', punkte: kreis(70, 75, 7, 10) }],
+  }
+  const b = baueStadt({ ...OPT, stadt: mehr })
+  const lageVon = (f) => [f.art, f.x, f.z, f.gier]
+  const fa = new Map(a.fahrzeuge().map((f) => [f.id, lageVon(f)]))
+  const fb = new Map(b.fahrzeuge().map((f) => [f.id, lageVon(f)]))
+  const gleicheLage = (p, q) => p[0] === q[0] && Math.abs(p[1] - q[1]) < 1e-6 && Math.abs(p[2] - q[2]) < 1e-6 && Math.abs(p[3] - q[3]) < 1e-6
+  let beide = 0
+  let anders = 0
+  for (const [id, p] of fa) {
+    const q = fb.get(id)
+    if (!q) continue
+    beide++
+    if (!gleicheLage(p, q)) anders++
+  }
+  wahr(`Kennungen: kein Fahrzeug unter einer alten Kennung anders (${anders} von ${beide})`, beide > 0 && anders === 0)
+  const besondere = a.fahrzeuge().filter((f) => !['auto', 'kombi', 'transporter'].includes(f.art))
+  wahr(`Kennungen: Feuerwehr, Rettung, Polizei, Bus behalten ihre Kennung (${besondere.length})`, besondere.length >= 6 && besondere.every((f) => fb.has(f.id) && gleicheLage(lageVon(f), fb.get(f.id))))
+  wahr('Kennungen: die neue Feuerwehr hat eigene Kennungen', b.fahrzeuge().filter((f) => f.art === 'feuerwehr' && !fa.has(f.id)).length === 2)
+  const da = new Map(a.dinge().map((d) => [d.id, d]))
+  let dBeide = 0
+  let dAnders = 0
+  for (const d of b.dinge()) {
+    const alt = da.get(d.id)
+    if (!alt) continue
+    dBeide++
+    if (alt.objekt.position.distanceTo(d.objekt.position) > 1e-6 || alt.hoehe !== d.hoehe) dAnders++
+  }
+  wahr(`Kennungen: kein Ding unter einer alten Kennung anders (${dAnders} von ${dBeide})`, dAnders === 0)
+  a.dispose()
+  b.dispose()
+}
+
+/* ------------------------------------------------ 7d. E87b: neue Welt mitten in einem Haus */
+{
+  // a1 steht im Vorrat der Plaene (oben geladen): eine neue Welt (wie nach
+  // einem Wechsel des Farbschemas), die Kamera im 2. OG von a1. Gleich nach
+  // dem ersten kamera(), ohne schritt(), sind seine Ebenen und Treppen da.
+  const anfragen = PLANER.anfragen.length
+  const n1 = baueStadt(OPT)
+  const mitte = welt([(A1.umriss[0][0] + A1.umriss[2][0]) / 2, (A1.umriss[0][1] + A1.umriss[2][1]) / 2])
+  wahr('neue Welt: anfangs version 0, keine Ebenen', n1.version() === 0 && n1.ebenen().length === 0)
+  n1.kamera(mitte[0], BODEN_Y + A1.boden + 2 * A1.geschossHoehe + 1.64, mitte[1])
+  const ids = n1.ebenen().map((q) => q.id)
+  wahr(`neue Welt im Haus: Ebenen sofort da (${ids.join(',')})`, Array.from({ length: A1.geschosse }, (_, k) => `stadt:a1:${k}`).every((id) => ids.includes(id)) && n1.version() > 0)
+  wahr('neue Welt im Haus: Schwelle und Laeufe sofort da', n1.treppen().some((t) => t.id === 'stadt:a1:schwelle') && n1.treppen().some((t) => t.id === 'stadt:a1:t1'))
+  wahr('neue Welt im Haus: Plan aus dem Vorrat (keine Anfrage)', PLANER.anfragen.length === anfragen)
+  const t1 = globalThis.__innen.teile.get('stadt:a1')
+  const stock = (d) => Number(d.ebene.split(':').pop())
+  wahr('neue Welt im Haus: Geschosse 1 bis 3 zu sehen, die Dinge dort auch', t1.fest.visible && t1.dinge.every((d) => d.objekt.visible === (stock(d) >= 1 && stock(d) <= 3)))
+  // Die Stadt blendet Dinge je Geschoss selbst aus; ein weggetragenes
+  // (verschobenes) Ding im ausgeblendeten EG bleibt zu sehen.
+  const eg = t1.dinge.find((d) => stock(d) === 0)
+  if (eg) {
+    eg.objekt.position.x += 0.4
+    n1.kamera(mitte[0] + 0.6, BODEN_Y + A1.boden + 2 * A1.geschossHoehe + 1.64, mitte[1])
+    wahr('Sicht: weggetragenes Ding im ausgeblendeten Geschoss zu sehen', eg.objekt.visible && t1.dinge.filter((d) => d !== eg && stock(d) === 0).every((d) => !d.objekt.visible))
+  } else wahr('a1 hat Dinge im EG', false)
+  n1.dispose()
+  // Ein Haus ohne Plan im Vorrat (a13, weit weg, nie in der Naehe): gleich
+  // hier gerechnet, auch sofort.
+  const A13 = HAEUSER.find((h) => h.id === 'a13')
+  wahr('a13 war noch nicht geplant', !PLANER.anfragen.includes('a13') && !globalThis.__innen.aufrufe.some((o) => o.praefix === 'stadt:a13'))
+  const n2 = baueStadt(OPT)
+  const [hx, hz] = welt([702, 401])
+  n2.kamera(hx, BODEN_Y + A13.boden + 1.6, hz)
+  wahr('neue Welt im Haus ohne Plan im Vorrat: sofort gerechnet und gebaut', n2.ebenen().some((q) => q.id === 'stadt:a13:0') && n2.version() > 0 && !PLANER.anfragen.includes('a13'))
+  // Nur beim ersten kamera(): ein zweites Mal in einem anderen Haus wartet es wie immer.
+  const v2 = n2.version()
+  const [bx, bz] = welt([-35, 40])
+  n2.kamera(bx, BODEN_Y + HAEUSER[1].boden + 1.6, bz)
+  wahr('nur beim ersten kamera(): danach laedt ein Haus wie sonst (nicht sofort)', n2.version() === v2 && !n2.ebenen().some((q) => q.id === 'stadt:a2:0'))
+  n2.dispose()
+  // Draussen oder hoch ueber dem Haus: nichts sofort.
+  const n3 = baueStadt(OPT)
+  const [ox, oz] = vorDer(A1, 5)
+  n3.kamera(ox, BODEN_Y + 1.6, oz)
+  wahr('neue Welt draussen: nichts sofort', n3.version() === 0 && n3.ebenen().length === 0)
+  n3.dispose()
+  const n4 = baueStadt(OPT)
+  n4.kamera(mitte[0], BODEN_Y + A1.boden + A1.geschosse * A1.geschossHoehe + 60, mitte[1])
+  wahr('neue Welt hoch ueber dem Haus: nichts sofort', n4.version() === 0 && n4.ebenen().length === 0)
+  n4.dispose()
 }
 
 /* ------------------------------------------------ 8. Gleiche Daten, gleiche Welt; Unsinn wirft */

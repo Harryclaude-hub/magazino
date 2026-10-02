@@ -10,7 +10,8 @@
 //     gespiegelt. Auf Deutsch und auf Arabisch.
 //  3. Der Dialog "Leute" (src/components/SiedlungLeute.tsx): Saetze je
 //     Antwort beim Einladen, Reihenfolge, Besitzer und Gast, Laden, Fehler
-//     und leer.
+//     und leer. E87b: Leute im Umzug ("im Umzug", nicht entfernbar, keine
+//     Gaeste fuer die Grenze von 20, selbst so dabei: kein Verlassen).
 //  4. Der Kanal (src/lib/anwesenheit.ts): nur 'wohnung:<Kennung>' und
 //     'siedlung:<Kennung>', sonst ein sichtbarer Fehler.
 //  5. Der Vertrag zwischen Seite, Raum3D und Minikarte, die Woerter und
@@ -369,6 +370,19 @@ const GAST = '00000000-0000-4000-8000-000000000002'
   ]
   wahr('Reihenfolge: Besitzer, dann nach Name', gleich(L.mitgliederOrdnen(liste).map((m) => m.name), ['Xaver', 'Anton', 'zora']))
   wahr('Reihenfolge: Liste bleibt unveraendert', liste[0].name === 'zora')
+  // E87b: drei Rollen, Besitzer, dann im Umzug, dann Gaeste (der Vergleich
+  // bleibt in jeder Reihenfolge der Eingabe gleich).
+  const drei = [
+    { user_id: '00000000-0000-4000-8000-000000000004', name: 'Berta', avatar3d: null, rolle: 'gast' },
+    { user_id: '00000000-0000-4000-8000-000000000005', name: 'Yusuf', avatar3d: null, rolle: 'umzug' },
+    ...liste,
+    { user_id: '00000000-0000-4000-8000-000000000006', name: 'Carl', avatar3d: null, rolle: 'umzug' },
+  ]
+  const soll = ['Xaver', 'Carl', 'Yusuf', 'Anton', 'Berta', 'zora']
+  wahr('Reihenfolge: Besitzer, im Umzug, Gaeste', gleich(L.mitgliederOrdnen(drei).map((m) => m.name), soll))
+  wahr('Reihenfolge: unabhaengig von der Eingabe', gleich(L.mitgliederOrdnen([...drei].reverse()).map((m) => m.name), soll))
+  wahr('Rollen: Namen im Woerterbuch', L.rolleName('besitzer') === 'siedlung.rolle_besitzer' && L.rolleName('gast') === 'siedlung.rolle_gast' && L.rolleName('umzug') === 'siedlung.rolle_umzug')
+  wahr('Gaeste: hoechstens 20 (0046)', L.GAESTE_MAX === 20)
 }
 
 const BESITZER = { user_id: ICH, name: 'Xaver Muster', avatar3d: null, rolle: 'besitzer' }
@@ -426,6 +440,23 @@ function leute(props, sprache = 'de') {
   wahr('Gast: kein Hinweis "niemand eingeladen"', !html.includes('Noch niemand eingeladen.'))
 }
 {
+  // E87b: Leute im Umzug der eigenen Wohnung des Besitzers.
+  const UMZUG = { user_id: '00000000-0000-4000-8000-000000000007', name: 'Ula Umzug', avatar3d: null, rolle: 'umzug' }
+  const html = leute({ mitglieder: { data: [BESITZER, EIN_GAST, UMZUG], loading: false, error: null, reload: () => {} } })
+  wahr('Umzug: als "im Umzug" gezeigt', html.includes('>im Umzug<'))
+  wahr('Umzug: nicht entfernbar', !html.includes('aria-label="Ula Umzug entfernen"') && html.includes('aria-label="Clara Beispiel entfernen"'))
+  wahr('Umzug: zaehlt nicht als Gast (Zahl ueber der Liste)', html.includes('data-gaeste-zahl=""') && html.includes('Gäste: 1 von 20'))
+  wahr('Umzug: vor den Gaesten', html.indexOf('Ula Umzug') > html.indexOf('Xaver Muster') && html.indexOf('Ula Umzug') < html.indexOf('Clara Beispiel'))
+  const nurUmzug = leute({ mitglieder: { data: [BESITZER, UMZUG], loading: false, error: null, reload: () => {} } })
+  wahr('Umzug: ohne Gaeste weiter "niemand eingeladen", 0 von 20', nurUmzug.includes('Noch niemand eingeladen.') && nurUmzug.includes('Gäste: 0 von 20'))
+  const selbst = leute({ besitzer: false, ich: UMZUG.user_id, mitglieder: { data: [BESITZER, EIN_GAST, UMZUG], loading: false, error: null, reload: () => {} } })
+  wahr('Umzug selbst: eigener Satz, kein Verlassen, keine Zahl', selbst.includes('über den Umzug dieser Wohnung') && !selbst.includes('Siedlung verlassen') && !selbst.includes('Du bist Gast in dieser Siedlung.') && !selbst.includes('data-gaeste-zahl'))
+  const gast = leute({ besitzer: false, ich: GAST, mitglieder: { data: [BESITZER, EIN_GAST, UMZUG], loading: false, error: null, reload: () => {} } })
+  wahr('Gast neben Umzug: Verlassen bleibt, niemand entfernbar', gast.includes('Siedlung verlassen') && !gast.includes('entfernen"'))
+  const ar = leute({ mitglieder: { data: [BESITZER, EIN_GAST, UMZUG], loading: false, error: null, reload: () => {} } }, 'ar')
+  wahr('arabisch: im Umzug und Zahl', ar.includes('>في النقلة<') && ar.includes('الضيوف: 1 من 20'))
+}
+{
   const html = leute({}, 'ar')
   wahr('arabisch: Feld', html.includes('placeholder="البريد الإلكتروني أو الاسم"'))
   wahr('arabisch: Gast entfernen', html.includes('aria-label="إزالة Clara Beispiel"'))
@@ -475,7 +506,8 @@ function leute(props, sprache = 'de') {
 {
   const raum = lesen('src/components/plan3d/Raum3D.tsx')
   wahr('Raum3D: Angabe live', /live\?: Raum3DLive \| null/.test(raum))
-  wahr('Raum3D: Form von live', /export interface Raum3DLive \{\s*kanal: string\s*uid: string\s*leute: \{ uid: string; name: string; look: Avatar3D \| null \}\[\]\s*\}/.test(raum))
+  // E87b: dazu ohneListe (die Liste der Mitglieder liess sich nicht laden).
+  wahr('Raum3D: Form von live', /export interface Raum3DLive \{\s*kanal: string\s*uid: string\s*leute: \{ uid: string; name: string; look: Avatar3D \| null \}\[\]\s*\/\*\*[\s\S]*?\*\/\s*ohneListe\?: boolean\s*\}/.test(raum))
   wahr('Raum3D: Kanal geht an anwesenheit', raum.includes('...(liveKanal ? { kanal: liveKanal } : {})'))
   wahr('Raum3D: Umzug wie bisher', raum.includes("!!uid && !!projekt && projekt.project.id === projectId"))
   wahr('Raum3D: Minikarte im 3D-Behaelter', raum.includes('<Minikarte') && (raum.match(/\{minikarte\}/g) ?? []).length === 2)
@@ -533,6 +565,7 @@ function leute(props, sprache = 'de') {
     'src/components/SiedlungLeute.tsx',
     'src/lib/anwesenheit.ts',
     'src/pages/SiedlungAnsicht.tsx',
+    'src/pages/Siedlungen.tsx',
     'src/components/plan3d/Raum3D.tsx',
     'src/lib/i18n/bausteine/siedlung.ts',
     'scripts/minikarte-pruefen.mjs',

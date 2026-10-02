@@ -40,7 +40,10 @@
  * Haustuer), Innenwaende ohne die Luecken, Gelaender und Sperren, Moebel
  * mit Oberkante (Tische 0,75, Betten 0,5, Theken 1,0; Regale ohne).
  * Treppen: die Schwelle von o.bodenEbene auf `${praefix}:0` und je Paar
- * Geschosse ein Lauf `${praefix}:t${k}`. Dinge `${praefix}:d${n}`.
+ * Geschosse ein Lauf `${praefix}:t${k}`. Dinge `${praefix}:d${n}:${art}`
+ * (E87b: n die Stelle im Plan, die Art am Ende; die Farbe kommt aus der
+ * Kennung, so baut innenDingBauen ein weggetragenes Ding allein aus ihr,
+ * genau wie im Haus).
  * Pruefung ohne Browser: node scripts/innen-pruefen.mjs */
 import {
   BufferAttribute,
@@ -64,7 +67,7 @@ import {
 } from 'three'
 import type { Farben3D } from './szene'
 import type { Ebene3D, Fahrzeug3D, Hindernis3D, Treppe3D, WeltDing3D } from './vertrag3d'
-import { DECKE_M, INNEN_FAHRZEUGE, type BodenArt, type DingArt, type InnenDing, type InnenGeschoss, type InnenMoebel, type InnenPlan, type InnenWand, type MoebelArt } from '../../lib/innenGenerator.ts'
+import { DECKE_M, DING_MASSE, INNEN_FAHRZEUGE, type BodenArt, type DingArt, type InnenDing, type InnenGeschoss, type InnenMoebel, type InnenPlan, type InnenWand, type MoebelArt } from '../../lib/innenGenerator.ts'
 import { AUSSENWAND_M, FENSTER_B, FENSTER_BRUESTUNG, FENSTER_H, SCHWELLE_HINTER, SCHWELLE_VOR, TUER_H } from './stadtMasse.ts'
 import { baueFahrzeug } from './fahrzeug3d.ts'
 
@@ -75,7 +78,7 @@ export interface InnenOptionen {
    *  die Hochachse und Verschiebung. */
   zuWelt: Matrix4
   /** Kennungen: Ebenen heissen `${praefix}:${geschoss}`, Dinge
-   *  `${praefix}:d${n}`. */
+   *  `${praefix}:d${n}:${art}` (innenDingKennung). */
   praefix: string
   /** Name des Hauses fuer die Ebenen ('Haus A · 1'), sonst die Art. */
   name: string
@@ -655,13 +658,17 @@ function* bauSchritte(o: InnenOptionen, vorrat: Vorrat): Generator<void, InnenTe
   }
   gruppe.add(fest)
   yield
-  // Dinge zum Aufheben.
+  // Dinge zum Aufheben. Kennung mit der Stelle im Plan (jedes Ding zaehlt,
+  // auch eins ohne Geometrie) und der Art; die Farbe kommt aus der Kennung,
+  // damit innenDingBauen dasselbe Ding allein aus ihr bauen kann (E87b).
   const dingMat = new MeshLambertMaterial({ vertexColors: true })
   mats.push(dingMat)
   let dn = 0
   for (const g of plan.geschosse) {
     for (const d of g.dinge) {
-      const geo = dingGeometrie(d, F)
+      const id = innenDingKennung(o.praefix, dn++, d.art)
+      if (dn % 8 === 0) yield
+      const geo = dingGeometrie(d.art, d.b, d.t, d.h, tonAus(id), F)
       if (!geo) continue
       geos.push(geo)
       const m = new Mesh(geo, dingMat)
@@ -669,12 +676,10 @@ function* bauSchritte(o: InnenOptionen, vorrat: Vorrat): Generator<void, InnenTe
       m.position.set(wx, g.y + d.y + ty, wz)
       // gier im Haus plus Drehung des Hauses.
       m.rotation.y = d.gier + drehVon(1, 0)
-      const id = `${o.praefix}:d${dn++}`
       m.name = id
       m.userData.ding = id
       gruppe.add(m)
       dinge.push({ id, objekt: m, breite: d.b, tiefe: d.t, hoehe: d.h, ebene: `${o.praefix}:${g.k}` })
-      if (dn % 8 === 0) yield
     }
   }
   gruppe.updateMatrixWorld(true)
@@ -1405,12 +1410,62 @@ function* fahrzeugEinbacken(p: Puffer, glas: Puffer, art: Fahrzeug3D['art'], far
 
 /* ------------------------------------------------ Dinge */
 
-function dingGeometrie(d: InnenDing, F: FF): BufferGeometry | null {
+/** Kennung eines Dings im Inneren (E87b): `${praefix}:d${n}:${art}`. n ist
+ *  die Stelle im Plan (alle Geschosse der Reihe nach, jedes Ding zaehlt),
+ *  gleich fuer denselben Plan; die Art am Ende reicht, um das Ding allein
+ *  aus der Kennung zu bauen (innenDingBauen), auch wenn sein Haus gerade
+ *  nicht geladen ist. */
+export function innenDingKennung(praefix: string, n: number, art: DingArt): string {
+  return `${praefix}:d${n}:${art}`
+}
+
+/** Die Art am Ende der Kennung eines Dings im Inneren, sonst null. */
+export function innenDingArt(id: string): DingArt | null {
+  const m = typeof id === 'string' ? /:d\d+:([a-z]+)$/.exec(id) : null
+  if (!m) return null
+  return Object.prototype.hasOwnProperty.call(ALLE_DINGE, m[1]) ? (m[1] as DingArt) : null
+}
+
+/** Farbe und Spielart eines Dings (0..1) aus seiner Kennung (FNV-1a): im
+ *  Haus und einzeln gebaut gleich. */
+function tonAus(id: string): number {
+  let h = 2166136261
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return ((h >>> 0) % 1000) / 1000
+}
+
+/** Farben je Farbschema nur einmal rechnen (innenDingBauen laeuft einzeln). */
+const farbenVorrat = new WeakMap<Farben3D, FF>()
+
+/** Ein Ding im Inneren allein aus seiner Kennung bauen (E87b): Art aus der
+ *  Kennung, Masse aus DING_MASSE, Farbe aus der Kennung, also genau wie es
+ *  im Haus steht. Ursprung unten in der Mitte, ohne Lage (setzt, wer es
+ *  braucht). Die Geometrie gehoert dem Rufer (objekt.geometry.dispose()),
+ *  das Material bringt er mit. null: keine Kennung eines Dings im Inneren. */
+export function innenDingBauen(id: string, farben: Farben3D, mat: Material): { objekt: Mesh; breite: number; tiefe: number; hoehe: number } | null {
+  const art = innenDingArt(id)
+  if (!art) return null
+  const [b, t, h] = DING_MASSE[art]
+  let F = farbenVorrat.get(farben)
+  if (!F) {
+    F = farbenAus(farben)
+    farbenVorrat.set(farben, F)
+  }
+  const geo = dingGeometrie(art, b, t, h, tonAus(id), F)
+  if (!geo) return null
+  const m = new Mesh(geo, mat)
+  m.name = id
+  m.userData.ding = id
+  return { objekt: m, breite: b, tiefe: t, hoehe: h }
+}
+
+function dingGeometrie(art: DingArt, b: number, t: number, h: number, ton: number, F: FF): BufferGeometry | null {
   const p = new Puffer(null, 256)
   const R: Rahmen = { ox: 0, oy: 0, oz: 0, ux: 1, uz: 0 }
-  const b = d.b
-  const t = d.t
-  const h = d.h
+  const d = { art, ton }
   const bunt = F.bunt[Math.floor(d.ton * F.bunt.length) % F.bunt.length]
   switch (d.art) {
     case 'ball':

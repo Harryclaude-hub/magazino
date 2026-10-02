@@ -40,7 +40,15 @@
  * jemand hat ein Ding hingestellt oder ein Fahrzeug abgestellt
  * (DingLage3D, dingLesen). Auch dafuer muss der Absender gerade da sein,
  * im selben Grundriss, hoechstens 20 je Sekunde. Gespeichert wird hier
- * nichts; das tut die Seite ueber api.ts. */
+ * nichts; das tut die Seite ueber api.ts.
+ *
+ * E87b: Die Kennung eines Dings oder Fahrzeugs im Ereignis 'ding' folgt
+ * denselben Regeln wie in der Datenbank (siedlung_dinge, 0047: Buchstaben,
+ * Ziffern und : . _ -, 1 bis 120 Zeichen), und alle Lagen liegen in deren
+ * Grenzen (20 km zur Seite, 2 km hoch). Was die Datenbank ohnehin
+ * ablehnen wuerde, geht so gar nicht erst hinaus und kommt nicht herein.
+ * Ob ein Absender (noch) dazugehoert, prueft Raum3D gegen die Liste der
+ * Mitglieder; hier zaehlt nur, wer gerade im Kanal ist. */
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { DingLage3D, Pose3D } from '../components/plan3d/vertrag3d'
 import { istKennung, poseLesen, poseVerpacken } from './avatar'
@@ -106,16 +114,25 @@ const DINGE_WARTEN = 200
 
 /** Laengste Kennung eines Dings, Fahrzeugs oder einer Ebene. */
 export const KENNUNG_MAX = 120
-/** Weiter als so viele Meter vom Ursprung liegt nichts (Stadtteil mit Rand). */
-const WELT_XZ_M = 50_000
-/** Hoehe zwischen -WELT_Y_M und +WELT_Y_M Metern. */
-const WELT_Y_M = 5_000
+/** Weiter als so viele Meter vom Ursprung liegt nichts (Stadtteil mit Rand;
+ *  E87b: dieselbe Grenze wie in der Datenbank, 0047). */
+const WELT_XZ_M = 20_000
+/** Hoehe zwischen -WELT_Y_M und +WELT_Y_M Metern (wie in der Datenbank). */
+const WELT_Y_M = 2_000
+/** Kennung eines Dings im Ereignis 'ding' (E87b): wie in der Datenbank. */
+const DING_KENNUNG = /^[A-Za-z0-9:._-]{1,120}$/
 
 /** Eine Kennung fuer Dinge, Fahrzeuge und Ebenen: Text mit 1 bis
  *  KENNUNG_MAX Zeichen, ohne Steuerzeichen. */
 export function textKennung(x: unknown): x is string {
   // eslint-disable-next-line no-control-regex -- genau die sollen nicht hinein
   return typeof x === 'string' && x.length > 0 && x.length <= KENNUNG_MAX && !/[\u0000-\u001f\u007f]/.test(x)
+}
+
+/** Kennung eines Dings oder Fahrzeugs, wie siedlung_dinge sie annimmt
+ *  (E87b): nur Buchstaben, Ziffern und : . _ -, 1 bis 120 Zeichen. */
+export function dingKennung(x: unknown): x is string {
+  return typeof x === 'string' && DING_KENNUNG.test(x)
 }
 
 function endlich(v: unknown): v is number {
@@ -183,7 +200,7 @@ export interface DingNachricht {
 /** Eine Lage zum Senden verpacken; kaputt: null. */
 export function dingVerpacken(l: DingLage3D): DingNachricht | null {
   if (!l || typeof l !== 'object') return null
-  if (!textKennung(l.id) || !textKennung(l.ebene) || (l.art !== 'ding' && l.art !== 'fahrzeug')) return null
+  if (!dingKennung(l.id) || !textKennung(l.ebene) || (l.art !== 'ding' && l.art !== 'fahrzeug')) return null
   if (!endlich(l.x) || !endlich(l.y) || !endlich(l.z) || !endlich(l.gier) || !imRahmen(l.x, l.y, l.z)) return null
   return {
     i: l.id,
@@ -196,14 +213,14 @@ export function dingVerpacken(l: DingLage3D): DingNachricht | null {
   }
 }
 
-/** Ein fremdes Ding streng lesen (Feld d): Kennung und Ebene 1 bis 120
- *  Zeichen, Art 'ding' oder 'fahrzeug', jede Zahl endlich und in der
- *  Welt. Was nicht passt: null. Heraus kommt eine neue DingLage3D in
- *  Metern, ohne weitere Felder. */
+/** Ein fremdes Ding streng lesen (Feld d): Kennung wie in der Datenbank
+ *  (dingKennung), Ebene 1 bis 120 Zeichen, Art 'ding' oder 'fahrzeug',
+ *  jede Zahl endlich und in der Welt. Was nicht passt: null. Heraus kommt
+ *  eine neue DingLage3D in Metern, ohne weitere Felder. */
 export function dingLesen(roh: unknown): DingLage3D | null {
   if (!roh || typeof roh !== 'object' || Array.isArray(roh)) return null
   const o = roh as Record<string, unknown>
-  if (!textKennung(o.i) || !textKennung(o.e) || (o.a !== 'ding' && o.a !== 'fahrzeug')) return null
+  if (!dingKennung(o.i) || !textKennung(o.e) || (o.a !== 'ding' && o.a !== 'fahrzeug')) return null
   if (!endlich(o.x) || !endlich(o.y) || !endlich(o.z) || !endlich(o.ga)) return null
   const x = Math.round(o.x) / 100
   const y = Math.round(o.y) / 100

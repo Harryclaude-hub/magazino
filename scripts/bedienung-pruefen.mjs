@@ -22,6 +22,14 @@
 //     Zwischenpodeste. Im Vertrag dazu ?begehen=1 im Grundriss.
 //  6. Der Vertrag zwischen Seite, Raum3D, Motor und Kanal, die Woerter und
 //     dass in den Dateien nichts Persoenliches steht.
+//  7. E87b, Nacharbeit nach der Pruefung: Aussteigen ohne Platz meldet sich
+//     (knopfAusfuehren false, Esc zweimal), Kennung und Grenzen der Dinge
+//     wie in der Datenbank, Lagen begrenzt (fremde zuerst weg) und nur
+//     Neues an den Motor, wer live dabei sein darf (Liste der Mitglieder),
+//     Fehler beim Speichern je Ding (Nochmal, sofort beim Verdecken,
+//     Verwerfen), "kein Zugriff" erkannt, Umrechnung Welt und Siedlung,
+//     Aus Datei ersetzt genau die offene Siedlung, das erste Laden geht bei
+//     gescheiterter Umgebung trotzdem hinein.
 // Alle Namen und Zahlen sind erfunden. Aufruf im Projektordner:
 //   node scripts/bedienung-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
@@ -58,6 +66,7 @@ let P3
 let SW
 let API
 let IM
+let SL
 try {
   R = await vite.ssrLoadModule('/src/components/plan3d/Raum3D.tsx')
   S = await vite.ssrLoadModule('/src/pages/SiedlungAnsicht.tsx')
@@ -67,6 +76,7 @@ try {
   SW = await vite.ssrLoadModule('/src/lib/i18n/bausteine/siedlung.ts')
   API = await vite.ssrLoadModule('/src/lib/api.ts')
   IM = await vite.ssrLoadModule('/src/lib/siedlungImport.ts')
+  SL = await vite.ssrLoadModule('/src/pages/Siedlungen.tsx')
 } finally {
   await vite.close()
 }
@@ -215,6 +225,11 @@ wahr('Andere Knoepfe nie aus', ['einsteigen', 'aussteigen', 'sicht', 'blaulicht'
   wahr('Drehen: 45 Grad weiter', tun('drehen') === '[["drehen",1]]')
   wahr('Ablegen: ablegen()', tun('ablegen') === '[["ablegen"]]')
   wahr('Tacho: nichts', tun('kmh') === '[]')
+  // E87b: ging es nicht (kein Platz zum Aussteigen), meldet der Knopf false.
+  wahr('Knopf: geklappt meldet true', R.knopfAusfuehren('aussteigen', motor, null) === true && R.knopfAusfuehren('springen', motor, null) === true && R.knopfAusfuehren('kmh', motor, null) === true)
+  const klemmt = { ...Object.fromEntries(['hupfen', 'aufstehen', 'einsteigen', 'fahrSicht', 'blaulicht', 'hinstellen', 'drehen', 'ablegen'].map((n) => [n, () => {}])), aussteigen: () => false }
+  wahr('Knopf: kein Platz zum Aussteigen meldet false', R.knopfAusfuehren('aussteigen', klemmt, null) === false)
+  wahr('Knopf: alter Motor ohne Antwort gilt als geklappt', R.knopfAusfuehren('aussteigen', { ...klemmt, aussteigen: () => undefined }, null) === true)
 }
 
 /* ------------------------------------------------ 2. Tasten und Saetze */
@@ -390,6 +405,15 @@ const ding = (extra = {}) => ({ id: 'ball-1', art: 'ding', x: 1.234, y: 0.5, z: 
     wahr(`Ding kaputt (${name}): null`, A.dingLesen(roh) === null)
   }
   wahr('Ding: kaputtes geht nicht hinaus', A.dingVerpacken(ding({ x: Infinity })) === null && A.dingVerpacken(ding({ ebene: '' })) === null && A.dingVerpacken(ding({ art: 'x' })) === null)
+
+  // E87b: Kennung und Grenzen wie in der Datenbank (0047).
+  wahr('Ding-Kennung: wie die Datenbank', A.dingKennung('stadt:h12:d3:ball') && A.dingKennung('siedlung:d4:eimer') && A.dingKennung('a.b_c-9') && A.dingKennung('x'.repeat(120)))
+  wahr('Ding-Kennung: Schraegstrich, Leerzeichen, Umlaut, zu lang nicht', !A.dingKennung('w123:ding/4') && !A.dingKennung('a b') && !A.dingKennung('k\u00e4fer') && !A.dingKennung('x'.repeat(121)) && !A.dingKennung('') && !A.dingKennung(7))
+  wahr('Ding: fremde Kennung mit Schraegstrich verworfen', A.dingLesen({ ...d, i: 'w123:ding/4' }) === null && A.dingVerpacken(ding({ id: 'w123:ding/4' })) === null)
+  wahr('Ding: Ebene darf weiter alles ohne Steuerzeichen', gleich(A.dingLesen({ ...d, e: 'Haus A: 1. OG' })?.ebene, 'Haus A: 1. OG'))
+  wahr('Ding: 20 km zur Seite ja, mehr nicht', !!A.dingLesen({ ...d, x: 2_000_000 }) && A.dingLesen({ ...d, x: 2_000_001 }) === null && A.dingLesen({ ...d, z: -2_000_001 }) === null)
+  wahr('Ding: 2 km hoch ja, mehr nicht', !!A.dingLesen({ ...d, y: 200_000 }) && A.dingLesen({ ...d, y: 200_001 }) === null)
+  wahr('Ding: ausserhalb geht nicht hinaus', A.dingVerpacken(ding({ x: 20_000.5 })) === null)
 }
 
 {
@@ -557,12 +581,157 @@ function falscheUhr() {
   )
   sp.setzen(ding())
   await uhr.weiter(400)
-  wahr('Fehler: gemeldet mit Grund', gleich(meldungen, ['Netz weg']) && warnungen.some((w) => w.includes('Netz weg')))
+  wahr('Fehler: gemeldet mit Grund und Zahl', gleich(meldungen, [{ grund: 'Netz weg', anzahl: 1 }]) && warnungen.some((w) => w.includes('Netz weg')))
   kaputt = false
   sp.setzen(ding({ x: 3 }))
   await uhr.weiter(400)
-  wahr('Fehler: nach gelungenem Speichern weg', meldungen[meldungen.length - 1] === null)
+  wahr('Fehler: nach gelungenem Speichern weg', meldungen[meldungen.length - 1] === null && sp.fehlerhaft() === 0)
   console.warn = warnAlt
+}
+{
+  // E87b: Fehler je Ding. A scheitert, B gelingt: A bleibt gemeldet.
+  const warnAlt = console.warn
+  console.warn = () => {}
+  const meldungen = []
+  const uhr = falscheUhr()
+  const kaputt = new Set(['a'])
+  const sp = S.dingSpeicherer(
+    async (l) => {
+      if (kaputt.has(l.id)) throw new Error(`zu viele (${l.id})`)
+    },
+    (m) => meldungen.push(m),
+    400,
+    uhr,
+  )
+  sp.setzen(ding({ id: 'a' }))
+  await uhr.weiter(400)
+  sp.setzen(ding({ id: 'b' }))
+  await uhr.weiter(400)
+  const letzte = meldungen[meldungen.length - 1]
+  wahr('je Ding: B gelingt, der Fehler von A bleibt', letzte !== null && letzte.anzahl === 1 && letzte.grund === 'zu viele (a)' && sp.fehlerhaft() === 1)
+  kaputt.add('c')
+  sp.setzen(ding({ id: 'c' }))
+  await uhr.weiter(400)
+  wahr('je Ding: zwei gescheitert, der juengste Grund', gleich(meldungen[meldungen.length - 1], { grund: 'zu viele (c)', anzahl: 2 }))
+  kaputt.clear()
+  sp.setzen(ding({ id: 'a', x: 2 }))
+  await uhr.weiter(400)
+  wahr('je Ding: A gelingt spaeter, C bleibt', gleich(meldungen[meldungen.length - 1], { grund: 'zu viele (c)', anzahl: 1 }))
+  sp.nochmal()
+  for (let i = 0; i < 5; i++) await warten()
+  wahr('Nochmal: die gescheiterten noch einmal, dann alles gut', meldungen[meldungen.length - 1] === null && sp.fehlerhaft() === 0)
+  console.warn = warnAlt
+}
+{
+  // E87b: flush (Seite verdeckt oder verlassen) schickt sofort und nimmt weiter an.
+  const gespeichert = []
+  const uhr = falscheUhr()
+  const sp = S.dingSpeicherer(async (l) => void gespeichert.push(`${l.id}:${l.x}`), () => {}, 400, uhr)
+  sp.setzen(ding({ id: 'p', x: 1 }))
+  sp.setzen(ding({ id: 'q', x: 2 }))
+  sp.flush()
+  for (let i = 0; i < 5; i++) await warten()
+  wahr('flush: sofort hinaus, nichts wartet', gleich([...gespeichert].sort(), ['p:1', 'q:2']) && sp.wartend() === 0 && uhr.offen() === 0)
+  sp.setzen(ding({ id: 'p', x: 3 }))
+  await uhr.weiter(400)
+  wahr('flush: danach geht es weiter', gespeichert.includes('p:3'))
+  // verwerfen: Wartendes faellt weg, Laufendes wird abgewartet, Fehler vergessen.
+  let freigeben = null
+  const log = []
+  const meldungen = []
+  const sp2 = S.dingSpeicherer(
+    (l) =>
+      new Promise((ok, nein) => {
+        log.push(`start ${l.id}`)
+        if (l.id === 'lang') freigeben = () => ok()
+        else nein(new Error('weg'))
+      }),
+    (m) => meldungen.push(m),
+    400,
+    uhr,
+  )
+  const warnAlt = console.warn
+  console.warn = () => {}
+  sp2.setzen(ding({ id: 'kaputt' }))
+  await uhr.weiter(400)
+  wahr('verwerfen: vorher ein Fehler', sp2.fehlerhaft() === 1)
+  sp2.setzen(ding({ id: 'lang' }))
+  await uhr.weiter(400)
+  sp2.setzen(ding({ id: 'wartet' }))
+  let fertig = false
+  const v = sp2.verwerfen().then(() => {
+    fertig = true
+  })
+  await warten()
+  wahr('verwerfen: wartet auf Laufendes', !fertig && sp2.wartend() === 0 && sp2.fehlerhaft() === 0 && meldungen[meldungen.length - 1] === null)
+  freigeben()
+  await v
+  await uhr.weiter(1000)
+  wahr('verwerfen: dann fertig, Wartendes nie gespeichert', fertig && !log.includes('start wartet'))
+  console.warn = warnAlt
+}
+{
+  // E87b: "kein Zugriff" aus der Datenbank erkennen (der Satz in beiden Sprachen).
+  const de = I.uebersetzen('de', 'fehler.db.siedlung.kein_zugriff')
+  const ar = I.uebersetzen('ar', 'fehler.db.siedlung.kein_zugriff')
+  wahr('kein Zugriff: Satz', de !== 'fehler.db.siedlung.kein_zugriff' && S.istKeinZugriff(de) && S.istKeinZugriff(ar))
+  wahr('kein Zugriff: im Satz beim Speichern', S.istKeinZugriff(new Error(I.tg('fehler.siedlung_ding_setzen', { grund: de }))))
+  wahr('kein Zugriff: Kennung am Fehler', S.istKeinZugriff({ hint: 'kistly:siedlung.kein_zugriff' }))
+  wahr('kein Zugriff: anderes nicht', !S.istKeinZugriff('Netz weg') && !S.istKeinZugriff(null) && !S.istKeinZugriff('') && !S.istKeinZugriff(new Error(I.uebersetzen('de', 'fehler.db.siedlung.zu_viele_dinge'))))
+}
+{
+  // E87b: Welt- und Siedlungsmeter (rahmen der Welt, hier erfunden: um 90
+  // Grad gedreht und verschoben, wie eine Welt um eine Wohnung).
+  const rahmen = {
+    zuSiedlung: (x, y, z, g) => [z - 5, y + 3, -(x - 10), g - Math.PI / 2],
+    zuWelt: (x, y, z, g) => [10 - z, y - 3, x + 5, g + Math.PI / 2],
+  }
+  wahr('Rahmen: aus der Welt gelesen', S.rahmenVon({ rahmen }) === rahmen)
+  wahr('Rahmen: fehlt oder kaputt', S.rahmenVon({}) === null && S.rahmenVon(null) === null && S.rahmenVon({ rahmen: { zuWelt: () => [] } }) === null && S.rahmenVon({ rahmen: 3 }) === null)
+  const w = ding({ id: 'stadt:h1:d2:ball', x: 12, y: 0.5, z: 7, gier: 1 })
+  const sl = S.lageUmrechnen(w, rahmen, 'zuSiedlung')
+  wahr('Umrechnen: in Siedlungsmeter', !!sl && sl.x === 2 && sl.y === 3.5 && sl.z === -2 && Math.abs(sl.gier - (1 - Math.PI / 2)) < 1e-12 && sl.id === w.id && sl.ebene === w.ebene && sl.art === 'ding')
+  const zurueck = S.lageUmrechnen(sl, rahmen, 'zuWelt')
+  wahr('Umrechnen: hin und zurueck', Math.abs(zurueck.x - 12) < 1e-9 && Math.abs(zurueck.y - 0.5) < 1e-9 && Math.abs(zurueck.z - 7) < 1e-9 && Math.abs(zurueck.gier - 1) < 1e-9)
+  wahr('Umrechnen: nur die Felder der Lage', gleich(Object.keys(sl).sort(), ['art', 'ebene', 'gier', 'id', 'x', 'y', 'z']))
+  const warnAlt = console.warn
+  const warnungen = []
+  console.warn = (...x) => warnungen.push(x.join(' '))
+  const wirft = {
+    zuSiedlung: () => {
+      throw new Error('kaputt')
+    },
+    zuWelt: () => [NaN, 0, 0, 0],
+  }
+  wahr('Umrechnen: Fehler des Rahmens sichtbar, null', S.lageUmrechnen(w, wirft, 'zuSiedlung') === null && S.lageUmrechnen(w, wirft, 'zuWelt') === null && S.lageUmrechnen(w, { ...rahmen, zuWelt: () => [1, 2, 3] }, 'zuWelt') === null && warnungen.length === 3)
+  console.warn = warnAlt
+}
+{
+  // E87b: Lagen begrenzt, die aeltesten fremden zuerst weg, eigene nie.
+  const karte = new Map()
+  const eigene = new Set(['e1'])
+  for (const id of ['e1', 'f1', 'f2', 'f3']) R.lageMerken(karte, id, id, eigene, 3)
+  wahr('Grenze: die aelteste fremde faellt weg', gleich([...karte.keys()], ['e1', 'f2', 'f3']))
+  const weg = R.lageMerken(karte, 'f4', 'f4', eigene, 3)
+  wahr('Grenze: verworfene Kennungen zurueck, eigene bleibt', gleich(weg, ['f2']) && gleich([...karte.keys()], ['e1', 'f3', 'f4']))
+  R.lageMerken(karte, 'f3', 'neu', eigene, 3)
+  wahr('Grenze: wieder gemerkt heisst juengst', gleich([...karte.keys()], ['e1', 'f4', 'f3']) && karte.get('f3') === 'neu')
+  const voll = new Map()
+  for (let i = 0; i < 2 * R.LAGEN_MAX; i++) R.lageMerken(voll, `d${i}`, i, null)
+  wahr(`Grenze: nie mehr als ${R.LAGEN_MAX}`, voll.size === R.LAGEN_MAX && voll.has(`d${2 * R.LAGEN_MAX - 1}`) && !voll.has('d0'))
+  const a = ding({ id: 'auto-1', art: 'fahrzeug' })
+  wahr('gleiche Lage erkannt', R.lageGleich(a, { ...a }) && !R.lageGleich(a, { ...a, x: a.x + 0.01 }) && !R.lageGleich(a, { ...a, ebene: 'h1:1' }) && !R.lageGleich(undefined, a) && !R.lageGleich(a, { ...a, gier: 0.7 }))
+}
+{
+  // E87b: wer live dabei sein darf.
+  const live = (leute, extra = {}) => ({ kanal: `siedlung:${SIEDLUNG}`, uid: ICH, leute: leute.map((uid) => ({ uid, name: 'x', look: null })), ...extra })
+  wahr('erlaubt: ohne live alle (Umzug, der Kanal entscheidet)', R.erlaubtZeichenVon(null) === '*' && R.erlaubtPruefen('*')(FREMD))
+  wahr('erlaubt: ohne Liste alle, die der Kanal hineinlaesst', R.erlaubtZeichenVon(live([ANDERE], { ohneListe: true })) === '*')
+  const darf = R.erlaubtPruefen(R.erlaubtZeichenVon(live([ANDERE.toUpperCase()])))
+  wahr('erlaubt: nur wer in der Liste steht (gross oder klein egal)', darf(ANDERE) && darf(ANDERE.toUpperCase()) && !darf(FREMD) && !darf(ICH))
+  wahr('erlaubt: leere Liste niemand', !R.erlaubtPruefen(R.erlaubtZeichenVon(live([])))(ANDERE))
+  wahr('erlaubt: gleiche Leute, gleiches Zeichen (keine neue Verbindung)', R.erlaubtZeichenVon(live([ANDERE, FREMD])) === R.erlaubtZeichenVon(live([FREMD, ANDERE])))
+  wahr('erlaubt: herausgenommen, anderes Zeichen', R.erlaubtZeichenVon(live([ANDERE, FREMD])) !== R.erlaubtZeichenVon(live([ANDERE])))
 }
 {
   // Reihenfolge je Ding: das zweite Speichern wartet auf das erste.
@@ -630,8 +799,10 @@ function falscheUhr() {
   const warnungen = []
   console.warn = (...x) => warnungen.push(x.join(' '))
   const arten = (r) => r.toasts.map((x) => x.art)
-  const r1 = await S.ausDateiAktualisieren('{}', SID, t, lesenOk, async (d) => {
+  const r1 = await S.ausDateiAktualisieren('{}', SID, t, lesenOk, async (d, opt) => {
     wahr('Aus Datei: gelesener Inhalt geht an importieren', d === datei)
+    // E87b: genau die offene Siedlung ersetzen, nie eine zweite anlegen.
+    wahr('Aus Datei: ersetzt die offene Siedlung (ersetzeId)', gleich(opt, { ersetzeId: SID }))
     return { siedlung: { id: SID }, deko: 'keine' }
   })
   wahr('Aus Datei: gleiche Siedlung, aktualisiert, neu laden', r1.id === SID && r1.fehler === null && gleich(arten(r1), ['ok']) && r1.toasts[0].text === 'Siedlung aktualisiert')
@@ -639,8 +810,14 @@ function falscheUhr() {
   wahr('Aus Datei: Deko ok', gleich(arten(r2), ['ok', 'ok']) && r2.toasts[1].text.includes('Deko'))
   const r3 = await S.ausDateiAktualisieren('{}', SID, t, lesenOk, async () => ({ siedlung: { id: SID }, deko: { fehler: 'Plan fehlt' } }))
   wahr('Aus Datei: Deko-Fehler sichtbar, Siedlung trotzdem da', r3.id === SID && gleich(arten(r3), ['ok', 'error']) && r3.toasts[1].text.includes('Plan fehlt'))
+  // Kaeme trotz ersetzeId eine andere Kennung zurueck, ginge die Seite dorthin
+  // (api.ts legt mit ersetzeId nichts neu an, Paket daten).
   const r4 = await S.ausDateiAktualisieren('{}', SID, t, lesenOk, async () => ({ siedlung: { id: NEU }, deko: 'keine' }))
-  wahr('Aus Datei: andere Wohnung, neue Siedlung (dorthin)', r4.id === NEU && r4.toasts[0].text === 'Siedlung eingetragen')
+  wahr('Aus Datei: andere Kennung zurueck, dorthin', r4.id === NEU && r4.toasts[0].text === 'Siedlung eingetragen')
+  // Ohne Wohnung in der Datei: dieselbe Siedlung, keine neue Zeile.
+  const ohneWohnung = { siedlung: { name: 'Zuhause', wohnung: null }, deko: null }
+  const r4b = await S.ausDateiAktualisieren('{}', SID, t, () => ohneWohnung, async (d, opt) => ({ siedlung: { id: opt?.ersetzeId ?? NEU }, deko: d.deko ? 'ok' : 'keine' }))
+  wahr('Aus Datei: ohne Wohnung ersetzt die offene', r4b.id === SID && r4b.toasts[0].text === 'Siedlung aktualisiert')
   const stadt = new API.SiedlungStadtFehler(I.tg('fehler.siedlung_stadt', { grund: 'zu gross.' }), { id: SID })
   const r5 = await S.ausDateiAktualisieren('{}', SID, t, lesenOk, async () => {
     throw stadt
@@ -656,6 +833,24 @@ function falscheUhr() {
   wahr('Aus Datei: Netz weg, sichtbar', r7.id === null && r7.fehler === 'Netz weg')
   console.warn = warnAlt
   wahr('Aus Datei: Fehler auch in der Konsole', warnungen.length === 3)
+
+  // E87b: das erste Laden (Siedlungen.tsx). Scheitert nur die Umgebung, geht
+  // es trotzdem in die gespeicherte Siedlung, mit dem Satz als Hinweis.
+  console.warn = () => {}
+  const e1 = await SL.ersteSiedlungLaden('{}', t, lesenOk, async (d) => {
+    wahr('Erstes Laden: ohne Ziel (die Datenbank sucht die Wohnung)', d === datei)
+    return { siedlung: { id: NEU }, deko: 'ok' }
+  })
+  wahr('Erstes Laden: eingetragen, Deko', e1.id === NEU && e1.hinweis === null && e1.fehler === null && gleich(arten(e1), ['ok', 'ok']) && e1.toasts[0].text === 'Siedlung eingetragen')
+  const e2 = await SL.ersteSiedlungLaden('{}', t, lesenOk, async () => {
+    throw stadt
+  })
+  wahr('Erstes Laden: nur die Umgebung scheitert, trotzdem hinein, Hinweis', e2.id === SID && e2.hinweis === stadt.message && e2.fehler === null && gleich(arten(e2), ['error']))
+  const e3 = await SL.ersteSiedlungLaden('kein json', t, IM.siedlungDateiLesen, async () => {
+    throw new Error('darf nicht gerufen werden')
+  })
+  wahr('Erstes Laden: kaputte Datei, bleibt hier mit Grund', e3.id === null && e3.fehler.includes('keine JSON-Datei') && e3.toasts.length === 0)
+  console.warn = warnAlt
   const ar = await S.ausDateiAktualisieren('{}', SID, (k, v) => I.uebersetzen('ar', k, v), lesenOk, async () => ({ siedlung: { id: SID }, deko: 'keine' }))
   wahr('Aus Datei: arabisch', ar.toasts[0].text === 'تم تحديث المجمّع السكني')
 
@@ -689,11 +884,19 @@ function falscheUhr() {
   wahr('Raum3D: moeglich und fahrzeug angemeldet und abgemeldet', raum.includes('m.moeglich((x) =>') && raum.includes('m.fahrzeug((f) =>') && raum.includes('m.moeglich(null)') && raum.includes('m.fahrzeug(null)'))
   wahr('Raum3D: bewegt angemeldet und abgemeldet', raum.includes('m.bewegt((l) => {') && raum.includes('return () => m.bewegt(null)'))
   wahr('Raum3D: bewegt geht an Kanal und Seite', /m\.bewegt\(\(l\) => \{[\s\S]*?dingSenden\.current\?\.\(l\)[\s\S]*?dingRueck\.current\?\.\(l\)/.test(raum))
-  wahr('Raum3D: Ankommendes setzt lage', /onDing: \(_von, l\) => \{[\s\S]*?motor\.current\?\.lage\(l\)/.test(raum))
-  wahr('Raum3D: nach dem Neubau alle Lagen wieder', raum.includes('for (const l of lagen.current.values()) m.lage(l)'))
+  wahr('Raum3D: Ankommendes setzt lage (nur von Erlaubten, nur Neues)', /onDing: \(von, l\) => \{\s*if \(!darf\(von\) \|\| lageGleich\(lagen\.current\.get\(l\.id\), l\)\) return[\s\S]*?lageVermerken\([\s\S]*?motor\.current\?\.lage\(l\)/.test(raum))
+  // E87b: der Neubau der Welt spielt nichts mehr ab (der Motor merkt sich die Lagen).
+  wahr('Raum3D: nach dem Neubau keine Lagen erneut', !/for \(const l of lagen\.current\.values\(\)\)/.test(raum))
   wahr('Raum3D: Bewegtes gilt vor dingLagen', /for \(const l of dingLagen\) \{\s*if \(frisch\.current\.has\(l\.id\)\) continue/.test(raum))
-  wahr('Raum3D: Esc beim Fahren steigt zuerst aus', /if \(z\.karte\) setKarte\(null\)\s*else if \(z\.gehen && z\.faehrt\) motor\.current\?\.aussteigen\(\)\s*else if \(z\.gehen && z\.haltung !== 'stehen'\)/.test(raum))
-  wahr('Raum3D: Knoepfe ueber knopfAusfuehren', raum.includes('if (m) knopfAusfuehren(k, m, fahrt)'))
+  wahr('Raum3D: gespeicherte Lagen nur, wenn neu oder geaendert; ein Ding in der Hand bleibt', /for \(const l of dingLagen\) \{[\s\S]*?if \(lageGleich\(lagen\.current\.get\(l\.id\), l\)\) continue[\s\S]*?if \(inHandRef\.current === l\.id\) \{\s*nachher\.current\.set\(l\.id, l\)/.test(raum))
+  wahr('Raum3D: eigene und gemerkte Lagen begrenzt', /m\.bewegt\(\(l\) => \{[\s\S]*?lageMerken\(eigeneLagen\.current, l\.id, l, null\)[\s\S]*?lageVermerken\(lagen\.current, frisch\.current, eigeneLagen\.current, l\)/.test(raum) && R.LAGEN_MAX === 5000)
+  wahr('Raum3D: Esc beim Fahren steigt zuerst aus, ohne Platz ein Hinweis, das zweite Esc beendet', /if \(z\.karte\) setKarte\(null\)\s*else if \(z\.gehen && z\.faehrt && escKeinPlatz\.current\) setGehen\(false\)\s*else if \(z\.gehen && z\.faehrt\) \{\s*if \(motor\.current\?\.aussteigen\(\) === false\) keinPlatzRef\.current\(true\)\s*\} else if \(z\.gehen && z\.haltung !== 'stehen'\)/.test(raum))
+  wahr('Raum3D: Knoepfe ueber knopfAusfuehren, kein Platz meldet sich', raum.includes('if (m && !knopfAusfuehren(k, m, fahrt)) keinPlatzMelden(false)'))
+  wahr('Raum3D: kein Platz als Toast, im Vollbild auch oben', raum.includes("toast(t(esc ? 'plan3d.aussteigen_kein_platz_esc' : 'plan3d.aussteigen_kein_platz'), 'error')") && raum.includes('vollbild && keinPlatzJetzt ? ('))
+  wahr('Raum3D: nur Erlaubte live (Stellung, Signal, Anwesenheit)', /onPose: \(u, p\) => \{\s*if \(!darf\(u\)\) return/.test(raum) && /onSignal: \(von, d\) => \{\s*if \(darf\(von\)\) sprechen\.empfangen\(von, d\)/.test(raum) && raum.includes('anwesend.filter((l) => l.grundrissId === grundrissId && darf(l.uid))'))
+  wahr('Raum3D: neue Liste wendet die Anwesenheit neu an, ohne neu zu verbinden', raum.includes('erlaubtNeu.current = werAnwenden') && /useEffect\(\(\) => \{\s*erlaubtNeu\.current\?\.\(\)\s*\}, \[erlaubtZeichen\]\)/.test(raum) && raum.includes('}, [live, liveUid, liveKanal, projectId, daten.grundriss.id])'))
+  wahr('Raum3D: beim Abbau Stockwerk null an die Seite', /useEffect\(\s*\(\) => \(\) => \{\s*ebeneRueck\.current\?\.\(null\)\s*\},\s*\[\],?\s*\)/.test(raum))
+  wahr('Raum3D: Fehler der Seite mit Nochmal und Schliessen', raum.includes('onClick={onSeitenFehlerNochmal}') && raum.includes('onClick={onSeitenFehlerZu}') && /onSeitenFehlerNochmal\?: \(\(\) => void\) \| null/.test(raum))
   wahr('Raum3D: Tasten liest der Motor, hier nur Esc', !/KeyE|KeyV|KeyB|KeyR|'Space'|e\.key === ' '/.test(raum))
   wahr('Raum3D: Knoepfe aus BEDIEN_MASS', raum.includes('style={knopfGruppeStil(quer)}') && raum.includes('const KNOPF_STIL: CSSProperties = { width: `${BEDIEN_MASS.knopfB}rem`, height: `${BEDIEN_MASS.knopfH}rem` }') && raum.split('style={KNOPF_STIL}').length === 3)
   wahr('Raum3D: Kreuz nur am Handy mit Ding', raum.includes('{beruehren && haelt ? (') && raum.includes('data-fadenkreuz'))
@@ -710,12 +913,26 @@ function falscheUhr() {
 
   const seite = lesen('src/pages/SiedlungAnsicht.tsx')
   wahr('Seite: Abfragen aus api.ts', /import \{[^}]*grundrissDarf[^}]*siedlungDinge[^}]*siedlungDingSetzen[^}]*\} from '\.\.\/lib\/api'/.test(seite))
-  wahr('Seite: Angaben an Ansicht3D', /<Ansicht3D[\s\S]*?dingLagen=\{dingLagen\}[\s\S]*?onDingBewegt=\{dingBewegt\}[\s\S]*?seitenFehler=\{seitenFehler\}/.test(seite))
+  wahr('Seite: Angaben an Ansicht3D', /<Ansicht3D[\s\S]*?dingLagen=\{dingLagen\}[\s\S]*?onDingBewegt=\{dingBewegt\}[\s\S]*?seitenFehler=\{seitenFehler\}[\s\S]*?onSeitenFehlerNochmal=\{[\s\S]*?onSeitenFehlerZu=\{/.test(seite))
   wahr('Seite: Dinge erst mit gebauter Welt', seite.includes('if (!siedlungId || !weltGebaut || dingeGeladen.current === siedlungId) return'))
   wahr('Seite: Ohne grundrissDarf nur kein Knopf (console.info)', /grundrissDarf\(gid\)\.then\([\s\S]*?console\.info\(/.test(seite))
   wahr('Seite: Zu unserer Wohnung springt', seite.includes('onClick={() => steuer.current?.springen(unsere)}') && seite.includes('const unsere = besitzer &&'))
   wahr('Seite: Orte statt Wohnungen', seite.includes("t('siedlung.orte')") && !seite.includes("t('siedlung.wohnungen')"))
   wahr('Seite: Speichern beim Verlassen', /return \(\) => \{\s*sp\.beenden\(\)/.test(seite))
+  // E87b, Nacharbeit nach der Pruefung.
+  wahr('Seite: verdeckt oder verlassen, sofort speichern', seite.includes("window.addEventListener('pagehide', weg)") && seite.includes("document.addEventListener('visibilitychange', sicht)") && seite.includes("if (document.visibilityState === 'hidden') sp.flush()") && seite.includes("window.removeEventListener('pagehide', weg)"))
+  wahr('Seite: Ladefehler der Dinge wiederholt (Zeit, Netz, Nochmal)', seite.includes('}, [siedlungId, weltGebaut, dingeVersuch])') && seite.includes('2000 * 2 ** n') && seite.includes("window.addEventListener('online', zurueck)") && seite.includes("seiteArt === 'laden' ? dingeNochmal"))
+  wahr('Seite: Umrechnung Welt und Siedlung', seite.includes("lageUmrechnen(l, rahmen, 'zuWelt')") && seite.includes("lageUmrechnen(l, r, 'zuSiedlung')") && seite.includes('rahmen: rahmenVon(gebaut)'))
+  wahr('Seite: ohne Rahmen nichts gespeichert, mit Hinweis', /const r = rahmenJetzt\.current\s*if \(!r\) \{\s*console\.warn\(/.test(seite) && seite.includes("t('siedlung.dinge_ohne_rahmen')"))
+  wahr('Seite: Aus Datei nur, solange man hier ist', seite.includes('if (!eingebaut.current || sidJetzt.current !== start) return'))
+  wahr('Seite: Stockwerk nur, solange 3D steht', seite.includes("const ebeneAnzeige = bereit && !ladeAnzeige && !zustand.error && !entzogen && teil.art === 'fertig' ? ebene : null") && !/: ebene\s*\?\s*t\('siedlung\.ebene_jetzt'/.test(seite))
+  wahr('Seite: Leute alle 60 s neu, kein Zugriff fragt neu', seite.includes('MITGLIEDER_NEU_MS = 60_000') && seite.includes('if (m && istKeinZugriff(m.grund)) mitgliederNeu()'))
+  wahr('Seite: herausgenommen, keine Verbindung, klarer Satz', seite.includes('const entzogen = warDabei && istKeinZugriff(mitgliederRoh.error)') && seite.includes('siedlungId && ich && mitAnderen && !entzogen') && seite.includes("t('siedlung.nicht_mehr_dabei')"))
+  wahr('Seite: live mit Liste (ohneListe nur ohne Liste)', seite.includes('...(ohneListe ? { ohneListe: true } : {})') && seite.includes('const ohneListe = !mitgliederListe'))
+  wahr('Seite: Dinge zuruecksetzen nur der Besitzer, Rueckfrage in der Zeile', seite.includes('const kannZuruecksetzen = besitzer && !!DINGE_ZURUECKSETZEN') && /\{kannZuruecksetzen \? \(\s*<Button/.test(seite) && seite.includes('data-zuruecksetzen=""') && seite.includes('await speicherer.current?.verwerfen()') && seite.includes('setAnsichtNeu((v) => v + 1)'))
+  wahr('Seite: Hinweis vom ersten Laden als Zeile', seite.includes('useState<string | null>(() => hinweisAus(ort.state))'))
+  const liste = lesen('src/pages/Siedlungen.tsx')
+  wahr('Siedlungen: SiedlungStadtFehler beim ersten Laden', liste.includes('if (err instanceof SiedlungStadtFehler)') && liste.includes('state={fertig.hinweis ? { hinweis: fertig.hinweis } : undefined}'))
   wahr('Seite: Raum3D nur als Typ', !/^import (?!type)[^\n]* from '\.\.\/components\/plan3d\/Raum3D'/m.test(seite))
   // E87, Nachtrag: Aus Datei, Umgebung, ?begehen=1, Aufzug.
   wahr('Seite: Aus Datei nur fuer den Besitzer', /\{besitzer \? \(\s*<Button[\s\S]*?siedlung\.aus_datei/.test(seite) && /\{besitzer \? \(\s*<input[\s\S]*?type="file"/.test(seite))
@@ -741,7 +958,7 @@ function falscheUhr() {
   // und denselben Platzhaltern.
   const alle = { ...P3.plan3dWoerter, ...SW.siedlungWoerter }
   const platz = (x) => [...x.matchAll(/\{(\w+)\}/g)].map((y) => y[1]).sort().join(',')
-  for (const datei of ['src/components/plan3d/Raum3D.tsx', 'src/components/plan3d/Minikarte.tsx', 'src/pages/SiedlungAnsicht.tsx']) {
+  for (const datei of ['src/components/plan3d/Raum3D.tsx', 'src/components/plan3d/Minikarte.tsx', 'src/pages/SiedlungAnsicht.tsx', 'src/pages/Siedlungen.tsx', 'src/components/SiedlungLeute.tsx']) {
     for (const m of lesen(datei).matchAll(/'((?:plan3d|siedlung)\.[a-z0-9_.]+)'/g)) {
       const e = alle[m[1]]
       wahr(`${m[1]} (${datei}) steht im Woerterbuch`, !!e)
@@ -752,7 +969,7 @@ function falscheUhr() {
   for (const k of Object.values(R.BEDIEN_NAME)) wahr(`${k} in plan3d.ts (laedt mit 3D)`, k.startsWith('plan3d.'))
 
   const LANGER_STRICH = String.fromCharCode(0x2014)
-  for (const datei of ['scripts/bedienung-pruefen.mjs', 'src/components/plan3d/Raum3D.tsx', 'src/lib/anwesenheit.ts', 'src/pages/SiedlungAnsicht.tsx', 'src/lib/i18n/bausteine/plan3d.ts', 'src/lib/i18n/bausteine/siedlung.ts', 'src/components/plan3d/oeffnen.tsx', 'src/pages/Grundriss.tsx', 'scripts/siedlung-wohnungen-pruefen.mjs']) {
+  for (const datei of ['scripts/bedienung-pruefen.mjs', 'src/components/plan3d/Raum3D.tsx', 'src/lib/anwesenheit.ts', 'src/pages/SiedlungAnsicht.tsx', 'src/pages/Siedlungen.tsx', 'src/components/SiedlungLeute.tsx', 'src/lib/i18n/bausteine/plan3d.ts', 'src/lib/i18n/bausteine/siedlung.ts', 'src/components/plan3d/oeffnen.tsx', 'src/pages/Grundriss.tsx', 'scripts/siedlung-wohnungen-pruefen.mjs']) {
     const txt = lesen(datei)
     wahr(`${datei}: kein U+2014`, !txt.includes(LANGER_STRICH))
     wahr(`${datei}: keine Mail-Adresse`, !/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(txt))

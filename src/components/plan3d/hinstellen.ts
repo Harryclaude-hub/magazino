@@ -1,7 +1,7 @@
 /* Hinstellen (E87): ein Ding in der Hand wie in Minecraft genau dorthin
  * stellen, wohin man zeigt (Maus am Rechner, Mitte des Bildes am Handy).
  * Reine Rechnung ohne three, damit Node sie pruefen kann
- * (scripts/fahren-pruefen.mjs).
+ * (scripts/fahren-pruefen.mjs; Greifen, E87b: scripts/motor-fahren-pruefen.mjs).
  *
  * Regeln (in dieser Reihenfolge, der erste Grund gewinnt):
  *  - zu_weit: der Treffer liegt mehr als 4,5 m von den Augen weg, oder man
@@ -53,6 +53,9 @@
  *     r.z), rotation.y = r.gier, nicht mehr in der Hand, bewegt() mit
  *     { id, art: 'ding', x, y, z, gier, ebene } melden.
  *  4. drehen(r): stufe = stufeDrehen(stufe, r).
+ *  5. (E87b) Aufheben und Zielen auf ein Ding der Welt nur, wenn
+ *     dingGreifbar(...) es im eigenen Geschoss findet: die Ebenen kennen
+ *     keine Decke, sonst griffe man durch sie hindurch.
  *
  * Keine Allokation je Bild: Ergebnis und Punkt sind Objekte, die der Aufrufer
  * einmal anlegt und weiterreicht. */
@@ -640,6 +643,44 @@ export function strahlZiel(
       return true
     }
     t0 = t1
+  }
+  return false
+}
+
+/* ------------------------------------------------------------ Greifen (E87b) */
+
+/** So weit (Meter) unter dem eigenen Boden an seiner Stelle darf ein Ding
+ *  liegen, das man greift (eine Schwelle tiefer, vom Haus hinaus). Ein
+ *  Geschoss tiefer (ab 2,2 m) ist zu weit. */
+export const GREIF_UNTEN_M = 1.6
+/** So weit (Meter) ueber dem eigenen Boden an seiner Stelle darf ein Ding
+ *  stehen (Moebel, Regal, Mauer). Dinge liegen in den Haeusern bis 1,3 m
+ *  hoch; das Geschoss darueber beginnt fruehestens 2,2 m hoeher. */
+export const GREIF_OBEN_M = 2.1
+/** Boeden, die weiter als so viel (Meter) auseinander liegen, gehoeren zu
+ *  verschiedenen Geschossen; naeher (Garten und Erdgeschoss, die Schwelle
+ *  einer Haustuer) zum selben. */
+export const GESCHOSS_ABSTAND_M = 1.0
+
+/** Laesst sich ein Ding der Welt von hier aus greifen (E87b)? Die Ebenen
+ *  kennen keine Decke, also prueft der Motor vor dem Aufheben (und Zielen
+ *  auf ein Ding), ob es im eigenen Geschoss steht: unten ist seine
+ *  Unterkante (Meter, Welt), dingBoden der Boden seiner Ebene samt Gelaende
+ *  an seiner Stelle (null: Ebene unbekannt), eigene die Boeden der Ebenen,
+ *  auf denen man steht, ebenfalls an der Stelle des Dings (die aktive, auf
+ *  einer Treppe auch die am anderen Ende). Ja, wenn fuer einen davon die
+ *  Unterkante zwischen GREIF_UNTEN_M darunter und GREIF_OBEN_M darueber
+ *  liegt und die Ebene des Dings dasselbe Geschoss ist. Sichtlinie und
+ *  Reichweite prueft der Motor dazu. Kaputte Zahlen: nein. */
+export function dingGreifbar(unten: number, dingBoden: number | null, eigene: readonly number[]): boolean {
+  if (!zahl(unten)) return false
+  const bodenDa = dingBoden !== null && zahl(dingBoden)
+  for (let i = 0; i < eigene.length; i++) {
+    const b = eigene[i]
+    if (!zahl(b)) continue
+    if (unten < b - GREIF_UNTEN_M || unten > b + GREIF_OBEN_M) continue
+    if (bodenDa && Math.abs((dingBoden as number) - b) > GESCHOSS_ABSTAND_M) continue
+    return true
   }
   return false
 }
