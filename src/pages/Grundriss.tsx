@@ -315,6 +315,7 @@ function Ansehen({
   kisteId,
   begehen,
   onBegehen,
+  onGespeichert,
 }: {
   daten: GrundrissDaten
   raumId: string | null
@@ -322,6 +323,8 @@ function Ansehen({
   /** E87: 3D gleich offen und gleich begehen (?begehen=1). */
   begehen: boolean
   onBegehen: () => void
+  /** E89: in 3D wurden Moebel gespeichert (beim Schliessen): neu laden. */
+  onGespeichert: () => void
 }) {
   const { project } = useProject()
   const { t } = useSprache()
@@ -398,6 +401,7 @@ function Ansehen({
                 tour="grundriss-3d"
                 begehen={begehen}
                 onBegehen={onBegehen}
+                onGespeichert={onGespeichert}
               />
             </div>
             {gewaehlt.kiste ? (
@@ -595,7 +599,7 @@ export default function Grundriss() {
       </Suspense>
     )
   } else {
-    inhalt = <Ansehen daten={passend} raumId={raumId} kisteId={kisteId} begehen={begehen} onBegehen={begehenAngenommen} />
+    inhalt = <Ansehen daten={passend} raumId={raumId} kisteId={kisteId} begehen={begehen} onBegehen={begehenAngenommen} onGespeichert={daten.reload} />
   }
 
   // Der Zeichner bringt den Kopf in seiner eigenen Leiste mit.

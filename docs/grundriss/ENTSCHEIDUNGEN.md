@@ -731,4 +731,32 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   spaetestens 60 s ausgeblendet; serverseitig gilt die Sperre ab seinem
   naechsten Beitritt. Haustueren nicht mehr auf Brandwaenden, Zaeune mit
   Luecken an Wegen, Bushaltestellen als Orte.
+- **E88 Tueren nach dem Plan, Preise gleich dem Link:** Fuenf Tueren der
+  eigenen Wohnung waren gespiegelt (Angel auf der falschen Seite), die
+  Regel im Code stimmte: anschlag 'links' setzt die Angel an den Anfang der
+  Oeffnung auf der Raumkante (Kantenanfang plus abstand_cm), 'rechts' an
+  ihr Ende; aufschlag 'innen' schlaegt in den Raum. Daten nach dem Plan
+  berichtigt (Probelauf, dann grundriss_speichern). Breite: 3D zieht links
+  und rechts 4 cm Zarge ab, darum ist breite_cm = Durchgangslichte + 8 cm
+  (DL 80 ergibt 88, DL 90 ergibt 98), hoehe_cm = Lichte + 4 cm. Links und
+  Preise: Jeder Preis ist genau der Preis des verlinkten Produkts (am
+  09.10. von der IKEA-Seite gelesen). Besteht ein Moebel aus mehreren
+  Teilen ohne eigenes Produkt (Eckbank aus BESTA-Unterschraenken mit
+  Polstern, PAX aus zwei Korpussen mit Tueren, Pflanze mit Uebertopf),
+  zeigt der Link das Hauptteil, und der Name sagt, was extra dazukommt.
+- **E89 Moebel tragen beim Begehen:** Rechtsklick (am Handy langes
+  Druecken) auf ein Moebel hebt es an, statt sich hinzusetzen; Linksklick
+  setzt wie bisher. Es folgt der Maus am Boden (am Handy der Bildmitte), R
+  oder Mausrad dreht um 90 Grad, Klick stellt ab, Esc oder ein zweiter
+  Rechtsklick legt es zurueck. Mit ihm wandern alle seine Teile: Tueren und
+  Schubladen (oeffnen am neuen Platz), Sitzplaetze, kleine Dinge darauf,
+  Kisten darin, Lampen samt Licht und das Hindernis beim Gehen. Rot und
+  nicht abstellbar, wo es in eine Wand ragt oder nicht ganz in einem Raum
+  steht (dieselbe Regel wie beim Speichern); ueber anderen Moebeln darf es
+  stehen (Stuhl unter dem Tisch). Spiegel, Geraete (Fernseher, Hahn) und
+  Mauervorspruenge lassen sich nicht tragen. Eine Leiste zeigt, wie viele
+  Moebel verschoben sind, mit Zuruecksetzen und Speichern. Gespeichert wird
+  nur auf Knopfdruck (im Zeichner ueber das Dokument, sonst direkt mit
+  grundriss_speichern); wer das Begehen ohne Speichern beendet, findet
+  alles am alten Platz (Hinweis "Verschiebungen verworfen").
 

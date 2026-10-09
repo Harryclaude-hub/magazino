@@ -34,6 +34,7 @@ import { neuerBereich, type BereichEntwurf } from '../lib/bereich'
 import { Button, CodeChip, Modal, useToast } from '../components/ui'
 import { datenBox, kisteRechteck, raumTitel } from '../components/plan/hilfe'
 import { istDeko } from '../components/plan/moebelArt'
+import { moebelAnwenden } from '../components/plan/objektVerschieben'
 import { GrundrissFehler, ladeGrundriss, listItems, platzRaeumen, platzSetzen, speichereGrundriss, speichereLinien, updateTag } from '../lib/api'
 import {
   cmText,
@@ -1350,6 +1351,18 @@ export default function Zeichner({
                   dok: objektSetzen(z.dok, { ...o, x: o.x + einrasten(dx, raster), y: o.y + einrasten(dy, raster) }),
                   auswahl: { art: 'objekt', id },
                 })
+              }}
+              onMoebelSpeichern={async (liste) => {
+                // E89: beim Begehen getragene Moebel in das Dokument, wie
+                // Ziehen (objektSetzen nimmt mit, was darauf steht), in einem
+                // Schritt; gespeichert wird wie immer. Ohne Einrasten: die
+                // Mitte landet dort, wo sie in 3D stand (objektVerschieben.ts),
+                // im Raum, in dem das Moebel jetzt ganz liegt.
+                let dok = z.dok
+                for (const neu of moebelAnwenden(dok.objekte, dok.raeume, liste)) dok = objektSetzen(dok, neu)
+                if (dok === z.dok) return
+                setLeiste(null)
+                dispatch({ typ: 'aendern', dok, auswahl: z.auswahl })
               }}
             />
           ) : null}

@@ -226,6 +226,10 @@ export interface Quader {
   /** Geneigt um die eigene Mitte, Radiant, nach drehY (Euler 'YXZ'):
    *  x kippt um die Welt-x-Achse des ungedrehten Teils, z um seine z-Achse. */
   kipp?: { x: number; z: number }
+  /** E89: bei leuchtenden Teilen eines Moebels (rolle 'leuchte', id ist
+   *  dort der Raum fuer den Lichtschalter) die Kennung des Moebels, damit
+   *  sie mit ihm getragen werden. */
+  objekt?: string
 }
 
 export type Form3D = { art: 'zylinder'; oben: number; achse: 'x' | 'y' | 'z' } | { art: 'kugel' }
@@ -850,7 +854,7 @@ export function moebelQuader(o: Objekt, form: Teil[], f: Farben3D, art: MoebelAr
     const rundform = formWelt(o, q)
     if (q.leuchte && !ist) {
       const l = lokalQuader(o, 'leuchte', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, q.farbe, { id: o.raum_id })
-      if (l) out.push({ ...l, form: rundform, rund: q.rund !== undefined ? m(q.rund) : undefined })
+      if (l) out.push({ ...l, form: rundform, rund: q.rund !== undefined ? m(q.rund) : undefined, objekt: o.id })
       continue
     }
     const qf = ist ? f.hervor : q.farbe
@@ -1208,6 +1212,9 @@ export interface Licht3D {
   /** Wandleuchte (E82, draussen an der Hauswand): Richtung von der Wand
    *  weg (x, z), Laenge 1. Ohne: Deckenleuchte. */
   wand?: [number, number]
+  /** E89: das Moebel, in dem das Licht steckt (Kuechenzeile, Haenge- und
+   *  Stehlampe); es wandert mit, wenn man das Moebel traegt. */
+  objektId?: string
 }
 
 /** Wo es Licht gibt: je Raum Deckenlicht (ab 12 m2 zwei, entlang der
@@ -1267,12 +1274,12 @@ export function lichter(daten: GrundrissDaten, raumId: string | null = null): Li
     if (a === 'kuechenzeile') {
       // LED unter den Oberschraenken: je Arm ein Licht auf 145 cm.
       for (const q of objektRechtecke(o)) {
-        out.push({ pos: [m((q.x0 + q.x1) / 2), m(boden + o.hoehe_cm + 50), m((q.y0 + q.y1) / 2)], staerke: 0.45, farbe: '#fff1d6', art: 'kueche', leuchte: false, raumId: o.raum_id })
+        out.push({ pos: [m((q.x0 + q.x1) / 2), m(boden + o.hoehe_cm + 50), m((q.y0 + q.y1) / 2)], staerke: 0.45, farbe: '#fff1d6', art: 'kueche', leuchte: false, raumId: o.raum_id, objektId: o.id })
       }
     } else if (a === 'haengelampe' || a === 'stehlampe') {
       const [cx, cy] = objektGlobal(o, o.breite_cm / 2, o.tiefe_cm / 2)
       const z = a === 'haengelampe' ? boden - 4 : boden + o.hoehe_cm - 12
-      out.push({ pos: [m(cx), m(z), m(cy)], staerke: a === 'haengelampe' ? 0.6 : 0.45, farbe: '#ffd9a8', art: 'lampe', leuchte: false, raumId: o.raum_id })
+      out.push({ pos: [m(cx), m(z), m(cy)], staerke: a === 'haengelampe' ? 0.6 : 0.45, farbe: '#ffd9a8', art: 'lampe', leuchte: false, raumId: o.raum_id, objektId: o.id })
     }
   }
   return out

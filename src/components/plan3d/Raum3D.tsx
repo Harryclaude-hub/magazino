@@ -11,10 +11,12 @@ import { cx } from '../../lib/util'
 import { useProjektOptional } from '../../pages/ProjectLayout'
 import { Button, useToast } from '../ui'
 import { flaecheQm, innenPunkt, raumTitel } from '../plan/hilfe'
+import { moebelArt } from '../plan/moebelArt'
+import { objektMitte } from '../plan/objektVerschieben'
 import { baueUmgebung } from './aussen3d'
 import { baueFigur } from './avatar3d'
 import KistenKarte from './KistenKarte'
-import { motorStarten, type Blick, type Figur3D, type Haltung, type Motor, type Pose3D, type Treffer3D } from './motor'
+import { motorStarten, type Blick, type Figur3D, type Haltung, type MoebelAenderung, type MoebelTragZustand, type Motor, type Pose3D, type Treffer3D } from './motor'
 import { Knueppel } from './Knueppel'
 import Minikarte, { springbarBerechnen, sprungImHaus, type MinikarteLage, type MinikartePerson } from './Minikarte'
 import { farbenLesen } from './farben3d'
@@ -105,6 +107,19 @@ import type { DingLage3D, Ebene3D, FahrzeugArt, FahrzeugJetzt, Karte3D, Moeglich
  * sagt es (Hinweis, im Vollbild auch oben); Esc dann noch einmal beendet
  * das Begehen. Beim Abbau geht null als Stockwerk an die Seite. Ein Fehler
  * der Seite kann Nochmal und Schliessen haben.
+ *
+ * E89: Beim Begehen der Wohnung (nicht in der Welt der Siedlung) hebt ein
+ * Rechtsklick (am Handy langes Druecken) ein Moebel an und traegt es
+ * (motor.moebelTragen, Rechnung in tragen.ts); Mauern (moebelArt 'mauer')
+ * sind gesperrt, und ein Hinweis sagt es. Oben in der Mitte steht dann,
+ * wie viele Moebel verschoben sind, mit Zuruecksetzen und, wenn die Seite
+ * onMoebelSpeichern gibt, Speichern (die neuen Daten der Seite bauen die
+ * Szene neu); beim Tragen ein Satz zur Bedienung, am Handy dazu Abstellen
+ * und Drehen. Esc legt ein getragenes Moebel zurueck (nach der
+ * Kistenkarte, vor allem anderen). Endet das Begehen (Knopf, 3D zu, Abbau)
+ * mit ungespeicherten Verschiebungen, geht alles zurueck, und ein Hinweis
+ * sagt "Verschiebungen verworfen"; ebenso, wenn ein Neubau der Szene sie
+ * verwirft. Die Leiste steht im Arabischen nicht gespiegelt.
  *
  * Die Farben kommen aus den Tokens (getComputedStyle) und werden bei
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
@@ -208,6 +223,14 @@ export interface Raum3DProps {
    *  der Grundriss mit ?begehen=1 geoeffnet wurde. Spaeter wechseln wirkt
    *  nicht mehr; ohne Raeume und ohne Welt nichts. */
   startGehen?: boolean
+  /** E89: beim Begehen verschobene Moebel speichern (Knopf Speichern). Je
+   *  Moebel die Verschiebung der Mitte seines Grundrisses in Plan-cm und
+   *  die Drehung in Grad wie Objekt.drehung (motor.moebelAenderungen,
+   *  objektVerschieben.ts rechnet x und y). Ein Fehler (Ablehnung) steht
+   *  in der Leiste, die Verschiebungen bleiben dann in der Szene. Gelingt
+   *  es, kommen neue Daten, und der Neubau zeigt sie. Ohne diese Angabe
+   *  gibt es nur Zuruecksetzen. */
+  onMoebelSpeichern?: (aenderungen: MoebelAenderung[]) => Promise<void>
   className?: string
 }
 
@@ -298,6 +321,9 @@ export function erlaubtPruefen(zeichen: string): (u: string) => boolean {
 /** So lange (ms) steht der Hinweis "kein Platz zum Aussteigen"; so lange
  *  beendet ein zweites Esc das Begehen (E87b). */
 const KEIN_PLATZ_MS = 5000
+
+/** Moebel tragen (E89): nichts in der Hand, nichts verschoben. */
+const TRAG_START: MoebelTragZustand = { traegt: null, ok: true, verschoben: 0, grund: null }
 
 /** Eine ruhige Farbe je Person, fest aus der Kennung. */
 function farbeFuer(uid: string): string {
@@ -646,6 +672,7 @@ export default function Raum3D({
   onSeitenFehlerNochmal = null,
   onSeitenFehlerZu = null,
   startGehen = false,
+  onMoebelSpeichern,
   className,
 }: Raum3DProps) {
   const { t } = useSprache()
@@ -1158,6 +1185,117 @@ export default function Raum3D({
   const faehrt = gehen && (fahrt !== null || moeglich.aussteigen)
   const haelt = gehen && !faehrt && (inHand !== null || moeglich.halten)
 
+  // ------------------------------------------------ E89: Moebel tragen
+  // Nur beim Begehen der Wohnung, nicht in der Welt der Siedlung. Mauern
+  // lassen sich nicht tragen; jedes Moebel dreht um die Mitte seines
+  // Grundrisses (Meter, Welt x und z), damit Speichern genau das trifft,
+  // was man in 3D sieht.
+  const tragenAn = gehen && geht === 'ja' && !eigeneWelt && daten.raeume.length > 0
+  const [trag, setTrag] = useState<MoebelTragZustand>(TRAG_START)
+  const traegt = tragenAn ? trag.traegt : null
+  const gesperrt = useMemo(() => new Set(daten.objekte.filter((o) => moebelArt(o.name ?? '') === 'mauer').map((o) => o.id)), [daten.objekte])
+  const mitten = useMemo(() => {
+    const m = new Map<string, readonly [number, number]>()
+    for (const o of daten.objekte) {
+      const [x, y] = objektMitte(o)
+      m.set(o.id, [x / 100, y / 100])
+    }
+    return m
+  }, [daten.objekte])
+  const tragSaetze = useRef({ gesperrt, mitten })
+  useLayoutEffect(() => {
+    tragSaetze.current = { gesperrt, mitten }
+  })
+  // Zuletzt gemeldet: wie viele verschoben sind (fuer "verworfen").
+  const verschobenRef = useRef(0)
+  // Eigenes Zuruecksetzen verwirft nichts ungewollt; nach dem Speichern
+  // verwirft der Neubau nur, was gespeichert ist (Zahl, -1: nichts).
+  const eigenesZurueck = useRef(false)
+  const gespeichertZahl = useRef(-1)
+  const speichernRueck = useRef(onMoebelSpeichern)
+  useLayoutEffect(() => {
+    speichernRueck.current = onMoebelSpeichern
+  })
+  const kannSpeichern = Boolean(onMoebelSpeichern)
+  const [speichert, setSpeichert] = useState(false)
+  const speichertRef = useRef(false)
+  const [speicherFehler, setSpeicherFehler] = useState<string | null>(null)
+  const tragRueck = useRef<(z: MoebelTragZustand) => void>(() => {})
+  useLayoutEffect(() => {
+    tragRueck.current = (z) => {
+      const vorher = verschobenRef.current
+      verschobenRef.current = z.verschoben
+      setTrag((alt) =>
+        alt.traegt === z.traegt && alt.ok === z.ok && alt.verschoben === z.verschoben ? alt : { traegt: z.traegt, ok: z.ok, verschoben: z.verschoben, grund: null },
+      )
+      if (z.grund === 'gesperrt') toast(t('plan3d.moebel_gesperrt'), 'info')
+      if (vorher > 0 && z.verschoben === 0 && !eigenesZurueck.current) {
+        // Ein Neubau der Szene hat die Verschiebungen verworfen (neue Daten).
+        const gespeichert = gespeichertZahl.current
+        gespeichertZahl.current = -1
+        if (gespeichert < vorher) toast(t('plan3d.verschiebungen_verworfen'), 'info')
+      }
+    }
+  })
+  useEffect(() => {
+    const m = motor.current
+    if (!m || !tragenAn) return
+    const s = tragSaetze.current
+    m.moebelTragen((z) => tragRueck.current(z), s.gesperrt, s.mitten)
+    return () => {
+      // Begehen zu Ende, 3D zu oder Abbau: Ungespeichertes geht zurueck,
+      // und ein Hinweis sagt es (nach dem Abbau tut der Motor nichts mehr).
+      const n = verschobenRef.current
+      m.moebelTragen(null)
+      eigenesZurueck.current = true
+      m.moebelZuruecksetzen()
+      eigenesZurueck.current = false
+      verschobenRef.current = 0
+      gespeichertZahl.current = -1
+      setTrag(TRAG_START)
+      setSpeicherFehler(null)
+      if (n > 0) toast(t('plan3d.verschiebungen_verworfen'), 'info')
+    }
+    // Nur An und Aus zaehlen; toast und t sind stabil genug.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tragenAn])
+  // Neue Daten (etwa nach dem Speichern): neue Mitten und Sperren.
+  useEffect(() => {
+    if (tragenAn) motor.current?.moebelTragen((z) => tragRueck.current(z), gesperrt, mitten)
+  }, [tragenAn, gesperrt, mitten])
+  const moebelZuruecksetzen = () => {
+    const m = motor.current
+    if (!m) return
+    eigenesZurueck.current = true
+    m.moebelZuruecksetzen()
+    eigenesZurueck.current = false
+    setSpeicherFehler(null)
+  }
+  const moebelSpeichern = async () => {
+    const m = motor.current
+    const fn = speichernRueck.current
+    if (!m || !fn || speichertRef.current) return
+    const liste = m.moebelAenderungen()
+    if (liste.length === 0) return
+    speichertRef.current = true
+    setSpeichert(true)
+    setSpeicherFehler(null)
+    gespeichertZahl.current = liste.length
+    try {
+      await fn(liste)
+    } catch (err) {
+      // Abgelehnt (etwa veraltet): der Satz steht in der Leiste, die
+      // Verschiebungen bleiben, Zuruecksetzen geht weiter.
+      gespeichertZahl.current = -1
+      const text = err instanceof Error ? err.message : String(err)
+      setSpeicherFehler(text)
+      toast(t('plan3d.moebel_speichern_fehler', { fehler: text }), 'error')
+    } finally {
+      speichertRef.current = false
+      setSpeichert(false)
+    }
+  }
+
   // E87b: Aussteigen ohne freien Platz (motor.aussteigen() meldet false):
   // ein Hinweis (Toast, im Vollbild auch oben in der Ansicht, wo Toasts
   // nicht zu sehen sind), KEIN_PLATZ_MS lang. Kam es von Esc, beendet ein
@@ -1188,12 +1326,13 @@ export default function Raum3D({
     if (!faehrt) escKeinPlatz.current = false
   }, [faehrt])
 
-  // Esc der Reihe nach (E82): erst die Kistenkarte, dann (E87) beim Fahren
-  // aussteigen, dann aufstehen, dann das Begehen beenden, dann das
-  // Vollbild; erst danach schliesst 3D.
-  const escLage = useRef({ karte, haltung, gehen, vollbild, faehrt })
+  // Esc der Reihe nach (E82): erst die Kistenkarte, dann (E89) ein
+  // getragenes Moebel zuruecklegen, dann (E87) beim Fahren aussteigen, dann
+  // aufstehen, dann das Begehen beenden, dann das Vollbild; erst danach
+  // schliesst 3D.
+  const escLage = useRef({ karte, haltung, gehen, vollbild, faehrt, traegt })
   useLayoutEffect(() => {
-    escLage.current = { karte, haltung, gehen, vollbild, faehrt }
+    escLage.current = { karte, haltung, gehen, vollbild, faehrt, traegt }
   })
   useEffect(() => {
     const taste = (e: KeyboardEvent) => {
@@ -1205,6 +1344,14 @@ export default function Raum3D({
       const fremd = Array.from(document.querySelectorAll('[aria-modal="true"]')).some((d) => !!w && !d.contains(w) && !w.contains(d))
       if (fremd) return
       const z = escLage.current
+      // E89: nach der Kistenkarte ein getragenes Moebel zurueck, wo es vor
+      // dem Anheben stand, vor allem anderen.
+      if (!z.karte && z.gehen && z.traegt) {
+        motor.current?.moebelZuruecklegen()
+        e.stopPropagation()
+        e.preventDefault()
+        return
+      }
       if (z.karte) setKarte(null)
       else if (z.gehen && z.faehrt && escKeinPlatz.current) setGehen(false)
       else if (z.gehen && z.faehrt) {
@@ -1515,7 +1662,59 @@ export default function Raum3D({
   // und deckt auch quer am Handy nichts zu; ein Fehler ist trotzdem immer
   // zu sehen, auch im Vollbild.
   const chip = 'max-w-md rounded-xl border bg-surface/95 px-3 py-2 text-center text-sm font-bold shadow'
+  // E89: Einzahl und Mehrzahl ausgeschrieben (wie tn), damit jeder
+  // Schluessel im Woerterbuch zu finden ist.
+  const verschobenSatz = t(trag.verschoben === 1 ? 'plan3d.moebel_verschoben.eins' : 'plan3d.moebel_verschoben.viele', { n: trag.verschoben })
   const hinweise = [
+    // E89: verschobene Moebel und, beim Tragen, wie es geht. Der Behaelter
+    // erbt ltr (nicht gespiegelt), nur die Saetze richten sich nach ihrer
+    // Sprache.
+    tragenAn && (trag.traegt || trag.verschoben > 0) ? (
+      <div key="moebel" data-moebel-leiste="" className={cx(chip, 'flex flex-col items-center gap-2 border-line text-ink')} role="group" aria-label={verschobenSatz}>
+        {trag.traegt ? (
+          <p dir="auto" data-moebel-hinweis="" role="status" className={cx('max-w-full', !trag.ok && 'text-danger')}>
+            {t(beruehren ? 'plan3d.moebel_tragen_hinweis_handy' : 'plan3d.moebel_tragen_hinweis')}
+            {trag.ok ? null : ` ${t('plan3d.moebel_hier_nicht')}`}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span dir="auto" data-moebel-zahl={trag.verschoben} className="px-1">
+            {verschobenSatz}
+          </span>
+          {beruehren && trag.traegt ? (
+            <>
+              <Button size="sm" variant="primary" data-moebel-abstellen="" disabled={!trag.ok} onClick={() => motor.current?.moebelAbstellen()}>
+                {t('plan3d.moebel_abstellen')}
+              </Button>
+              <Button size="sm" variant="outline" data-moebel-drehen="" onClick={() => motor.current?.drehen(1)}>
+                <RotateCw size={15} /> {t('plan3d.ding_drehen')}
+              </Button>
+            </>
+          ) : null}
+          <Button size="sm" variant="outline" data-moebel-zuruecksetzen="" title={t('plan3d.moebel_zuruecksetzen_hilfe')} onClick={moebelZuruecksetzen}>
+            {t('plan3d.moebel_zuruecksetzen')}
+          </Button>
+          {kannSpeichern ? (
+            <Button
+              size="sm"
+              variant="primary"
+              data-moebel-speichern=""
+              title={t('plan3d.moebel_speichern_hilfe')}
+              loading={speichert}
+              disabled={trag.verschoben === 0 || trag.traegt !== null}
+              onClick={() => void moebelSpeichern()}
+            >
+              {t('aktion.speichern')}
+            </Button>
+          ) : null}
+        </div>
+        {speicherFehler ? (
+          <p dir="auto" role="alert" data-moebel-fehler="" className="max-w-full text-danger">
+            {t('plan3d.moebel_speichern_fehler', { fehler: speicherFehler })}
+          </p>
+        ) : null}
+      </div>
+    ) : null,
     seitenFehler ? (
       // E87b: mit Nochmal und Schliessen, wenn die Seite es anbietet (der
       // Hinweis faengt Finger, er soll sich also wegtippen lassen).

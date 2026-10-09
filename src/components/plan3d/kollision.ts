@@ -311,6 +311,17 @@ export class Hindernisse {
     this.bereich(i, this.mx[i] + dx - ex, this.mz[i] + dz - ez, this.mx[i] + dx + ex, this.mz[i] + dz + ez)
   }
 
+  /** Rasterbereich von i neu setzen, statt ihn zu erweitern (E89: ein
+   *  Moebel wurde getragen und steht jetzt woanders). beweglich bleibt, wie
+   *  es war. Danach rastern(), sonst steht i im Raster noch an der alten
+   *  Stelle. */
+  bereichSetzen(i: number, x0: number, z0: number, x1: number, z1: number): void {
+    this.bx0[i] = Math.min(x0, x1)
+    this.bz0[i] = Math.min(z0, z1)
+    this.bx1[i] = Math.max(x0, x1)
+    this.bz1[i] = Math.max(z0, z1)
+  }
+
   /** Neue Lage eines Rechtecks (Tuer dreht, Schublade faehrt). Es muss im
    *  Bereich bleiben, der beim Bauen mit bereich() angegeben war. Ohne
    *  neues Objekt. */

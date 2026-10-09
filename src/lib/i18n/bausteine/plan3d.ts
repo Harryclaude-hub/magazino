@@ -73,12 +73,12 @@ export const plan3dWoerter: Woerterbuch = {
     ar: 'تجوّل في الشقة كأنك بداخلها.',
   },
   'plan3d.begehen_bedienung': {
-    de: 'W A S D oder Pfeiltasten gehen, Umschalt rennt, Leertaste springt, ziehen schaut umher. E steigt ein. Antippen: hinsetzen, hinlegen, aufheben, Fernseher und Wasser an. Esc beendet.',
-    ar: 'W A S D أو مفاتيح الأسهم للمشي، Shift للركض، المسافة للقفز، السحب للنظر حولك. E للركوب. النقر: اجلس، استلقِ، التقط، شغّل التلفاز والماء. Esc للإنهاء.',
+    de: 'W A S D oder Pfeiltasten gehen, Umschalt rennt, Leertaste springt, ziehen schaut umher. E steigt ein. Antippen: hinsetzen, hinlegen, aufheben, Fernseher und Wasser an. Rechtsklick auf ein Möbel: verschieben. Esc beendet.',
+    ar: 'W A S D أو مفاتيح الأسهم للمشي، Shift للركض، المسافة للقفز، السحب للنظر حولك. E للركوب. النقر: اجلس، استلقِ، التقط، شغّل التلفاز والماء. النقر بالزر الأيمن على قطعة أثاث: انقلها. Esc للإنهاء.',
   },
   'plan3d.begehen_bedienung_handy': {
-    de: 'Links den Knopf schieben zum Gehen, mit dem Finger ziehen zum Umschauen. Die Knöpfe darüber: springen, einsteigen. Antippen: hinsetzen, hinlegen, aufheben, Fernseher und Wasser an.',
-    ar: 'ادفع الزر يسارًا للمشي، واسحب بإصبعك للنظر حولك. الأزرار فوقه: اقفز، اركب. النقر: اجلس، استلقِ، التقط، شغّل التلفاز والماء.',
+    de: 'Links den Knopf schieben zum Gehen, mit dem Finger ziehen zum Umschauen. Die Knöpfe darüber: springen, einsteigen. Antippen: hinsetzen, hinlegen, aufheben, Fernseher und Wasser an. Lange auf ein Möbel drücken: verschieben.',
+    ar: 'ادفع الزر يسارًا للمشي، واسحب بإصبعك للنظر حولك. الأزرار فوقه: اقفز، اركب. النقر: اجلس، استلقِ، التقط، شغّل التلفاز والماء. اضغط مطولًا على قطعة أثاث: انقلها.',
   },
   // E87: Springen, Fahren, Dinge hinstellen (Knoepfe beim Begehen).
   'plan3d.aktionen': { de: 'Was du gerade tun kannst', ar: 'ما يمكنك فعله الآن' },
@@ -120,6 +120,31 @@ export const plan3dWoerter: Woerterbuch = {
     de: 'Tipp auf die Stelle, an die das Ding soll, oder Hinstellen für die Mitte (Kreuz). Drehen dreht es, Ablegen legt es vor dir ab.',
     ar: 'انقر على المكان الذي تريد وضع الشيء فيه، أو «ضعه هنا» للمنتصف (العلامة). «دوّره» يدوّره، و«ضعه» يضعه أمامك.',
   },
+  /* E89: Möbel tragen beim Begehen. */
+  'plan3d.moebel_verschoben.eins': { de: '{n} Möbelstück verschoben', ar: 'قطعة أثاث منقولة: {n}' },
+  'plan3d.moebel_verschoben.viele': { de: '{n} Möbel verschoben', ar: 'قطع أثاث منقولة: {n}' },
+  'plan3d.moebel_tragen_hinweis': {
+    de: 'Klick: abstellen · R: drehen · Esc: zurück',
+    ar: 'النقر: ضعها · R: دوّرها · Esc: أعدها',
+  },
+  'plan3d.moebel_tragen_hinweis_handy': { de: 'Tippen: abstellen', ar: 'انقر: ضعها' },
+  'plan3d.moebel_hier_nicht': {
+    de: 'Hier nicht: Wand oder außerhalb der Räume.',
+    ar: 'ليس هنا: جدار أو خارج الغرف.',
+  },
+  'plan3d.moebel_abstellen': { de: 'Abstellen', ar: 'ضعها' },
+  'plan3d.moebel_zuruecksetzen': { de: 'Zurücksetzen', ar: 'إعادة إلى الأصل' },
+  'plan3d.moebel_zuruecksetzen_hilfe': {
+    de: 'Alle Möbel zurück an ihren Platz im Plan',
+    ar: 'أعد كل قطع الأثاث إلى مكانها في المخطط',
+  },
+  'plan3d.moebel_speichern_hilfe': {
+    de: 'Die neue Stellung der Möbel in den Grundriss übernehmen',
+    ar: 'اعتمد المواضع الجديدة للأثاث في المخطط',
+  },
+  'plan3d.moebel_speichern_fehler': { de: 'Speichern ging nicht: {fehler}', ar: 'تعذّر الحفظ: {fehler}' },
+  'plan3d.moebel_gesperrt': { de: 'Das lässt sich nicht verschieben', ar: 'لا يمكن نقل هذا' },
+  'plan3d.verschiebungen_verworfen': { de: 'Verschiebungen verworfen', ar: 'أُلغيت تغييرات مواضع الأثاث' },
   'plan3d.gehen_vor': { de: 'Vorwärts gehen', ar: 'امشِ للأمام' },
   'plan3d.knueppel': { de: 'Gehen: in die Richtung schieben', ar: 'المشي: ادفع في الاتجاه' },
   'plan3d.gehen_zurueck': { de: 'Rückwärts gehen', ar: 'امشِ للخلف' },

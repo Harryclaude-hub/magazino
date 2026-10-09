@@ -63,8 +63,8 @@ node scripts/szene-pruefen.mjs    dazu geometrie-, zeichner-, kollision-,
                                   siedlung-, siedlung-ui-, siedlung-innen-,
                                   siedlung-wohnungen-, siedlung-gemeinsam-,
                                   minikarte-, stadt-daten-, stadt-, innen-,
-                                  physik-, fahren-, motor-fahren- und
-                                  bedienung-pruefen
+                                  physik-, fahren-, motor-fahren-,
+                                  moebel-tragen- und bedienung-pruefen
 Wo jemand wohnt (Siedlung, Adresse, Stockwerk), steht nie im Code, nur
 in der Datenbank.
 ```

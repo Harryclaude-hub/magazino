@@ -1,12 +1,15 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Box } from 'lucide-react'
+import { speichereGrundriss } from '../../lib/api'
 import { useSprache } from '../../lib/i18n'
 import { plan3dWoerter } from '../../lib/i18n/bausteine/plan3d'
 import { woerterNachladen } from '../../lib/i18n/woerter'
 import type { GrundrissDaten } from '../../lib/types'
+import { moebelAnwenden } from '../plan/objektVerschieben'
 import { Button, ErrorBox, Spinner } from '../ui'
 import type { Raum3DProps } from './Raum3D'
+import type { MoebelAenderung } from './tragen'
 
 // Die Saetze der 3D-Ansicht kommen mit diesem Teil (siehe plan3d.ts).
 woerterNachladen(plan3dWoerter)
@@ -78,7 +81,15 @@ export function Ansicht3D(props: Props) {
  *  fuellt das Fenster den ganzen Bildschirm. E87: begehen oeffnet das
  *  Fenster gleich und beginnt dort das Begehen, nur beim ersten Oeffnen
  *  (gelesen beim Einbauen); onBegehen meldet, dass der Wunsch angenommen
- *  ist. */
+ *  ist.
+ *  E89: beim Begehen verschobene Moebel speichert der Knopf selbst
+ *  (speichereGrundriss mit den versetzten Objekten, objektVerschieben.ts;
+ *  was darauf steht, faehrt in der Datenbank mit). Gelingt es, zeigt das
+ *  Fenster die neuen Daten (die der Seite gelten wieder, sobald sie neuer
+ *  sind), und beim Schliessen meldet onGespeichert, dass die Seite neu
+ *  laden soll (vorher nicht: das Laden nahm sonst das offene Fenster mit).
+ *  Ein Fehler (etwa "veraltet") kommt als Satz aus api.ts in die Leiste,
+ *  die Verschiebungen bleiben in der Szene. */
 export function Knopf3D({
   daten,
   raumId,
@@ -87,6 +98,7 @@ export function Knopf3D({
   tour,
   begehen = false,
   onBegehen,
+  onGespeichert,
 }: {
   daten: GrundrissDaten
   raumId?: string | null
@@ -98,14 +110,36 @@ export function Knopf3D({
   begehen?: boolean
   /** Der Wunsch begehen ist angenommen (die Seite vergisst ihn). */
   onBegehen?: () => void
+  /** E89: im Fenster wurde gespeichert; kommt beim Schliessen einmal. */
+  onGespeichert?: () => void
 }) {
   const { t } = useSprache()
   const [offen, setOffen] = useState(begehen)
   const [startGehen, setStartGehen] = useState(begehen)
   useWunschAngenommen(begehen, onBegehen)
+  // E89: die Daten nach dem letzten eigenen Speichern, solange sie nicht
+  // aelter sind als die der Seite.
+  const [gespeichert, setGespeichert] = useState<GrundrissDaten | null>(null)
+  const aktuell =
+    gespeichert && gespeichert.grundriss.id === daten.grundriss.id && gespeichert.grundriss.version >= daten.grundriss.version ? gespeichert : daten
+  const gespeichertRueck = useRef(onGespeichert)
+  useEffect(() => {
+    gespeichertRueck.current = onGespeichert
+  })
   const zu = () => {
     setOffen(false)
     setStartGehen(false)
+    if (gespeichert) {
+      setGespeichert(null)
+      gespeichertRueck.current?.()
+    }
+  }
+  const moebelSpeichern = async (liste: MoebelAenderung[]) => {
+    const objekte = moebelAnwenden(aktuell.objekte, aktuell.raeume, liste)
+    if (objekte.length === 0) return
+    // Wirft GrundrissFehler mit dem fertigen Satz; Raum3D zeigt ihn.
+    const r = await speichereGrundriss(aktuell.grundriss.id, aktuell.grundriss.version, { objekte })
+    setGespeichert({ ...r.daten, grundriss: { ...r.daten.grundriss, version: r.version } })
   }
   return (
     <>
@@ -114,7 +148,7 @@ export function Knopf3D({
       </Button>
       {offen ? (
         <Fenster3D titel={t('plan3d.titel')} onClose={zu}>
-          <Ansicht3D daten={daten} raumId={raumId} hervor={hervor} onSchliessen={zu} startGehen={startGehen} />
+          <Ansicht3D daten={aktuell} raumId={raumId} hervor={hervor} onSchliessen={zu} startGehen={startGehen} onMoebelSpeichern={moebelSpeichern} />
         </Fenster3D>
       ) : null}
     </>

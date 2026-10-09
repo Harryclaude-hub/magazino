@@ -100,6 +100,23 @@
  * man stand, wartet der Motor bis zu 5 s auf sie (EBENE_WARTEN_MS). Fuer
  * gemerkte Lagen unbekannter Kennungen baut die Welt das Ding einzeln
  * (Welt3D.dingErzeugen).
+ *
+ * Moebel tragen (E89, Rechnung in tragen.ts): beim Begehen der Wohnung
+ * hebt die rechte Maustaste (am Handy langes Druecken) ein Moebel, Regal
+ * oder einen Schrank an, samt Tueren, Schubladen, Griffen, Leuchten, den
+ * kleinen Dingen darauf, die noch niemand bewegt hat, und den Kisten
+ * darauf oder darin (traeger aus ziehen()). Es folgt dem Zeiger auf einer
+ * waagrechten Ebene in der Hoehe, an der man es griff (am Handy der Mitte
+ * des Bildes), leicht getoent, rot, wo es nicht stehen darf (in einer Wand
+ * oder ausserhalb der Raeume). R, Umschalt+R und Mausrad drehen es um 90
+ * Grad; Klick oder Tipp stellt es ab, Esc oder ein zweiter Rechtsklick
+ * legt es zurueck. Linksklick setzt wie bisher auf einen Stuhl, rechts nie.
+ * Alles bewegt sich starr und wird jedes Mal vom Original des letzten
+ * Baus aus gesetzt: Teile, Tueren und Schubladen (sie gehen dort weiter
+ * auf), Sitzplaetze, Rechtecke in kollision.ts (nach dem Abstellen einmal
+ * neu gerastert) und Lichter mit Licht3D.objektId. Spiegel, Geraete und
+ * vom Aufrufer gesperrte Moebel (Mauern) bleiben stehen. Ein neuer Bau
+ * (setzen) verwirft alles Getragene: die neuen Daten gelten.
  */
 import {
   AmbientLight,
@@ -195,9 +212,50 @@ import {
   type ZeigeEingabe,
 } from './hinstellen.ts'
 import type { DingLage3D, Fahrzeug3D, Figur3D, FahrzeugJetzt, Haltung, Interaktiv3D, Moeglich3D, Pose3D, Welt3D, WeltDing3D } from './vertrag3d.ts'
+import {
+  aenderungAus,
+  kastenDazu,
+  kastenLage,
+  kastenVon,
+  LANG_DRUECKEN_MS,
+  LANG_DRUECKEN_PX,
+  schrumpfFuer,
+  stelleErlaubt,
+  strahlAufEbene,
+  stufe,
+  tragFolgen,
+  tragGleich,
+  TRAGEN_MELDEN_MS,
+  TRAGEN_SCHRUMPF_M,
+  TRAGEN_WEIT_M,
+  tragLageNeu,
+  tragPunkt,
+  tragRichtung,
+  tragRuht,
+  tragWinkel,
+  zugEbeneY,
+  type Kasten2,
+  type MoebelAenderung,
+  type Punkt2,
+  type TragLage,
+} from './tragen.ts'
 
 export type { Haltung, Pose3D, Figur3D, Welt3D, Ebene3D, Interaktiv3D, Sprungziel3D } from './vertrag3d.ts'
 export type { DingLage3D, FahrzeugJetzt, Moeglich3D, Treppe3D, Fahrzeug3D, WeltDing3D } from './vertrag3d.ts'
+export type { MoebelAenderung } from './tragen.ts'
+
+/** Was moebelTragen() meldet (E89): das Moebel, das man gerade traegt
+ *  (Kennung des Objekts) oder null; ob es dort, wo es gerade ist, stehen
+ *  darf; wie viele Moebel gegenueber dem letzten Bau verschoben oder
+ *  gedreht sind (das getragene mit seiner Lage vor dem Anheben); grund
+ *  'gesperrt', wenn sich das angeklickte Moebel nicht tragen laesst (nur in
+ *  dieser einen Meldung). */
+export interface MoebelTragZustand {
+  traegt: string | null
+  ok: boolean
+  verschoben: number
+  grund: 'gesperrt' | null
+}
 
 /** Die Ebene, auf der man beim Begehen steht (E83): Index in welt().ebenen,
  *  Kennung und Name. */
@@ -657,7 +715,7 @@ export interface Motor {
    *  wohin man gerade zeigt. */
   moeglich(fn: ((m: Moeglich3D) => void) | null): void
   /** Ding in der Hand um 45 Grad drehen (Taste R vorwaerts, Umschalt+R
-   *  zurueck, Mausrad). */
+   *  zurueck, Mausrad). E89: traegt man ein Moebel, dreht es um 90 Grad. */
   drehen(richtung: 1 | -1): void
   /** Das Ding in der Hand dort hinstellen, wohin man zeigt (Maus oder
    *  Mitte des Bildes), wenn es dort passt; sonst nichts. Ein Klick oder
@@ -684,6 +742,44 @@ export interface Motor {
    *  (abgelegt). Ein Fahrzeug an derselben Stelle wie zuletzt gemerkt
    *  (lageGleich) meldet sich nicht noch einmal. */
   bewegt(fn: ((l: DingLage3D) => void) | null): void
+  /* ------------------------------------------------------------ E89 */
+  /** Moebel tragen beim Begehen der Wohnung an (fn) oder aus (null; ein
+   *  getragenes Moebel geht dabei zurueck, wohin es vor dem Anheben stand,
+   *  verschobene bleiben, wo sie sind). Getragen wird nur auf der Ebene der
+   *  Wohnung, zu Fuss, stehend, mit leerer Hand: rechte Maustaste auf ein
+   *  Teil des Moebels (oder eine Kiste darauf oder darin), am Handy langes
+   *  Druecken (LANG_DRUECKEN_MS). Das Kontextmenue des Browsers kommt beim
+   *  Begehen nie. gesperrt: Kennungen von Objekten, die sich nicht tragen
+   *  lassen (etwa Mauern); ebenso jedes Moebel mit Spiegel oder Geraet.
+   *  Dann bewegt sich nichts, und fn meldet grund 'gesperrt'. mitten: je
+   *  Objekt die Mitte seines Grundrisses (Meter, Welt x und z), um die es
+   *  dreht und deren Verschiebung moebelAenderungen() meldet; fehlt sie,
+   *  die Mitte des Rechtecks um seine Teile in 3D. fn meldet bei jeder
+   *  Aenderung (Anheben, Stelle passt oder nicht, Abstellen, Zurueck,
+   *  Zuruecksetzen, neuer Bau), beim Tragen hoechstens alle
+   *  TRAGEN_MELDEN_MS, und gleich beim Anschalten einmal. Ein neuer Aufruf
+   *  mit fn aendert nur fn, gesperrt und mitten. */
+  moebelTragen(
+    fn: ((z: MoebelTragZustand) => void) | null,
+    gesperrt?: ReadonlySet<string>,
+    mitten?: ReadonlyMap<string, readonly [number, number]>,
+  ): void
+  /** Das getragene Moebel dort abstellen, wo es gerade ist, wenn es dort
+   *  stehen darf (wie ein Klick); sonst nichts. Steht es noch, wo es vor
+   *  dem Anheben stand, ist das wie moebelZuruecklegen(). */
+  moebelAbstellen(): void
+  /** Das getragene Moebel dorthin zurueck, wo es vor diesem Anheben stand
+   *  (Esc, zweiter Rechtsklick). Ohne getragenes: nichts. */
+  moebelZuruecklegen(): void
+  /** Alle Moebel genau zurueck auf das Original des letzten Baus, auch ein
+   *  getragenes. */
+  moebelZuruecksetzen(): void
+  /** Je verschobenem oder gedrehtem Moebel (gegenueber dem Original; das
+   *  gerade getragene mit seiner Lage vor dem Anheben): Verschiebung der
+   *  Mitte seines Grundrisses in
+   *  Plan-cm (x = Welt x mal 100, y = Welt z mal 100, ganze cm) und Drehung
+   *  in Grad wie Objekt.drehung (0, 90, 180, 270; planGrad in tragen.ts). */
+  moebelAenderungen(): MoebelAenderung[]
   /** Abbauen. E87b: zuerst steigt man aus einem Fahrzeug aus (es bleibt
    *  stehen) und legt ein Ding in der Hand ab; beides meldet bewegt(),
    *  solange der Abnehmer noch angeschlossen ist. */
@@ -731,6 +827,13 @@ const WAND_HINDERNIS = new Set(['wand', 'bruestung', 'scheibe', 'rahmen', 'zarge
 const MOEBEL_HINDERNIS = new Set(['moebel', 'regal', 'front', 'kiste'])
 /** Teile, die zu einem Objekt gehoeren (Ziehen, Tippen auf ein Moebel). */
 const OBJEKT_ROLLEN = new Set(['moebel', 'regal', 'brett', 'ding', 'spiegel', 'griff'])
+/** Teile, die mit ihrem Objekt getragen werden (E89): dazu die Tueren der
+ *  Moebel ('front'). Tueren der Raeume heissen 'tuerblatt', ihre Griffe
+ *  tragen keine Kennung. Leuchten eines Moebels kommen ueber Quader.objekt. */
+const TRAGE_ROLLEN = new Set([...OBJEKT_ROLLEN, 'front'])
+/** Diese Teile zaehlen nicht fuer den Grundriss beim Tragen (E89): klein,
+ *  ragen vor oder liegen nur darauf. */
+const OHNE_ABDRUCK = new Set(['ding', 'leuchte', 'griff'])
 
 /** Hinsetzen, Hinlegen, Aufstehen: so lange gleitet die Kamera (ms). */
 const WECHSEL_MS = 600
@@ -805,6 +908,24 @@ interface TeilDaten {
   geraet?: NonNullable<Quader['geraet']>
   /** Durchsichtig (Glas, Wasser): beim Ablegen faellt ein Ding hindurch. */
   glas?: boolean
+  /** E89: Kennung des Objekts, mit dem dieses Teil getragen wird (auch
+   *  Tueren, Schubladen, Griffe, Dinge und Leuchten eines Moebels). */
+  gehoert?: string
+  /** E89: Rechteck in kollision.ts, -1 ohne. */
+  hindernis?: number
+  /** E89: Lage wie gebaut (bei Teilen eines Moebels und Kisten). */
+  ur?: TeilUr
+}
+
+/** Lage eines Teils wie gebaut (E89): Mitte, Drehung um die Hochachse und
+ *  Neigung (Euler 'YXZ'). */
+interface TeilUr {
+  x: number
+  y: number
+  z: number
+  d: number
+  kx: number
+  kz: number
 }
 
 function daten(o: Object3D): TeilDaten {
@@ -977,6 +1098,65 @@ interface DingLage {
   y: number
   z: number
   d: number
+}
+
+/** Ein Moebel zum Tragen (E89): seine Teile (mit TeilDaten.gehoert), der
+ *  Grundriss seiner Teile wie gebaut, ob es fest steht (Spiegel, Geraet),
+ *  seine Lage gegenueber dem Original und, ab dem ersten Anheben, das
+ *  Original von allem, was mitgeht. */
+interface Stueck {
+  id: string
+  teile: Mesh[]
+  abdruck: Kasten2 | null
+  fest: boolean
+  lage: TragLage
+  ur: StueckUr | null
+  /** So viel kleiner (Meter) wird sein Grundriss beim Pruefen (schrumpfFuer
+   *  in tragen.ts, beim ersten Anheben). */
+  schrumpf: number
+}
+
+/** Platz zum Sitzen oder Liegen (eigene Kopie je Bau, E89). */
+type Platz = NonNullable<Quader['platz']>
+
+/** Das Original von allem, was mit einem Moebel geht (E89), gemerkt beim
+ *  ersten Anheben nach einem Bau (bis dahin hat nichts es bewegt). */
+interface StueckUr {
+  kisten: Mesh[]
+  tueren: { g: TuerGruppe; zu: number; auf: number; teile: { t: TuerTeil; ax: number; az: number; ox: number; oz: number; d: number }[] }[]
+  schuebe: { s: SchubGruppe; weg: [number, number]; teile: { t: SchubTeil; bx: number; bz: number; d: number }[] }[]
+  dinge: { d: Ding; cx: number; cz: number; breite: number; tiefe: number; teile: { t: DingTeil; px: number; pz: number; d: number }[] }[]
+  plaetze: { p: Platz; x: number; z: number; blick: number }[]
+  /** Rechtecke in kollision.ts: Nummer, Lage wie gebaut (ohne bei Tueren
+   *  und Schubladen, die setzen ihre Gruppen), Rasterbereich wie gebaut,
+   *  beweglich (bereich()) und ob es eine Tuer ist (an und aus je nach
+   *  Stand). */
+  hindernisse: { i: number; ur: TeilUr | null; b: Kasten2; beweglich: boolean; tuer: boolean }[]
+}
+
+/** Ein Moebel in der Hand (E89): welches, seine Lage vor dem Anheben und
+ *  jetzt (vom Original aus), die Drehstufe, die Hoehe der Ebene, auf der es
+ *  dem Zeiger folgt, der Versatz der Mitte zum Zeiger (null, bis der Strahl
+ *  die Ebene zum ersten Mal trifft) und ob es hier stehen darf. */
+interface TragGriff {
+  s: Stueck
+  vorher: TragLage
+  lage: TragLage
+  k: 0 | 1 | 2 | 3
+  ebeneY: number
+  versatz: Punkt2 | null
+  ok: boolean
+}
+
+/** Was an einem Licht haengt (E71, E74, E89). */
+interface LichtDaten {
+  staerke: number
+  art: string
+  raum: string
+  /** E89: Moebel, mit dem das Licht getragen wird, sonst null. */
+  objekt: string | null
+  /** E89: Stelle wie gesetzt. */
+  ur: [number, number, number]
 }
 
 interface Spiegel {
@@ -1454,11 +1634,23 @@ export function motorStarten(host: HTMLElement): Motor | null {
     punktLichter = liste.slice(0, 20).map((l) => {
       const p = new PointLight(new Color(l.farbe), 0, l.art === 'kueche' ? 2.2 : 7, 2)
       p.position.set(l.pos[0], l.pos[1], l.pos[2])
-      p.userData = { staerke: l.staerke, art: l.art, raum: l.raumId }
+      p.userData = { staerke: l.staerke, art: l.art, raum: l.raumId, objekt: l.objektId ?? null, ur: [l.pos[0], l.pos[1], l.pos[2]] } satisfies LichtDaten
       scene.add(p)
       return p
     })
+    // E89: Lichter getragener Moebel stehen dort, wo ihr Moebel jetzt ist.
+    for (const s of stuecke.values()) if (s.ur && !tragRuht(s.lage)) lichterVersetzen(s.id, s.lage)
+    if (trag) lichterVersetzen(trag.s.id, trag.lage)
     modusSetzen(modus)
+  }
+  /** Lichter des Moebels id in die Lage l (E89; vom Original aus). */
+  function lichterVersetzen(id: string, l: TragLage) {
+    for (const p of punktLichter) {
+      const u = p.userData as LichtDaten
+      if (u.objekt !== id || !u.ur) continue
+      tragPunkt(l, u.ur[0], u.ur[2], tragHilf)
+      p.position.set(tragHilf.x, u.ur[1], tragHilf.z)
+    }
   }
   function modusSetzen(m: 'tag' | 'abend') {
     modus = m
@@ -1468,7 +1660,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
     sonne.intensity = (abend ? 0.04 : 0.52) * Math.PI
     gegen.intensity = (abend ? 0.03 : 0.16) * Math.PI
     for (const l of punktLichter) {
-      const d = l.userData as { staerke: number; art: string; raum: string }
+      const d = l.userData as LichtDaten
       // Candela (three rechnet physikalisch): Decke etwa 12, Kueche naeher dran.
       // Am Tag gibt eingeschaltetes Licht nur etwas dazu.
       const basis = d.art === 'kueche' ? 2.6 : d.art === 'lampe' ? 7 : 13
@@ -1801,6 +1993,19 @@ export function motorStarten(host: HTMLElement): Motor | null {
     return best
   }
 
+  /* ---------------------------------------------- Moebel tragen (E89) */
+
+  /** Moebel zum Tragen je Objekt, je Bau neu. */
+  let stuecke = new Map<string, Stueck>()
+  /** Rechtecke der Waende, Bruestungen, Scheiben, Zargen und Tuerblaetter
+   *  in kollision.ts: dort darf kein Moebel stehen. */
+  let wandHind: number[] = []
+  /** Boeden der Raeume (Umriss flach x, z, ... in Metern). */
+  let raumUmrisse: number[][] = []
+  /** Das Moebel, das man gerade traegt, sonst null. */
+  let trag: TragGriff | null = null
+  const tragHilf: Punkt2 = { x: 0, z: 0 }
+
   function leeren() {
     // Laufende Tueren und Schubladen gelten als angekommen, damit der
     // Neubau sie dort zeigt, wo sie hinwollten.
@@ -1843,6 +2048,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
     dinge = new Map()
     geraetTeile = []
     plaetze = new Map()
+    stuecke = new Map()
+    wandHind = []
+    raumUmrisse = []
   }
 
   /** Haelt dieses Teil beim Begehen auf? Waende (ohne Sturz und Oberteil der
@@ -1868,8 +2076,17 @@ export function motorStarten(host: HTMLElement): Motor | null {
 
   function bauen(liste: Koerper[]) {
     // Die Vorschau (E87) gibt einem Ding der Wohnung ihre Materialien:
-    // zurueck, bevor die Teile freigegeben werden.
+    // zurueck, bevor die Teile freigegeben werden. Ebenso die Toenung eines
+    // getragenen Moebels (E89); alles Getragene ist mit dem Neubau weg (die
+    // neuen Daten gelten), Lichter stehen wieder, wo sie gesetzt wurden.
     geistAus()
+    tintAus()
+    trag = null
+    langDruckAus()
+    for (const p of punktLichter) {
+      const u = p.userData as LichtDaten
+      if (u.objekt && u.ur) p.position.set(u.ur[0], u.ur[1], u.ur[2])
+    }
     leeren()
     const tuerNachId = new Map<string, TuerGruppe>()
     const schubNachId = new Map<string, SchubGruppe>()
@@ -1886,6 +2103,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
         mesh.position.y = k.y - 0.002
         mesh.userData = { rolle: 'boden' } satisfies TeilDaten
         gruppe.add(mesh)
+        // E89: ein getragenes Moebel muss ganz in einem Raum stehen.
+        if (k.punkte.length >= 3) raumUmrisse.push(k.punkte.flatMap(([x, z]) => [x, z]))
         continue
       }
       const wand = k.innen !== null
@@ -1925,11 +2144,31 @@ export function motorStarten(host: HTMLElement): Motor | null {
         // schaltet sie und greift nicht das Moebel (wie vor E82).
         else if (OBJEKT_ROLLEN.has(k.rolle) && !k.tuer && !k.schub) u.objektId = k.id
       }
+      // E89: Teile eines Moebels (auch Tueren, Schubladen, Griffe, Dinge und
+      // seine Leuchten) gehen mit ihm, wenn man es traegt; Kisten ueber
+      // traeger. Gemerkt wird die Lage wie gebaut.
+      const gehoert = k.id && TRAGE_ROLLEN.has(k.rolle) ? k.id : k.rolle === 'leuchte' && k.objekt ? k.objekt : undefined
+      if (gehoert || u.kisteId) u.ur = { x: k.mitte[0], y: k.mitte[1], z: k.mitte[2], d: k.drehY, kx, kz }
+      if (gehoert) {
+        u.gehoert = gehoert
+        let st = stuecke.get(gehoert)
+        if (!st) {
+          st = { id: gehoert, teile: [], abdruck: null, fest: false, lage: tragLageNeu(0, 0), ur: null, schrumpf: TRAGEN_SCHRUMPF_M }
+          stuecke.set(gehoert, st)
+        }
+        st.teile.push(mesh)
+        if (!OHNE_ABDRUCK.has(k.rolle)) st.abdruck = kastenDazu(st.abdruck, kastenVon(k.mitte[0], k.mitte[2], k.masse[0], k.masse[2], k.drehY))
+        // Spiegel und Geraete (Fernseher, Wasserhahn) bleiben stehen.
+        if (k.rolle === 'spiegel' || g) st.fest = true
+      }
       if (k.platz) {
-        u.platz = k.platz
+        // Eine eigene Kopie (E89): beim Tragen wandert der Platz mit, die
+        // Koerper des Aufrufers bleiben unberuehrt.
+        const pl: Platz = { art: k.platz.art, punkt: [k.platz.punkt[0], k.platz.punkt[1], k.platz.punkt[2]], blick: k.platz.blick }
+        u.platz = pl
         if (k.id) {
           const liste = plaetze.get(k.id) ?? []
-          liste.push(k.platz)
+          liste.push(pl)
           plaetze.set(k.id, liste)
         }
       }
@@ -1962,6 +2201,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       if (k.innen) waende.push({ mesh, linien, innen: k.innen, x: k.mitte[0], z: k.mitte[2], basis: k.deckkraft })
 
       const hindernis = istHindernis(k) ? kollision.dazu(k.mitte[0], k.mitte[2], k.masse[0], k.masse[2], k.drehY, true, obenVon(k)) : -1
+      u.hindernis = hindernis
+      if (hindernis >= 0 && WAND_HINDERNIS.has(k.rolle)) wandHind.push(hindernis)
       if (k.rolle === 'wand') {
         // Decke (E87): die hoechste Wand, Grundriss aller Waende (grob, ohne Drehung).
         const halb = Math.max(k.masse[0], k.masse[2]) / 2
@@ -2148,6 +2389,15 @@ export function motorStarten(host: HTMLElement): Motor | null {
         inHandFn?.(null)
       }
     }
+
+    // E89: jedes Moebel dreht um die Mitte seiner Teile, bis beim ersten
+    // Anheben die Mitte seines Grundrisses (mitten) kommt. Der Neubau hat
+    // alles Getragene verworfen: das meldet sich (nur, wenn sich etwas
+    // aendert).
+    for (const s of stuecke.values()) {
+      if (s.abdruck) s.lage = tragLageNeu((s.abdruck.x0 + s.abdruck.x1) / 2, (s.abdruck.z0 + s.abdruck.z1) / 2)
+    }
+    tragMelden(true, null)
   }
 
   function zielen(ziel: Vec3, abstand: number, polar: number, azimut: number) {
@@ -2173,8 +2423,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
 
   /** Alle Teile der Tuer auf Winkel w (als drehY): jedes um die Angel um
    *  (w - zu) gedreht, Neigung bleibt. Der Schluessel dreht dazu um seine
-   *  lange Achse, so weit er abgeschlossen ist. Ohne neues Objekt. */
-  function tuerSetzen(g: TuerGruppe, w: number) {
+   *  lange Achse, so weit er abgeschlossen ist. Ohne neues Objekt.
+   *  mitKollision false (E89, beim Tragen): nur die Teile, die Rechtecke in
+   *  kollision.ts bleiben, wie sie sind (sie sind solange aus). */
+  function tuerSetzen(g: TuerGruppe, w: number, mitKollision = true) {
     g.winkel = w
     tuerStand.set(g.id, offenAnteil(g, w))
     const d = winkelDiff(w, g.zu)
@@ -2194,8 +2446,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
         quat.setFromAxisAngle(t.achse, (g.schloss * Math.PI) / 2)
         m.quaternion.multiply(quat)
       } else m.rotation.set(t.kx, dreh, t.kz, 'YXZ')
-      if (t.hindernis >= 0) kollision.lage(t.hindernis, x, z, dreh)
+      if (mitKollision && t.hindernis >= 0) kollision.lage(t.hindernis, x, z, dreh)
     }
+    if (!mitKollision) return
     const aufhalten = g.verschlossen || Math.abs(d) < TUER_ZU_RAD
     for (let i = 0; i < g.teile.length; i++) {
       const t = g.teile[i]
@@ -2294,8 +2547,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
     return laeuft
   }
 
-  /** Schublade auf Anteil a (0 zu, 1 ganz offen) setzen. */
-  function schubSetzen(s: SchubGruppe, a: number) {
+  /** Schublade auf Anteil a (0 zu, 1 ganz offen) setzen. mitKollision wie
+   *  bei tuerSetzen. Die Drehung der Teile setzt nur das Tragen (E89). */
+  function schubSetzen(s: SchubGruppe, a: number, mitKollision = true) {
     s.anteil = a
     schubStand.set(s.id, a)
     for (let i = 0; i < s.teile.length; i++) {
@@ -2304,7 +2558,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       const z = t.bz + s.weg[1] * a
       t.mesh.position.x = x
       t.mesh.position.z = z
-      if (t.hindernis >= 0) kollision.lage(t.hindernis, x, z, t.drehY)
+      if (mitKollision && t.hindernis >= 0) kollision.lage(t.hindernis, x, z, t.drehY)
     }
   }
 
@@ -3918,8 +4172,13 @@ export function motorStarten(host: HTMLElement): Motor | null {
     return true
   }
 
-  /** Ding in der Hand eine Stufe (45 Grad) weiterdrehen. */
+  /** Ding in der Hand eine Stufe (45 Grad) weiterdrehen; ein getragenes
+   *  Moebel (E89) um 90 Grad. */
   function drehen(richtung: number) {
+    if (trag) {
+      tragenDrehen(richtung < 0 ? -1 : 1)
+      return
+    }
     if (!halt.ding || fahrt || !gehen) return
     const r = richtung < 0 ? -1 : 1
     halt.stufe = stufeDrehen(halt.stufe, r)
@@ -3927,14 +4186,15 @@ export function motorStarten(host: HTMLElement): Motor | null {
     anstossen()
   }
 
-  /** Mausrad mit einem Ding in der Hand: dreht es, eine Stufe je Raste
+  /** Mausrad mit einem Ding in der Hand (E89: oder einem getragenen
+   *  Moebel): dreht es, eine Stufe je Raste
    *  (Touchpads liefern viele kleine Schritte: gesammelt, hoechstens eine
    *  Stufe je 90 ms). */
   let radSumme = 0
   let radLetzt = 0
   let radZeit = 0
   function radDrehung(e: WheelEvent) {
-    if (!gehen || fahrt || !halt.ding || !eingabeAn) return
+    if (!gehen || fahrt || (!halt.ding && !trag) || !eingabeAn) return
     e.preventDefault()
     const jetzt = performance.now()
     if (jetzt - radLetzt > 400) radSumme = 0
@@ -3987,6 +4247,487 @@ export function motorStarten(host: HTMLElement): Motor | null {
     geist.mats.clear()
     geist.linien.length = 0
     geist.ding = null
+  }
+
+  /* ------------------------------------------- Moebel tragen (E89, tragen.ts) */
+
+  let tragFn: ((z: MoebelTragZustand) => void) | null = null
+  let tragGesperrt: ReadonlySet<string> = new Set()
+  let tragMitten: ReadonlyMap<string, readonly [number, number]> | null = null
+  /** Zuletzt gemeldet (verschoben -1: noch nie). */
+  const tragGemeldet = { traegt: null as string | null, ok: true, verschoben: -1, zeit: -Infinity }
+  const tragStrahl = new Raycaster()
+  const tragTreffer: Punkt2 = { x: 0, z: 0 }
+  const tragNeu: TragLage = tragLageNeu(0, 0)
+  const tragZeige: ZeigeEingabe = { touch: false, ziehen: false, maus: null, breite: 1, hoehe: 1 }
+
+  /** Wie viele Moebel gegenueber dem Original verschoben oder gedreht sind
+   *  (das getragene mit seiner Lage vor dem Anheben). */
+  function verschobenZahl(): number {
+    let n = 0
+    for (const s of stuecke.values()) if (s.ur && !tragRuht(s.lage)) n++
+    return n
+  }
+
+  /** Den Zustand an moebelTragen() melden, wenn er sich geaendert hat (mit
+   *  grund immer). Aendert sich nur, ob die Stelle passt, hoechstens alle
+   *  TRAGEN_MELDEN_MS, ausser sofort. true: eine Meldung steht noch aus,
+   *  die Schleife soll weiterlaufen, bis sie heraus ist. */
+  function tragMelden(sofort: boolean, grund: 'gesperrt' | null): boolean {
+    const fn = tragFn
+    if (!fn) return false
+    const traegt = trag ? trag.s.id : null
+    const ok = trag ? trag.ok : true
+    const n = verschobenZahl()
+    const anders = traegt !== tragGemeldet.traegt || n !== tragGemeldet.verschoben
+    if (!grund && !anders && ok === tragGemeldet.ok) return false
+    const jetzt = performance.now()
+    if (!grund && !anders && !sofort && jetzt - tragGemeldet.zeit < TRAGEN_MELDEN_MS) return true
+    tragGemeldet.traegt = traegt
+    tragGemeldet.ok = ok
+    tragGemeldet.verschoben = n
+    tragGemeldet.zeit = jetzt
+    try {
+      fn({ traegt, ok, verschoben: n, grund })
+    } catch (err) {
+      console.error('[3d] moebelTragen: der Abnehmer wirft:', err)
+    }
+    return false
+  }
+
+  /** Laesst sich jetzt ein Moebel anheben? Beim Begehen auf der Ebene der
+   *  Wohnung, zu Fuss und stehend, mit leerer Hand, nicht auf einer Treppe,
+   *  im Aufzug, bei einem Sprung, Ebenenwechsel oder Warten auf eine Ebene. */
+  function tragenGeht(): boolean {
+    return (
+      !!tragFn &&
+      gehen &&
+      eingabeAn &&
+      !trag &&
+      !fahrt &&
+      !halt.ding &&
+      haltungJetzt === 'stehen' &&
+      !wechsel.an &&
+      ebenen.aufWohnung &&
+      !ebeneWarten &&
+      !sprung.an &&
+      treppeJetzt < 0 &&
+      !uebergang.an &&
+      !(aufzug.an && aufzug.mit)
+    )
+  }
+
+  /** Das Moebel unter dem Strahl (strahl ist gesetzt), hoechstens
+   *  TRAGEN_WEIT_M weit: seine Kennung (bei einer Kiste die ihres Traegers)
+   *  und die Hoehe der getroffenen Stelle, sonst null. Glas zaehlt nicht,
+   *  etwas Deckendes davor (Wand, Boden) verdeckt. */
+  function moebelUnterStrahl(): { id: string; y: number } | null {
+    for (const hit of strahl.intersectObjects(gruppe.children, false)) {
+      if (hit.distance > TRAGEN_WEIT_M) return null
+      const o = hit.object
+      if (!o.visible) continue
+      const u = daten(o)
+      if (u.glas) continue
+      const id = u.gehoert ?? (u.kisteId ? traeger.get(u.kisteId) : undefined)
+      if (id) return { id, y: hit.point.y }
+      const mat = (o as Mesh).material as MeshLambertMaterial | undefined
+      if (mat && !Array.isArray(mat) && mat.opacity >= 0.5) return null
+    }
+    return null
+  }
+
+  /** Rechtsklick oder langes Druecken an der Bildstelle (CSS-Pixel): das
+   *  Moebel dort anheben; laesst es sich nicht tragen, meldet sich grund
+   *  'gesperrt'. */
+  function tragenBei(clientX: number, clientY: number) {
+    if (!tragenGeht()) return
+    strahl.setFromCamera(zeigerNdc({ clientX, clientY }), camera)
+    const t = moebelUnterStrahl()
+    if (!t) return
+    const s = stuecke.get(t.id)
+    if (!s) return
+    if (s.fest || tragGesperrt.has(s.id)) {
+      tragMelden(true, 'gesperrt')
+      return
+    }
+    aufnehmen(s, t.y)
+  }
+
+  /** Das Original von allem, was mit s geht: Kisten (traeger), Tueren,
+   *  Schubladen, Dinge, Plaetze und Rechtecke in kollision.ts. Beim ersten
+   *  Anheben nach einem Bau; bis dahin hat nichts davon seine Lage
+   *  geaendert (Tueren und Schubladen nur ihren Stand). */
+  function stueckMerken(s: Stueck): StueckUr {
+    const kisten: Mesh[] = []
+    for (const o of gruppe.children) {
+      const u = daten(o)
+      if (u.kisteId && u.ur && traeger.get(u.kisteId) === s.id) kisten.push(o as Mesh)
+    }
+    const tueren: StueckUr['tueren'] = []
+    const schuebe: StueckUr['schuebe'] = []
+    const dingeUr: StueckUr['dinge'] = []
+    const tuerSchon = new Set<TuerGruppe>()
+    const schubSchon = new Set<SchubGruppe>()
+    const dingSchon = new Set<Ding>()
+    for (const m of s.teile) {
+      const u = daten(m)
+      const g = u.tuer?.gruppe
+      if (g && !tuerSchon.has(g)) {
+        tuerSchon.add(g)
+        tueren.push({ g, zu: g.zu, auf: g.auf, teile: g.teile.map((t) => ({ t, ax: t.ax, az: t.az, ox: t.ox, oz: t.oz, d: t.drehY })) })
+      }
+      const sch = u.schub
+      if (sch && !schubSchon.has(sch)) {
+        schubSchon.add(sch)
+        schuebe.push({ s: sch, weg: [sch.weg[0], sch.weg[1]], teile: sch.teile.map((t) => ({ t, bx: t.bx, bz: t.bz, d: t.drehY })) })
+      }
+      const d = u.ding ? dinge.get(u.ding) : undefined
+      if (d && !d.objekt && !dingSchon.has(d)) {
+        dingSchon.add(d)
+        dingeUr.push({ d, cx: d.cx, cz: d.cz, breite: d.breite, tiefe: d.tiefe, teile: d.teile.map((t) => ({ t, px: t.px, pz: t.pz, d: t.drehY })) })
+      }
+    }
+    const plaetzeUr = (plaetze.get(s.id) ?? []).map((p) => ({ p, x: p.punkt[0], z: p.punkt[2], blick: p.blick }))
+    const hindernisse: StueckUr['hindernisse'] = []
+    for (const m of [...s.teile, ...kisten]) {
+      const u = daten(m)
+      const i = u.hindernis ?? -1
+      if (i < 0) continue
+      const beweglich = kollision.beweglich[i] === true
+      hindernisse.push({
+        i,
+        ur: beweglich ? null : (u.ur ?? null),
+        b: { x0: kollision.bx0[i], z0: kollision.bz0[i], x1: kollision.bx1[i], z1: kollision.bz1[i] },
+        beweglich,
+        tuer: !!u.tuer,
+      })
+    }
+    return { kisten, tueren, schuebe, dinge: dingeUr, plaetze: plaetzeUr, hindernisse }
+  }
+
+  /** Ein Teil in die Lage l (vom Original ur aus, w = Drehwinkel von l). */
+  function poseSetzen(m: Object3D, ur: TeilUr, l: TragLage, w: number) {
+    tragPunkt(l, ur.x, ur.z, tragHilf)
+    m.position.set(tragHilf.x, ur.y, tragHilf.z)
+    m.rotation.set(ur.kx, ur.d + w, ur.kz, 'YXZ')
+  }
+
+  /** Das Moebel s mit allem, was mitgeht, in die Lage l (immer vom Original
+   *  aus). Tueren und Schubladen behalten ihren Stand. Dinge, die jemand
+   *  bewegt hat oder haelt, bleiben, wo sie sind. voll: auch Plaetze und
+   *  Rechtecke in kollision.ts (wieder an; danach kollisionFertig()); ohne
+   *  voll (beim Tragen) nur, was man sieht. */
+  function stueckSetzen(s: Stueck, l: TragLage, voll: boolean) {
+    const ur = s.ur
+    if (!ur) return
+    const w = tragWinkel(l.k)
+    for (const m of s.teile) {
+      const u = daten(m)
+      if (u.tuer || u.schub || u.ding || !u.ur) continue
+      poseSetzen(m, u.ur, l, w)
+    }
+    for (const m of ur.kisten) {
+      const u = daten(m)
+      if (u.ur) poseSetzen(m, u.ur, l, w)
+    }
+    for (const t of ur.tueren) {
+      const g = t.g
+      // Der Stand (Winkel gegenueber zu) bleibt, die Tuer dreht mit.
+      const rel = winkelDiff(g.winkel, g.zu)
+      const relVon = winkelDiff(g.von, g.zu)
+      const relNach = winkelDiff(g.nach, g.zu)
+      g.zu = t.zu + w
+      g.auf = t.auf + w
+      g.winkel = g.zu + rel
+      g.von = g.zu + relVon
+      g.nach = g.zu + relNach
+      for (const e of t.teile) {
+        tragPunkt(l, e.ax, e.az, tragHilf)
+        e.t.ax = tragHilf.x
+        e.t.az = tragHilf.z
+        tragRichtung(l, e.ox, e.oz, tragHilf)
+        e.t.ox = tragHilf.x
+        e.t.oz = tragHilf.z
+        e.t.drehY = e.d + w
+      }
+      tuerSetzen(g, g.winkel, voll)
+    }
+    for (const sc of ur.schuebe) {
+      tragRichtung(l, sc.weg[0], sc.weg[1], tragHilf)
+      sc.s.weg = [tragHilf.x, tragHilf.z]
+      for (const e of sc.teile) {
+        tragPunkt(l, e.bx, e.bz, tragHilf)
+        e.t.bx = tragHilf.x
+        e.t.bz = tragHilf.z
+        e.t.drehY = e.d + w
+        const u = daten(e.t.mesh)
+        e.t.mesh.rotation.set(u.ur?.kx ?? 0, e.t.drehY, u.ur?.kz ?? 0, 'YXZ')
+      }
+      schubSetzen(sc.s, sc.s.anteil, voll)
+    }
+    for (const di of ur.dinge) {
+      const d = di.d
+      if (dingLage.has(d.id) || halt.ding === d) continue
+      tragPunkt(l, di.cx, di.cz, tragHilf)
+      d.cx = tragHilf.x
+      d.cz = tragHilf.z
+      // Breite entlang x der Beschreibung: bei einer Vierteldrehung getauscht.
+      const quer = l.k % 2 === 1
+      d.breite = quer ? di.tiefe : di.breite
+      d.tiefe = quer ? di.breite : di.tiefe
+      for (const e of di.teile) {
+        const t = e.t
+        tragPunkt(l, e.px, e.pz, tragHilf)
+        t.px = tragHilf.x
+        t.pz = tragHilf.z
+        t.drehY = e.d + w
+        t.mesh.position.set(t.px, t.py, t.pz)
+        t.mesh.rotation.set(t.kx, t.drehY, t.kz, 'YXZ')
+      }
+    }
+    lichterVersetzen(s.id, l)
+    if (!voll) return
+    for (const p of ur.plaetze) {
+      tragPunkt(l, p.x, p.z, tragHilf)
+      p.p.punkt[0] = tragHilf.x
+      p.p.punkt[2] = tragHilf.z
+      p.p.blick = p.blick + w
+    }
+    for (const h of ur.hindernisse) {
+      if (h.beweglich) {
+        // Tuer und Schublade: ihre Gruppe hat die Lage gesetzt; der Bereich,
+        // den sie ueberstreichen, dreht und wandert mit.
+        const b = kastenLage(h.b, l)
+        kollision.bereichSetzen(h.i, b.x0, b.z0, b.x1, b.z1)
+        // Tueren schaltet tuerSetzen je nach Stand, Schubladen halten immer auf.
+        if (!h.tuer) kollision.aktiv(h.i, true)
+        continue
+      }
+      if (!h.ur) continue
+      tragPunkt(l, h.ur.x, h.ur.z, tragHilf)
+      kollision.lage(h.i, tragHilf.x, tragHilf.z, h.ur.d + w)
+      const [ex, ez] = kollision.ausdehnung(h.i)
+      kollision.bereichSetzen(h.i, tragHilf.x - ex, tragHilf.z - ez, tragHilf.x + ex, tragHilf.z + ez)
+      kollision.aktiv(h.i, true)
+    }
+  }
+
+  /** Nach dem Abstellen, Zuruecklegen oder Zuruecksetzen: das Raster der
+   *  Wohnung neu (die Rechtecke stehen woanders), der Kasten der Wohnung
+   *  fuer das Zielen neu, und wer jetzt in einem Moebel steht, kommt
+   *  heraus. */
+  function kollisionFertig() {
+    kollision.rastern()
+    wohnKasten.makeEmpty()
+    if (gruppe.children.length) wohnKasten.setFromObject(gruppe)
+    if (gehen && !fahrt && haltungJetzt === 'stehen' && !wechsel.an && ebenen.aufWohnung && treppeJetzt < 0 && !ebeneWarten) {
+      const p = camera.position
+      stelle.x = p.x
+      stelle.z = p.z
+      ebenen.aktiv.herausdruecken(stelle, KOERPER_RADIUS_M, fussUeber(), fzZusatz())
+      p.x = stelle.x
+      p.z = stelle.z
+    }
+  }
+
+  /** Darf das getragene Moebel dort stehen, wo es gerade ist? Wo es vor dem
+   *  Anheben stand, immer (das ist Zuruecklegen). */
+  function tragOk(tr: TragGriff): boolean {
+    if (tragGleich(tr.lage, tr.vorher)) return true
+    const a = tr.s.abdruck
+    if (!a) return true
+    return stelleErlaubt(kastenLage(a, tr.lage), kollision, wandHind, raumUmrisse, tr.s.schrumpf)
+  }
+
+  /** s anheben (trefferY: Hoehe der Stelle, an der man es griff). */
+  function aufnehmen(s: Stueck, trefferY: number) {
+    if (!s.ur) {
+      s.ur = stueckMerken(s)
+      // Steht es schon im Plan ein Stueck in einer Wand, darf es das auch anderswo.
+      if (s.abdruck) s.schrumpf = schrumpfFuer(s.abdruck, kollision, wandHind, raumUmrisse)
+      // Die Mitte des Grundrisses im Plan, wenn der Aufrufer sie kennt: um
+      // sie dreht es, ihre Verschiebung geht ins Speichern.
+      const m = tragMitten?.get(s.id)
+      if (m && Number.isFinite(m[0]) && Number.isFinite(m[1]) && tragRuht(s.lage)) s.lage = tragLageNeu(m[0], m[1])
+    }
+    const ur = s.ur
+    // Laufende Tueren und Schubladen kommen an, bevor es losgeht.
+    for (const t of ur.tueren) {
+      const g = t.g
+      if (g.lauf === 1) tuerSetzen(g, g.nach)
+      else if (g.lauf === 2) tuerSetzen(g, g.zu)
+      g.lauf = 0
+    }
+    for (const sc of ur.schuebe) {
+      if (sc.s.lauf) schubSetzen(sc.s, sc.s.nach)
+      sc.s.lauf = false
+    }
+    // Solange man es traegt, haelt es nirgends auf.
+    for (const h of ur.hindernisse) kollision.aktiv(h.i, false)
+    const tr: TragGriff = { s, vorher: { ...s.lage }, lage: { ...s.lage }, k: s.lage.k, ebeneY: zugEbeneY(trefferY, camera.position.y), versatz: null, ok: true }
+    trag = tr
+    tr.ok = tragOk(tr)
+    tintAn([...s.teile, ...ur.kisten], tr.ok)
+    // Der Druck, der es anhob, tippt nichts mehr an.
+    tipp = null
+    tragMelden(true, null)
+    anstossen()
+  }
+
+  /** Ein Bild beim Tragen: das Moebel folgt dem Zeiger (Maus; am Handy der
+   *  Mitte des Bildes) auf der Zugebene, mit dem Versatz von beim Greifen.
+   *  Ohne Maus ueber dem Bild bleibt es stehen. true, solange eine Meldung
+   *  aussteht. */
+  function tragenSchritt(): boolean {
+    const tr = trag
+    if (!tr) return false
+    if (!gehen || fahrt || sprung.an) {
+      zuruecklegen()
+      return false
+    }
+    if (eingabeAn && (zeige.touch || zeige.maus)) {
+      // Am Rechner immer die Maus, auch beim Umschauen mit gedrueckter
+      // Taste: sonst spraenge es zur Mitte und zurueck.
+      tragZeige.touch = zeige.touch
+      tragZeige.maus = zeige.maus
+      tragZeige.breite = leinwand.b
+      tragZeige.hoehe = leinwand.h
+      zeigePunkt(tragZeige, ndcZiel)
+      tragStrahl.setFromCamera(ndcZiel, camera)
+      const o = tragStrahl.ray.origin
+      const r = tragStrahl.ray.direction
+      Object.assign(tragNeu, tr.lage)
+      tragNeu.k = tr.k
+      if (strahlAufEbene(o.x, o.y, o.z, r.x, r.y, r.z, tr.ebeneY, 200, tragTreffer)) {
+        if (!tr.versatz) tr.versatz = { x: tr.lage.cx + tr.lage.tx - tragTreffer.x, z: tr.lage.cz + tr.lage.tz - tragTreffer.z }
+        tragFolgen(tr.lage, tr.k, tragTreffer.x, tragTreffer.z, tr.versatz.x, tr.versatz.z, camera.position.x, camera.position.z, tragNeu)
+      }
+      if (!tragGleich(tragNeu, tr.lage)) {
+        Object.assign(tr.lage, tragNeu)
+        stueckSetzen(tr.s, tr.lage, false)
+        tr.ok = tragOk(tr)
+        tintFarbe(tr.ok)
+      }
+    }
+    return tragMelden(false, null)
+  }
+
+  /** Das getragene Moebel um eine Vierteldrehung weiter (r = 1 wie three,
+   *  gegen den Uhrzeigersinn von oben). */
+  function tragenDrehen(r: 1 | -1) {
+    const tr = trag
+    if (!tr || !gehen) return
+    tr.k = stufe(tr.k + r)
+    tr.lage.k = tr.k
+    stueckSetzen(tr.s, tr.lage, false)
+    tr.ok = tragOk(tr)
+    tintFarbe(tr.ok)
+    tragMelden(true, null)
+    anstossen()
+  }
+
+  /** Tragen beenden: s steht in Lage l (ganz gesetzt, Rechtecke wieder an). */
+  function tragEnde(s: Stueck, l: TragLage) {
+    trag = null
+    tintAus()
+    s.lage = { ...l }
+    stueckSetzen(s, s.lage, true)
+    kollisionFertig()
+    tragMelden(true, null)
+    anstossen()
+  }
+
+  /** Abstellen, wo es gerade ist, wenn es dort stehen darf. true, wenn es
+   *  steht. */
+  function tragenAbstellen(): boolean {
+    const tr = trag
+    if (!tr) return false
+    if (!tr.ok) {
+      anstossen()
+      return false
+    }
+    tragEnde(tr.s, tragGleich(tr.lage, tr.vorher) ? tr.vorher : tr.lage)
+    return true
+  }
+
+  /** Zurueck, wohin es vor diesem Anheben stand. */
+  function zuruecklegen() {
+    const tr = trag
+    if (!tr) return
+    tragEnde(tr.s, tr.vorher)
+  }
+
+  /** Alles zurueck auf das Original des letzten Baus, auch ein getragenes. */
+  function zuruecksetzen() {
+    const tr = trag
+    if (tr) {
+      trag = null
+      tintAus()
+      tr.s.lage = tragLageNeu(tr.s.lage.cx, tr.s.lage.cz)
+      stueckSetzen(tr.s, tr.s.lage, true)
+    }
+    let geaendert = tr !== null
+    for (const s of stuecke.values()) {
+      if (!s.ur || tragRuht(s.lage)) continue
+      s.lage = tragLageNeu(s.lage.cx, s.lage.cz)
+      stueckSetzen(s, s.lage, true)
+      geaendert = true
+    }
+    if (geaendert) kollisionFertig()
+    tragMelden(true, null)
+    anstossen()
+  }
+
+  /* Die Toenung des getragenen Moebels: jedes Material einmal geklont, mit
+   * leichtem Eigenleuchten (blau, wo es stehen darf, rot, wo nicht), die
+   * Kanten in derselben Farbe. Beim Ende kommt alles zurueck. */
+  const tint = {
+    klone: new Map<Material, MeshLambertMaterial | MeshPhongMaterial>(),
+    mats: new Map<Mesh, Material | Material[]>(),
+    linien: new Map<LineSegments, Material | Material[]>(),
+    ok: true,
+  }
+  let tintLinieOk: LineBasicMaterial | null = null
+  let tintLinieNein: LineBasicMaterial | null = null
+  function tintAn(meshes: Mesh[], ok: boolean) {
+    tintAus()
+    for (const m of meshes) {
+      const mat = m.material
+      if (!Array.isArray(mat) && (mat instanceof MeshLambertMaterial || mat instanceof MeshPhongMaterial)) {
+        let k = tint.klone.get(mat)
+        if (!k) {
+          k = mat.clone()
+          tint.klone.set(mat, k)
+        }
+        tint.mats.set(m, mat)
+        m.material = k
+      }
+      for (const c of m.children) {
+        const l = c as LineSegments
+        if (l.isLineSegments) tint.linien.set(l, l.material)
+      }
+    }
+    tint.ok = !ok
+    tintFarbe(ok)
+  }
+  function tintFarbe(ok: boolean) {
+    if (tint.ok === ok) return
+    tint.ok = ok
+    const e = ok ? 0x173c5c : 0x8a2414
+    for (const k of tint.klone.values()) k.emissive.setHex(e)
+    tintLinieOk ??= new LineBasicMaterial({ color: 0x4a90d9 })
+    tintLinieNein ??= new LineBasicMaterial({ color: 0xd2644f })
+    const lm = ok ? tintLinieOk : tintLinieNein
+    for (const l of tint.linien.keys()) l.material = lm
+    anstossen()
+  }
+  function tintAus() {
+    for (const [m, mat] of tint.mats) m.material = mat
+    for (const [l, mat] of tint.linien) l.material = mat
+    for (const k of tint.klone.values()) k.dispose()
+    tint.klone.clear()
+    tint.mats.clear()
+    tint.linien.clear()
   }
 
   /** Das Fahrzeug unter dem Strahl (strahl ist gesetzt), nicht verdeckt. */
@@ -5056,6 +5797,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
     vorschauSchritt()
     teileSichtbar()
     if (blaulichtLaeuft()) weiter = true
+    // E89: ein getragenes Moebel folgt dem Zeiger.
+    if (tragenSchritt()) weiter = true
     // Was man tun kann (E87), nur bei Aenderung gemeldet.
     moeglichPruefen(false)
     renderer.render(scene, camera)
@@ -5207,12 +5950,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
     mausPunkt.x = e.clientX - r.left
     mausPunkt.y = e.clientY - r.top
     zeige.maus = mausPunkt
-    if (gehen && halt.ding && !fahrt) anstossen()
+    if (gehen && (halt.ding || trag) && !fahrt) anstossen()
   }
   const zeigerWeg = (e: PointerEvent) => {
     if (e.pointerType !== 'mouse') return
     zeige.maus = null
-    if (gehen && halt.ding && !fahrt) anstossen()
+    if (gehen && (halt.ding || trag) && !fahrt) anstossen()
   }
   renderer.domElement.addEventListener('pointerdown', zeigerLage)
   renderer.domElement.addEventListener('pointermove', zeigerLage)
@@ -5236,6 +5979,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
     strahl.setFromCamera(zeigerNdc(e), camera)
     // Im Fahrzeug (E87) tippt man nichts an; Umschauen geht weiter.
     if (gehen && fahrt) return
+    // E89: mit einem getragenen Moebel stellt Klick oder Tipp es ab (wenn
+    // es dort stehen darf); sonst tippt man nichts an.
+    if (gehen && trag) {
+      tragenAbstellen()
+      return
+    }
     // Antippbares der Welt (Aufzugknoepfe, E83) zuerst, auch mit einem Ding
     // in der Hand.
     if (weltTippen()) return
@@ -5320,6 +6069,67 @@ export function motorStarten(host: HTMLElement): Motor | null {
   renderer.domElement.addEventListener('pointerdown', tippRunter)
   renderer.domElement.addEventListener('pointerup', tippHoch)
 
+  /* Moebel tragen (E89): rechte Maustaste hebt an und legt zurueck, am
+   * Handy hebt langes Druecken an (Tippen stellt ab, siehe tippHoch). Das
+   * Kontextmenue des Browsers kommt beim Begehen nie. Wer mit der rechten
+   * Taste gezogen hat (Umschauen), hebt nichts an. Langes Druecken meldet
+   * sich am Handy auch als Kontextmenue: das zaehlt dann nicht noch einmal. */
+  let rechts: { x: number; y: number } | null = null
+  let beruehrtZeit = -Infinity
+  let langDruck: { id: number; x: number; y: number; uhr: number } | null = null
+  function langDruckAus() {
+    if (!langDruck) return
+    window.clearTimeout(langDruck.uhr)
+    langDruck = null
+  }
+  const tragRunter = (e: PointerEvent) => {
+    if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+      beruehrtZeit = performance.now()
+      // Ein zweiter Finger (Zoomen, Knueppel daneben) bricht ab.
+      langDruckAus()
+      if (!e.isPrimary || !tragenGeht()) return
+      const x = e.clientX
+      const y = e.clientY
+      langDruck = {
+        id: e.pointerId,
+        x,
+        y,
+        uhr: window.setTimeout(() => {
+          langDruck = null
+          tragenBei(x, y)
+        }, LANG_DRUECKEN_MS),
+      }
+      return
+    }
+    rechts = e.button === 2 ? { x: e.clientX, y: e.clientY } : null
+  }
+  const tragBewegen = (e: PointerEvent) => {
+    const l = langDruck
+    if (l && e.pointerId === l.id && Math.hypot(e.clientX - l.x, e.clientY - l.y) > LANG_DRUECKEN_PX) langDruckAus()
+  }
+  const tragHoch = (e: PointerEvent) => {
+    if (langDruck && e.pointerId === langDruck.id) langDruckAus()
+  }
+  const rechtsKlick = (e: MouseEvent) => {
+    if (!gehen) return
+    e.preventDefault()
+    const r = rechts
+    rechts = null
+    if (!tragFn || !eingabeAn) return
+    if (performance.now() - beruehrtZeit < 1500) return
+    if (r && Math.hypot(e.clientX - r.x, e.clientY - r.y) > 6) return
+    if (trag) {
+      zuruecklegen()
+      return
+    }
+    tragenBei(e.clientX, e.clientY)
+  }
+  renderer.domElement.addEventListener('pointerdown', tragRunter)
+  renderer.domElement.addEventListener('pointermove', tragBewegen)
+  renderer.domElement.addEventListener('pointerup', tragHoch)
+  renderer.domElement.addEventListener('pointercancel', tragHoch)
+  renderer.domElement.addEventListener('contextmenu', rechtsKlick)
+
   /* ------------------------------------------------ Begehen an und aus */
 
   /** Begehen beginnen: auf Ebene ebene (Index in welt().ebenen) an der
@@ -5390,9 +6200,12 @@ export function motorStarten(host: HTMLElement): Motor | null {
       return
     }
     // Aus dem Fahrzeug (E87; es bleibt stehen), was in der Hand ist, wird
-    // abgelegt; wer sitzt, steht auf.
+    // abgelegt; wer sitzt, steht auf. Ein getragenes Moebel (E89) geht
+    // zurueck, wo es vor dem Anheben stand.
     if (fahrt) fahrtEnde(null, true)
     if (halt.ding) ablegen()
+    if (trag) zuruecklegen()
+    langDruckAus()
     gehen = false
     bremse = false
     // Keine Treppe, kein Sprung mehr (E87).
@@ -5608,6 +6421,41 @@ export function motorStarten(host: HTMLElement): Motor | null {
     lage: lageSetzen,
     bewegt(fn) {
       bewegtFn = fn
+    },
+    /* E89: Moebel tragen. */
+    moebelTragen(fn, gesperrt, mitten) {
+      if (weg) return
+      if (!fn) {
+        if (trag) zuruecklegen()
+        langDruckAus()
+      }
+      tragFn = fn
+      tragGesperrt = gesperrt ?? new Set()
+      tragMitten = mitten ?? null
+      if (fn) {
+        // Gleich einmal melden, wie es steht.
+        tragGemeldet.verschoben = -1
+        tragMelden(true, null)
+      }
+    },
+    moebelAbstellen() {
+      if (!weg) tragenAbstellen()
+    },
+    moebelZuruecklegen() {
+      if (!weg) zuruecklegen()
+    },
+    moebelZuruecksetzen() {
+      if (!weg) zuruecksetzen()
+    },
+    moebelAenderungen() {
+      const out: MoebelAenderung[] = []
+      if (weg) return out
+      for (const s of stuecke.values()) {
+        if (!s.ur) continue
+        const a = aenderungAus(s.id, s.lage)
+        if (a) out.push(a)
+      }
+      return out
     },
     waendeHalb(an) {
       halb = an
@@ -5827,6 +6675,18 @@ export function motorStarten(host: HTMLElement): Motor | null {
       renderer.domElement.removeEventListener('pointerdown', zeigerLage)
       renderer.domElement.removeEventListener('pointermove', zeigerLage)
       renderer.domElement.removeEventListener('pointerleave', zeigerWeg)
+      // E89: Tragen aus (nichts mehr melden), Toenung zurueck.
+      renderer.domElement.removeEventListener('pointerdown', tragRunter)
+      renderer.domElement.removeEventListener('pointermove', tragBewegen)
+      renderer.domElement.removeEventListener('pointerup', tragHoch)
+      renderer.domElement.removeEventListener('pointercancel', tragHoch)
+      renderer.domElement.removeEventListener('contextmenu', rechtsKlick)
+      langDruckAus()
+      tragFn = null
+      trag = null
+      tintAus()
+      tintLinieOk?.dispose()
+      tintLinieNein?.dispose()
       window.clearTimeout(ruheUhr)
       host.removeEventListener('pointerdown', ziehRunter, { capture: true })
       host.removeEventListener('pointermove', ziehBewegen, { capture: true })
