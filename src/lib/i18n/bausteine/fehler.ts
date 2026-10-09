@@ -36,6 +36,15 @@ export const fehler: Woerterbuch = {
     de: 'Dein Konto ist noch nicht freigeschaltet.',
     ar: 'حسابك لم يُفعَّل بعد.',
   },
+  // Aus 0049: Mitgliedschaft und Eigentuemer bleiben fest.
+  'fehler.db.mitglied.fest': {
+    de: 'Eine Mitgliedschaft lässt sich nicht in einen anderen Umzug oder auf eine andere Person verschieben.',
+    ar: 'لا يمكن نقل العضوية إلى نقلة أخرى أو إلى شخص آخر.',
+  },
+  'fehler.db.umzug.eigentuemer_nur_besitzer': {
+    de: 'Den Eigentümer eines Umzugs ändert nur ein Besitzer.',
+    ar: 'لا يغيّر صاحبَ النقلة إلا أحدُ مالكيها.',
+  },
   'fehler.admin_laden': {
     de: 'Admin-Übersicht nicht geladen: {grund}',
     ar: 'تعذّر تحميل لوحة الإدارة: {grund}',
