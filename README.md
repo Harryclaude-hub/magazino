@@ -371,7 +371,9 @@ Das Formular fuer das neue Passwort erscheint nur, wenn dieser Tab den Link
 in diesem Seitenaufruf selbst eingeloest hat; meldet ein anderer Tab das
 Einloesen, zaehlt das hier nicht. Nur angemeldet sein reicht nicht. Im
 Formular steht, fuer welches Konto das neue Passwort gilt; war vorher ein
-anderes Konto angemeldet, sagt ein Hinweis das. Bis das neue Passwort
+anderes Konto angemeldet, sagt ein Hinweis das (nur beim Link mit
+token_hash nach dem Klick auf "Weiter", beim alten Link mit ?code= nicht).
+Bis das neue Passwort
 steht, fuehrt jede andere Seite dorthin zurueck. Danach werden alle anderen
 Geraete abgemeldet; klappt das nicht, sagt die Seite das, statt es zu
 behaupten. Wer angemeldet ist, aendert das Passwort in den Einstellungen,

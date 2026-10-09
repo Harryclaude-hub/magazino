@@ -133,8 +133,8 @@ export const konto: Woerterbuch = {
   // Vor dem Klick war hier ein anderes Konto angemeldet als das aus dem Link.
   'konto.anderes_konto_titel': { de: 'Achtung: anderes Konto', ar: 'تنبيه: حساب آخر' },
   'konto.anderes_konto_text': {
-    de: 'Dieser Link gehört nicht zu dem Konto, mit dem du hier angemeldet warst. Das neue Passwort gilt für {email}. Mit deinem bisherigen Konto bist du auf diesem Gerät abgemeldet. Willst du das nicht, tippe unten auf „Abbrechen und abmelden“.',
-    ar: 'هذا الرابط لا يخص الحساب الذي كنت مسجّل الدخول به هنا. كلمة المرور الجديدة ستكون للحساب {email}. تم تسجيل خروجك من حسابك السابق على هذا الجهاز. إن لم تكن تريد ذلك، فاضغط في الأسفل على «إلغاء وتسجيل الخروج».',
+    de: 'Dieser Link gehört nicht zu dem Konto, mit dem du hier angemeldet warst. Das neue Passwort gilt für {email}. Mit deinem bisherigen Konto bist du auf diesem Gerät abgemeldet. Willst du für {email} kein neues Passwort setzen, tippe unten auf „Abbrechen und abmelden“ und melde dich danach mit deinem bisherigen Konto wieder an.',
+    ar: 'هذا الرابط لا يخص الحساب الذي كنت مسجّل الدخول به هنا. كلمة المرور الجديدة ستكون للحساب {email}. تم تسجيل خروجك من حسابك السابق على هذا الجهاز. إن لم تكن تريد تعيين كلمة مرور جديدة للحساب {email}، فاضغط في الأسفل على «إلغاء وتسجيل الخروج» ثم سجّل الدخول من جديد بحسابك السابق.',
   },
   // Der Vorgang lief schon und wurde anderswo beendet (anderer Tab).
   'konto.link_beendet_titel': { de: 'Vorgang beendet', ar: 'انتهت العملية' },
