@@ -267,7 +267,9 @@ node scripts/smoketest.mjs
 
 Der Smoketest legt einen Umzug an, prueft die komplette Codevergabe, die
 Code-Historie, Rechte und Abschottung, und raeumt danach wieder auf. Er
-braucht einmalig einen Testzugang:
+braucht einmalig einen Testzugang. `<DEIN-TESTPASSWORT>` durch ein eigenes,
+nirgends sonst benutztes Passwort ersetzen; es gehoert in keine Datei im
+Repo:
 
 ```sql
 insert into auth.users (
@@ -278,7 +280,7 @@ insert into auth.users (
 ) values (
   '00000000-0000-0000-0000-000000000000', gen_random_uuid(),
   'authenticated', 'authenticated', 'smoketest@kistly.app',
-  crypt('Smoketest-2026-kistly', gen_salt('bf')), now(), now(), now(),
+  crypt('<DEIN-TESTPASSWORT>', gen_salt('bf')), now(), now(), now(),
   '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
   '', '', '', ''
 );
@@ -287,6 +289,17 @@ insert into auth.users (
 Die leeren Zeichenketten am Ende sind kein Zierrat: GoTrue liest diese Spalten
 in nicht-nullbare Felder und meldet sonst beim Anmelden
 "Database error querying schema".
+
+Das Passwort bekommt der Smoketest nur aus der Umgebung, ohne
+`SMOKE_PASSWORD` bricht er sofort mit einem Hinweis ab. So gesetzt steht es
+weder in der Befehlszeile noch im Verlauf:
+
+```powershell
+$env:SMOKE_PASSWORD = Read-Host 'Passwort des Testzugangs'
+node scripts/smoketest.mjs
+```
+
+`SMOKE_EMAIL` setzt bei Bedarf eine andere Adresse fuer den Testzugang.
 
 ### 7. Symbole neu erzeugen (nur wenn das Logo geaendert wird)
 
