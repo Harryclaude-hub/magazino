@@ -13,6 +13,9 @@ export default function Register() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [repeat, setRepeat] = useState('')
+  // Nach dem Anlegen gehen beide Augen wieder zu.
+  const [verbergen, setVerbergen] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -30,9 +33,14 @@ export default function Register() {
       setError(t('konto.passwort_kurz'))
       return
     }
+    if (password !== repeat) {
+      setError(t('konto.passwoerter_ungleich'))
+      return
+    }
     setBusy(true)
     try {
       const { needsConfirm } = await signUp(email, password, name)
+      setVerbergen((n) => n + 1)
       if (needsConfirm) {
         // Nicht so tun als waere alles fertig. Der Hinweis muss sichtbar sein.
         setInfo(t('konto.bestaetigung_noetig'))
@@ -94,6 +102,16 @@ export default function Register() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={t('konto.neues_passwort_platzhalter')}
+            verbergen={verbergen}
+          />
+        </Field>
+        <Field label={t('konto.passwort_nochmal')} required>
+          <PasswordInput
+            autoComplete="new-password"
+            required
+            value={repeat}
+            onChange={(e) => setRepeat(e.target.value)}
+            verbergen={verbergen}
           />
         </Field>
 

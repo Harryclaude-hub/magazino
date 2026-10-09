@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Bell, BellOff, LogOut, ShieldCheck } from 'lucide-react'
 import { AppHeader, Page, siedlungKnopfSetzen, useSiedlungKnopf } from '../components/AppShell'
@@ -66,7 +66,7 @@ const DESIGN_PROBE: Record<(typeof ALLE_DESIGNS)[number], string[]> = {
 }
 
 export default function Settings() {
-  const { user, profile, updateProfile, updatePassword, signOut } = useAuth()
+  const { user, profile, updateProfile, passwortAendern, signOut } = useAuth()
   const { mode, setMode } = useTheme()
   const { stufe, setStufe } = useMotion()
   const toast = useToast()
@@ -86,7 +86,12 @@ export default function Settings() {
   }, [])
 
   const [name, setName] = useState(profile?.display_name ?? '')
+  const [altesPasswort, setAltesPasswort] = useState('')
   const [password, setPassword] = useState('')
+  const [passwordNochmal, setPasswordNochmal] = useState('')
+  const [passFehler, setPassFehler] = useState<string | null>(null)
+  // Nach dem Aendern gehen alle drei Augen wieder zu.
+  const [verbergen, setVerbergen] = useState(0)
   const [busyName, setBusyName] = useState(false)
   const [busyPass, setBusyPass] = useState(false)
   const [push, setPush] = useState<PushState>('default')
@@ -119,6 +124,39 @@ export default function Settings() {
   useEffect(() => {
     loadPrefs()
   }, [loadPrefs])
+
+  /* Passwort aendern: erst das aktuelle (geprueft mit einem eigenen
+   * Wegwerf-Client in auth.tsx), dann das neue zweimal. Danach sind alle
+   * anderen Geraete abgemeldet. */
+  async function passwortSpeichern(e: FormEvent) {
+    e.preventDefault()
+    setPassFehler(null)
+    if (password.length < 8) {
+      setPassFehler(t('konto.passwort_kurz'))
+      return
+    }
+    if (password !== passwordNochmal) {
+      setPassFehler(t('konto.passwoerter_ungleich'))
+      return
+    }
+    if (password === altesPasswort) {
+      setPassFehler(t('fehler.passwort_gleich'))
+      return
+    }
+    setBusyPass(true)
+    try {
+      await passwortAendern(altesPasswort, password)
+      setAltesPasswort('')
+      setPassword('')
+      setPasswordNochmal('')
+      setVerbergen((n) => n + 1)
+      toast(t('einstellungen.passwort_geaendert'), 'ok')
+    } catch (err) {
+      setPassFehler(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusyPass(false)
+    }
+  }
 
   async function savePrefs(patch: Partial<NotificationPrefs>) {
     if (!user || !prefs) return
@@ -192,39 +230,59 @@ export default function Settings() {
         {/* Sicherheit */}
         <Abschnitt>{t('einstellungen.passwort')}</Abschnitt>
         <Card className="mb-8 p-4">
-          <Field
-            label={t('einstellungen.neues_passwort')}
-            hint={t('einstellungen.passwort_hinweis')}
-          >
-            <div className="flex flex-col gap-2 sm:flex-row">
+          <form onSubmit={passwortSpeichern} className="space-y-4">
+            {/* Fuer Passwort-Manager: zu welchem Konto das Passwort gehoert. */}
+            <input
+              type="email"
+              name="username"
+              autoComplete="username"
+              value={user?.email ?? ''}
+              readOnly
+              hidden
+            />
+            {/* Kein Mindestmass beim aktuellen Passwort: aeltere Konten
+                duerfen kuerzere haben. */}
+            <Field label={t('einstellungen.aktuelles_passwort')}>
+              <PasswordInput
+                value={altesPasswort}
+                autoComplete="current-password"
+                required
+                onChange={(e) => setAltesPasswort(e.target.value)}
+                verbergen={verbergen}
+              />
+            </Field>
+            <Field
+              label={t('einstellungen.neues_passwort')}
+              hint={t('einstellungen.passwort_hinweis')}
+            >
               <PasswordInput
                 value={password}
                 autoComplete="new-password"
+                required
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t('einstellungen.neues_passwort')}
+                verbergen={verbergen}
               />
-              <Button
-                size="lg"
-                className="w-full justify-center sm:w-auto"
-                disabled={password.length < 8}
-                loading={busyPass}
-                onClick={async () => {
-                  setBusyPass(true)
-                  try {
-                    await updatePassword(password)
-                    setPassword('')
-                    toast(t('einstellungen.passwort_geaendert'), 'ok')
-                  } catch (err) {
-                    toast(err instanceof Error ? err.message : String(err), 'error')
-                  } finally {
-                    setBusyPass(false)
-                  }
-                }}
-              >
-                {t('einstellungen.aendern')}
-              </Button>
-            </div>
-          </Field>
+            </Field>
+            <Field label={t('einstellungen.passwort_wiederholen')}>
+              <PasswordInput
+                value={passwordNochmal}
+                autoComplete="new-password"
+                required
+                onChange={(e) => setPasswordNochmal(e.target.value)}
+                verbergen={verbergen}
+              />
+            </Field>
+            {passFehler ? <ErrorBox error={passFehler} /> : null}
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full justify-center sm:w-auto"
+              loading={busyPass}
+            >
+              {t('einstellungen.aendern')}
+            </Button>
+          </form>
           <p className="mt-4 flex items-start gap-2 text-sm text-muted">
             <ShieldCheck size={16} className="mt-0.5 shrink-0" />
             {t('einstellungen.sicherheit_hinweis')}

@@ -333,6 +333,30 @@ export const fehler: Woerterbuch = {
     de: 'Das neue Passwort muss sich vom alten unterscheiden.',
     ar: 'كلمة المرور الجديدة يجب أن تختلف عن القديمة.',
   },
+  'fehler.passwort_schwach': {
+    de: 'Das Passwort ist zu schwach. Nimm ein längeres, am besten mit Groß- und Kleinbuchstaben, Zahlen und Sonderzeichen.',
+    ar: 'كلمة المرور ضعيفة. اختر كلمة أطول، ويُفضّل أن تحتوي على أحرف كبيرة وصغيرة وأرقام ورموز.',
+  },
+  'fehler.passwort_geleakt': {
+    de: 'Dieses Passwort ist schon in Datenlecks aufgetaucht. Nimm bitte ein anderes.',
+    ar: 'ظهرت كلمة المرور هذه في تسريبات بيانات سابقة. اختر كلمة أخرى من فضلك.',
+  },
+  'fehler.passwort_aktuell_falsch': {
+    de: 'Das aktuelle Passwort stimmt nicht.',
+    ar: 'كلمة المرور الحالية غير صحيحة.',
+  },
+  'fehler.neu_anmelden_noetig': {
+    de: 'Aus Sicherheitsgründen musst du dich dafür neu anmelden. Melde dich ab und wieder an und ändere das Passwort gleich danach.',
+    ar: 'لأسباب أمنية يجب أن تسجّل الدخول من جديد. سجّل الخروج ثم الدخول، وغيّر كلمة المرور بعدها مباشرة.',
+  },
+  'fehler.link_abgelaufen': {
+    de: 'Der Link ist abgelaufen oder wurde schon benutzt.',
+    ar: 'انتهت صلاحية الرابط أو استُخدم من قبل.',
+  },
+  'fehler.link_anderer_browser': {
+    de: 'Bitte öffne den Link im selben Browser, in dem du ihn angefordert hast, oder fordere einen neuen Link an.',
+    ar: 'افتح الرابط من فضلك في المتصفح نفسه الذي طلبته منه، أو اطلب رابطًا جديدًا.',
+  },
   'fehler.sitzung_weg': {
     de: 'Die Sitzung ist abgelaufen. Bitte neu anmelden.',
     ar: 'انتهت الجلسة. سجّل الدخول من جديد.',

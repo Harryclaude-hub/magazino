@@ -325,6 +325,29 @@ Nach dem Deployen die URL in Supabase unter
 **Authentication → URL Configuration** als Site URL eintragen, sonst zeigt
 der Link zum Zuruecksetzen des Passworts auf localhost.
 
+### Passwort zuruecksetzen
+
+Die Seite "Passwort vergessen" schickt den Link mit der Zieladresse
+`<Adresse der App>/passwort-neu`. Damit Supabase dorthin zurueckleitet:
+
+1. **Authentication → URL Configuration → Redirect URLs**: die Adresse
+   `https://harryclaude-hub.github.io/kistly/passwort-neu` eintragen (lokal
+   zusaetzlich `http://localhost:5173/passwort-neu`).
+2. Empfohlen: **Authentication → Emails → Reset Password** im Text der Mail
+   den Link `{{ .ConfirmationURL }}` ersetzen durch
+   `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`.
+   Dann loest erst der Knopf "Weiter zum neuen Passwort" den Link ein. Ein
+   Mail-Scanner, der Links vorab oeffnet, verbraucht ihn so nicht, und der
+   Link klappt auch auf einem anderen Geraet als dem, auf dem er angefordert
+   wurde. Ohne diese Aenderung kommt der Link als `?code=` an und geht nur im
+   selben Browser, die Seite sagt das dann auch.
+
+Das Formular fuer das neue Passwort erscheint nur, wenn der Link in diesem
+Seitenaufruf eingeloest wurde. Nur angemeldet sein reicht nicht. Bis das
+neue Passwort steht, fuehrt jede andere Seite dorthin zurueck. Danach werden
+alle anderen Geraete abgemeldet. Wer angemeldet ist, aendert das Passwort in
+den Einstellungen, dort nur mit dem aktuellen Passwort.
+
 ---
 
 ## Sicherheit
@@ -371,6 +394,10 @@ Ehrlich aufgeschrieben, damit niemand davon ueberrascht wird:
 - **Der Passwort-Link zum Zuruecksetzen** laeuft ueber den eingebauten
   Mailversand von Supabase. Der ist stark begrenzt (wenige Mails pro Stunde).
   Fuer mehr braucht es einen eigenen SMTP-Zugang im Supabase-Projekt.
+- **Der Merker "Link eingeloest" lebt nur im Speicher der Seite.** Laedt man
+  die Seite neu, bevor das neue Passwort gesetzt ist, ist er weg, die
+  Sitzung aus dem Link aber noch da: man ist dann normal angemeldet. Die App
+  merkt sich den Zustand absichtlich nicht im Browser-Speicher.
 
 ## Ordner
 

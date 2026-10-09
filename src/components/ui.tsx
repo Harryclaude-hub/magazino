@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -224,26 +225,115 @@ export function Select({ className, children, ...rest }: SelectHTMLAttributes<HT
   )
 }
 
+/** Passwortfeld mit Auge.
+ *
+ *  Das Auge sitzt im Feld am Ende der Zeile (rechts, bei Arabisch links:
+ *  end-1.5 und pe-11 statt right und pr). Es ist ein eigener Knopf mit
+ *  type="button", schickt also nie das Formular ab, und ist mit Tab und
+ *  Enter oder Leertaste bedienbar.
+ *
+ *  Mit Maus oder Finger nimmt der Knopf dem Feld weder Fokus noch
+ *  Schreibmarke: mousedown wird abgefangen (kein blur, also auch keine
+ *  Pruefung beim Verlassen), die Auswahl gemerkt und nach dem Umschalten
+ *  der Feldart wieder gesetzt. Mit der Tastatur bleibt der Fokus auf dem
+ *  Knopf, sonst schickte das naechste Enter das Formular ab.
+ *
+ *  verbergen: wechselt dieser Wert (etwa nach erfolgreichem Absenden), ist
+ *  das Feld wieder verdeckt. */
 export function PasswordInput({
   className,
+  id,
+  verbergen,
   ...rest
-}: InputHTMLAttributes<HTMLInputElement>) {
+}: InputHTMLAttributes<HTMLInputElement> & { verbergen?: number }) {
   const [show, setShow] = useState(false)
+  // Wechsel von aussen: im Rendern angleichen statt in einem Effekt.
+  const [runde, setRunde] = useState(verbergen)
+  if (runde !== verbergen) {
+    setRunde(verbergen)
+    setShow(false)
+  }
   const t = useT()
+  const eigeneId = useId()
+  const feldId = id ?? eigeneId
+  const feld = useRef<HTMLInputElement>(null)
+  const merk = useRef<{ start: number | null; ende: number | null } | null>(null)
+
+  function merken() {
+    const el = feld.current
+    merk.current =
+      el && document.activeElement === el ? { start: el.selectionStart, ende: el.selectionEnd } : null
+  }
+
+  // Nach dem Umschalten Fokus und Auswahl zurueck ins Feld (nur Zeiger).
+  useLayoutEffect(() => {
+    const m = merk.current
+    merk.current = null
+    const el = feld.current
+    if (!m || !el) return
+    el.focus({ preventScroll: true })
+    const { start, ende } = m
+    if (start == null || ende == null) return
+    const setzen = () => {
+      try {
+        el.setSelectionRange(start, ende)
+      } catch {
+        /* Feldart ohne Auswahl, dann bleibt die Marke, wo sie ist */
+      }
+    }
+    setzen()
+    /* Chrome setzt die Auswahl nach einem echten Klick und dem Wechsel der
+     * Feldart noch einmal auf 0 zurueck (im Browser nachgeprueft). Darum
+     * einen Takt spaeter ein zweites Mal, solange das Feld den Fokus hat. */
+    const zeit = window.setTimeout(() => {
+      if (el.isConnected && document.activeElement === el) setzen()
+    }, 0)
+    return () => window.clearTimeout(zeit)
+  }, [show])
+
+  const label = show ? t('konto.passwort_verbergen') : t('konto.passwort_anzeigen')
   return (
     <div className="relative">
       <input
         {...rest}
+        ref={feld}
+        id={feldId}
         type={show ? 'text' : 'password'}
-        className={cx(FIELD_BASE, 'pr-11', className)}
+        // Sichtbar heisst nicht aenderbar: keine Grossschreibung, keine
+        // Autokorrektur, keine Rechtschreibpruefung auf dem Handy.
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        className={cx(FIELD_BASE, 'pe-11', className)}
       />
       <button
         type="button"
-        onClick={() => setShow((s) => !s)}
-        aria-label={show ? t('konto.passwort_verbergen') : t('konto.passwort_anzeigen')}
-        className="absolute right-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg border border-line bg-raised text-muted hover:text-ink"
+        // Merken schon bei pointerdown (Finger: mousedown kommt erst am
+        // Ende des Tippens). preventDefault auf mousedown haelt den Fokus im
+        // Feld; auf pointerdown wuerde es mousedown ganz unterdruecken.
+        onPointerDown={merken}
+        onMouseDown={(e) => {
+          e.preventDefault()
+          if (!merk.current) merken()
+        }}
+        onClick={(e) => {
+          // detail 0: per Tastatur ausgeloest, dann bleibt der Fokus hier.
+          if (e.detail === 0) merk.current = null
+          setShow((s) => !s)
+        }}
+        disabled={rest.disabled}
+        aria-label={label}
+        title={label}
+        aria-pressed={show}
+        aria-controls={feldId}
+        className={cx(
+          'absolute end-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center',
+          'rounded-lg border border-line bg-raised text-muted hover:text-ink',
+          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+          'disabled:cursor-not-allowed disabled:opacity-40',
+        )}
       >
-        {show ? <EyeOff size={19} /> : <Eye size={19} />}
+        {show ? <EyeOff size={19} aria-hidden="true" /> : <Eye size={19} aria-hidden="true" />}
       </button>
     </div>
   )

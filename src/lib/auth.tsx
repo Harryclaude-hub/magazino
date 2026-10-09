@@ -8,11 +8,27 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase, errText } from './supabase'
+import { supabase, errText, pruefClientAnlegen } from './supabase'
 import { appUrl } from './util'
 import { pruefeLook } from './avatar'
 import { tg } from './i18n'
+import {
+  linkVerbraucht,
+  wiederherstellungAktiv,
+  wiederherstellungBeenden,
+  wiederherstellungMelden,
+} from './linkstand'
 import type { Profile } from './types'
+
+/** Ergebnis von "Passwort vergessen". Ob es zur Adresse ein Konto gibt,
+ *  steht absichtlich nicht darin. */
+export type ResetAnfrage = 'verschickt' | 'zu_viele' | 'keine_verbindung'
+
+/** Ergebnis des Knopfs "Weiter zum neuen Passwort". */
+export type LinkBestaetigung =
+  | { ok: true }
+  | { ok: false; netz: true }
+  | { ok: false; netz: false; code: string | null }
 
 interface AuthValue {
   session: Session | null
@@ -22,13 +38,138 @@ interface AuthValue {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, displayName?: string) => Promise<{ needsConfirm: boolean }>
   signOut: () => Promise<void>
-  sendReset: (email: string) => Promise<void>
-  updatePassword: (password: string) => Promise<void>
+  sendReset: (email: string) => Promise<ResetAnfrage>
+  /** Wartet, bis der Client die Adresse beim Start ausgewertet hat. Liefert
+   *  den Fehlercode, wenn er einen ?code= nicht einloesen konnte. */
+  linkPruefen: () => Promise<{ fehlerCode: string | null }>
+  wiederherstellungBestaetigen: (tokenHash: string) => Promise<LinkBestaetigung>
+  neuesPasswortSetzen: (password: string) => Promise<void>
+  wiederherstellungAbbrechen: () => Promise<void>
+  passwortAendern: (aktuell: string, neu: string) => Promise<void>
   updateProfile: (patch: Partial<Pick<Profile, 'display_name' | 'avatar_path' | 'avatar3d'>>) => Promise<void>
   refreshProfile: () => Promise<void>
 }
 
 const Ctx = createContext<AuthValue | null>(null)
+
+/* ------------------------------------------------------- Passwort-Wege
+ * Die Wege rund ums Passwort brauchen keinen Zustand aus React, darum
+ * stehen sie hier ausserhalb des Providers. */
+
+function istNetzfehler(err: unknown): boolean {
+  if (err instanceof TypeError) return true
+  const e = err as { name?: string; status?: number } | null
+  return Boolean(e && e.name === 'AuthRetryableFetchError' && !e.status)
+}
+
+async function linkAnfordern(email: string): Promise<ResetAnfrage> {
+  let fehler: unknown = null
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: appUrl('passwort-neu'),
+    })
+    fehler = error
+  } catch (err) {
+    fehler = err
+  }
+  if (!fehler) return 'verschickt'
+  const f = fehler as { status?: number; code?: string }
+  if (f.status === 429 || f.code === 'over_email_send_rate_limit' || f.code === 'over_request_rate_limit') {
+    return 'zu_viele'
+  }
+  if (istNetzfehler(fehler)) return 'keine_verbindung'
+  /* Alles andere sieht fuer den Nutzer aus wie verschickt. Sonst liesse
+   * sich an der Antwort ablesen, ob es zur Adresse ein Konto gibt. In der
+   * Konsole steht nur der Code, nie die Adresse. */
+  console.warn('[passwort] Link anfordern abgelehnt:', f.code ?? f.status ?? 'unbekannt')
+  return 'verschickt'
+}
+
+async function linkPruefen(): Promise<{ fehlerCode: string | null }> {
+  let fehlerCode: string | null = null
+  try {
+    const { error } = await supabase.auth.initialize()
+    if (error) fehlerCode = (error as { code?: string }).code ?? 'unbekannt'
+  } catch {
+    fehlerCode = 'unbekannt'
+  }
+  /* Die Ereignisse aus dem Start (PASSWORD_RECOVERY) verteilt der Client
+   * gleich nach dem Ende der Initialisierung. Einen Takt warten, damit der
+   * Merker steht, bevor die Seite entscheidet. Kommt es spaeter, zeigt die
+   * Seite das Formular trotzdem, sie haengt am Merker. */
+  await new Promise((r) => setTimeout(r, 0))
+  return { fehlerCode }
+}
+
+/* Erst der Klick loest den Link ein, nicht das Oeffnen der Seite. So
+ * verbraucht ein Mail-Scanner, der Links vorab aufruft, ihn nicht, und es
+ * klappt auch auf einem anderen Geraet als dem, auf dem er angefordert
+ * wurde. */
+async function wiederherstellungBestaetigen(tokenHash: string): Promise<LinkBestaetigung> {
+  try {
+    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+    if (error) {
+      if (istNetzfehler(error)) return { ok: false, netz: true }
+      linkVerbraucht()
+      return { ok: false, netz: false, code: error.code ?? null }
+    }
+  } catch (err) {
+    if (istNetzfehler(err)) return { ok: false, netz: true }
+    linkVerbraucht()
+    return { ok: false, netz: false, code: null }
+  }
+  // Das Ereignis setzt den Merker schon; das hier nur, falls es fehlt.
+  wiederherstellungMelden()
+  linkVerbraucht()
+  return { ok: true }
+}
+
+/** Andere Geraete abmelden. Ein Fehler hier haelt nichts auf: das neue
+ *  Passwort steht dann schon. */
+async function andereGeraeteAbmelden(): Promise<void> {
+  try {
+    const { error } = await supabase.auth.signOut({ scope: 'others' })
+    if (error) console.warn('[passwort] Andere Geraete nicht abgemeldet:', error.code ?? error.status)
+  } catch (err) {
+    console.warn('[passwort] Andere Geraete nicht abgemeldet:', err instanceof Error ? err.name : err)
+  }
+}
+
+async function neuesPasswortSetzen(password: string): Promise<void> {
+  // Nur nach einem in diesem Seitenaufruf eingeloesten Link.
+  if (!wiederherstellungAktiv()) throw new Error(tg('konto.link_fehler'))
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) throw new Error(errText(error))
+  await andereGeraeteAbmelden()
+}
+
+async function wiederherstellungAbbrechen(): Promise<void> {
+  /* Nur diese Sitzung beenden. Schlaegt das fehl, bleibt der Merker an:
+   * sonst waere man mit der Sitzung aus dem Link doch normal angemeldet. */
+  const { error } = await supabase.auth.signOut({ scope: 'local' })
+  if (error) throw new Error(errText(error))
+  linkVerbraucht()
+  wiederherstellungBeenden()
+}
+
+/** Das aktuelle Passwort pruefen, ohne die echte Sitzung anzufassen: mit
+ *  einem eigenen Wegwerf-Client anmelden und gleich wieder abmelden. */
+async function aktuellesPasswortPruefen(email: string, passwort: string): Promise<void> {
+  const probe = pruefClientAnlegen()
+  try {
+    const { error } = await probe.auth.signInWithPassword({ email, password: passwort })
+    if (error) {
+      if (error.code === 'invalid_credentials' || error.message === 'Invalid login credentials') {
+        throw new Error(tg('fehler.passwort_aktuell_falsch'))
+      }
+      throw new Error(errText(error))
+    }
+    const { error: abmelden } = await probe.auth.signOut({ scope: 'local' })
+    if (abmelden) console.warn('[passwort] Probe-Sitzung nicht beendet:', abmelden.code ?? abmelden.status)
+  } finally {
+    await probe.auth.dispose().catch(() => undefined)
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
@@ -104,15 +245,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signOut()
         if (error) throw new Error(errText(error))
       },
-      async sendReset(email) {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: appUrl('passwort-neu'),
-        })
+      sendReset: linkAnfordern,
+      linkPruefen,
+      wiederherstellungBestaetigen,
+      neuesPasswortSetzen,
+      wiederherstellungAbbrechen,
+      async passwortAendern(aktuell, neu) {
+        const email = session?.user?.email
+        if (!email) throw new Error(tg('fehler.sitzung_weg'))
+        // Erst das aktuelle Passwort, sonst reicht ein offen liegendes Geraet.
+        await aktuellesPasswortPruefen(email, aktuell)
+        /* current_password kennt auth-js 2.116 (UserAttributes). Der Server
+         * prueft es zusaetzlich, wenn das im Projekt eingeschaltet ist. Die
+         * Pruefung, auf die sich die App verlaesst, ist die Probe darueber. */
+        const { error } = await supabase.auth.updateUser({ password: neu, current_password: aktuell })
         if (error) throw new Error(errText(error))
-      },
-      async updatePassword(password) {
-        const { error } = await supabase.auth.updateUser({ password })
-        if (error) throw new Error(errText(error))
+        await andereGeraeteAbmelden()
       },
       async updateProfile(patch) {
         if (!session?.user) throw new Error('Nicht angemeldet')
