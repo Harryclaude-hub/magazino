@@ -13,12 +13,18 @@ import {
 
 /* Neues Passwort ueber den Link aus der Mail.
  *
- * Das Formular erscheint NUR, wenn in diesem Seitenaufruf eine
- * Wiederherstellung bestaetigt wurde (Merker aus linkstand, gesetzt vom
- * Ereignis PASSWORD_RECOVERY). Nur angemeldet sein reicht nie.
+ * Das Formular erscheint NUR, wenn dieser Tab in diesem Seitenaufruf eine
+ * Wiederherstellung eingeloest hat (Merker aus linkstand; ein
+ * PASSWORD_RECOVERY aus einem anderen Tab zaehlt nicht). Nur angemeldet
+ * sein reicht nie. Im Formular steht, fuer welches Konto das neue Passwort
+ * gilt; war vor dem Klick ein anderes Konto angemeldet, sagt ein Hinweis
+ * das deutlich.
  *
  * Reihenfolge, nachdem der Client die Adresse ausgewertet hat (pruefen):
- *   Merker gesetzt                    Formular
+ *   Merker gesetzt                    Formular (auch, solange Speichern
+ *                                     oder Abbrechen noch laeuft)
+ *   Merker war an, ist aus            Vorgang beendet (anderer Tab hat
+ *                                     abgemeldet oder ein Passwort gesetzt)
  *   (a) error/error_code im Link,     Meldung und "Neuen Link anfordern"
  *       ?code= nicht einloesbar oder
  *       der Klick auf (b) schlug fehl
@@ -54,10 +60,18 @@ export default function ResetConfirm() {
   const [netzFehler, setNetzFehler] = useState(false)
   const [busyWeiter, setBusyWeiter] = useState(false)
 
+  // Nach dem Klick: zu welchem Konto der Link gehoert und ob vorher ein anderes angemeldet war.
+  const [bestaetigt, setBestaetigt] = useState<{ email: string | null; anderesKonto: boolean } | null>(null)
+  /* War der Merker auf dieser Seite schon einmal an? Beim Rendern
+   * nachgezogen statt in einem Effekt (React: Wert aus frueheren Renders). */
+  const [warAktiv, setWarAktiv] = useState(false)
+  if (aktiv && !warAktiv) setWarAktiv(true)
+
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
+  const [andereAbgemeldet, setAndereAbgemeldet] = useState(true)
   const [busy, setBusy] = useState(false)
   const [busyAbbrechen, setBusyAbbrechen] = useState(false)
 
@@ -82,7 +96,10 @@ export default function ResetConfirm() {
     setNetzFehler(false)
     try {
       const r = await wiederherstellungBestaetigen(stand.tokenHash)
-      if (r.ok) return
+      if (r.ok) {
+        setBestaetigt({ email: r.email, anderesKonto: r.anderesKonto })
+        return
+      }
       if (r.netz) setNetzFehler(true)
       else setKlickFehler(fehlerart(r.code))
     } finally {
@@ -103,13 +120,17 @@ export default function ResetConfirm() {
     }
     setBusy(true)
     try {
-      await neuesPasswortSetzen(password)
+      const r = await neuesPasswortSetzen(password)
       setPassword('')
       setRepeat('')
+      setAndereAbgemeldet(r.andereAbgemeldet)
       setOk(true)
-      // Erst nach ok, sonst stuende fuer einen Moment wieder "ungueltig" da.
+      /* Den Merker hat USER_UPDATED schon beendet (supabase.ts); das
+       * Formular blieb nur stehen, weil busy noch an war. Das hier ist nur
+       * die Absicherung. */
       wiederherstellungBeenden()
-      setTimeout(() => nav('/app', { replace: true }), 1500)
+      // Konnten die anderen Geraete nicht abgemeldet werden, bleibt Zeit zum Lesen.
+      setTimeout(() => nav('/app', { replace: true }), r.andereAbgemeldet ? 1500 : 6000)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -158,24 +179,46 @@ export default function ResetConfirm() {
     )
   }
 
+  /* Das Formular bleibt stehen, solange Speichern oder Abbrechen laeuft:
+   * USER_UPDATED (Speichern) und SIGNED_OUT (Abbrechen) beenden den Merker
+   * schon mitten im Vorgang. */
+  const formular = !ok && (aktiv || busy || busyAbbrechen)
+  // Fuer welches Konto: nach dem Klick aus dem Link selbst, sonst aus der Sitzung.
+  const kontoEmail = bestaetigt?.email ?? session?.user?.email ?? null
+  // Die Adresse laeuft auch im arabischen Satz von links nach rechts.
+  const kontoEmailIsoliert = kontoEmail ? '\u2068' + kontoEmail + '\u2069' : ''
+
   let inhalt: ReactNode
   if (ok) {
     inhalt = (
       <div className="rounded-2xl border border-ok/30 bg-ok/10 p-4" role="status">
         <p className="t-name">{t('konto.passwort_geaendert')}</p>
-        <p className="mt-1.5 text-base text-ink/80">{t('konto.andere_abgemeldet')}</p>
+        <p className="mt-1.5 text-base text-ink/80">
+          {andereAbgemeldet ? t('konto.andere_abgemeldet') : t('konto.andere_nicht_abgemeldet')}
+        </p>
         <p className="mt-1 text-base text-ink/80">{t('konto.weiter_geht_es')}</p>
       </div>
     )
-  } else if (aktiv) {
+  } else if (formular) {
     inhalt = (
       <form onSubmit={onSubmit} className="space-y-5">
+        {kontoEmail ? (
+          <p className="t-name break-words">{t('konto.passwort_fuer', { email: kontoEmailIsoliert })}</p>
+        ) : null}
+        {bestaetigt?.anderesKonto ? (
+          <div className="rounded-2xl border border-warn/40 bg-warn/10 p-4" role="alert">
+            <p className="t-name">{t('konto.anderes_konto_titel')}</p>
+            <p className="mt-1.5 text-base text-ink/80">
+              {t('konto.anderes_konto_text', { email: kontoEmailIsoliert })}
+            </p>
+          </div>
+        ) : null}
         {/* Fuer Passwort-Manager: zu welchem Konto das neue Passwort gehoert. */}
         <input
           type="email"
           name="username"
           autoComplete="username"
-          value={session?.user?.email ?? ''}
+          value={kontoEmail ?? ''}
           readOnly
           hidden
         />
@@ -196,11 +239,14 @@ export default function ResetConfirm() {
           />
         </Field>
         {error ? <ErrorBox error={error} /> : null}
-        <Button type="submit" full size="lg" loading={busy}>
+        <Button type="submit" full size="lg" loading={busy} disabled={busyAbbrechen}>
           {t('konto.passwort_speichern')}
         </Button>
       </form>
     )
+  } else if (warAktiv) {
+    // Der Vorgang lief schon und wurde anderswo beendet (anderer Tab).
+    inhalt = hinweis(t('konto.link_beendet_titel'), t('konto.link_beendet_text'))
   } else if (!geprueft) {
     inhalt = <Loading label={t('konto.link_wird_geprueft')} />
   } else if (klickFehler) {
@@ -238,10 +284,17 @@ export default function ResetConfirm() {
   }
 
   let fuss: ReactNode = null
-  if (aktiv && !ok) {
-    // Ohne neues Passwort raus: nur diese Sitzung beenden.
+  if (formular) {
+    // Ohne neues Passwort raus: nur diese Sitzung beenden. Nicht mitten im Speichern.
     fuss = (
-      <Button type="button" variant="outline" size="lg" loading={busyAbbrechen} onClick={() => void abbrechen()}>
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        loading={busyAbbrechen}
+        disabled={busy}
+        onClick={() => void abbrechen()}
+      >
         {t('konto.abbrechen_abmelden')}
       </Button>
     )
@@ -258,7 +311,7 @@ export default function ResetConfirm() {
   return (
     <AuthShell
       title={t('konto.neues_passwort')}
-      subtitle={aktiv && !ok ? t('konto.neues_passwort_unter') : undefined}
+      subtitle={formular ? t('konto.neues_passwort_unter') : undefined}
       footer={fuss}
     >
       {inhalt}

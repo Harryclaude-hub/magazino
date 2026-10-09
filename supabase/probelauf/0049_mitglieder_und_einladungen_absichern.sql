@@ -14,6 +14,9 @@
 -- supabase/migrations/0049_mitglieder_und_einladungen_absichern.sql
 -- ersetzen, unveraendert. Es werden keine Konten angelegt; der Lauf nimmt
 -- das aelteste Konto als Besitzer und ein zweites, das kein Admin ist.
+-- Freiwillig: den Text zweimal hintereinander einsetzen. Dann zeigt der
+-- Lauf auch, dass ein zweites Einspielen nicht scheitert (create or
+-- replace trigger, ab Postgres 14).
 do $probe$
 declare
   v_bericht text := '';

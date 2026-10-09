@@ -8,15 +8,16 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase, errText, pruefClientAnlegen } from './supabase'
+import { supabase, errText, pruefClientAnlegen, startAusgewertet } from './supabase'
 import { appUrl } from './util'
 import { pruefeLook } from './avatar'
 import { tg } from './i18n'
 import {
+  eigenesEinloesenBeginnen,
+  eigenesEinloesenEnde,
   linkVerbraucht,
   wiederherstellungAktiv,
   wiederherstellungBeenden,
-  wiederherstellungMelden,
 } from './linkstand'
 import type { Profile } from './types'
 
@@ -24,11 +25,18 @@ import type { Profile } from './types'
  *  steht absichtlich nicht darin. */
 export type ResetAnfrage = 'verschickt' | 'zu_viele' | 'keine_verbindung'
 
-/** Ergebnis des Knopfs "Weiter zum neuen Passwort". */
+/** Ergebnis des Knopfs "Weiter zum neuen Passwort". email: das Konto aus
+ *  dem Link. anderesKonto: vorher war hier ein ANDERES Konto angemeldet. */
 export type LinkBestaetigung =
-  | { ok: true }
+  | { ok: true; email: string | null; anderesKonto: boolean }
   | { ok: false; netz: true }
   | { ok: false; netz: false; code: string | null }
+
+/** Nach dem neuen Passwort: ob die anderen Geraete wirklich abgemeldet
+ *  sind. false heisst, das Passwort steht, das Abmelden schlug fehl. */
+export interface PasswortGesetzt {
+  andereAbgemeldet: boolean
+}
 
 interface AuthValue {
   session: Session | null
@@ -43,9 +51,9 @@ interface AuthValue {
    *  den Fehlercode, wenn er einen ?code= nicht einloesen konnte. */
   linkPruefen: () => Promise<{ fehlerCode: string | null }>
   wiederherstellungBestaetigen: (tokenHash: string) => Promise<LinkBestaetigung>
-  neuesPasswortSetzen: (password: string) => Promise<void>
+  neuesPasswortSetzen: (password: string) => Promise<PasswortGesetzt>
   wiederherstellungAbbrechen: () => Promise<void>
-  passwortAendern: (aktuell: string, neu: string) => Promise<void>
+  passwortAendern: (aktuell: string, neu: string) => Promise<PasswortGesetzt>
   updateProfile: (patch: Partial<Pick<Profile, 'display_name' | 'avatar_path' | 'avatar3d'>>) => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -85,62 +93,90 @@ async function linkAnfordern(email: string): Promise<ResetAnfrage> {
   return 'verschickt'
 }
 
-async function linkPruefen(): Promise<{ fehlerCode: string | null }> {
-  let fehlerCode: string | null = null
+/* Die Auswertung der Adresse beim Start und das Schliessen des
+ * Startfensters stehen in supabase.ts (startAusgewertet), damit sie auf
+ * jeder Seite laufen. Die Seite Passwort neu wartet nur darauf. */
+function linkPruefen(): Promise<{ fehlerCode: string | null }> {
+  return startAusgewertet
+}
+
+/** Wer ist auf diesem Geraet gerade angemeldet? Nur die Kennung. */
+async function angemeldeteKennung(): Promise<string | null> {
   try {
-    const { error } = await supabase.auth.initialize()
-    if (error) fehlerCode = (error as { code?: string }).code ?? 'unbekannt'
+    const { data } = await supabase.auth.getSession()
+    return data.session?.user?.id ?? null
   } catch {
-    fehlerCode = 'unbekannt'
+    return null
   }
-  /* Die Ereignisse aus dem Start (PASSWORD_RECOVERY) verteilt der Client
-   * gleich nach dem Ende der Initialisierung. Einen Takt warten, damit der
-   * Merker steht, bevor die Seite entscheidet. Kommt es spaeter, zeigt die
-   * Seite das Formular trotzdem, sie haengt am Merker. */
-  await new Promise((r) => setTimeout(r, 0))
-  return { fehlerCode }
 }
 
 /* Erst der Klick loest den Link ein, nicht das Oeffnen der Seite. So
  * verbraucht ein Mail-Scanner, der Links vorab aufruft, ihn nicht, und es
  * klappt auch auf einem anderen Geraet als dem, auf dem er angefordert
- * wurde. */
+ * wurde.
+ *
+ * Vorher merken, wer hier angemeldet war: verifyOtp ersetzt diese Sitzung
+ * durch die aus dem Link. Gehoert der Link zu einem anderen Konto, sagt die
+ * Seite das deutlich, statt still das Passwort eines fremden Kontos setzen
+ * zu lassen.
+ *
+ * Um verifyOtp herum ist die Erwartung offen: nur in diesem Fenster zaehlt
+ * PASSWORD_RECOVERY (linkstand). */
 async function wiederherstellungBestaetigen(tokenHash: string): Promise<LinkBestaetigung> {
+  const vorher = await angemeldeteKennung()
+  const erwartung = eigenesEinloesenBeginnen()
+  let eingeloest = false
   try {
-    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+    const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
     if (error) {
       if (istNetzfehler(error)) return { ok: false, netz: true }
       linkVerbraucht()
       return { ok: false, netz: false, code: error.code ?? null }
     }
+    const sitzung = data.session
+    if (!sitzung) {
+      // Ohne Sitzung laesst sich kein Passwort setzen.
+      linkVerbraucht()
+      return { ok: false, netz: false, code: null }
+    }
+    eingeloest = true
+    linkVerbraucht()
+    return {
+      ok: true,
+      email: sitzung.user?.email ?? data.user?.email ?? null,
+      anderesKonto: vorher !== null && vorher !== sitzung.user?.id,
+    }
   } catch (err) {
     if (istNetzfehler(err)) return { ok: false, netz: true }
     linkVerbraucht()
     return { ok: false, netz: false, code: null }
+  } finally {
+    eigenesEinloesenEnde(erwartung, eingeloest)
   }
-  // Das Ereignis setzt den Merker schon; das hier nur, falls es fehlt.
-  wiederherstellungMelden()
-  linkVerbraucht()
-  return { ok: true }
 }
 
-/** Andere Geraete abmelden. Ein Fehler hier haelt nichts auf: das neue
- *  Passwort steht dann schon. */
-async function andereGeraeteAbmelden(): Promise<void> {
+/** Andere Geraete abmelden. Ein Fehler hier haelt nichts auf, das neue
+ *  Passwort steht dann schon. Aber er wird gemeldet (false), damit die
+ *  Seite nicht behauptet, die anderen Geraete seien abgemeldet. */
+async function andereGeraeteAbmelden(): Promise<boolean> {
   try {
     const { error } = await supabase.auth.signOut({ scope: 'others' })
-    if (error) console.warn('[passwort] Andere Geraete nicht abgemeldet:', error.code ?? error.status)
+    if (!error) return true
+    console.warn('[passwort] Andere Geraete nicht abgemeldet:', error.code ?? error.status)
   } catch (err) {
     console.warn('[passwort] Andere Geraete nicht abgemeldet:', err instanceof Error ? err.name : err)
   }
+  return false
 }
 
-async function neuesPasswortSetzen(password: string): Promise<void> {
+async function neuesPasswortSetzen(password: string): Promise<PasswortGesetzt> {
   // Nur nach einem in diesem Seitenaufruf eingeloesten Link.
   if (!wiederherstellungAktiv()) throw new Error(tg('konto.link_fehler'))
+  /* updateUser meldet USER_UPDATED, das beendet den Merker schon hier
+   * (supabase.ts). Die Seite haelt das Formular, bis das hier fertig ist. */
   const { error } = await supabase.auth.updateUser({ password })
   if (error) throw new Error(errText(error))
-  await andereGeraeteAbmelden()
+  return { andereAbgemeldet: await andereGeraeteAbmelden() }
 }
 
 async function wiederherstellungAbbrechen(): Promise<void> {
@@ -260,7 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
          * Pruefung, auf die sich die App verlaesst, ist die Probe darueber. */
         const { error } = await supabase.auth.updateUser({ password: neu, current_password: aktuell })
         if (error) throw new Error(errText(error))
-        await andereGeraeteAbmelden()
+        return { andereAbgemeldet: await andereGeraeteAbmelden() }
       },
       async updateProfile(patch) {
         if (!session?.user) throw new Error('Nicht angemeldet')

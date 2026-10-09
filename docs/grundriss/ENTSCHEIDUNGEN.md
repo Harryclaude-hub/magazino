@@ -731,4 +731,41 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   spaetestens 60 s ausgeblendet; serverseitig gilt die Sperre ab seinem
   naechsten Beitritt. Haustueren nicht mehr auf Brandwaenden, Zaeune mit
   Luecken an Wegen, Bushaltestellen als Orte.
+- **E88 Passwort, Einladungscodes, Eigentuemer** (Zweig
+  `passwort-sicher-2026-10-09`, Migration 0049 noch nicht eingespielt):
+  - *Zuruecksetzen per Mail:* Der Link fuehrt nach `/passwort-neu`.
+    Empfohlen ist die Mail-Vorlage mit `token_hash` (README): erst der
+    Knopf "Weiter zum neuen Passwort" loest ein, damit ein Mail-Scanner den
+    Link nicht verbraucht und er auf jedem Geraet geht; `?code=` geht nur
+    im selben Browser. Das Formular erscheint nur, wenn DIESER Tab den Link
+    eingeloest hat. supabase-js reicht PASSWORD_RECOVERY auch aus anderen
+    Tabs weiter (BroadcastChannel), darum zaehlt es nur in einem Fenster,
+    in dem dieser Tab selbst einloest: beim Start mit `?code=` (oder
+    `#access_token` mit type=recovery) bis der Client die Adresse
+    ausgewertet hat, oder waehrend des eigenen
+    verifyOtp; jedes Fenster einmal, und schlaegt das eigene Einloesen
+    fehl, geht der Merker wieder aus. Der Merker lebt nur im Speicher,
+    USER_UPDATED und SIGNED_OUT beenden ihn. Im Formular steht, fuer
+    welches Konto das Passwort gilt; war vor dem Klick ein anderes Konto
+    angemeldet, sagt ein Hinweis das. Danach werden andere Geraete
+    abgemeldet; klappt das nicht, steht das da, statt es zu behaupten.
+    "Passwort vergessen" sagt immer denselben Satz, damit niemand ablesen
+    kann, ob es zu einer Adresse ein Konto gibt. Aendern in den
+    Einstellungen nur mit dem aktuellen Passwort (Probe mit eigenem
+    Wegwerf-Client); als Wand auf dem Server dazu "Secure password change"
+    im Dashboard (README).
+  - *Einladungscodes:* Sehen, anlegen, aendern und loeschen nur Bearbeiter
+    und Besitzer, nie mit einer Rolle ueber der eigenen; Besitzer-Codes nur
+    Besitzer. "Nur lesen" sieht keine Codes mehr. Grund: mit einem
+    sichtbaren oder selbst angelegten Besitzer-Code und einem zweiten Konto
+    wurde man Besitzer. Einloesen (join_project) bleibt wie es ist.
+  - *Eigentuemer (owner_id):* aendert nur ein Besitzer des Umzugs oder ein
+    Admin (admin_konto_loeschen laeuft als Admin weiter). Ausnahme Wartung:
+    ohne angemeldeten Nutzer (auth.uid() ist null, also SQL-Editor oder
+    Dienste) greift die Sperre nicht, damit Karam im SQL-Editor reparieren
+    kann. Ueber die API kommt ohne Anmeldung niemand an `projects`, deren
+    Regeln gelten nur fuer authenticated. Mitgliedschaften wechseln dagegen
+    nie Umzug oder Person, auch ohne Anmeldung nicht.
+  - 0049 laeuft auch ein zweites Mal ohne Fehler (create or replace
+    trigger, ab Postgres 14).
 

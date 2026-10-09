@@ -126,8 +126,9 @@ export default function Settings() {
   }, [loadPrefs])
 
   /* Passwort aendern: erst das aktuelle (geprueft mit einem eigenen
-   * Wegwerf-Client in auth.tsx), dann das neue zweimal. Danach sind alle
-   * anderen Geraete abgemeldet. */
+   * Wegwerf-Client in auth.tsx), dann das neue zweimal. Danach werden alle
+   * anderen Geraete abgemeldet; klappt das nicht, sagt der Hinweis das,
+   * statt es zu behaupten (rot und laenger sichtbar). */
   async function passwortSpeichern(e: FormEvent) {
     e.preventDefault()
     setPassFehler(null)
@@ -145,12 +146,13 @@ export default function Settings() {
     }
     setBusyPass(true)
     try {
-      await passwortAendern(altesPasswort, password)
+      const r = await passwortAendern(altesPasswort, password)
       setAltesPasswort('')
       setPassword('')
       setPasswordNochmal('')
       setVerbergen((n) => n + 1)
-      toast(t('einstellungen.passwort_geaendert'), 'ok')
+      if (r.andereAbgemeldet) toast(t('einstellungen.passwort_geaendert'), 'ok')
+      else toast(t('einstellungen.passwort_geaendert_andere_offen'), 'error')
     } catch (err) {
       setPassFehler(err instanceof Error ? err.message : String(err))
     } finally {

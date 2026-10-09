@@ -80,6 +80,11 @@ export const einstellungen: Woerterbuch = {
     de: 'Passwort geändert. Auf allen anderen Geräten bist du jetzt abgemeldet.',
     ar: 'تم تغيير كلمة المرور. تم تسجيل خروجك الآن من جميع الأجهزة الأخرى.',
   },
+  // Das Passwort steht, nur das Abmelden der anderen Geraete schlug fehl.
+  'einstellungen.passwort_geaendert_andere_offen': {
+    de: 'Passwort geändert. Andere Geräte konnten wir gerade nicht abmelden. Bist du dort noch angemeldet, melde dich dort selbst ab.',
+    ar: 'تم تغيير كلمة المرور. لم نتمكن الآن من تسجيل خروجك من الأجهزة الأخرى. إن كنت لا تزال مسجّل الدخول عليها، فسجّل الخروج منها بنفسك.',
+  },
   'einstellungen.sicherheit_hinweis': {
     de: 'Die Verbindung läuft verschlüsselt, Passwörter liegen nur als Hash beim Anbieter. Deine Daten sieht nur, wer im jeweiligen Umzug eingetragen ist.',
     ar: 'الاتصال مشفّر، وكلمات المرور محفوظة كبصمة مشفّرة فقط. بياناتك لا يراها إلا من كان مسجّلاً في النقلة نفسها.',

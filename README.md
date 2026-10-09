@@ -354,12 +354,28 @@ Die Seite "Passwort vergessen" schickt den Link mit der Zieladresse
    Link klappt auch auf einem anderen Geraet als dem, auf dem er angefordert
    wurde. Ohne diese Aenderung kommt der Link als `?code=` an und geht nur im
    selben Browser, die Seite sagt das dann auch.
+3. Empfohlen, die Wand auf dem Server: **Authentication → Sign In /
+   Providers → Email → Secure password change** einschalten und speichern
+   (direkt: https://supabase.com/dashboard/project/_/auth/providers, dort
+   das Projekt waehlen und "Email" aufklappen). Dann lehnt Supabase selbst
+   jedes Aendern des Passworts ab, wenn die Anmeldung schon laenger
+   zurueckliegt (bei Supabase derzeit 24 Stunden), auch wenn jemand die App
+   umgeht. Die Einstellungen zeigen dann "neu anmelden"; nach Ab- und
+   wieder Anmelden klappt es. Der Link aus der Mail meldet frisch an und
+   sollte deshalb weiter gehen. **Danach den Weg ueber die Mail einmal echt
+   testen:** auf "Passwort vergessen" einen Link anfordern, ihn oeffnen,
+   ein neues Passwort setzen und mit ihm anmelden. Klappt das nicht, den
+   Schalter wieder ausschalten und Bescheid geben.
 
-Das Formular fuer das neue Passwort erscheint nur, wenn der Link in diesem
-Seitenaufruf eingeloest wurde. Nur angemeldet sein reicht nicht. Bis das
-neue Passwort steht, fuehrt jede andere Seite dorthin zurueck. Danach werden
-alle anderen Geraete abgemeldet. Wer angemeldet ist, aendert das Passwort in
-den Einstellungen, dort nur mit dem aktuellen Passwort.
+Das Formular fuer das neue Passwort erscheint nur, wenn dieser Tab den Link
+in diesem Seitenaufruf selbst eingeloest hat; meldet ein anderer Tab das
+Einloesen, zaehlt das hier nicht. Nur angemeldet sein reicht nicht. Im
+Formular steht, fuer welches Konto das neue Passwort gilt; war vorher ein
+anderes Konto angemeldet, sagt ein Hinweis das. Bis das neue Passwort
+steht, fuehrt jede andere Seite dorthin zurueck. Danach werden alle anderen
+Geraete abgemeldet; klappt das nicht, sagt die Seite das, statt es zu
+behaupten. Wer angemeldet ist, aendert das Passwort in den Einstellungen,
+dort nur mit dem aktuellen Passwort.
 
 ---
 

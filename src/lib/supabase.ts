@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { tg, type Vars } from './i18n'
 /* Muss vor createClient geladen sein: linkstand liest die Adresse, bevor
  * der Client einen Passwort-Link einloest und die Parameter entfernt. */
-import { wiederherstellungBeenden, wiederherstellungMelden } from './linkstand'
+import { startEinloesenFertig, wiederherstellungBeenden, wiederherstellungMelden } from './linkstand'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
@@ -34,13 +34,40 @@ export const supabase: SupabaseClient = createClient(
 
 /* Gleich nach dem Anlegen, damit kein Ereignis aus dem Start verloren geht:
  * PASSWORD_RECOVERY kommt, wenn der Client einen Passwort-Link (?code=)
- * eingeloest hat oder verifyOtp mit type recovery durchging. Nur dann darf
- * die Seite Passwort neu das Formular zeigen. Der Rueckruf bleibt
- * synchron und ruft selbst nichts bei Supabase auf. */
+ * eingeloest hat oder verifyOtp mit type recovery durchging, ABER auch,
+ * wenn ein anderer Tab das tat (BroadcastChannel von supabase-js). Ob es
+ * zaehlt, entscheidet linkstand: nur solange dieser Tab selbst einloest.
+ * SIGNED_OUT und USER_UPDATED (neues Passwort gesetzt, auch in einem
+ * anderen Tab) beenden den Vorgang; USER_UPDATED ist das Sicherheitsnetz,
+ * falls ein Weg das Beenden vergisst. Der Rueckruf bleibt synchron und
+ * ruft selbst nichts bei Supabase auf. */
 supabase.auth.onAuthStateChange((event) => {
   if (event === 'PASSWORD_RECOVERY') wiederherstellungMelden()
-  else if (event === 'SIGNED_OUT') wiederherstellungBeenden()
+  else if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') wiederherstellungBeenden()
 })
+
+/** Erfuellt, sobald der Client die Adresse beim Start ausgewertet hat und
+ *  die Ereignisse daraus verteilt sind. fehlerCode: der Code, wenn er einen
+ *  ?code= nicht einloesen konnte, sonst null.
+ *
+ *  Hier und nicht erst auf der Seite Passwort neu: das Startfenster fuer
+ *  PASSWORD_RECOVERY muss sich auf jeder Seite schliessen, sonst bliebe es
+ *  fuer Meldungen anderer Tabs offen. Das zweite initialize() startet
+ *  nichts neu, es wartet nur auf das erste aus createClient. Die Ereignisse
+ *  aus dem Start verteilt der Client gleich nach der Initialisierung, eines
+ *  davon in einem setTimeout(0): darum noch einen Takt warten. */
+export const startAusgewertet: Promise<{ fehlerCode: string | null }> = (async () => {
+  let fehlerCode: string | null = null
+  try {
+    const { error } = await supabase.auth.initialize()
+    if (error) fehlerCode = (error as { code?: string }).code ?? 'unbekannt'
+  } catch {
+    fehlerCode = 'unbekannt'
+  }
+  await new Promise((r) => setTimeout(r, 0))
+  startEinloesenFertig(fehlerCode !== null)
+  return { fehlerCode }
+})()
 
 /** Ein Wegwerf-Client nur zum Pruefen des aktuellen Passworts (Einstellungen).
  *  Er speichert keine Sitzung, erneuert nichts, liest keine Adresse und hat

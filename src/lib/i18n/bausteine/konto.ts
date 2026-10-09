@@ -120,6 +120,28 @@ export const konto: Woerterbuch = {
     de: 'Auf allen anderen Geräten bist du jetzt abgemeldet.',
     ar: 'تم تسجيل خروجك الآن من جميع الأجهزة الأخرى.',
   },
+  // Das Passwort steht, nur das Abmelden der anderen Geraete schlug fehl.
+  'konto.andere_nicht_abgemeldet': {
+    de: 'Andere Geräte konnten wir gerade nicht abmelden. Bist du dort noch angemeldet, melde dich dort selbst ab.',
+    ar: 'لم نتمكن الآن من تسجيل خروجك من الأجهزة الأخرى. إن كنت لا تزال مسجّل الدخول عليها، فسجّل الخروج منها بنفسك.',
+  },
+  // Oben im Formular: fuer welches Konto das neue Passwort gilt.
+  'konto.passwort_fuer': {
+    de: 'Neues Passwort für {email}',
+    ar: 'كلمة المرور الجديدة للحساب {email}',
+  },
+  // Vor dem Klick war hier ein anderes Konto angemeldet als das aus dem Link.
+  'konto.anderes_konto_titel': { de: 'Achtung: anderes Konto', ar: 'تنبيه: حساب آخر' },
+  'konto.anderes_konto_text': {
+    de: 'Dieser Link gehört nicht zu dem Konto, mit dem du hier angemeldet warst. Das neue Passwort gilt für {email}. Mit deinem bisherigen Konto bist du auf diesem Gerät abgemeldet. Willst du das nicht, tippe unten auf „Abbrechen und abmelden“.',
+    ar: 'هذا الرابط لا يخص الحساب الذي كنت مسجّل الدخول به هنا. كلمة المرور الجديدة ستكون للحساب {email}. تم تسجيل خروجك من حسابك السابق على هذا الجهاز. إن لم تكن تريد ذلك، فاضغط في الأسفل على «إلغاء وتسجيل الخروج».',
+  },
+  // Der Vorgang lief schon und wurde anderswo beendet (anderer Tab).
+  'konto.link_beendet_titel': { de: 'Vorgang beendet', ar: 'انتهت العملية' },
+  'konto.link_beendet_text': {
+    de: 'Das Zurücksetzen wurde beendet, zum Beispiel in einem anderen Tab. Brauchst du noch ein neues Passwort, fordere einen neuen Link an.',
+    ar: 'انتهت عملية إعادة التعيين، مثلاً في تبويب آخر. إن كنت لا تزال تحتاج إلى كلمة مرور جديدة، فاطلب رابطًا جديدًا.',
+  },
   'konto.abbrechen_abmelden': { de: 'Abbrechen und abmelden', ar: 'إلغاء وتسجيل الخروج' },
   'konto.weiter_geht_es': { de: 'Weiter geht es.', ar: 'لنكمل.' },
 }

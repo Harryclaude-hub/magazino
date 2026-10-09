@@ -7,10 +7,23 @@ import { useSyncExternalStore } from 'react'
  *    wird einmal beim Laden dieses Moduls. supabase.ts importiert es, darum
  *    laeuft das, bevor der Supabase-Client entsteht und die Adresse
  *    aufraeumt.
- * 2. Ob in diesem Seitenaufruf eine Wiederherstellung bestaetigt wurde
- *    (Ereignis PASSWORD_RECOVERY). Der Merker liegt nur im Speicher, nie in
- *    localStorage oder sessionStorage: ein neuer Seitenaufruf beginnt ohne
- *    ihn, und kein anderer Tab kann ihn setzen.
+ * 2. Ob DIESER Tab in diesem Seitenaufruf eine Wiederherstellung
+ *    eingeloest hat (Merker). Er liegt nur im Speicher, nie in localStorage
+ *    oder sessionStorage: ein neuer Seitenaufruf beginnt ohne ihn.
+ *
+ *    Vorsicht: supabase-js meldet Ereignisse anderer Tabs ueber einen
+ *    BroadcastChannel an dasselbe onAuthStateChange. Ein PASSWORD_RECOVERY
+ *    allein beweist also nicht, dass dieser Tab etwas eingeloest hat.
+ *    Darum zaehlt es nur, solange dieser Tab selbst einloest (Erwartung):
+ *    - beim Start, wenn die Adresse ?code= oder #access_token mit
+ *      type=recovery trug, bis der Client sie ausgewertet hat
+ *      (startEinloesenFertig aus supabase.ts),
+ *    - waehrend des eigenen verifyOtp (eigenesEinloesenBeginnen/-Ende).
+ *    Jede Erwartung nimmt hoechstens ein Ereignis an. Schlaegt das eigene
+ *    Einloesen fehl, kam ein Ereignis in diesem Fenster von anderswo: der
+ *    Merker geht wieder aus. Ein restliches Fenster bleibt: kommt genau
+ *    waehrend des eigenen Starts ein PASSWORD_RECOVERY eines anderen Tabs
+ *    und war der eigene ?code= keiner zum Zuruecksetzen, gilt es.
  *
  * Gelesen wird nur. error_description wird nie angezeigt: jeder kann einen
  * Link mit beliebigem Text darin verschicken.
@@ -57,6 +70,26 @@ function lesen(): LinkStand {
 }
 
 const BEIM_LADEN: LinkStand = Object.freeze(lesen())
+
+/* Steht eine Sitzung in der Adresse (alter Link mit #access_token=...)?
+ * Nur ob, nie der Wert: Tokens werden hier nicht aufbewahrt. */
+function sitzungInAdresse(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const abfrage = new URLSearchParams(window.location.search)
+    const anker = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    return Boolean(abfrage.get('access_token') || anker.get('access_token'))
+  } catch {
+    return false
+  }
+}
+
+/* Loest der Client beim Start selbst etwas ein? ?code= (PKCE) oder eine
+ * Sitzung im Anker mit type=recovery. Ein Link mit nur token_hash wird
+ * erst per Klick eingeloest, ein Link mit nur error gar nicht. */
+const START_EINLOESEN: boolean = Boolean(
+  BEIM_LADEN.code || (sitzungInAdresse() && BEIM_LADEN.type === 'recovery'),
+)
 
 /** Stand das beim Laden nach einem Link aus einer Auth-Mail aus? */
 export const LINK_BEIM_LADEN: boolean = Boolean(
@@ -144,14 +177,67 @@ function setzen(wert: boolean): void {
   for (const h of hoerer) h()
 }
 
-/** Aus onAuthStateChange bei PASSWORD_RECOVERY. Zaehlt nur, wenn dieser
- *  Seitenaufruf selbst mit einem Link begann; meldet ein anderer Tab das
- *  Ereignis ueber den gemeinsamen Kanal, bleibt der Merker hier aus. */
-export function wiederherstellungMelden(): void {
-  if (LINK_BEIM_LADEN && !verbraucht) setzen(true)
+/* ------------------------------------------------------------ Erwartungen */
+
+/** Ein Fenster, in dem dieser Tab selbst einloest. */
+export interface Erwartung {
+  angenommen: boolean
 }
 
-/** Nach dem neuen Passwort, beim Abbrechen und beim Abmelden. */
+let offen: Erwartung | null = null
+
+function oeffnen(): Erwartung {
+  const e: Erwartung = { angenommen: false }
+  offen = e
+  return e
+}
+
+function schliessen(e: Erwartung, fehlgeschlagen: boolean): void {
+  if (offen === e) offen = null
+  /* Das eigene Einloesen ging schief. Ein Ereignis, das in diesem Fenster
+   * angenommen wurde, kam dann von einem anderen Tab. */
+  if (fehlgeschlagen && e.angenommen) setzen(false)
+}
+
+// Beim Laden geoeffnet, geschlossen von startEinloesenFertig.
+const START: Erwartung | null = START_EINLOESEN ? oeffnen() : null
+
+/** Aus supabase.ts, sobald der Client die Adresse beim Start ausgewertet
+ *  und die Ereignisse daraus verteilt hat. fehlgeschlagen: initialize()
+ *  meldete einen Fehler (?code= nicht einloesbar). Ein Erfolg setzt den
+ *  Merker hier nicht: ein ?code= kann auch aus einer Bestaetigungsmail
+ *  stammen, ob es ein Passwort-Link war, sagt nur das Ereignis. */
+export function startEinloesenFertig(fehlgeschlagen: boolean): void {
+  if (START) schliessen(START, fehlgeschlagen)
+}
+
+/** Unmittelbar vor dem eigenen verifyOtp mit type recovery. */
+export function eigenesEinloesenBeginnen(): Erwartung {
+  return oeffnen()
+}
+
+/** Gleich danach, auch bei Fehlern. eingeloest: verifyOtp ging durch und
+ *  lieferte eine Sitzung. Dann war es sicher dieser Tab, auch falls das
+ *  Ereignis fehlte. */
+export function eigenesEinloesenEnde(e: Erwartung, eingeloest: boolean): void {
+  schliessen(e, !eingeloest)
+  if (eingeloest) setzen(true)
+}
+
+/** Aus onAuthStateChange bei PASSWORD_RECOVERY. Zaehlt nur, solange eine
+ *  Erwartung offen ist, und dann genau einmal. Ausserhalb (Ereignis aus
+ *  einem anderen Tab, zweite Meldung desselben Starts) bleibt alles, wie
+ *  es ist. */
+export function wiederherstellungMelden(): void {
+  const e = offen
+  if (!e) return
+  offen = null
+  e.angenommen = true
+  setzen(true)
+}
+
+/** Nach dem neuen Passwort, beim Abbrechen, beim Abmelden und bei
+ *  USER_UPDATED (Sicherheitsnetz, auch aus einem anderen Tab). */
 export function wiederherstellungBeenden(): void {
   setzen(false)
 }

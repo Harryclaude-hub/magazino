@@ -1,6 +1,7 @@
 # Kistly: Uebergabe fuer eine neue (lokale) Claude-Sitzung
 
-Stand: 02.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
+Stand: 09.10.2026 (Zweig `passwort-sicher-2026-10-09`, noch nicht in
+`main`). Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 
 ## Wo alles ist
 
@@ -9,7 +10,8 @@ Stand: 02.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - Repo: https://github.com/Harryclaude-hub/kistly, Zweig `main` ist aktuell
   (der Cloud-Arbeitszweig `claude/vibrant-planck-jlsatf` ist identisch).
 - Datenbank: Supabase `vqpirkgvclfsduklnnzv` (nur dieses Projekt!).
-  Migrationen 0001 bis 0048 sind angewandt.
+  Migrationen 0001 bis 0048 sind angewandt. 0049 liegt im Zweig
+  `passwort-sicher-2026-10-09` vor, nicht eingespielt; naechste: 0050.
 
 ## Was fertig ist
 
@@ -55,15 +57,23 @@ Stand: 02.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
   Minecraft (gespeichert in siedlung_dinge). Echte Daten nur in der
   Datenbank und in der Datei des Besitzers (_privat.local, nie im Repo).
   Umgebung neu erzeugen: scripts/stadt-aus-osm.mjs (siehe Kopf der Datei).
+- Passwort sicher (E88, Zweig `passwort-sicher-2026-10-09`): Auge im
+  Passwortfeld, Passwort vergessen mit neutralem Satz, Passwort neu nur
+  nach einem in diesem Tab eingeloesten Link (src/lib/linkstand.ts), mit
+  Konto im Formular und Hinweis bei fremdem Konto, Aendern in den
+  Einstellungen nur mit dem aktuellen Passwort. Migration 0049 (nicht
+  eingespielt): Mitgliedschaft fest, Einladungscodes nur fuer Bearbeiter
+  und Besitzer, owner_id nur durch Besitzer oder Admin.
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E87.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E88.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler
-  bekommen eine neue Nummer (naechste: 0049).
+  bekommen eine neue Nummer. 0049 liegt im Zweig
+  `passwort-sicher-2026-10-09` vor, nicht eingespielt; naechste: 0050.
 - Regel-Spiegel: SQL-Geometrie und `src/lib/geometrie.ts` immer zusammen
   aendern (`scripts/geometrie-pruefen.mjs`).
 
@@ -83,6 +93,12 @@ Stand: 02.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
    protection" in Auth einschalten; einige security-definer-Funktionen.
 6. Bilderkennung: einziger Versuch (24.09.) brach mit Zeitueberschreitung
    ab; nicht Teil des Umbaus.
+7. Passwort sicher (Zweig `passwort-sicher-2026-10-09`): Karam fuehrt den
+   Probelauf `supabase/probelauf/0049_mitglieder_und_einladungen_absichern.sql`
+   aus, dann 0049. Im Dashboard die Schritte aus dem README, Abschnitt
+   "Passwort zuruecksetzen" (Redirect URL, Mail-Vorlage mit token_hash,
+   "Secure password change"), danach einmal den Weg ueber die Mail echt
+   durchspielen. Mit echtem Supabase ist der Weg noch nicht getestet.
 
 ## Arbeitsweise
 

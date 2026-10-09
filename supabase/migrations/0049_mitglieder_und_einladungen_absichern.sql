@@ -13,6 +13,10 @@
 -- zwei Trigger und eine Pruefung an und schaerft zwei bestehende Regeln mit
 -- alter policy.
 --
+-- Ein zweiter Lauf schlaegt nicht fehl: Funktionen mit create or replace
+-- function, Trigger mit create or replace trigger (ab Postgres 14), Regeln
+-- mit alter policy, Rechte mit grant und revoke.
+--
 -- 1. KI-02: Eine Mitgliedschaft wandert nicht.
 --    members_update (0004) laesst jeden seine eigene Zeile aendern, gedacht
 --    fuer den Lesestand (last_read_at). Damit liess sich aber auch
@@ -62,7 +66,7 @@ begin
   return new;
 end $fn$;
 
-create trigger members_guard_keys before update on public.project_members
+create or replace trigger members_guard_keys before update on public.project_members
   for each row execute function public.guard_member_keys();
 
 -- ------------------------------------------------------- 2. Einladungscodes
@@ -109,7 +113,7 @@ begin
   return new;
 end $fn$;
 
-create trigger projects_guard_owner before update on public.projects
+create or replace trigger projects_guard_owner before update on public.projects
   for each row execute function public.guard_project_owner();
 
 -- Trigger-Funktionen brauchen kein EXECUTE (0006).
