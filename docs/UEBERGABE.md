@@ -1,6 +1,6 @@
 # Kistly: Uebergabe fuer eine neue (lokale) Claude-Sitzung
 
-Stand: 02.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
+Stand: 10.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 
 ## Wo alles ist
 
@@ -55,11 +55,18 @@ Stand: 02.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
   Minecraft (gespeichert in siedlung_dinge). Echte Daten nur in der
   Datenbank und in der Datei des Besitzers (_privat.local, nie im Repo).
   Umgebung neu erzeugen: scripts/stadt-aus-osm.mjs (siehe Kopf der Datei).
+- 09.10. und 10.10. (E88 bis E92): Tueren nach Karams Plan-Foto, Preise
+  gleich dem Link; Moebel beim Begehen tragen; Messpunkte an Ecken, Tueren
+  und Fenstern; BESTA-Eckbank und viel Deko fuer Bad und WC; Rechtsklick-
+  Menue beim Begehen (Details, Verschieben, Hinsetzen). Karams Plan "Neue
+  Wohnung" steht auf Version 110 (Bett 180 x 220, Ess-Eck, Bad-Deko).
+  Wanddinge immer an die Innenseite der Wand setzen: Raumkante plus 6 cm
+  (Wand 12 cm, mittig auf der Kante).
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E87.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E92.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler
@@ -88,8 +95,12 @@ Stand: 02.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 
 - Pruefen vor jedem Commit: `npx tsc -b`, `npx oxlint`, `npm run build`,
   `node scripts/woerter-pruefen.mjs` (8 bekannte Meldungen bei `*.eins`),
-  `node scripts/geometrie-pruefen.mjs`, `zeichner-pruefen.mjs`,
-  `szene-pruefen.mjs`; kein U+2014.
+  und alle `node scripts/*-pruefen.mjs` aus `CLAUDE.md`; kein U+2014.
+  stadt-, innen- und physik-pruefen messen Zeit und schlagen unter Last
+  fehl: allein wiederholen und mit dem unveraenderten Stand vergleichen.
+- Testseiten zz-* (von .gitignore erfasst) nach der Pruefung loeschen;
+  hoechstens ein Vite und ein Headless-Chrome gleichzeitig (am 10.10. ist
+  der Laptop unter Last abgestuerzt).
 - Datenbank: jede Migration erst als Probelauf (`do $probe$ ... raise
   exception` mit Bericht), dann anwenden. Vorlagen fuer Probelaeufe stehen
   im Bauplan (Abschnitt 2).

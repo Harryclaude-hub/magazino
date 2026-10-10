@@ -4,7 +4,8 @@
  * Name des Moebels gespeichert.
  */
 import { faecherGleichmaessig } from '../lib/geometrie.ts'
-import type { EigeneGroesse } from '../lib/types'
+import { moebelArt, type MoebelArt } from '../components/plan/moebelArt.ts'
+import type { EigeneGroesse, Objekt } from '../lib/types'
 import type { Vorlage } from './dok'
 
 type Roh = Omit<Vorlage, 'name' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke' | 'brett_cm' | 'spalten'> &
@@ -140,4 +141,25 @@ export function ausEigenerGroesse(g: EigeneGroesse): Vorlage {
     ausschnitt_tiefe_cm: l ? g.ausschnitt_tiefe_cm : null,
     ausschnitt_ecke: l ? 'ro' : null,
   })
+}
+
+/** Arten, die im Katalog unter einer anderen stehen: die BESTA-Eckbank
+ *  (eigene Art seit E91) ist eine Sitzbank und zaehlt dort mit. */
+function katalogArt(a: MoebelArt | null): MoebelArt | null {
+  return a === 'besta_bank' ? 'bank' : a
+}
+
+/** Gehoert ein Moebel im Plan zu diesem Katalog-Eintrag? Gleiche Art
+ *  (am Namen erkannt), bei Betten dieselbe Breite, bei Sofas dieselbe Form,
+ *  beim Fernseher: an der Wand oder nicht. Ohne erkannte Art: gleicher Name.
+ *  name ist der Name des Eintrags in der aktuellen Sprache. */
+export function gehoertZu(o: Objekt, v: Vorlage, name: string): boolean {
+  if (o.art !== v.art) return false
+  const a = v.art === 'moebel' ? katalogArt(moebelArt(name)) : null
+  if (!a) return o.name === name
+  if (katalogArt(moebelArt(o.name ?? '')) !== a) return false
+  if (a === 'bett') return o.breite_cm === v.breite_cm
+  if (a === 'sofa') return (o.form === 'l') === (v.form === 'l')
+  if (a === 'fernseher') return (o.tiefe_cm <= 12) === (v.tiefe_cm <= 12)
+  return true
 }

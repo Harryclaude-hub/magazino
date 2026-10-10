@@ -21,6 +21,9 @@ dist-ssr
 supabase/.temp
 supabase/.branches
 
+# Wegwerfseiten fuer Sichtpruefungen, nie einchecken
+zz-*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

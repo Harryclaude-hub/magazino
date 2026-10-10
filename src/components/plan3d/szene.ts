@@ -25,7 +25,7 @@ import {
   symbolAnWand,
 } from '../plan/hilfe.ts'
 import type { GrundrissDaten, Objekt, PlanKiste, Raum } from '../../lib/types'
-import { istDeko, moebelArt, type MoebelArt } from '../plan/moebelArt.ts'
+import { dekoEbene, moebelArt, type MoebelArt } from '../plan/moebelArt.ts'
 import { moebelTeile, ton, type Teil } from './moebel3d.ts'
 
 /** Die Farben, die die Szene braucht. Raum3D liest sie aus den Tokens. */
@@ -230,6 +230,9 @@ export interface Quader {
    *  dort der Raum fuer den Lichtschalter) die Kennung des Moebels, damit
    *  sie mit ihm getragen werden. */
   objekt?: string
+  /** E91: glimmt von selbst in der eigenen Farbe (0 bis 1), etwa eine
+   *  Kerzenflamme; unabhaengig vom Licht im Raum. */
+  glut?: number
 }
 
 export type Form3D = { art: 'zylinder'; oben: number; achse: 'x' | 'y' | 'z' } | { art: 'kugel' }
@@ -863,8 +866,8 @@ export function moebelQuader(o: Objekt, form: Teil[], f: Farben3D, art: MoebelAr
     const gross = Math.max(q.x1 - q.x0, q.y1 - q.y0) >= 12 && q.z1 - q.z0 >= 2
     // Runde und weich gepolsterte Teile ohne Kantenlinien (E81): die
     // Linie saesse auf einer Rundung in der Luft; die Rundung zeigt das
-    // Licht selbst.
-    const weich = !!rundform || (q.rund ?? 0) >= 2
+    // Licht selbst. E91: weicher Stoff (Teil.weich) auch mit kleiner Rundung.
+    const weich = !!rundform || (q.rund ?? 0) >= 2 || !!q.weich
     const kante = ist ? f.kisteRand : gross && !weich && art !== 'mauer' ? ton(qf, 0.68) : undefined
     const k =
       q.front?.art === 'tuer'
@@ -925,8 +928,8 @@ export function blickAus(dx: number, dz: number): number {
 
 /** Die E82-Felder eines Moebelteils als Quader-Felder: Platz (Mitte der
  *  Oberseite, Blick lokal vorn/hinten/links/rechts in der Welt), Ding,
- *  Geraet, Spiegel (Vorderseite = lokal +y) und Neigung (siehe kippWelt).
- *  drehY ist die des fertigen Quaders. */
+ *  Geraet, Spiegel (Vorderseite = lokal +y), Neigung (siehe kippWelt) und
+ *  Glut (E91, auf 0 bis 1 begrenzt). drehY ist die des fertigen Quaders. */
 function teilFelder(o: Objekt, q: Teil, unten: number, drehY: number): Partial<Quader> {
   const out: Partial<Quader> = {}
   if (q.platz) {
@@ -936,6 +939,7 @@ function teilFelder(o: Objekt, q: Teil, unten: number, drehY: number): Partial<Q
     out.platz = { art: q.platz.art, punkt: [m(cx), m(unten + q.z1), m(cy)], blick: blickAus(dx, dz) }
   }
   if (q.ding) out.ding = `${o.id}:${q.ding}`
+  if (q.glut) out.glut = Math.max(0, Math.min(1, q.glut))
   if (q.geraet) out.geraet = { id: `${o.id}:g${q.geraet.nr ?? 0}`, art: q.geraet.art, teil: q.geraet.teil }
   if (q.spiegel) out.normale = einheit(globalRichtung(o, 0, 1))
   if (q.kipp) {
@@ -951,23 +955,51 @@ function teilFelder(o: Objekt, q: Teil, unten: number, drehY: number): Partial<Q
  *  Wand; Lehne nach hinten), positives quer (um lokal y) nach rechts (+x).
  *  In der Welt kippt das um eine waagrechte Achse u, die je nach
  *  o.drehung die Welt-x- oder -z-Achse ist (mit Vorzeichen); Quader.kipp
- *  rechnet in den Achsen des Quaders vor drehY, darum u noch um -drehY. */
+ *  rechnet in den Achsen des Quaders vor drehY, darum u noch um -drehY.
+ *
+ *  Beide zugleich (Nacharbeit E91, Gruenlilie): gemeint ist erst quer,
+ *  dann laengs (richtung() in moebelDeko3d.ts). Der Motor dreht aber erst
+ *  um z, dann um x; bei drehung 90 und 270 liegt laengs auf z, also in der
+ *  falschen Reihenfolge, und die Blattstuecke rissen auseinander. Darum
+ *  wird dann die Lage der Hochachse (lokal z, die lange Achse der Staebe
+ *  und Blaetter) genau so gedreht wie gemeint und kx, kz daraus bestimmt:
+ *  die Richtung stimmt genau, die Drehung um die eigene Achse ungefaehr. */
 function kippWelt(o: Objekt, kipp: NonNullable<Teil['kipp']>, drehY: number): { x: number; z: number } | undefined {
   let x = 0
   let z = 0
   const c = Math.cos(drehY)
   const s = Math.sin(drehY)
+  // Die Oberkante wandert nach d (x, z): Drehachse u = (d.z, -d.x), in
+  // den Achsen des Quaders vor drehY.
+  const achse = (d: [number, number]): [number, number] => [d[1] * c + d[0] * s, d[1] * s - d[0] * c]
   const um = (d: [number, number], grad: number) => {
-    // Die Oberkante wandert nach d (x, z): Drehachse u = (d.z, -d.x).
     const w = (grad * Math.PI) / 180
-    const ux = d[1]
-    const uz = -d[0]
-    x += w * (ux * c - uz * s)
-    z += w * (ux * s + uz * c)
+    const [ux, uz] = achse(d)
+    x += w * ux
+    z += w * uz
   }
-  if (kipp.laengs) um(einheit(globalRichtung(o, 0, -1)), kipp.laengs)
-  if (kipp.quer) um(einheit(globalRichtung(o, 1, 0)), kipp.quer)
   const rund = (v: number) => (Math.abs(v) < 1e-12 ? 0 : v)
+  const dL = einheit(globalRichtung(o, 0, -1))
+  const dQ = einheit(globalRichtung(o, 1, 0))
+  if (kipp.laengs && kipp.quer) {
+    // Hochachse erst um quer, dann um laengs drehen (Rodrigues).
+    const dreh = (v: [number, number, number], d: [number, number], grad: number): [number, number, number] => {
+      const w = (grad * Math.PI) / 180
+      const [ux, uz] = achse(d)
+      const cw = Math.cos(w)
+      const sw = Math.sin(w)
+      const uv = ux * v[0] + uz * v[2]
+      // u x v mit u = (ux, 0, uz)
+      const k: [number, number, number] = [-uz * v[1], uz * v[0] - ux * v[2], ux * v[1]]
+      return [v[0] * cw + k[0] * sw + ux * uv * (1 - cw), v[1] * cw + k[1] * sw, v[2] * cw + k[2] * sw + uz * uv * (1 - cw)]
+    }
+    const h = dreh(dreh([0, 1, 0], dQ, kipp.quer), dL, kipp.laengs)
+    // Der Motor: rotation.set(kx, drehY, kz, 'YXZ') bringt die Hochachse
+    // nach (-sin kz, cos kz cos kx, cos kz sin kx).
+    return { x: rund(Math.atan2(h[2], h[1])), z: rund(-Math.asin(Math.max(-1, Math.min(1, h[0])))) }
+  }
+  if (kipp.laengs) um(dL, kipp.laengs)
+  if (kipp.quer) um(dQ, kipp.quer)
   return x || z ? { x: rund(x), z: rund(z) } : undefined
 }
 
@@ -1149,9 +1181,11 @@ export function baueSzene(daten: GrundrissDaten, farben: Farben3D, optionen: Sze
   for (const r of sichtbar) if (r.art === 'draussen') out.push(...balkonBoden(r, farben))
   out.push(...waende(daten, raeume, farben, raumId))
   out.push(...oeffnungen(daten, raeume, farben, raumId))
-  // Teppiche (E74) und Deko (E82) lassen sich ausblenden.
+  // Teppiche (E74) und Deko (E82) lassen sich ausblenden, mit der Deko
+  // auch, was auf ihr steht (dekoEbene).
+  const dekoWeg = optionen.deko === false ? dekoEbene(daten.objekte) : null
   const zeigen = (o: Objekt) =>
-    (optionen.teppiche !== false || moebelArt(o.name ?? '') !== 'teppich') && (optionen.deko !== false || !istDeko(o))
+    (optionen.teppiche !== false || moebelArt(o.name ?? '') !== 'teppich') && !dekoWeg?.has(o.id)
   out.push(
     ...objekte(
       (raumId ? daten.objekte.filter((o) => o.raum_id === raumId) : daten.objekte).filter(zeigen),

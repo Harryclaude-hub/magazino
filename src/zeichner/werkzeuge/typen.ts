@@ -13,6 +13,7 @@
 import type { ObjektForm, Punkt } from '../../lib/geometrie.ts'
 import type { Oeffnung, Raum, SymbolArt } from '../../lib/types'
 import type { Auswahl, Dok, Vorlage } from '../dok'
+import type { Messpunkt } from '../messpunkte'
 
 export type WerkzeugName =
   | 'auswahl'
@@ -86,8 +87,13 @@ export interface Vorschau {
   kiste?: { x: number; y: number; ex: number; ey: number; ok: boolean }
   /** Fangpunkte (Ecke gefangen: Ring). */
   punkte?: Punkt[]
-  /** Beschriftungen in cm-Koordinaten (Laengen). */
-  texte?: { p: Punkt; text: string }[]
+  /** Beschriftungen in cm-Koordinaten (Laengen). lichte: "Lichte" steht
+   *  davor (beide Enden derselben Oeffnung, E90). */
+  texte?: { p: Punkt; text: string; lichte?: boolean }[]
+  /** Nur beim Messen (E90): alle Messpunkte der Wohnung als kleine Marken,
+   *  der unter dem Zeiger (an) hervorgehoben und mit Namen. von: Anfang
+   *  einer halben Messung; der Name steht auf der abgewandten Seite. */
+  messpunkte?: { alle: Messpunkt[]; an: Messpunkt | null; von?: Punkt | null }
   /** Was gerade getippt wird (steht in der Statusleiste). */
   eingabe?: string
 }

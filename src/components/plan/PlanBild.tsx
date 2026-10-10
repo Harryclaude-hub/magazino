@@ -30,7 +30,7 @@ import {
   type PlanTreffer,
 } from './hilfe'
 import { objektName } from './lage'
-import { istDeko } from './moebelArt'
+import { dekoEbene } from './moebelArt'
 import { MoebelSymbol, moebelArt } from './moebelSymbol'
 import { radArt, radFaktor } from './ansicht'
 
@@ -599,7 +599,9 @@ export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, be
   // nichts verdeckt wird (E74); Teppiche und Deko (E82) lassen sich ausblenden.
   const objekte = useMemo(() => {
     const stufe = (o: Objekt) => (moebelArt(o.name ?? '') === 'teppich' ? 0 : (o.boden_cm ?? 0) > 0 ? 2 : 1)
-    const liste = teppiche && deko ? daten.objekte : daten.objekte.filter((o) => (teppiche || stufe(o) !== 0) && (deko || !istDeko(o)))
+    // Mit der Deko verschwindet auch, was auf ihr steht (dekoEbene).
+    const weg = deko ? null : dekoEbene(daten.objekte)
+    const liste = teppiche && deko ? daten.objekte : daten.objekte.filter((o) => (teppiche || stufe(o) !== 0) && !weg?.has(o.id))
     return [...liste].sort((a, b) => stufe(a) - stufe(b))
   }, [daten.objekte, teppiche, deko])
   // Raeume ohne Lichtschalter bekommen einen automatischen (E82), wie in 3D.

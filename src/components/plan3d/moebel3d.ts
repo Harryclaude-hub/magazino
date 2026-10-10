@@ -21,7 +21,7 @@
  * Polster und Kanten sind leicht hellere oder dunklere Toene davon. */
 import type { Objekt } from '../../lib/types'
 import { bankStuecke, type MoebelArt } from '../plan/moebelArt.ts'
-import { alsDing, dekoTeile, kegel, kugel, misch, rd, schieben, t, ton, zyl } from './moebelDeko3d.ts'
+import { alsDing, dekoTeile, kegel, kugel, misch, pflanzeTeile, rd, schieben, t, ton, zyl } from './moebelDeko3d.ts'
 
 export { ton }
 
@@ -101,6 +101,12 @@ export interface Teil {
    *  moebel3d.ts es meint: laengs positiv kippt die Oberkante nach hinten
    *  (-y, zur Wand), quer positiv kippt sie nach rechts (+x). */
   kipp?: { laengs?: number; quer?: number }
+  /** Glimmt von selbst in der eigenen Farbe, 0 bis 1, auch bei Licht aus
+   *  (Kerzenflamme, E91). Leise: das Licht im Raum aendert es nicht. */
+  glut?: number
+  /** Weicher Stoff ohne Kantenlinie, auch mit kleiner Rundung (E91:
+   *  Handtuecher, Bademantel); die Linie saesse sonst neben der Rundung. */
+  weich?: true
 }
 
 /** Tuer: gruppe verbindet sie mit ihrem Griff (art 'griff', gleiche
@@ -693,6 +699,76 @@ function sockel(B: number, T: number, H: number, korpus: string, f: MoebelFarben
   const h = (H - fuss) / n
   for (let i = 0; i < n; i++) {
     out.push(...schublade(FUGE / 2, B - FUGE / 2, ty, T, fuss + i * h + FUGE / 2, fuss + (i + 1) * h - FUGE / 2, ty - 3, 1, ton(korpus, 1.03), ton(korpus, 0.9), f))
+  }
+  return out
+}
+
+/** KUDDARNA-Polster gibt es nur in hellem Graubeige (E77). */
+const KUDDARNA = '#cfc8ba'
+
+/** Eckbank aus IKEA BESTA (E91): TV-Bank 180 x 42 x 38 mit drei Tueren
+ *  oder Regal 120 x 42 x 38 mit zwei, je Tuer 60 cm; Tueren LAPPVIKEN
+ *  weiss, flach und ohne Griff (Druck zum Oeffnen), schmale Fugen; der
+ *  Korpus weiss, hohl (Boden, Deckel, Seiten, Rueckwand, Mittelwaende, ein
+ *  Einlegeboden je Feld) und ohne Sockel direkt auf dem Boden. Obenauf
+ *  KUDDARNA in hellem Graubeige: Sitzpolster 6 cm ueber die ganze Laenge
+ *  und fast die ganze Tiefe, eines je Tuerfeld, jedes ein Platz mit Blick
+ *  nach vorn; an der Wand Rueckenpolster (62 x 44, etwa 10 cm dick, 10
+ *  Grad angelehnt), so viele wie auf die Laenge passen, vom Sitz bis H. Der
+ *  Korpus ist 38 hoch (bei kleinem H weniger), der Deckel ist das
+ *  Hindernis mit Oberkante. Als L (bankStuecke) je Kasten. */
+function bestaBank(o: O, f: MoebelFarben): Teil[] {
+  const H = o.hoehe_cm
+  const korpus = o.farbe ?? f.weiss
+  const tuerFarbe = ton(korpus, 1.02)
+  const innenFarbe = ton(korpus, 0.95)
+  const sitz = Math.min(44, H)
+  const kh = sitz - Math.min(6, sitz * 0.15)
+  const out: Teil[] = []
+  for (const s of bankStuecke(o)) {
+    const w = s.x1 - s.x0
+    const tief = s.y1 - s.y0
+    if (w < 2 * BRETT + 1 || tief < 2 * BRETT + 1) continue
+    const d = BRETT
+    const fy = s.y1 - d
+    const n = Math.max(1, Math.round(w / 60))
+    const fw = w / n
+    // Korpus: Boden und Deckel ueber die ganze Breite, Seiten dazwischen.
+    out.push(
+      rd(t(s.x0, s.y0, s.x1, fy, 0, d, korpus), 0.3),
+      rd(t(s.x0, s.y0, s.x1, fy, kh - d, kh, korpus), 0.3),
+      rd(t(s.x0, s.y0, s.x0 + d, fy, d, kh - d, korpus), 0.3),
+      rd(t(s.x1 - d, s.y0, s.x1, fy, d, kh - d, korpus), 0.3),
+      rd(t(s.x0 + d, s.y0, s.x1 - d, s.y0 + 0.8, d, kh - d, innenFarbe), 0.1),
+    )
+    for (let i = 0; i < n; i++) {
+      const a = s.x0 + i * fw
+      if (i > 0) out.push(rd(t(a - d / 2, s.y0 + 0.8, a + d / 2, fy, d, kh - d, korpus), 0.1))
+      const ia = a + (i > 0 ? d / 2 : d)
+      const ib = a + fw - (i < n - 1 ? d / 2 : d)
+      if (kh > 20 && ib - ia > 4) out.push(rd(t(ia + 0.2, s.y0 + 0.8, ib - 0.2, fy - 1, kh / 2 - d / 2, kh / 2 + d / 2, innenFarbe), 0.1))
+      // Tuer LAPPVIKEN: ueber dem Korpus, Fuge 3 mm, links angeschlagen
+      // in der linken Haelfte, sonst rechts.
+      out.push({ ...rd(t(a + FUGE / 2, fy, a + fw - FUGE / 2, s.y1, FUGE / 2, kh - FUGE / 2, tuerFarbe), 0.15), front: { art: 'tuer', angel: i < n / 2 ? 'min' : 'max', auf: 1 } })
+    }
+    // Sitzpolster: je Feld eins, fast so tief wie die Bank.
+    out.push(...polster(s.x0, s.x1, n, s.y0 + 0.5, s.y1 - 1, kh, sitz, ton(KUDDARNA, 1.03)).map((q) => sitzPlatz(q)))
+    // Rueckenpolster an der Wand, leicht angelehnt: die gekippte Huelle
+    // reicht genau vom Sitz bis H und liegt an der Wand an.
+    if (!s.lehne || H < sitz + 10) continue
+    const neig = 10
+    const sn = Math.sin((neig * Math.PI) / 180)
+    const cs = Math.cos((neig * Math.PI) / 180)
+    const dk = Math.min(10, tief * 0.3)
+    const hk = Math.min(44, (H - sitz - dk * sn) / cs)
+    const zc = sitz + (hk * cs + dk * sn) / 2
+    const yc = s.y0 + 0.3 + (dk * cs + hk * sn) / 2
+    const nk = Math.max(1, Math.round(w / 62))
+    const kw = Math.min(62, w / nk - 0.6)
+    for (let i = 0; i < nk; i++) {
+      const cx = s.x0 + (w / nk) * (i + 0.5)
+      out.push({ ...rd(t(cx - kw / 2, yc - dk / 2, cx + kw / 2, yc + dk / 2, zc - hk / 2, zc + hk / 2, ton(KUDDARNA, i % 2 ? 1.07 : 1.1)), Math.min(4.5, dk * 0.45)), kipp: { laengs: neig } })
+    }
   }
   return out
 }
@@ -1624,8 +1700,7 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       // L (E73) je Kasten, der Ausschnitt bleibt frei (Eckbank um einen
       // Mauervorsprung).
       const korpus = eigen ?? f.weiss
-      // KUDDARNA-Polster gibt es nur in hellem Graubeige (E77).
-      const stoff = /kuddarna/i.test(o.name ?? '') ? '#cfc8ba' : f.stoff
+      const stoff = /kuddarna/i.test(o.name ?? '') ? KUDDARNA : f.stoff
       const sitz = Math.min(46, H)
       const out: Teil[] = []
       for (const s of bankStuecke(o)) {
@@ -1644,6 +1719,8 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       }
       return out
     }
+    case 'besta_bank':
+      return bestaBank(o, f)
     case 'haengelampe': {
       // Haengt von der Decke: Kabel oben, Schirm unten (rund aus zwei Kreuzstuecken).
       const schirm = Math.min(40, H * 0.45)
@@ -1692,7 +1769,8 @@ export function moebelTeile(o: O, art: MoebelArt | null, f: MoebelFarben, decke:
       ]
     }
     case 'pflanze':
-      return [zyl(t(B * 0.22, T * 0.22, B * 0.78, T * 0.78, 0, H * 0.3, f.topf), 1.2), kugel(t(0, 0, B, T, H * 0.26, H, eigen ?? f.gruen))]
+      // E91: Gruenlilie und Haengepflanzen am Namen, sonst Topf und Krone.
+      return pflanzeTeile(B, T, H, o.name ?? '', eigen ?? null, f)
     case 'klavier':
       return [t(0, 0, B, T * 0.55, 0, H, eigen ?? f.schwarz), t(0, T * 0.55, B, T, 62, 72, eigen ?? f.schwarz), t(3, T * 0.58, B - 3, T * 0.95, 72, 73, f.weiss)]
     case 'garderobe':

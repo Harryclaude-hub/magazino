@@ -102,7 +102,8 @@
  * (Welt3D.dingErzeugen).
  *
  * Moebel tragen (E89, Rechnung in tragen.ts): beim Begehen der Wohnung
- * hebt die rechte Maustaste (am Handy langes Druecken) ein Moebel, Regal
+ * hebt die rechte Maustaste (am Handy langes Druecken; seit E92 ueber das
+ * Kontextmenue, siehe unten) ein Moebel, Regal
  * oder einen Schrank an, samt Tueren, Schubladen, Griffen, Leuchten, den
  * kleinen Dingen darauf, die noch niemand bewegt hat, und den Kisten
  * darauf oder darin (traeger aus ziehen()). Es folgt dem Zeiger auf einer
@@ -117,6 +118,20 @@
  * neu gerastert) und Lichter mit Licht3D.objektId. Spiegel, Geraete und
  * vom Aufrufer gesperrte Moebel (Mauern) bleiben stehen. Ein neuer Bau
  * (setzen) verwirft alles Getragene: die neuen Daten gelten.
+ *
+ * Kontextmenue (E92): die rechte Maustaste (am Handy langes Druecken) auf
+ * ein Moebel, Regal oder einen Schrank hebt nichts mehr an, sie meldet nur
+ * (moebelKontext): welches Objekt, wo am Bildschirm, ob es sich jetzt
+ * tragen und ob man sich darauf setzen kann. Die Seite zeigt daraufhin ein
+ * Menue; erst moebelAnheben() hebt es an (wie frueher der Rechtsklick, an
+ * der Hoehe, an der man es dort griff), moebelHinsetzen() nimmt den Platz,
+ * den ein Linksklick an derselben Stelle genommen haette. Rechts auf eine
+ * Kiste meldet sie wie ein Linksklick (tippen()), die Seite zeigt ihre
+ * Karte. Gehen, Umschauen, ein Druck auf das Bild, Einsteigen, ein Sprung,
+ * eingabe(false), ein neuer Bau oder das Ende des Begehens melden null:
+ * das Menue gilt nicht mehr. Der Druck auf das Bild, der es schliesst,
+ * tippt nichts an. Mit einem getragenen Moebel legt ein zweiter
+ * Rechtsklick es weiter zurueck.
  */
 import {
   AmbientLight,
@@ -255,6 +270,27 @@ export interface MoebelTragZustand {
   ok: boolean
   verschoben: number
   grund: 'gesperrt' | null
+}
+
+/** Was moebelKontext() meldet (E92): Rechtsklick oder langes Druecken auf
+ *  ein Moebel, Regal oder einen Schrank beim Begehen. objektId: Kennung des
+ *  Objekts; x, y: Stelle in CSS-Pixeln, gemessen von der linken oberen
+ *  Ecke des Elements, in dem die 3D-Ansicht steckt (host von
+ *  motorStarten); tragbar: moebelAnheben() hebt es jetzt an (Tragen ist
+ *  an, man steht zu Fuss mit leerer Hand auf der Ebene der Wohnung, und es
+ *  ist kein Spiegel, kein Geraet und nicht gesperrt); gesperrt: Tragen
+ *  ginge jetzt, aber dieses nicht (Mauer, Spiegel, Geraet; Nacharbeit E92,
+ *  damit das Menue es sagt wie der Hinweis aus E89); sitzbar: es hat einen
+ *  Sitz- oder Liegeplatz, den moebelHinsetzen() jetzt nimmt; liegen: der
+ *  Platz ist ein Liegeplatz (Bett), moebelHinsetzen() legt einen hin. */
+export interface MoebelKontext3D {
+  objektId: string
+  x: number
+  y: number
+  tragbar: boolean
+  gesperrt: boolean
+  sitzbar: boolean
+  liegen: boolean
 }
 
 /** Die Ebene, auf der man beim Begehen steht (E83): Index in welt().ebenen,
@@ -746,9 +782,10 @@ export interface Motor {
   /** Moebel tragen beim Begehen der Wohnung an (fn) oder aus (null; ein
    *  getragenes Moebel geht dabei zurueck, wohin es vor dem Anheben stand,
    *  verschobene bleiben, wo sie sind). Getragen wird nur auf der Ebene der
-   *  Wohnung, zu Fuss, stehend, mit leerer Hand: rechte Maustaste auf ein
-   *  Teil des Moebels (oder eine Kiste darauf oder darin), am Handy langes
-   *  Druecken (LANG_DRUECKEN_MS). Das Kontextmenue des Browsers kommt beim
+   *  Wohnung, zu Fuss, stehend, mit leerer Hand. E92: angehoben wird nur
+   *  ueber moebelAnheben() (etwa aus dem Kontextmenue, siehe
+   *  moebelKontext); rechte Maustaste und langes Druecken heben nichts
+   *  mehr an. Das Kontextmenue des Browsers kommt beim
    *  Begehen nie. gesperrt: Kennungen von Objekten, die sich nicht tragen
    *  lassen (etwa Mauern); ebenso jedes Moebel mit Spiegel oder Geraet.
    *  Dann bewegt sich nichts, und fn meldet grund 'gesperrt'. mitten: je
@@ -771,6 +808,44 @@ export interface Motor {
   /** Das getragene Moebel dorthin zurueck, wo es vor diesem Anheben stand
    *  (Esc, zweiter Rechtsklick). Ohne getragenes: nichts. */
   moebelZuruecklegen(): void
+  /* ------------------------------------------------------------ E92 */
+  /** Kontextmenue beim Begehen an (fn) oder aus (null). Ein Rechtsklick
+   *  ohne Ziehen (am Handy langes Druecken, LANG_DRUECKEN_MS, ohne mehr als
+   *  LANG_DRUECKEN_PX zu wandern) auf ein Teil eines Moebels, Regals oder
+   *  Schranks, hoechstens TRAGEN_WEIT_M weit, meldet MoebelKontext3D. Nur
+   *  beim Begehen auf der Ebene der Wohnung, nicht im Fahrzeug, nicht beim
+   *  Tragen, nicht solange eingabe(false) gilt, nicht waehrend eines
+   *  Sprungs, Ebenenwechsels oder Hinsetzens. Sitzen und Liegen gehen
+   *  (dann nur ohne tragbar). Trifft der Klick zuerst eine Kiste, meldet
+   *  sich das wie ein Linksklick auf sie bei tippen() (Stelle und
+   *  Treffer.kiste), nicht hier. Danach meldet fn einmal null, sobald das
+   *  Gemeldete nicht mehr gilt: man geht (Taste, Knueppel) oder wird mehr
+   *  als KONTEXT_WEG_M verschoben, schaut sich um, steigt ein, springt,
+   *  hebt an, setzt sich, ein Druck geht auf das Bild (er tippt dann nichts
+   *  an), eingabe(false), ein neuer Bau oder das Begehen endet. Wirft fn,
+   *  steht es in der Konsole. */
+  moebelKontext(fn: ((k: MoebelKontext3D | null) => void) | null): void
+  /** Das zuletzt gemeldete Kontextmenue ist zu (die Seite hat es selbst
+   *  geschlossen, etwa mit Esc): fn meldet dafuer kein null, und der
+   *  naechste Druck auf das Bild wirkt wieder. Was moebelAnheben und
+   *  moebelHinsetzen von diesem Klick brauchen, bleibt gemerkt. */
+  moebelKontextZu(): void
+  /** Das Moebel objektId anheben und tragen, genau wie frueher der
+   *  Rechtsklick: an der Hoehe der Stelle, an der der letzte gemeldete
+   *  Kontext es traf (fuer ein anderes Objekt die Mitte seiner Teile). Nur
+   *  wenn das Tragen an ist (moebelTragen) und es jetzt geht (wie tragbar);
+   *  ein Spiegel, Geraet oder gesperrtes Objekt meldet bei moebelTragen
+   *  grund 'gesperrt'. Unbekannte Kennung oder es geht gerade nicht:
+   *  nichts. Es folgt dann dem Zeiger, sobald der sich ueber dem Bild
+   *  bewegt (ohne zu springen), am Handy der Mitte des Bildes. */
+  moebelAnheben(objektId: string): void
+  /** Auf das Moebel objektId setzen oder legen, wie ein Linksklick: der
+   *  Platz, den ein Linksklick an der Stelle des letzten gemeldeten
+   *  Kontexts genommen haette (fuer ein anderes Objekt der naechste zur
+   *  Kamera). Nicht mit einem Ding in der Hand (dort stellt ein Linksklick
+   *  es hin), nicht im Fahrzeug, nur auf der Ebene der Wohnung. Ohne
+   *  Platz: nichts. */
+  moebelHinsetzen(objektId: string): void
   /** Alle Moebel genau zurueck auf das Original des letzten Baus, auch ein
    *  getragenes. */
   moebelZuruecksetzen(): void
@@ -796,6 +871,12 @@ export interface Treffer3D {
 
 /** Ab so vielen Pixeln wird aus einem Druck auf ein Moebel ein Ziehen. */
 const ZIEH_PX = 4
+
+/** Kontextmenue (E92): wird man weiter als so viele Meter verschoben
+ *  (etwa von einer Tuer), oder dreht sich der Blick um mehr als so viele
+ *  Radiant, gilt das Gemeldete nicht mehr. */
+const KONTEXT_WEG_M = 0.25
+const KONTEXT_BLICK_RAD = 0.02
 
 /** Wie durchsichtig eine Wand ist, deren Aussenseite zur Kamera zeigt. */
 const WAND_HALB = 0.16
@@ -1674,8 +1755,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
     modusSetzen(modus)
   }
   const linienMat = new Map<string, LineBasicMaterial>()
-  function flaecheMaterial(farbe: string, deckkraft: number, durch: boolean, glanz = 0): MeshLambertMaterial | MeshPhongMaterial {
-    const key = `${farbe}|${deckkraft}|${durch}|${glanz}`
+  function flaecheMaterial(farbe: string, deckkraft: number, durch: boolean, glanz = 0, glut = 0): MeshLambertMaterial | MeshPhongMaterial {
+    const key = `${farbe}|${deckkraft}|${durch}|${glanz}|${glut}`
     let m = flaechenMat.get(key)
     if (!m) {
       // Glaenzendes (Leder, Metall, Keramik, Glas) mit Lichtpunkt, sonst matt.
@@ -1691,6 +1772,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
               specular: new Color(glanz * 0.32, glanz * 0.32, glanz * 0.32),
             })
           : new MeshLambertMaterial({ color: new Color(farbe), transparent: durch, opacity: deckkraft, depthWrite: deckkraft >= 1 })
+      // Glut (E91, Kerzenflamme): leuchtet leise in der eigenen Farbe, auch
+      // wenn das Licht im Raum aus ist.
+      if (glut > 0) m.emissive = new Color(farbe).multiplyScalar(glut)
       flaechenMat.set(key, m)
     }
     return m
@@ -2083,6 +2167,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
     tintAus()
     trag = null
     langDruckAus()
+    // E92: ein offenes Kontextmenue gilt fuer die alten Teile nicht mehr.
+    kontextAus(true)
+    kontextLetzt = null
     for (const p of punktLichter) {
       const u = p.userData as LichtDaten
       if (u.objekt && u.ur) p.position.set(u.ur[0], u.ur[1], u.ur[2])
@@ -2124,7 +2211,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
                     opacity: k.deckkraft,
                     depthWrite: k.deckkraft >= 1,
                   })
-                : flaecheMaterial(k.farbe, k.deckkraft, durch, k.glanz ?? 0)
+                : flaecheMaterial(k.farbe, k.deckkraft, durch, k.glanz ?? 0, k.glut ?? 0)
       const gestalt = wand ? { geo: einheit, echt: false } : form(k)
       const mesh = new Mesh(gestalt.geo, mat)
       // Erst Lage, Groesse und Drehung, danach Tuer- und Schubstand. Vor
@@ -4317,40 +4404,184 @@ export function motorStarten(host: HTMLElement): Motor | null {
     )
   }
 
-  /** Das Moebel unter dem Strahl (strahl ist gesetzt), hoechstens
-   *  TRAGEN_WEIT_M weit: seine Kennung (bei einer Kiste die ihres Traegers)
-   *  und die Hoehe der getroffenen Stelle, sonst null. Glas zaehlt nicht,
-   *  etwas Deckendes davor (Wand, Boden) verdeckt. */
-  function moebelUnterStrahl(): { id: string; y: number } | null {
+  /** Lassen sich s jetzt anheben (moebelAnheben)? Wie tragenGeht, dazu
+   *  kein Spiegel, kein Geraet, nicht gesperrt. */
+  function tragbar(s: Stueck): boolean {
+    return tragenGeht() && !s.fest && !tragGesperrt.has(s.id)
+  }
+
+  /** Das Moebel s anheben, wie frueher der Rechtsklick: y ist die Hoehe der
+   *  Stelle, an der man es griff. Laesst es sich nicht tragen, meldet sich
+   *  grund 'gesperrt'. */
+  function anheben(s: Stueck, y: number) {
+    if (!tragenGeht()) return
+    if (s.fest || tragGesperrt.has(s.id)) {
+      tragMelden(true, 'gesperrt')
+      return
+    }
+    aufnehmen(s, y)
+  }
+
+  /* ------------------------------------------------ Kontextmenue (E92) */
+
+  let kontextFn: ((k: MoebelKontext3D | null) => void) | null = null
+  /** Das gemeldete Kontextmenue, solange es gilt (Kamera und Blick von
+   *  da, um Gehen und Umschauen zu erkennen), sonst null. zeiger: der
+   *  Zeiger, der es geoeffnet hat und noch unten ist (langes Druecken, auf
+   *  macOS und Linux die rechte Taste); bis er losgelassen ist, dreht
+   *  seine Bewegung den Blick nicht (Nacharbeit E92: ein Rutschen um 5 px
+   *  beim Abheben schloss das Menue sofort wieder). */
+  let kontextOffen: { px: number; pz: number; gier: number; neigung: number; zeiger: number | null } | null = null
+  /** Was moebelAnheben und moebelHinsetzen vom letzten Kontext brauchen:
+   *  Objekt, Hoehe der getroffenen Stelle, der Platz, den ein Linksklick
+   *  dort naehme. Bleibt nach dem Schliessen, bis ein neuer Bau kommt oder
+   *  das Begehen endet. */
+  let kontextLetzt: { id: string; y: number; platz: Platz | null } | null = null
+
+  /** Was ein Rechtsklick an dieser Stelle trifft (strahl ist gesetzt),
+   *  hoechstens TRAGEN_WEIT_M weit: zuerst eine Kiste (fuer ihre Karte), ein
+   *  Teil eines Moebels (Kennung, Stelle, Platz wie beim Linksklick), sonst
+   *  null. Glas zaehlt nicht, etwas Deckendes davor (Wand, Boden) verdeckt. */
+  function kontextUnterStrahl():
+    | { art: 'kiste'; kiste: string; objekt: string | undefined; x: number; z: number }
+    | { art: 'moebel'; id: string; x: number; y: number; z: number; platz: Platz | null }
+    | null {
     for (const hit of strahl.intersectObjects(gruppe.children, false)) {
       if (hit.distance > TRAGEN_WEIT_M) return null
       const o = hit.object
       if (!o.visible) continue
       const u = daten(o)
       if (u.glas) continue
-      const id = u.gehoert ?? (u.kisteId ? traeger.get(u.kisteId) : undefined)
-      if (id) return { id, y: hit.point.y }
+      if (u.kisteId) return { art: 'kiste', kiste: u.kisteId, objekt: u.objektId, x: hit.point.x, z: hit.point.z }
+      if (u.gehoert) return { art: 'moebel', id: u.gehoert, x: hit.point.x, y: hit.point.y, z: hit.point.z, platz: u.platz ?? null }
       const mat = (o as Mesh).material as MeshLambertMaterial | undefined
       if (mat && !Array.isArray(mat) && mat.opacity >= 0.5) return null
     }
     return null
   }
 
-  /** Rechtsklick oder langes Druecken an der Bildstelle (CSS-Pixel): das
-   *  Moebel dort anheben; laesst es sich nicht tragen, meldet sich grund
-   *  'gesperrt'. */
-  function tragenBei(clientX: number, clientY: number) {
-    if (!tragenGeht()) return
-    strahl.setFromCamera(zeigerNdc({ clientX, clientY }), camera)
-    const t = moebelUnterStrahl()
-    if (!t) return
-    const s = stuecke.get(t.id)
-    if (!s) return
-    if (s.fest || tragGesperrt.has(s.id)) {
-      tragMelden(true, 'gesperrt')
-      return
+  /** Darf ein Rechtsklick jetzt ein Kontextmenue melden? Beim Begehen auf
+   *  der Ebene der Wohnung, zu Fuss, ohne getragenes Moebel, nicht beim
+   *  Sprung, Ebenenwechsel, Hinsetzen, Warten auf eine Ebene oder im Aufzug. */
+  function kontextGeht(): boolean {
+    return (
+      !!kontextFn &&
+      gehen &&
+      eingabeAn &&
+      !trag &&
+      !fahrt &&
+      !wechsel.an &&
+      ebenen.aufWohnung &&
+      !ebeneWarten &&
+      !sprung.an &&
+      !uebergang.an &&
+      !(aufzug.an && aufzug.mit)
+    )
+  }
+
+  /** Melden (Fehler des Abnehmers in die Konsole). */
+  function kontextMelden(k: MoebelKontext3D | null) {
+    const fn = kontextFn
+    if (!fn) return
+    try {
+      fn(k)
+    } catch (err) {
+      console.error('[3d] moebelKontext: der Abnehmer wirft:', err)
     }
-    aufnehmen(s, t.y)
+  }
+
+  /** Das offene Kontextmenue gilt nicht mehr; melden: null an fn. */
+  function kontextAus(melden: boolean) {
+    if (!kontextOffen) return
+    kontextOffen = null
+    if (melden) kontextMelden(null)
+  }
+
+  /** Rechtsklick oder langes Druecken an der Bildstelle (CSS-Pixel): eine
+   *  Kiste meldet sich bei tippen() (ihre Karte), ein Moebel als Kontext.
+   *  true, wenn etwas gemeldet wurde. */
+  function kontextBei(clientX: number, clientY: number): boolean {
+    if (!kontextGeht()) return false
+    strahl.setFromCamera(zeigerNdc({ clientX, clientY }), camera)
+    const t = kontextUnterStrahl()
+    if (!t) return false
+    // Der Druck, der das Menue oeffnete, tippt nichts mehr an.
+    tipp = null
+    if (t.art === 'kiste') {
+      kontextAus(true)
+      if (!tippFn) return false
+      tippFn(Math.round(t.x * 100), Math.round(t.z * 100), { objekt: t.objekt, kiste: t.kiste })
+      return true
+    }
+    const s = stuecke.get(t.id)
+    if (!s) return false
+    // Der Platz, den ein Linksklick hier naehme (tippHoch): mit einem Ding
+    // in der Hand stellt ein Linksklick es hin, setzt sich also nicht.
+    const pl = halt.ding ? null : (t.platz ?? naechsterPlatz(s.id, t.x, t.z))
+    kontextLetzt = { id: s.id, y: t.y, platz: pl }
+    kontextOffen = { px: camera.position.x, pz: camera.position.z, gier: gierZiel, neigung: neigungZiel, zeiger: schauen?.id ?? null }
+    const traegt = tragbar(s)
+    const r = host.getBoundingClientRect()
+    kontextMelden({ objektId: s.id, x: clientX - r.left, y: clientY - r.top, tragbar: traegt, gesperrt: !traegt && tragenGeht(), sitzbar: pl !== null, liegen: pl?.art === 'liegen' })
+    return true
+  }
+
+  /** In jedem Bild: gilt das offene Kontextmenue noch? Gehen (Taste,
+   *  Knueppel), verschoben werden, Umschauen, Einsteigen, ein Sprung oder
+   *  Tragen schliessen es. */
+  function kontextPruefen() {
+    const k = kontextOffen
+    if (!k) return
+    const weg =
+      !gehen ||
+      !eingabeAn ||
+      !!fahrt ||
+      !!trag ||
+      sprung.an ||
+      halten.size > 0 ||
+      stick.x !== 0 ||
+      stick.y !== 0 ||
+      Math.hypot(camera.position.x - k.px, camera.position.z - k.pz) > KONTEXT_WEG_M ||
+      Math.abs(gierZiel - k.gier) > KONTEXT_BLICK_RAD ||
+      Math.abs(neigungZiel - k.neigung) > KONTEXT_BLICK_RAD
+    if (weg) kontextAus(true)
+  }
+
+  /** moebelAnheben(id): an der Hoehe des letzten Kontexts, sonst der Mitte
+   *  seiner Teile. */
+  function kontextAnheben(id: string) {
+    const s = stuecke.get(id)
+    if (!s || !tragenGeht()) return
+    let y: number
+    if (kontextLetzt && kontextLetzt.id === id) y = kontextLetzt.y
+    else {
+      const b = new Box3()
+      for (const m of s.teile) b.expandByObject(m)
+      y = b.isEmpty() ? camera.position.y - AUGE_M / 2 : (b.min.y + b.max.y) / 2
+    }
+    kontextAus(true)
+    anheben(s, y)
+  }
+
+  /** moebelHinsetzen(id): der Platz des letzten Kontexts, sonst der
+   *  naechste des Moebels zur Kamera. */
+  function kontextHinsetzen(id: string) {
+    if (!gehen || !eingabeAn || fahrt || trag || halt.ding || !ebenen.aufWohnung || ebeneWarten) return
+    let pl = kontextLetzt && kontextLetzt.id === id ? kontextLetzt.platz : null
+    if (!pl) {
+      let bester = Infinity
+      for (const p of plaetze.get(id) ?? []) {
+        const d = Math.hypot(p.punkt[0] - camera.position.x, p.punkt[2] - camera.position.z)
+        if (d < bester) {
+          bester = d
+          pl = p
+        }
+      }
+    }
+    if (!pl) return
+    kontextAus(true)
+    platzNehmen(pl)
+    anstossen()
   }
 
   /** Das Original von allem, was mit s geht: Kisten (traeger), Tueren,
@@ -5799,6 +6030,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (blaulichtLaeuft()) weiter = true
     // E89: ein getragenes Moebel folgt dem Zeiger.
     if (tragenSchritt()) weiter = true
+    // E92: gilt das Kontextmenue noch (Gehen, Umschauen)?
+    kontextPruefen()
     // Was man tun kann (E87), nur bei Aenderung gemeldet.
     moeglichPruefen(false)
     renderer.render(scene, camera)
@@ -5926,11 +6159,20 @@ export function motorStarten(host: HTMLElement): Motor | null {
     const dy = e.clientY - schauen.y
     schauen.x = e.clientX
     schauen.y = e.clientY
+    // Der Zeiger, der das Kontextmenue geoeffnet hat, schaut bis zum
+    // Loslassen nicht um (kontextOffen.zeiger).
+    if (kontextOffen && kontextOffen.zeiger === e.pointerId) return
     gierZiel += dx * 0.0045
     neigungZiel = Math.max(-1.2, Math.min(1.2, neigungZiel + dy * 0.0045))
     anstossen()
   }
   const schauHoch = (e: PointerEvent) => {
+    // Erst ab dem Loslassen zaehlt Umschauen wieder fuer das Kontextmenue.
+    if (kontextOffen && kontextOffen.zeiger === e.pointerId) {
+      kontextOffen.zeiger = null
+      kontextOffen.gier = gierZiel
+      kontextOffen.neigung = neigungZiel
+    }
     if (!schauen || e.pointerId !== schauen.id) return
     schauenLoslassen()
   }
@@ -5970,6 +6212,13 @@ export function motorStarten(host: HTMLElement): Motor | null {
   let tippFn: ((xCm: number, yCm: number, treffer: Treffer3D | null) => void) | null = null
   const ndcTipp = { x: 0, y: 0 }
   const tippRunter = (e: PointerEvent) => {
+    // E92: ein Druck auf das Bild schliesst ein offenes Kontextmenue und
+    // tippt dabei nichts an (kein ungewolltes Hinsetzen).
+    if (kontextOffen) {
+      kontextAus(true)
+      tipp = null
+      return
+    }
     tipp = e.button === 0 && eingabeAn ? { x: e.clientX, y: e.clientY, zeit: performance.now() } : null
   }
   const tippHoch = (e: PointerEvent) => {
@@ -6069,11 +6318,13 @@ export function motorStarten(host: HTMLElement): Motor | null {
   renderer.domElement.addEventListener('pointerdown', tippRunter)
   renderer.domElement.addEventListener('pointerup', tippHoch)
 
-  /* Moebel tragen (E89): rechte Maustaste hebt an und legt zurueck, am
-   * Handy hebt langes Druecken an (Tippen stellt ab, siehe tippHoch). Das
-   * Kontextmenue des Browsers kommt beim Begehen nie. Wer mit der rechten
-   * Taste gezogen hat (Umschauen), hebt nichts an. Langes Druecken meldet
-   * sich am Handy auch als Kontextmenue: das zaehlt dann nicht noch einmal. */
+  /* Rechte Maustaste (E89, seit E92 Kontextmenue): oeffnet das Menue
+   * (moebelKontext), mit einem getragenen Moebel legt sie es zurueck; am
+   * Handy oeffnet langes Druecken das Menue (Tippen stellt ein getragenes
+   * ab, siehe tippHoch). Das Kontextmenue des Browsers kommt beim Begehen
+   * nie. Wer mit der rechten Taste gezogen hat (Umschauen), oeffnet nichts.
+   * Langes Druecken meldet sich am Handy auch als Kontextmenue: das zaehlt
+   * dann nicht noch einmal. */
   let rechts: { x: number; y: number } | null = null
   let beruehrtZeit = -Infinity
   let langDruck: { id: number; x: number; y: number; uhr: number } | null = null
@@ -6087,7 +6338,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
       beruehrtZeit = performance.now()
       // Ein zweiter Finger (Zoomen, Knueppel daneben) bricht ab.
       langDruckAus()
-      if (!e.isPrimary || !tragenGeht()) return
+      if (!e.isPrimary || !kontextGeht()) return
       const x = e.clientX
       const y = e.clientY
       langDruck = {
@@ -6096,7 +6347,7 @@ export function motorStarten(host: HTMLElement): Motor | null {
         y,
         uhr: window.setTimeout(() => {
           langDruck = null
-          tragenBei(x, y)
+          kontextBei(x, y)
         }, LANG_DRUECKEN_MS),
       }
       return
@@ -6115,14 +6366,14 @@ export function motorStarten(host: HTMLElement): Motor | null {
     e.preventDefault()
     const r = rechts
     rechts = null
-    if (!tragFn || !eingabeAn) return
+    if (!eingabeAn) return
     if (performance.now() - beruehrtZeit < 1500) return
     if (r && Math.hypot(e.clientX - r.x, e.clientY - r.y) > 6) return
     if (trag) {
       zuruecklegen()
       return
     }
-    tragenBei(e.clientX, e.clientY)
+    kontextBei(e.clientX, e.clientY)
   }
   renderer.domElement.addEventListener('pointerdown', tragRunter)
   renderer.domElement.addEventListener('pointermove', tragBewegen)
@@ -6206,6 +6457,9 @@ export function motorStarten(host: HTMLElement): Motor | null {
     if (halt.ding) ablegen()
     if (trag) zuruecklegen()
     langDruckAus()
+    // E92: kein Kontextmenue mehr.
+    kontextAus(true)
+    kontextLetzt = null
     gehen = false
     bremse = false
     // Keine Treppe, kein Sprung mehr (E87).
@@ -6447,6 +6701,24 @@ export function motorStarten(host: HTMLElement): Motor | null {
     moebelZuruecksetzen() {
       if (!weg) zuruecksetzen()
     },
+    /* E92: Kontextmenue. */
+    moebelKontext(fn) {
+      if (weg) return
+      if (!fn) {
+        kontextOffen = null
+        langDruckAus()
+      }
+      kontextFn = fn
+    },
+    moebelKontextZu() {
+      kontextOffen = null
+    },
+    moebelAnheben(objektId) {
+      if (!weg) kontextAnheben(objektId)
+    },
+    moebelHinsetzen(objektId) {
+      if (!weg) kontextHinsetzen(objektId)
+    },
     moebelAenderungen() {
       const out: MoebelAenderung[] = []
       if (weg) return out
@@ -6510,6 +6782,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
         bremse = false
         schauenLoslassen()
         tipp = null
+        // E92: ein offenes Kontextmenue gilt nicht mehr.
+        kontextAus(true)
       }
       anstossen()
     },
@@ -6684,6 +6958,10 @@ export function motorStarten(host: HTMLElement): Motor | null {
       langDruckAus()
       tragFn = null
       trag = null
+      // E92: nichts mehr melden.
+      kontextFn = null
+      kontextOffen = null
+      kontextLetzt = null
       tintAus()
       tintLinieOk?.dispose()
       tintLinieNein?.dispose()

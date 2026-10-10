@@ -6,7 +6,7 @@ import { standardLook } from '../../lib/avatar'
 import { wohnungBeitreten, type WohnungVerbindung } from '../../lib/anwesenheit'
 import { useSprache } from '../../lib/i18n'
 import { Sprechen, type SprechZustand } from '../../lib/sprechen'
-import type { Avatar3D, GrundrissDaten } from '../../lib/types'
+import type { Avatar3D, GrundrissDaten, Item } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { useProjektOptional } from '../../pages/ProjectLayout'
 import { Button, useToast } from '../ui'
@@ -15,8 +15,23 @@ import { moebelArt } from '../plan/moebelArt'
 import { objektMitte } from '../plan/objektVerschieben'
 import { baueUmgebung } from './aussen3d'
 import { baueFigur } from './avatar3d'
+import { zielFuerItem } from '../ItemRow'
 import KistenKarte from './KistenKarte'
-import { motorStarten, type Blick, type Figur3D, type Haltung, type MoebelAenderung, type MoebelTragZustand, type Motor, type Pose3D, type Treffer3D } from './motor'
+import MoebelKarte from './MoebelKarte'
+import MoebelMenue from './MoebelMenue'
+import { kistenAuf, traegerKarte, type MenueEintrag } from './moebelInfo'
+import {
+  motorStarten,
+  type Blick,
+  type Figur3D,
+  type Haltung,
+  type MoebelAenderung,
+  type MoebelKontext3D,
+  type MoebelTragZustand,
+  type Motor,
+  type Pose3D,
+  type Treffer3D,
+} from './motor'
 import { Knueppel } from './Knueppel'
 import Minikarte, { springbarBerechnen, sprungImHaus, type MinikarteLage, type MinikartePerson } from './Minikarte'
 import { farbenLesen } from './farben3d'
@@ -109,9 +124,12 @@ import type { DingLage3D, Ebene3D, FahrzeugArt, FahrzeugJetzt, Karte3D, Moeglich
  * der Seite kann Nochmal und Schliessen haben.
  *
  * E89: Beim Begehen der Wohnung (nicht in der Welt der Siedlung) hebt ein
- * Rechtsklick (am Handy langes Druecken) ein Moebel an und traegt es
+ * Rechtsklick (am Handy langes Druecken; seit E92 ueber "Verschieben" im
+ * Kontextmenue) ein Moebel an und traegt es
  * (motor.moebelTragen, Rechnung in tragen.ts); Mauern (moebelArt 'mauer')
- * sind gesperrt, und ein Hinweis sagt es. Oben in der Mitte steht dann,
+ * sind gesperrt, und das Menue sagt es (Verschieben ausgegraut mit dem
+ * Satz plan3d.moebel_gesperrt; der Motor meldet gesperrt, und hebt man es
+ * doch an, kommt der Satz als Hinweis). Oben in der Mitte steht dann,
  * wie viele Moebel verschoben sind, mit Zuruecksetzen und, wenn die Seite
  * onMoebelSpeichern gibt, Speichern (die neuen Daten der Seite bauen die
  * Szene neu); beim Tragen ein Satz zur Bedienung, am Handy dazu Abstellen
@@ -120,6 +138,22 @@ import type { DingLage3D, Ebene3D, FahrzeugArt, FahrzeugJetzt, Karte3D, Moeglich
  * mit ungespeicherten Verschiebungen, geht alles zurueck, und ein Hinweis
  * sagt "Verschiebungen verworfen"; ebenso, wenn ein Neubau der Szene sie
  * verwirft. Die Leiste steht im Arabischen nicht gespiegelt.
+ *
+ * E92: Rechtsklick (am Handy langes Druecken) auf ein Moebel, Regal oder
+ * einen Schrank beim Begehen oeffnet ein kleines Menue am Zeiger
+ * (MoebelMenue.tsx, gemeldet von motor.moebelKontext): "Details" immer,
+ * "Verschieben", wenn es sich jetzt tragen laesst (motor.moebelAnheben,
+ * weiter wie E89; gesperrt ausgegraut mit Grund), "Hinsetzen", wenn es
+ * einen Platz hat, bei einem Liegeplatz (Bett) "Hinlegen"
+ * (motor.moebelHinsetzen). Rechts auf eine Kiste zeigt ihre Karte. Das
+ * Menue steht in der 3D-Flaeche, auch im Vollbild, ganz im Bild, nie
+ * gespiegelt; Esc, ein Druck daneben, Gehen, Umschauen, Mausrad und Rollen
+ * schliessen es. "Details" oeffnet die Karte des Moebels (MoebelKarte.tsx,
+ * wie die Kistenkarte): Name, Art, Masse, Material, Zimmer, Preis, Shop,
+ * Kisten darauf oder darin, mit Eintrag und offenem Umzug der Weg zur
+ * Moebelseite; solange sie offen ist, ruht die Eingabe beim Motor. Esc der
+ * Reihe nach: Menue, Moebelkarte, dann wie bisher. Ein Linksklick auf
+ * einen Stuhl setzt wie bisher.
  *
  * Die Farben kommen aus den Tokens (getComputedStyle) und werden bei
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
@@ -635,24 +669,6 @@ function useMedien(abfrage: string): boolean {
   return an
 }
 
-/** Kiste -> Objekt, auf oder in dem ihr Stapel steht (ueber Kisten hinweg). */
-function traegerKarte(daten: GrundrissDaten): Map<string, string> {
-  const nachId = new Map(daten.kisten.map((k) => [k.id, k]))
-  const out = new Map<string, string>()
-  for (const k of daten.kisten) {
-    let jetzt = nachId.get(k.id)
-    for (let i = 0; jetzt && i < 50; i++) {
-      if ((jetzt.unterlage_art === 'objekt' || jetzt.unterlage_art === 'fach') && jetzt.unterlage_objekt_id) {
-        out.set(k.id, jetzt.unterlage_objekt_id)
-        break
-      }
-      if (jetzt.unterlage_art !== 'kiste' || !jetzt.unterlage_item_id) break
-      jetzt = nachId.get(jetzt.unterlage_item_id)
-    }
-  }
-  return out
-}
-
 export default function Raum3D({
   daten,
   raumId = null,
@@ -761,6 +777,11 @@ export default function Raum3D({
   // Karte einer angetippten Kiste und die Kiste, die offen gezeigt wird (E82).
   const [karte, setKarte] = useState<string | null>(null)
   const [offeneKiste, setOffeneKiste] = useState<string | null>(null)
+  // E92: Kontextmenue eines Moebels (vom Motor gemeldet) und die Karte
+  // eines Moebels (Objekt-Id), die "Details" oeffnet.
+  const [menue, setMenue] = useState<MoebelKontext3D | null>(null)
+  const [moebelKarte, setMoebelKarte] = useState<string | null>(null)
+  const kartenAuf = karte !== null || moebelKarte !== null
   // Beim Begehen: stehen, sitzen, liegen; und was man in der Hand haelt.
   const [haltung, setHaltung] = useState<Haltung>('stehen')
   const [inHand, setInHand] = useState<string | null>(null)
@@ -895,10 +916,10 @@ export default function Raum3D({
       tippRueck.current?.(x, y, tr)
     })
   }, [geht])
-  // Solange die Karte offen ist, ruhen Gehen und Umschauen.
+  // Solange eine Karte offen ist (Kiste oder, E92, Moebel), ruhen Gehen und Umschauen.
   useEffect(() => {
-    motor.current?.eingabe(karte === null)
-  }, [karte, geht])
+    motor.current?.eingabe(karte === null && moebelKarte === null)
+  }, [karte, moebelKarte, geht])
   useEffect(() => {
     const m = motor.current
     if (!m) return
@@ -1090,7 +1111,7 @@ export default function Raum3D({
   )
   /** Bedienung mit Fingern (Handy, Tablet): anderer Hinweis. */
   const beruehren = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
-  const traeger = useMemo(() => traegerKarte(daten), [daten])
+  const traeger = useMemo(() => traegerKarte(daten.kisten), [daten.kisten])
   useEffect(() => {
     motor.current?.ziehen(kannZiehen ? (id, dx, dy) => ziehRueck.current?.(id, dx, dy) : null, traeger)
   }, [kannZiehen, traeger, geht])
@@ -1296,6 +1317,62 @@ export default function Raum3D({
     }
   }
 
+  // ------------------------------------------------ E92: Kontextmenue
+  // Beim Begehen meldet der Motor Rechtsklick und langes Druecken auf ein
+  // Moebel (moebelKontext), auch in der Welt der Siedlung (dort ohne
+  // Verschieben, Tragen ist aus). null heisst: das Menue gilt nicht mehr
+  // (Gehen, Umschauen, ein Druck auf das Bild, neuer Bau, Ende).
+  useEffect(() => {
+    const m = motor.current
+    if (!m || !gehen || geht !== 'ja') return
+    m.moebelKontext((k) => setMenue(k))
+    return () => {
+      m.moebelKontext(null)
+      setMenue(null)
+      setMoebelKarte(null)
+    }
+  }, [gehen, geht])
+  const menueRef = useRef<HTMLDivElement>(null)
+  /** Menue zu, ohne Wahl (Esc, daneben, Mausrad, Rollen). */
+  const menueZu = useCallback(() => {
+    setMenue(null)
+    motor.current?.moebelKontextZu()
+  }, [])
+  // Ein Druck neben dem Menue schliesst es. Auf das Bild regelt das der
+  // Motor (der Druck tippt dann nichts an, und er meldet null). Mausrad,
+  // Rollen und eine neue Groesse schliessen es auch.
+  useEffect(() => {
+    if (!menue) return
+    const druck = (e: PointerEvent) => {
+      const ziel = e.target instanceof Node ? e.target : null
+      if (ziel && (menueRef.current?.contains(ziel) || host.current?.contains(ziel))) return
+      menueZu()
+    }
+    document.addEventListener('pointerdown', druck, true)
+    window.addEventListener('wheel', menueZu, { capture: true, passive: true })
+    window.addEventListener('scroll', menueZu, true)
+    window.addEventListener('resize', menueZu)
+    return () => {
+      document.removeEventListener('pointerdown', druck, true)
+      window.removeEventListener('wheel', menueZu, { capture: true })
+      window.removeEventListener('scroll', menueZu, true)
+      window.removeEventListener('resize', menueZu)
+    }
+  }, [menue, menueZu])
+  /** Ein Eintrag gewaehlt: Details oeffnet die Karte, Verschieben hebt
+   *  an, Hinsetzen setzt und Hinlegen legt (beides moebelHinsetzen, der
+   *  Motor merkt sich die Stelle des Klicks und die Art des Platzes). */
+  const menueWahl = (w: MenueEintrag) => {
+    const k = menue
+    const m = motor.current
+    setMenue(null)
+    if (!k || !m) return
+    m.moebelKontextZu()
+    if (w === 'details') setMoebelKarte(k.objektId)
+    else if (w === 'verschieben') m.moebelAnheben(k.objektId)
+    else m.moebelHinsetzen(k.objektId)
+  }
+
   // E87b: Aussteigen ohne freien Platz (motor.aussteigen() meldet false):
   // ein Hinweis (Toast, im Vollbild auch oben in der Ansicht, wo Toasts
   // nicht zu sehen sind), KEIN_PLATZ_MS lang. Kam es von Esc, beendet ein
@@ -1326,13 +1403,14 @@ export default function Raum3D({
     if (!faehrt) escKeinPlatz.current = false
   }, [faehrt])
 
-  // Esc der Reihe nach (E82): erst die Kistenkarte, dann (E89) ein
+  // Esc der Reihe nach (E82): erst (E92) das Kontextmenue und die Karte
+  // eines Moebels, dann die Kistenkarte, dann (E89) ein
   // getragenes Moebel zuruecklegen, dann (E87) beim Fahren aussteigen, dann
   // aufstehen, dann das Begehen beenden, dann das Vollbild; erst danach
   // schliesst 3D.
-  const escLage = useRef({ karte, haltung, gehen, vollbild, faehrt, traegt })
+  const escLage = useRef({ karte, haltung, gehen, vollbild, faehrt, traegt, menue, moebelKarte })
   useLayoutEffect(() => {
-    escLage.current = { karte, haltung, gehen, vollbild, faehrt, traegt }
+    escLage.current = { karte, haltung, gehen, vollbild, faehrt, traegt, menue, moebelKarte }
   })
   useEffect(() => {
     const taste = (e: KeyboardEvent) => {
@@ -1344,6 +1422,16 @@ export default function Raum3D({
       const fremd = Array.from(document.querySelectorAll('[aria-modal="true"]')).some((d) => !!w && !d.contains(w) && !w.contains(d))
       if (fremd) return
       const z = escLage.current
+      // E92: zuerst das Kontextmenue, dann die Karte eines Moebels.
+      if (z.menue || z.moebelKarte) {
+        if (z.menue) {
+          setMenue(null)
+          motor.current?.moebelKontextZu()
+        } else setMoebelKarte(null)
+        e.stopPropagation()
+        e.preventDefault()
+        return
+      }
       // E89: nach der Kistenkarte ein getragenes Moebel zurueck, wo es vor
       // dem Anheben stand, vor allem anderen.
       if (!z.karte && z.gehen && z.traegt) {
@@ -1606,9 +1694,9 @@ export default function Raum3D({
 
   const karteKiste = karte ? (daten.kisten.find((k) => k.id === karte) ?? null) : null
   // Die Minikarte (E86): nur mit einer Karte der Welt und nicht, solange
-  // die Karte einer Kiste offen ist.
+  // die Karte einer Kiste (oder, E92, eines Moebels) offen ist.
   const minikarte =
-    geht === 'ja' && lageKarte && !karte ? (
+    geht === 'ja' && lageKarte && !kartenAuf ? (
       <Minikarte
         karte={lageKarte.karte}
         lage={kartenLage}
@@ -1620,6 +1708,17 @@ export default function Raum3D({
       />
     ) : null
   const karteRaum = karteKiste?.platz_raum_id ? daten.raeume.find((r) => r.id === karteKiste.platz_raum_id) : null
+  // E92: das Moebel der offenen Karte (null: nicht mehr im Plan), sein
+  // Zimmer, die Kisten darauf oder darin und der Weg zur Moebelseite (nur
+  // mit Eintrag und offenem Umzug, und nur, wenn dieser Plan zu genau dem
+  // offenen Umzug gehoert).
+  const karteObjekt = moebelKarte ? (daten.objekte.find((o) => o.id === moebelKarte) ?? null) : null
+  const karteObjektRaum = karteObjekt ? (daten.raeume.find((r) => r.id === karteObjekt.raum_id) ?? null) : null
+  const karteObjektSeite =
+    karteObjekt?.item_id && projekt && projekt.project.id === projectId
+      ? zielFuerItem(projectId, { id: karteObjekt.item_id, kind: 'furniture' } as Item)
+      : null
+  const menueName = menue ? (daten.objekte.find((o) => o.id === menue.objektId)?.name ?? '') : ''
 
   // Knoepfe beim Begehen (E87): was gerade geht, in fester Reihenfolge.
   const knoepfe = gehen ? bedienKnoepfe({ moeglich, fahrzeug: fahrt, haltung, haelt, beruehren }) : []
@@ -1927,7 +2026,7 @@ export default function Raum3D({
               {t('plan3d.geht_nicht')}
             </p>
           </div>
-        ) : geht === 'ja' && gehen && !karte ? (
+        ) : geht === 'ja' && gehen && !kartenAuf ? (
           <>
             {/* Gehen per Steuerknueppel (E81): schieben, loslassen bleibt
                 stehen; im Fahrzeug Gas und Lenken (E87). Lage aus BEDIEN_MASS. */}
@@ -1995,7 +2094,7 @@ export default function Raum3D({
             Fehler: Bau der Welt, Seite, Sprechen, Verbindung. Die Saetze
             der Welt stehen in bausteine/siedlung.ts, das mit der Seite der
             Siedlung laedt (nur sie gibt eine Welt mit). */}
-        {(geht === 'ja' && ebeneJetzt && !karte) || (hinweise.length > 0 && !karte) ? (
+        {(geht === 'ja' && ebeneJetzt && !kartenAuf) || (hinweise.length > 0 && !kartenAuf) ? (
           <div
             data-hinweise=""
             className={cx(
@@ -2070,6 +2169,44 @@ export default function Raum3D({
                 onSchliessen?.()
                 nav(pfad)
               }}
+            />
+          </div>
+        ) : null}
+        {moebelKarte !== null ? (
+          // E92: Karte eines Moebels (Details aus dem Kontextmenue), am
+          // selben Platz wie die Kistenkarte. Zurueck fuehrt in die Begehung.
+          <div className={cx('absolute inset-x-0 bottom-0 z-40', vollbild && !leisteZu ? 'top-28 md:top-16' : 'top-0')}>
+            <MoebelKarte
+              objekt={karteObjekt}
+              raumName={karteObjektRaum ? raumTitel(karteObjektRaum) : null}
+              kisten={karteObjekt ? kistenAuf(traeger, karteObjekt.id) : 0}
+              seite={karteObjektSeite}
+              begehen={gehen}
+              onZurueck={() => setMoebelKarte(null)}
+              onSeite={(pfad) => {
+                setMoebelKarte(null)
+                if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
+                onSchliessen?.()
+                nav(pfad)
+              }}
+            />
+          </div>
+        ) : null}
+        {menue && gehen && !kartenAuf ? (
+          // E92: Kontextmenue am Zeiger, in der 3D-Flaeche (ltr, auch im
+          // Vollbild). Der Rahmen nur fuer "daneben gedrueckt?".
+          <div ref={menueRef} className="contents">
+            <MoebelMenue
+              key={`${menue.objektId}|${menue.x}|${menue.y}`}
+              x={menue.x}
+              y={menue.y}
+              tragbar={menue.tragbar}
+              gesperrt={menue.gesperrt}
+              sitzbar={menue.sitzbar}
+              liegen={menue.liegen}
+              name={menueName}
+              onWahl={menueWahl}
+              onZu={menueZu}
             />
           </div>
         ) : null}

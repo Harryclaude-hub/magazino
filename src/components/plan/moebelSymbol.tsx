@@ -229,7 +229,8 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
       ])
       return [rechteck(B * 0.1, T * 0.27, B * 0.9, T * 0.73), ...stuehle]
     }
-    case 'bank': {
+    case 'bank':
+    case 'besta_bank': {
       // Rueckenkissen an der Wand, Fugen zwischen den Sitzpolstern; beim L je Kasten.
       const lehne = Math.min(T * 0.3, 15)
       const out: Form[] = []
@@ -362,6 +363,60 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
         rechteck(B * 0.05, T * 0.08, B * 0.95, T * 0.92),
         { art: 'linie', a: [B * 0.05, T * 0.84], b: [B * 0.95, T * 0.84] },
         { art: 'linie', a: [B * 0.38, T * 0.74], b: [B * 0.62, T * 0.74] },
+      ]
+    /* E91: Deko fuer Bad und WC. */
+    case 'handtuch':
+    case 'bademantel':
+      // Stange oder Haken an der Wand, davor der Stoff.
+      return [{ art: 'linie', a: [B * 0.04, T * 0.3], b: [B * 0.96, T * 0.3] }, rechteck(B * 0.1, T * 0.42, B * 0.9, T * 0.9)]
+    case 'handtuchstapel':
+      // Gefaltet: Kanten der Lagen an einer Seite.
+      return [
+        rechteck(B * 0.05, T * 0.08, B * 0.95, T * 0.92),
+        { art: 'linie', a: [B * 0.05, T * 0.36], b: [B * 0.95, T * 0.36] },
+        { art: 'linie', a: [B * 0.05, T * 0.64], b: [B * 0.95, T * 0.64] },
+      ]
+    case 'badaccessoires':
+      // Becher und Seifenspender.
+      return [
+        { art: 'kreis', m: [B * 0.25, T / 2], r: Math.min(B * 0.18, T * 0.4) },
+        { art: 'kreis', m: [B * 0.68, T / 2], r: Math.min(B * 0.16, T * 0.36) },
+      ]
+    case 'seifenschale':
+      return [ellipse(B / 2, T / 2, B * 0.44, T * 0.4), rechteck(B * 0.3, T * 0.3, B * 0.7, T * 0.7)]
+    case 'kerzen':
+      // Tablett mit Kerzen.
+      return [
+        rechteck(B * 0.04, T * 0.08, B * 0.96, T * 0.92),
+        { art: 'kreis', m: [B * 0.25, T * 0.55], r: k * 0.22 },
+        { art: 'kreis', m: [B * 0.52, T * 0.42], r: k * 0.2 },
+        { art: 'kreis', m: [B * 0.77, T * 0.58], r: k * 0.18 },
+      ]
+    case 'duftstaebchen':
+      // Flasche mit Staebchen nach allen Seiten.
+      return [
+        { art: 'kreis', m: [B / 2, T / 2], r: k * 0.3 },
+        { art: 'linie', a: [B * 0.1, T * 0.2], b: [B * 0.9, T * 0.8] },
+        { art: 'linie', a: [B * 0.1, T * 0.8], b: [B * 0.9, T * 0.2] },
+      ]
+    case 'badewannenablage':
+      // Ablage aus Latten quer ueber der Wanne.
+      return [
+        rechteck(0, T * 0.05, B, T * 0.95),
+        ...[0.35, 0.65].map((f): Form => ({ art: 'linie', a: [0, T * f], b: [B, T * f] })),
+        { art: 'kreis', m: [B * 0.3, T / 2], r: k * 0.2 },
+      ]
+    case 'klopapierhalter':
+      // Rolle vor der Wand.
+      return [{ art: 'linie', a: [B * 0.1, T * 0.1], b: [B * 0.9, T * 0.1] }, rechteck(B * 0.1, T * 0.25, B * 0.9, T * 0.95)]
+    case 'klobuerste':
+      return [{ art: 'kreis', m: [B / 2, T / 2], r: k * 0.42 }, { art: 'kreis', m: [B / 2, T / 2], r: k * 0.12 }]
+    case 'wandregal':
+      // Brett an der Wand mit zwei Seiten.
+      return [
+        rechteck(B * 0.02, T * 0.05, B * 0.98, T * 0.95),
+        { art: 'linie', a: [B * 0.08, T * 0.05], b: [B * 0.08, T * 0.95] },
+        { art: 'linie', a: [B * 0.92, T * 0.05], b: [B * 0.92, T * 0.95] },
       ]
   }
 }

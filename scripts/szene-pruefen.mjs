@@ -5,13 +5,15 @@
 // Quader), Regal mit Seiten und Brettern, Kisten in echter Groesse ab
 // unten_cm, gesuchte rot, andere gedaempft, offene Kiste, der Ausschnitt
 // auf einen Raum; dazu E82: Moebelart am Namen, Teil-Felder (Platz, Ding,
-// Geraet, Spiegel, Neigung, Griff), automatische Schalter, Balkon, Deko.
+// Geraet, Spiegel, Neigung, Griff), automatische Schalter, Balkon, Deko;
+// E91: Namen der BESTA-Eckbank und der Bad-Deko (deutsch, arabisch,
+// Reihenfolge), die Eckbank in der Szene mit Sitzplaetzen und Hindernis.
 // Aufruf im Projektordner: node scripts/szene-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import { baueSzene, blickAus, hervorMitte, lichter, moebelQuader, szeneRahmen, GEDAEMPFT, SCHEIBE_DECKKRAFT } from '../src/components/plan3d/szene.ts'
 import { moebelTeile } from '../src/components/plan3d/moebel3d.ts'
 import { autoSchalter, symbolAnWand } from '../src/components/plan/hilfe.ts'
-import { DEKO_ARTEN, istDeko, moebelArt } from '../src/components/plan/moebelArt.ts'
+import { DEKO_ARTEN, dekoEbene, istDeko, moebelArt } from '../src/components/plan/moebelArt.ts'
 
 let fehler = 0
 function gleich(name, ist, soll) {
@@ -369,7 +371,8 @@ const nach = (r) => alle.filter((k) => k.rolle === r)
     ['Küchenzeile', 'kuechenzeile'],
     ['Hochschrank mit Backofen und Mikrowelle', 'backofen'],
     ['Hochschrank mit Einbaukühlschrank', 'hochschrank'],
-    ['Eckbank Nord BESTÅ 180 + KUDDARNA', 'bank'],
+    // E91: BESTA mit Bank ist die BESTA-Eckbank (vorher 'bank').
+    ['Eckbank Nord BESTÅ 180 + KUDDARNA', 'besta_bank'],
     ['TONSTAD Ausziehtisch', 'tisch'],
     ['STOCKHOLM 2025 Stuhl', 'stuhl'],
     ['SINNERLIG Hängeleuchte', 'haengelampe'],
@@ -427,11 +430,112 @@ const nach = (r) => alle.filter((k) => k.rolle === r)
     ['وسادة', 'kissen'],
     // Nie das blosse "bild": der Bildschirm ist kein Bild.
     ['Bildschirm', null],
+    // E91: Eckbank aus BESTA; eine blosse TV-Bank bleibt ein TV-Board.
+    ['Eckbank Nord: BESTÅ 180x42x38 mit Türen, Polster extra', 'besta_bank'],
+    ['Eckbank Ost: BESTÅ 120x42x38 mit Türen, Polster extra', 'besta_bank'],
+    ['BESTA Sitzbank', 'besta_bank'],
+    ['مقعد زاوية BESTÅ', 'besta_bank'],
+    ['BESTÅ TV-Bank mit Türen, weiß/Lappviken weiß, 180x42x38 cm', 'tv_board'],
+    ['BESTÅ Regal mit Türen, weiß/Lappviken weiß, 120x42x38 cm', null],
+    ['BESTÅ Eckbankkissen', 'kissen'],
+    ['Bestandsliste Sitzbank', 'bank'],
+    // E91: Deko fuer Bad und WC, deutsch und arabisch.
+    ['Handtuchhalter mit Handtüchern salbeigrün und weiß', 'handtuch'],
+    ['Handtuchstange', 'handtuch'],
+    ['Gästehandtuch am Haken', 'handtuch'],
+    ['Badetücher', 'handtuch'],
+    ['منشفة', 'handtuch'],
+    ['حامل مناشف', 'handtuch'],
+    ['Handtuchstapel weiß', 'handtuchstapel'],
+    ['Handtücher gerollt', 'handtuchstapel'],
+    ['Gefaltete Badetücher', 'handtuchstapel'],
+    ['Handtuchstange mit gefalteten Handtüchern', 'handtuch'],
+    ['مناشف مطوية', 'handtuchstapel'],
+    ['مناشف ملفوفة', 'handtuchstapel'],
+    ['Zahnputzbecher und Seifenspender', 'badaccessoires'],
+    ['Seifenspender', 'badaccessoires'],
+    ['كوب فرشاة الأسنان', 'badaccessoires'],
+    ['موزع صابون', 'badaccessoires'],
+    ['Seifenschale Keramik', 'seifenschale'],
+    ['صحن صابون', 'seifenschale'],
+    ['Kerzen', 'kerzen'],
+    ['Duftkerze', 'kerzen'],
+    ['شموع', 'kerzen'],
+    ['Duftstäbchen', 'duftstaebchen'],
+    ['Duftstäbchen neben den Kerzen', 'duftstaebchen'],
+    ['أعواد عطرية', 'duftstaebchen'],
+    ['Badewannenablage Bambus mit Kerze und Buch', 'badewannenablage'],
+    ['رف حوض الاستحمام', 'badewannenablage'],
+    ['Toilettenpapierhalter mit Ersatzrolle', 'klopapierhalter'],
+    ['Klopapierhalter', 'klopapierhalter'],
+    ['ورق التواليت', 'klopapierhalter'],
+    ['حامل ورق المرحاض', 'klopapierhalter'],
+    ['Klobürste Edelstahl', 'klobuerste'],
+    ['WC-Bürstengarnitur', 'klobuerste'],
+    ['فرشاة المرحاض', 'klobuerste'],
+    ['Bademantel am Haken', 'bademantel'],
+    ['رداء الحمام', 'bademantel'],
+    ['Bambus-Wandregal', 'wandregal'],
+    ['Wandboard Bambus', 'wandregal'],
+    ['رف حائط', 'wandregal'],
+    // Reihenfolge: die Deko vor den allgemeinen Woertern, die in ihr stecken.
+    ['Handtuchhalter neben dem Spiegel', 'handtuch'],
+    ['Kerzen auf dem Wannenrand', 'kerzen'],
+    ['Kerzen auf dem Sockel', 'kerzen'],
+    ['Seifenspender am Waschbecken', 'badaccessoires'],
+    ['Klobürste neben dem WC', 'klobuerste'],
+    ['Handtuchstapel auf der Waschmaschine', 'handtuchstapel'],
+    ['Handtücher auf dem Tisch gestapelt', 'handtuchstapel'],
+    ['شموع على حوض الاستحمام', 'kerzen'],
+    // Pflanzen, Bilder, Koerbe bleiben, was sie sind.
+    ['Efeutute (Hängepflanze)', 'pflanze'],
+    ['Grünlilie im Topf', 'pflanze'],
+    ['Wandbild Meer', 'bild'],
+    ['Aufbewahrungskorb Seegras', 'korb'],
+    ['Badewanne', 'badewanne'],
+    ['WC', 'wc'],
+    ['Waschmaschine', 'waschmaschine'],
   ]
   for (const [name, art] of namen) gleich(`Moebelart: ${name}`, moebelArt(name), art)
   wahr('Deko-Arten: Kissen ja, Sockel nein', DEKO_ARTEN.has('kissen') && !DEKO_ARTEN.has('sockel'))
   wahr('istDeko nur fuer Moebel', istDeko({ art: 'moebel', name: 'Wolldecke' }) && !istDeko({ art: 'regal', name: 'Bücherregal' }))
   wahr('Sockel ist keine Deko', !istDeko({ art: 'moebel', name: 'ENHET Sockel mit Auszug' }))
+  // E91: die Bad-Deko ist Deko, die BESTA-Eckbank nicht.
+  wahr('Bad-Deko ist Deko', ['Handtuchstange', 'Kerzen', 'Klobürste', 'Bambus-Wandregal', 'Bademantel'].every((n) => istDeko({ art: 'moebel', name: n })))
+  wahr('BESTÅ-Eckbank ist keine Deko', !istDeko({ art: 'moebel', name: 'Eckbank Nord: BESTÅ 180x42x38 mit Türen, Polster extra' }))
+}
+
+/* ------------------------------------------------------------ Eckbank BESTA in der Szene (E91) */
+{
+  // Wie in der Wohnung: Nord 180 an der Wand y = 0, Ost 120 an der Wand x = 400 (gedreht).
+  const nord = objekt('nord', 'w', 'moebel', { name: 'Eckbank Nord: BESTÅ 180x42x38 mit Türen, Polster extra', x: 20, y: 0, breite_cm: 180, tiefe_cm: 42, hoehe_cm: 85 })
+  const ost = objekt('ost', 'w', 'moebel', { name: 'Eckbank Ost: BESTÅ 120x42x38 mit Türen, Polster extra', x: 400, y: 60, breite_cm: 120, tiefe_cm: 42, hoehe_cm: 85, drehung: 90 })
+  const s = baueSzene({ ...daten, objekte: [nord, ost], kisten: [] }, F)
+  // Wie der Motor (motor.ts istHindernis, obenVon): Moebelteile zwischen 0,3 und
+  // 1,2 m sind Hindernisse, bis 1,0 m mit Oberkante (man steigt hinauf).
+  const hindernis = (k) => ['moebel', 'regal', 'front', 'kiste'].includes(k.rolle) && !k.ding && k.mitte[1] + k.masse[1] / 2 > 0.3 && k.mitte[1] - k.masse[1] / 2 < 1.2
+  const oben = (k) => (k.rolle === 'moebel' && !k.tuer && !k.schub ? k.mitte[1] + k.masse[1] / 2 : undefined)
+  for (const [id, n, blickSoll, lang, quer] of [['nord', 3, Math.PI, 0, 2], ['ost', 2, Math.PI / 2, 2, 0]]) {
+    const teile = s.filter((k) => k.id === id)
+    const plaetze = teile.filter((k) => k.platz)
+    gleich(`BESTÅ ${id}: Sitzplaetze`, plaetze.length, n)
+    wahr(`BESTÅ ${id}: Sitzplaetze auf 44 cm, Blick weg von der Wand`, plaetze.every((k) => k.platz.art === 'sitz' && Math.abs(k.platz.punkt[1] - 0.44) < 1e-9 && Math.abs(k.platz.blick - blickSoll) < 1e-9))
+    wahr(`BESTÅ ${id}: Sitzpolster sind Moebel (Hindernis mit Oberkante 44 cm)`, plaetze.every((k) => k.rolle === 'moebel' && hindernis(k) && Math.abs(oben(k) - 0.44) < 1e-9))
+    const deckel = teile.find((k) => k.rolle === 'moebel' && Math.abs(oben(k) - 0.38) < 1e-9 && k.masse[1] < 0.02 && k.masse[lang] > (n * 60 - 1) / 100)
+    wahr(`BESTÅ ${id}: Deckel als Hindernis mit Oberkante 38 cm ueber die ganze Laenge`, !!deckel && hindernis(deckel) && Math.abs(deckel.masse[quer] - 0.402) < 1e-9)
+    const tueren = teile.filter((k) => k.rolle === 'front' && k.tuer)
+    gleich(`BESTÅ ${id}: Tueren zum Oeffnen`, tueren.length, n)
+    wahr(`BESTÅ ${id}: Tueren halten auf (ohne Oberkante)`, tueren.every((k) => hindernis(k) && oben(k) === undefined))
+    wahr(`BESTÅ ${id}: alles hoechstens 85 cm, ersteigbar`, teile.every((k) => k.mitte[1] + k.masse[1] / 2 <= 0.85 + 0.005) && teile.filter((k) => oben(k) !== undefined && hindernis(k)).every((k) => oben(k) <= 1))
+  }
+  // Ost liegt mit der Wandseite an x = 400 und reicht bis 358 in den Raum.
+  const ostX = s
+    .filter((k) => k.id === 'ost')
+    .flatMap((k) => {
+      const ex = (Math.abs(Math.cos(k.drehY)) * k.masse[0] + Math.abs(Math.sin(k.drehY)) * k.masse[2]) / 2
+      return [k.mitte[0] - ex, k.mitte[0] + ex]
+    })
+  wahr('BESTÅ ost: zwischen 3,58 und 4,00 m', Math.min(...ostX) >= 3.58 - 0.005 && Math.max(...ostX) <= 4 + 1e-9)
 }
 
 /* ------------------------------------------------------------ Teil-Felder (E82) */
@@ -518,6 +622,20 @@ function drehe([x, y, z], k) {
       const oben = drehe([0, 1, 0], t.kipp)
       nahe(`Neigung ${achse} ${drehung}: Oberkante x`, oben[0], ziel[0] * Math.sin(w), 1e-9)
       nahe(`Neigung ${achse} ${drehung}: Oberkante z`, oben[2], ziel[1] * Math.sin(w), 1e-9)
+    }
+    // Nacharbeit E91: laengs und quer zugleich, erst quer, dann laengs wie
+    // richtung() in moebelDeko3d.ts. Die Hochachse zeigt in jeder Drehung
+    // dorthin (vorher bei 90 und 270 daneben: die Gruenlilie riss).
+    for (const [quer, laengs] of [[30, 25], [-40, 60], [45, -35], [80, 10]]) {
+      const t = moebelQuader(od, [{ x0: 0, y0: 0, x1: 2, y1: 1, z0: 40, z1: 90, farbe: '#888888', kipp: { quer, laengs } }], F, null, false)[0]
+      const a = (laengs * Math.PI) / 180
+      const b = (quer * Math.PI) / 180
+      const lokal = [Math.sin(b), -Math.cos(b) * Math.sin(a), Math.cos(b) * Math.cos(a)]
+      const gx = lokal[0] * richtungen[drehung].x[0] + lokal[1] * richtungen[drehung].y[0]
+      const gz = lokal[0] * richtungen[drehung].x[1] + lokal[1] * richtungen[drehung].y[1]
+      const oben = drehe([0, 1, 0], t.kipp)
+      const ab = Math.hypot(oben[0] - gx, oben[1] - lokal[2], oben[2] - gz)
+      nahe(`Neigung quer ${quer} und laengs ${laengs} bei ${drehung}: Hochachse wie gemeint`, ab, 0, 1e-9)
     }
   }
 }
@@ -700,6 +818,26 @@ const offen = baueSzene(daten, F, { offeneKiste: 'a' })
   wahr('Deko ausgeblendet', !ohne.some((x) => x.id === 'Sofakissen'))
   wahr('Regal mit Buechern im Namen bleibt', ohne.some((x) => x.id === 'Bücherregal'))
   wahr('Moebel bleiben', ohne.some((x) => x.id === 'sofa'))
+}
+
+/* ------------------------------------- Was auf der Deko steht (Nacharbeit E91) */
+{
+  // Wandregal (Deko) ueber dem WC, Oberkante 138, darauf eine Efeutute (keine
+  // Deko). Sie verschwindet mit dem Regal, sonst schwebte sie in der Luft.
+  const regal = objekt('Wandregal Bambus über dem WC', 'w', 'moebel', { x: 300, y: 0, breite_cm: 60, tiefe_cm: 18, hoehe_cm: 18, boden_cm: 120 })
+  const efeu = objekt('Efeutute (Hängepflanze)', 'w', 'moebel', { x: 310, y: 0, breite_cm: 25, tiefe_cm: 25, hoehe_cm: 40, boden_cm: 138 })
+  const darauf = objekt('Vase oben', 'w', 'moebel', { x: 312, y: 2, breite_cm: 10, tiefe_cm: 10, hoehe_cm: 10, boden_cm: 178 })
+  const boden = objekt('Monstera', 'w', 'moebel', { x: 310, y: 0, breite_cm: 40, tiefe_cm: 40, hoehe_cm: 150 })
+  const daneben = objekt('Grünlilie im Topf', 'w', 'moebel', { x: 361, y: 0, breite_cm: 20, tiefe_cm: 20, hoehe_cm: 30, boden_cm: 138 })
+  const nebenan = objekt('Efeutute nebenan', 'k', 'moebel', { x: 310, y: 0, breite_cm: 25, tiefe_cm: 25, hoehe_cm: 40, boden_cm: 138 })
+  wahr('Auf der Deko: Efeutute und Vase sind selbst keine Deko', !istDeko(efeu) && !istDeko(darauf))
+  const weg = dekoEbene([regal, efeu, darauf, boden, daneben, nebenan])
+  gleich('Auf der Deko: Regal, Efeutute und was auf ihr steht', [...weg].sort(), [efeu.id, darauf.id, regal.id].sort())
+  const mit = { ...daten, objekte: [...daten.objekte, regal, efeu, boden, daneben] }
+  wahr('Auf der Deko: sichtbar mit Deko', baueSzene(mit, F).some((x) => x.id === efeu.id))
+  const ohne = baueSzene(mit, F, { deko: false })
+  wahr('Auf der Deko: Efeutute weg mit dem Regal', !ohne.some((x) => x.id === efeu.id || x.id === regal.id))
+  wahr('Auf der Deko: Bodenpflanze und Pflanze neben dem Regal bleiben', ohne.some((x) => x.id === boden.id) && ohne.some((x) => x.id === daneben.id))
 }
 
 /* ------------------------------------------------------------ Zahlen */

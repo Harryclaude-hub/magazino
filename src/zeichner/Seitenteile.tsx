@@ -7,14 +7,13 @@ import { UEBERSTAND_MAX_CM, type Unterlage } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
 import type { EigeneGroesse, Item, Objekt, PlanKiste, SymbolArt } from '../lib/types'
 import { euroText } from '../lib/preis'
-import { moebelArt } from '../components/plan/moebelArt'
 import { createItem } from '../lib/api'
 import { groesseSatz, useKistenGroessen } from '../lib/groessen'
 import { useProject } from '../pages/ProjectLayout'
 import { cx } from '../lib/util'
 import { MassFeld } from './Eigenschaften'
 import { FaecherEditor } from './FaecherEditor'
-import { ausEigenerGroesse, KATALOG, KATALOG_BAD, KATALOG_KUECHE, KATALOG_SCHLAFEN, KATALOG_SONST } from './katalog'
+import { ausEigenerGroesse, gehoertZu, KATALOG, KATALOG_BAD, KATALOG_KUECHE, KATALOG_SCHLAFEN, KATALOG_SONST } from './katalog'
 import { MoebelVorschau } from '../components/plan/moebelSymbol'
 import { SYMBOL_ARTEN } from './werkzeuge/strom'
 import { neuesObjekt, type Dok, type Vorlage } from './dok'
@@ -213,20 +212,6 @@ export function PlanSuche({
 }
 
 /* -------------------------------------------------------------- Vorlagen */
-
-/** Gehoert ein Moebel im Plan zu diesem Katalog-Eintrag? Gleiche Art
- *  (am Namen erkannt), bei Betten dieselbe Breite, bei Sofas dieselbe Form,
- *  beim Fernseher: an der Wand oder nicht. Ohne erkannte Art: gleicher Name. */
-function gehoertZu(o: Objekt, v: Vorlage, name: string): boolean {
-  if (o.art !== v.art) return false
-  const a = v.art === 'moebel' ? moebelArt(name) : null
-  if (!a) return o.name === name
-  if (moebelArt(o.name ?? '') !== a) return false
-  if (a === 'bett') return o.breite_cm === v.breite_cm
-  if (a === 'sofa') return (o.form === 'l') === (v.form === 'l')
-  if (a === 'fernseher') return (o.tiefe_cm <= 12) === (v.tiefe_cm <= 12)
-  return true
-}
 
 /** Summe der bekannten Preise in Cent. */
 function preisSumme(liste: Objekt[]): number {

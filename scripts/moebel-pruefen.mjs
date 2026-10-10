@@ -23,12 +23,17 @@
 // ausgerichtet; Dinge mit demselben Namen haengen zusammen; Teilebudget
 // (Stuhl 40, Kuechenzeile 200); kleine Deko ganz aufhebbar; eigene Farbe
 // wird genutzt; die Szene baut alles ohne kaputte Zahlen.
+// E91: die BESTA-Eckbank (Tueren, Sitzplaetze, Rueckenpolster), die Deko
+// fuer Bad und WC mit ihren Abarten, Farben aus dem Namen, hoechstens 1500
+// Dreiecke je Stueck (so gezaehlt, wie der Motor die Formen baut), weicher
+// Stoff ohne Kantenlinie, Gruenlilie und Haengepflanze.
 //
 // Aufruf im Projektordner: node scripts/moebel-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import { readFileSync } from 'node:fs'
 import { moebelTeile } from '../src/components/plan3d/moebel3d.ts'
-import { baueSzene } from '../src/components/plan3d/szene.ts'
+import { misch } from '../src/components/plan3d/moebelDeko3d.ts'
+import { baueSzene, moebelQuader } from '../src/components/plan3d/szene.ts'
 import { DEKO_ARTEN, moebelArt } from '../src/components/plan/moebelArt.ts'
 
 let fehler = 0
@@ -70,7 +75,14 @@ const GROESSE = {
   spielzeugkiste: [60, 40, 45], kuscheltier: [30, 25, 38], bausteine: [40, 30, 15], spielkueche: [72, 40, 109],
   buecher: [60, 22, 26], bild: [50, 3, 70], kissen: [45, 45, 15], wolldecke: [50, 35, 8], korb: [40, 40, 35],
   vorhang: [140, 15, 250], obstschale: [35, 35, 12], blumenkasten: [80, 20, 30], sockel: [60, 40, 15],
+  // E91: BESTA-Eckbank, Deko fuer Bad und WC.
+  besta_bank: [180, 42, 85], handtuch: [70, 10, 65], handtuchstapel: [35, 30, 20], badaccessoires: [28, 10, 19],
+  seifenschale: [12, 9, 3], kerzen: [26, 14, 16], duftstaebchen: [9, 9, 28], badewannenablage: [72, 18, 11],
+  klopapierhalter: [30, 13, 13], klobuerste: [11, 11, 38], bademantel: [60, 20, 110], wandregal: [45, 15, 38],
 }
+
+// E91: die Deko fuer Bad und WC.
+const BAD_DEKO = ['handtuch', 'handtuchstapel', 'badaccessoires', 'seifenschale', 'kerzen', 'duftstaebchen', 'badewannenablage', 'klopapierhalter', 'klobuerste', 'bademantel', 'wandregal']
 
 // Jede Art aus dem Typ MoebelArt muss oben stehen (neue Arten fallen auf).
 {
@@ -115,14 +127,38 @@ for (const B of [60, 120, 180, 300, 360]) fall(`Kuechenzeile ${B}`, 'kuechenzeil
 fall('Buecherstapel', 'buecher', [25, 18, 20])
 fall('Kissen drei stehend', 'kissen', [130, 15, 45])
 fall('Korb gross eckig', 'korb', [70, 40, 30])
+// E92: Korb mit Deckel, Waeschekorb und kleiner Korb ohne Decke.
+fall('Waeschekorb mit Deckel', 'korb', [42, 40, 55], { name: 'Wäschekorb Seegras mit Deckel' })
+fall('Korb eckig mit Deckel', 'korb', [50, 30, 30], { name: 'Korb mit Deckel' })
+fall('Waeschekorb offen', 'korb', [45, 35, 50], { name: 'Wäschekorb Seegras' })
+fall('Korb klein', 'korb', [24, 25, 20], { name: 'Aufbewahrungskorb Seegras, klein' })
 fall('Stoffbox', 'spielzeugkiste', [40, 30, 30], { material: 'stoff' })
 fall('Vorhang schmal', 'vorhang', [80, 6, 220])
 fall('Sockel mit zwei Schubladen', 'sockel', [80, 40, 52])
+// E91: die Eckbank der Wohnung (Namen wie in der Datenbank) und die Abarten der Bad-Deko.
+fall('Eckbank Nord', 'besta_bank', [180, 42, 85], { name: 'Eckbank Nord: BESTÅ 180x42x38 mit Türen, Polster extra' })
+fall('Eckbank Ost', 'besta_bank', [120, 42, 85], { name: 'Eckbank Ost: BESTÅ 120x42x38 mit Türen, Polster extra' })
+fall('BESTÅ ohne Ruecken', 'besta_bank', [120, 42, 44])
+fall('Handtuchstange schmal', 'handtuch', [40, 8, 55])
+fall('Handtuchstange breit', 'handtuch', [100, 10, 70], { name: 'Handtuchstange mit drei Handtüchern terrakotta, salbeigrün, grau' })
+fall('Handtuecher zwei Farben', 'handtuch', [70, 10, 65], { name: 'Handtuchhalter mit Handtüchern salbeigrün und weiß' })
+fall('Handtuch am Haken', 'handtuch', [30, 10, 55], { name: 'Gästehandtuch am Haken' })
+fall('Handtuecher gerollt', 'handtuchstapel', [35, 30, 20], { name: 'Handtücher gerollt' })
+fall('Doppelrollenhalter', 'klopapierhalter', [32, 13, 13])
+fall('Einzelrollenhalter', 'klopapierhalter', [18, 12, 13])
+fall('Wandbrett', 'wandregal', [60, 15, 18])
+fall('Bademantel grau', 'bademantel', [55, 18, 105], { name: 'Bademantel grau am Haken' })
+fall('Gruenlilie', 'pflanze', [30, 30, 35], { name: 'Grünlilie im Topf' })
+fall('Gruenlilie klein', 'pflanze', [20, 12, 22], { name: 'Grünlilie im Topf' })
+fall('Efeutute', 'pflanze', [25, 25, 40], { name: 'Efeutute (Hängepflanze)' })
+fall('Efeutute klein', 'pflanze', [15, 12, 20], { name: 'Efeutute (Hängepflanze)' })
+fall('Efeutute gross', 'pflanze', [38, 38, 90], { name: 'Efeutute (Zimmerpflanze) im Tontopf' })
 // L-Formen in allen vier Ecken.
 const L = {
   kuechenzeile: [[270, 180, 90], 210, 120],
   sofa: [[250, 160, 85], 90, 70],
   bank: [[180, 65, 85], 159, 15],
+  besta_bank: [[180, 65, 85], 159, 15],
 }
 for (const [art, [masse, aB, aT]] of Object.entries(L)) {
   for (const ecke of ['ro', 'lo', 'ru', 'lu']) {
@@ -212,8 +248,8 @@ function zusammen(teile, tol) {
 
 /* ------------------------------------------------------------ Pruefen */
 
-const SITZEN = new Set(['sofa', 'sessel', 'stuhl', 'bank', 'buerostuhl', 'wc', 'bett', 'kinderbett', 'essgruppe'])
-const GANZ = new Set(['kuscheltier', 'bausteine', 'buecher', 'kissen', 'obstschale', 'wolldecke'])
+const SITZEN = new Set(['sofa', 'sessel', 'stuhl', 'bank', 'besta_bank', 'buerostuhl', 'wc', 'bett', 'kinderbett', 'essgruppe'])
+const GANZ = new Set(['kuscheltier', 'bausteine', 'buecher', 'kissen', 'obstschale', 'wolldecke', 'handtuchstapel', 'seifenschale', 'kerzen', 'duftstaebchen', 'klobuerste'])
 const BUDGET = { stuhl: 40, buerostuhl: 40, kuechenzeile: 200, essgruppe: 100 }
 const ergebnis = new Map()
 
@@ -303,7 +339,10 @@ for (const { name, art, o } of faelle) {
 {
   let saat = 12345
   const zz = () => ((saat = (saat * 16807) % 2147483647) - 1) / 2147483646
-  const namen = ['', 'Klappstuhl', 'Kinderstuhl', 'Hochschrank mit Einbaukühlschrank']
+  // E91: die Namen treffen auch die Abarten der Pflanze, des Handtuchs
+  // (Haken) und des Handtuchstapels (gerollt). Vier Namen, damit jede Art
+  // mit jedem Namen vorkommt.
+  const namen = ['', 'Klappstuhl', 'Kinderstuhl Grünlilie', 'Hochschrank mit Einbaukühlschrank, Efeutute am Haken gerollt']
   const arten = Object.keys(GROESSE)
   const kaputt = new Map()
   let geprueft = 0
@@ -421,16 +460,28 @@ wahr('Badewanne: Handtuch zum Aufheben', zahl('badewanne', (q) => q.ding === 'ha
 wahr('Buecher: Reihe stehend, Stapel liegend', teile('buecher').every((q) => q.z0 === 0) && teile('Buecherstapel').some((q) => q.z0 > 0))
 wahr('Kissen: drei nebeneinander', teile('Kissen drei stehend').length === 6)
 wahr('Grosser Korb: nicht aufhebbar', teile('Korb gross eckig').every((q) => !q.ding))
+{
+  // E92: die eingerollte Decke nur im offenen Korb ab 30 cm, der Deckel schliesst oben ab.
+  const decke = misch(F.spielRot, F.leinen, 0.5)
+  const hatDecke = (n) => teile(n).some((q) => q.farbe === decke)
+  wahr('Korb: Decke im gewoehnlichen Korb', hatDecke('korb') && hatDecke('Korb gross eckig'))
+  wahr('Korb: keine Decke mit Deckel, im Waeschekorb, im kleinen Korb', ['Waeschekorb mit Deckel', 'Korb eckig mit Deckel', 'Waeschekorb offen', 'Korb klein'].every((n) => !hatDecke(n)))
+  for (const [n, H] of [['Waeschekorb mit Deckel', 55], ['Korb eckig mit Deckel', 30]]) {
+    const oben = Math.max(...teile(n).map((q) => q.z1))
+    wahr(`${n}: Griff reicht bis H, Deckel liegt darunter`, Math.abs(oben - H) < 1e-9 && teile(n).some((q) => q.z0 > H - 6 && q.z1 < H && q.x1 - q.x0 > 30))
+  }
+}
 
 // Klappstuhl, Kinderstuhl und Einbaukuehlschrank sind ueber den Namen erreichbar.
 wahr('Name Klappstuhl ist ein Stuhl', moebelArt('Klappstuhl') === 'stuhl')
 wahr('Name Kinderstuhl ist ein Stuhl', moebelArt('Kinderstuhl LÄTT') === 'stuhl')
 wahr('Name Hochschrank mit Einbaukuehlschrank', moebelArt('Hochschrank mit Einbaukühlschrank') === 'hochschrank')
 wahr('Unbekannte Art: null', moebelTeile(objekt('x', [50, 50, 50]), null, F, DECKE) === null)
-wahr('DEKO_ARTEN ohne Sockel', DEKO_ARTEN.size === 12 && !DEKO_ARTEN.has('sockel'))
+wahr('DEKO_ARTEN ohne Sockel', DEKO_ARTEN.size === 23 && !DEKO_ARTEN.has('sockel'))
+wahr('DEKO_ARTEN: Bad-Deko ja, BESTÅ-Bank nein', BAD_DEKO.every((a) => DEKO_ARTEN.has(a)) && !DEKO_ARTEN.has('besta_bank'))
 
 // Eigene Farbe traegt der Hauptteil.
-for (const art of ['spielzeugkiste', 'kuscheltier', 'spielkueche', 'buecher', 'bild', 'kissen', 'wolldecke', 'korb', 'vorhang', 'obstschale', 'blumenkasten', 'sockel', 'kinderbett', 'stuhl', 'buerostuhl', 'bett', 'sofa']) {
+for (const art of ['spielzeugkiste', 'kuscheltier', 'spielkueche', 'buecher', 'bild', 'kissen', 'wolldecke', 'korb', 'vorhang', 'obstschale', 'blumenkasten', 'sockel', 'kinderbett', 'stuhl', 'buerostuhl', 'bett', 'sofa', 'besta_bank', ...BAD_DEKO]) {
   const eigen = '#3366aa'
   const t = moebelTeile(objekt(art, GROESSE[art], { farbe: eigen }), art, F, DECKE)
   wahr(`${art}: eigene Farbe genutzt`, !!t && t.some((q) => q.farbe === eigen))
@@ -442,6 +493,114 @@ for (const art of ['kuechenzeile', 'sofa']) {
   const n = ['ro', 'lo', 'ru', 'lu'].map((e) => teile(`${art} L ${e}`))
   wahr(`${art} L: gleich viele Teile in allen Ecken`, n.every((x) => x.length === n[0].length))
   wahr(`${art} L: gleich viele Plaetze in allen Ecken`, n.every((x) => x.filter((q) => q.platz).length === n[0].filter((q) => q.platz).length))
+}
+
+/* ------------------------------------------------------------ E91: Eckbank BESTA */
+
+{
+  for (const [name, n] of [['Eckbank Nord', 3], ['Eckbank Ost', 2]]) {
+    const b = teile(name)
+    const B = n === 3 ? 180 : 120
+    const tueren = b.filter((q) => q.front?.art === 'tuer')
+    wahr(`${name}: ${n} Tueren LAPPVIKEN ohne Griff`, tueren.length === n && !b.some((q) => q.front?.art === 'griff' || q.farbe === F.griff))
+    wahr(`${name}: Tueren 60 cm mit 3 mm Fuge, vorn bei 42, vom Boden bis 38`, tueren.every((q) => Math.abs(q.x1 - q.x0 - (B / n - 0.3)) < 1e-9 && q.y1 === 42 && q.z0 < 0.5 && Math.abs(q.z1 - 38) < 0.5))
+    wahr(`${name}: Korpus 38 hoch, weiss`, b.some((q) => !q.front && q.z1 === 38 && q.x1 - q.x0 === B && q.farbe === F.weiss))
+    const sitze = b.filter((q) => q.platz)
+    wahr(`${name}: ${n} Sitzpolster, Blick nach vorn, Oberkante 44, fast so tief wie die Bank`, sitze.length === n && sitze.every((q) => q.platz.art === 'sitz' && q.platz.blick === 'vorn' && q.z0 === 38 && q.z1 === 44 && q.y1 - q.y0 >= 40))
+    const ruecken = b.filter((q) => q.kipp?.laengs > 0)
+    wahr(`${name}: ${n} Rueckenpolster, leicht angelehnt`, ruecken.length === n && ruecken.every((q) => q.kipp.laengs === 10 && q.x1 - q.x0 <= 62 && q.y1 - q.y0 === 10))
+    const oben = Math.max(...ruecken.map((q) => huelle(q).z1))
+    const unten = Math.min(...ruecken.map((q) => huelle(q).z0))
+    wahr(`${name}: Rueckenpolster vom Sitz (44) bis H (85)`, Math.abs(oben - 85) < 0.01 && Math.abs(unten - 44) < 0.01)
+    wahr(`${name}: Rueckenpolster an der Wand`, ruecken.every((q) => Math.abs(huelle(q).y0 - 0.3) < 0.01))
+    wahr(`${name}: KUDDARNA graubeige`, sitze.every((q) => /^#d[0-9a-f]/.test(q.farbe)) && b.filter((q) => q.kipp).every((q) => q.farbe !== F.stoff))
+  }
+  wahr('BESTÅ ohne Ruecken (H 44): keine Rueckenpolster, Sitz auf 44', teile('BESTÅ ohne Ruecken').every((q) => !q.kipp) && teile('BESTÅ ohne Ruecken').filter((q) => q.platz).every((q) => q.z1 === 44))
+  const l = teile('besta_bank L ro')
+  wahr('BESTÅ als L: zwei Kaesten, Rueckenpolster nur an der Wand', l.filter((q) => q.front?.art === 'tuer').length >= 3 && l.filter((q) => q.kipp).every((q) => q.y0 < 20))
+}
+
+/* ------------------------------------------------------------ E91: Deko fuer Bad und WC */
+
+// Dreiecke je Teil so, wie der Motor die Formen baut (motor.ts form()):
+// Kugel 32 x 20, Zylinder 40 Seiten, Quader mit Rundung 1, 2 oder 4
+// Segmenten (unter 2 mm: glatter Quader), Moebelteile ohne Rundung mit Fase.
+const FASE_ROLLEN = new Set(['moebel', 'front', 'regal', 'brett', 'kiste'])
+function dreiecke(k) {
+  if (k.form?.art === 'kugel') return 32 * 20 * 2 - 2 * 32
+  if (k.form?.art === 'zylinder') return 40 * 4
+  const klein = Math.min(...k.masse)
+  const r = Math.min(k.rund ?? (FASE_ROLLEN.has(k.rolle) ? Math.min(0.008, klein * 0.25) : 0), klein / 2)
+  if (r < 0.002) return 12
+  const s = 2 * (r >= 0.02 ? 4 : r >= 0.008 ? 2 : 1) + 1
+  return 6 * s * s * 2
+}
+const dreieckeVon = (name, art) => {
+  const x = faelle.find((c) => c.name === name)
+  return moebelQuader(x.o, ergebnis.get(name), F, art, false).reduce((s, k) => s + dreiecke(k), 0)
+}
+{
+  const zahlen = []
+  for (const x of faelle.filter((c) => BAD_DEKO.includes(c.art))) {
+    const d = dreieckeVon(x.name, x.art)
+    zahlen.push(`${x.name} ${d}`)
+    wahr(`${x.name}: ${d} Dreiecke, hoechstens 1500`, d <= 1500)
+    wahr(`${x.name}: keine Kugel`, ergebnis.get(x.name).every((q) => q.form?.art !== 'kugel'))
+  }
+  console.log(`Dreiecke Bad-Deko: ${zahlen.join(', ')}`)
+  console.log(`Dreiecke Eckbank: Nord ${dreieckeVon('Eckbank Nord', 'besta_bank')}, Ost ${dreieckeVon('Eckbank Ost', 'besta_bank')}`)
+}
+{
+  // Handtuecher: Stange mit Haltern, ein bis drei Tuecher je Breite, jedes zum Abnehmen, Farben aus dem Namen.
+  const tuecher = (name) => [...new Set(teile(name).filter((q) => q.ding).map((q) => q.ding))]
+  wahr('Handtuch 40: ein Tuch', tuecher('Handtuchstange schmal').length === 1)
+  wahr('Handtuch 70: zwei Tuecher', tuecher('handtuch').length === 2)
+  wahr('Handtuch 100: drei Tuecher', tuecher('Handtuchstange breit').length === 3)
+  wahr('Handtuch: Stange aus Metall, laengs, kein Ding', zahl('handtuch', (q) => q.form?.achse === 'laengs' && q.farbe === F.metall && !q.ding) === 1)
+  const farbe = (name, d) => teile(name).find((q) => q.ding === d && q.form?.art === 'zylinder').farbe
+  wahr('Handtuecher salbeigruen und weiss in der Reihenfolge des Namens', farbe('Handtuecher zwei Farben', 'handtuch1') === misch(F.gruen, F.leinen, 0.62) && farbe('Handtuecher zwei Farben', 'handtuch2') === misch(F.waesche, F.leinen, 0.12))
+  wahr('Handtuecher terrakotta, salbeigruen, grau', ['handtuch1', 'handtuch2', 'handtuch3'].map((d) => farbe('Handtuchstange breit', d)).join() === [misch(F.topf, F.leinen, 0.32), misch(F.gruen, F.leinen, 0.62), misch(F.stoff, F.leinen, 0.38)].join())
+  wahr('Handtuch ohne Farbwort: beige', farbe('handtuch', 'handtuch1') === misch(F.leinen, F.pappe, 0.28))
+  wahr('Handtuch am Haken: ein Haken, ein Tuch, oben zusammengerafft', zahl('Handtuch am Haken', (q) => q.form?.achse === 'quer' && q.farbe === F.metall) === 2 && tuecher('Handtuch am Haken').length === 1 && zahl('Handtuch am Haken', (q) => q.ding && q.form?.oben < 0.3) === 2)
+  wahr('Handtuchstapel: vier gefaltete Lagen je 5 cm mit Bordure', zahl('handtuchstapel', (q) => q.z1 - q.z0 > 4) === 4 && zahl('handtuchstapel', (q) => q.z1 - q.z0 < 1) === 4 && teile('handtuchstapel').every((q) => !q.form))
+  wahr('Handtuecher gerollt: drei Rollen in zwei Reihen, vorn die Wicklung', zahl('Handtuecher gerollt', (q) => q.form?.achse === 'quer' && q.y1 - q.y0 > 20) === 3 && zahl('Handtuecher gerollt', (q) => q.form?.achse === 'quer' && q.y1 - q.y0 < 1) === 3 && zahl('Handtuecher gerollt', (q) => q.z0 > 5) === 2)
+  {
+    const flach = moebelTeile(objekt('handtuchstapel', [45, 30, 12], { name: 'Handtücher gerollt' }), 'handtuchstapel', F, DECKE).filter((q) => q.y1 - q.y0 > 20)
+    wahr('Handtuecher gerollt flach: eine Reihe von drei', flach.length === 3 && flach.every((q) => q.z0 === 0))
+  }
+  // Becher, Spender, Seifenschale.
+  for (const d of ['becher', 'spender', 'seife']) wahr(`Badaccessoires: ${d}`, zahl('badaccessoires', (q) => q.ding === d) > 0)
+  wahr('Badaccessoires: zwei Zahnbuersten geneigt', zahl('badaccessoires', (q) => q.ding === 'becher' && q.kipp?.quer) === 4)
+  wahr('Badaccessoires schmal: ohne Seifenschale', moebelTeile(objekt('badaccessoires', [20, 9, 18]), 'badaccessoires', F, DECKE).every((q) => q.ding !== 'seife'))
+  // Kerzen: drei (zwei bei schmalem Tablett), Flamme glimmt leise, verschieden hoch.
+  const flammen = (name) => teile(name).filter((q) => q.glut)
+  wahr('Kerzen: drei Flammen mit Glut', flammen('kerzen').length === 3 && flammen('kerzen').every((q) => q.glut > 0.5 && q.glut <= 1 && q.form?.art === 'zylinder' && q.form.oben < 0.5))
+  wahr('Kerzen: verschieden hoch', new Set(flammen('kerzen').map((q) => Math.round(q.z0 * 10))).size === 3)
+  wahr('Kerzen schmal: zwei', moebelTeile(objekt('kerzen', [15, 10, 14]), 'kerzen', F, DECKE).filter((q) => q.glut).length === 2)
+  wahr('Duftstaebchen: acht Staebchen geneigt, Flasche durchscheinend', zahl('duftstaebchen', (q) => q.kipp) === 8 && zahl('duftstaebchen', (q) => q.deckkraft !== undefined && q.deckkraft < 1) === 2)
+  wahr('Wannenablage: Kerze mit Flamme und Buch zum Nehmen', zahl('badewannenablage', (q) => q.ding === 'kerze' && q.glut) === 1 && zahl('badewannenablage', (q) => q.ding === 'buch') === 4)
+  wahr('Doppelrollenhalter: zwei Rollen, die Ersatzrolle zum Nehmen', zahl('Doppelrollenhalter', (q) => q.form?.achse === 'laengs' && q.farbe === misch(F.waesche, F.keramik, 0.5)) === 2 && zahl('Doppelrollenhalter', (q) => q.ding === 'ersatzrolle') === 2)
+  wahr('Einzelrollenhalter: eine Rolle', zahl('Einzelrollenhalter', (q) => q.form?.achse === 'laengs' && q.farbe === misch(F.waesche, F.keramik, 0.5)) === 1 && zahl('Einzelrollenhalter', (q) => q.ding) === 0)
+  wahr('Klobuerste: Halter, Stiel, Knauf', teile('klobuerste').length === 5 && teile('klobuerste').every((q) => q.form?.art === 'zylinder'))
+  wahr('Bademantel: Haken fest, Mantel zum Abnehmen, Aermel und Kragen', zahl('bademantel', (q) => !q.ding) === 2 && zahl('bademantel', (q) => q.ding === 'bademantel' && q.kipp?.quer) === 4)
+  wahr('Bademantel grau', teile('Bademantel grau').some((q) => q.farbe === misch(F.stoff, F.leinen, 0.38)))
+  wahr('Wandregal: zwei Bretter, zwei Seiten, Kante vorn und Stange hinten', teile('wandregal').length === 6 && zahl('wandregal', (q) => q.form?.achse === 'laengs') === 1)
+  // Pflanzen (E91): Gruenlilie und Haengepflanze eigen, auch klein; alle anderen wie bisher.
+  wahr('Gruenlilie: Topf, Erde, 14 Blaetter aus zwei Stuecken', teile('Gruenlilie').length === 30 && zahl('Gruenlilie', (q) => q.kipp) === 28)
+  wahr('Efeutute: Topf, Erde, Busch und fuenf Ranken mit Blaettern', teile('Efeutute').length === 2 + 20 + 25 && zahl('Efeutute', (q) => q.z1 < 40 * 0.45) >= 10)
+  wahr('Andere Pflanze wie bisher: Topf und runde Krone', teile('pflanze').length === 2 && teile('pflanze')[1].form?.art === 'kugel')
+  // Nacharbeit E91: eine grosse Efeutute am Boden ist kein Geruest aus Staeben.
+  wahr('Efeutute gross (90 cm): Topf und runde Krone wie bisher', teile('Efeutute gross').length === 2 && teile('Efeutute gross')[1].form?.art === 'kugel')
+  for (const n of ['Gruenlilie', 'Gruenlilie klein', 'Efeutute', 'Efeutute klein']) {
+    const d = dreieckeVon(n, 'pflanze')
+    wahr(`${n}: ${d} Dreiecke, hoechstens 1500, keine Kugel`, d <= 1500 && ergebnis.get(n).every((q) => q.form?.art !== 'kugel'))
+  }
+  wahr('Wandbrett: ein Brett auf zwei Konsolen', teile('Wandbrett').length === 5 && zahl('Wandbrett', (q) => q.kipp?.laengs) === 2)
+  wahr('Seifenschale: Schale und Seife', teile('seifenschale').length === 3)
+  // Weicher Stoff ohne Kantenlinie, Holz und Moebel wie bisher mit.
+  const linien = (name, art) => moebelQuader(faelle.find((c) => c.name === name).o, ergebnis.get(name), F, art, false).filter((k) => k.kante).length
+  wahr('Stoff ohne Kantenlinie: Handtuecher, Stapel, Bademantel', linien('handtuch', 'handtuch') === 0 && linien('handtuchstapel', 'handtuchstapel') === 0 && teile('bademantel').filter((q) => q.ding).every((q) => q.weich))
+  wahr('Holz und Kaesten mit Kantenlinie wie bisher', linien('wandregal', 'wandregal') > 0 && linien('sideboard', 'sideboard') > 0 && linien('vorhang', 'vorhang') > 0)
 }
 
 // Die Szene baut alles ohne kaputte Zahlen.

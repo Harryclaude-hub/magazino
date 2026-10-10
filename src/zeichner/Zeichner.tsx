@@ -33,7 +33,7 @@ import { BereichDialog } from '../components/BereichDialog'
 import { neuerBereich, type BereichEntwurf } from '../lib/bereich'
 import { Button, CodeChip, Modal, useToast } from '../components/ui'
 import { datenBox, kisteRechteck, raumTitel } from '../components/plan/hilfe'
-import { istDeko } from '../components/plan/moebelArt'
+import { dekoEbene } from '../components/plan/moebelArt'
 import { moebelAnwenden } from '../components/plan/objektVerschieben'
 import { GrundrissFehler, ladeGrundriss, listItems, platzRaeumen, platzSetzen, speichereGrundriss, speichereLinien, updateTag } from '../lib/api'
 import {
@@ -980,8 +980,13 @@ export default function Zeichner({
   const w = WERKZEUGE[werkzeug.name]
   const vorschau = ansicht ? w.vorschau(kontext, werkzeug.s) : {}
   const anzeige = vorschau.dok ?? z.dok
-  // Ausgeblendete Deko (E82) zeichnet die Leinwand nicht; der Plan bleibt.
-  const leinwandDok = useMemo(() => (deko ? anzeige : { ...anzeige, objekte: anzeige.objekte.filter((o) => !istDeko(o)) }), [anzeige, deko])
+  // Ausgeblendete Deko (E82) zeichnet die Leinwand nicht, auch nicht, was
+  // auf ihr steht (dekoEbene); der Plan bleibt.
+  const leinwandDok = useMemo(() => {
+    if (deko) return anzeige
+    const weg = dekoEbene(anzeige.objekte)
+    return { ...anzeige, objekte: anzeige.objekte.filter((o) => !weg.has(o.id)) }
+  }, [anzeige, deko])
   /* Nur Warnung (START 5.2, BAUPLAN 7.1 E12): sich ueberdeckende Raeume
    * speichert der Zeichner trotzdem. */
   const ueberlappend = useMemo(() => {
@@ -1478,11 +1483,11 @@ export default function Zeichner({
         <button
           type="button"
           onClick={() => {
-            // Beim Ausblenden eine gewaehlte Deko abwaehlen, sonst loeschte Entf sie unsichtbar.
+            // Beim Ausblenden eine gewaehlte Deko (oder was auf ihr steht)
+            // abwaehlen, sonst loeschte Entf sie unsichtbar.
             const gewaehlt = z.auswahl
-            if (deko && gewaehlt?.art === 'objekt') {
-              const o = z.dok.objekte.find((x) => x.id === gewaehlt.id)
-              if (o && istDeko(o)) dispatch({ typ: 'waehlen', auswahl: null })
+            if (deko && gewaehlt?.art === 'objekt' && dekoEbene(z.dok.objekte).has(gewaehlt.id)) {
+              dispatch({ typ: 'waehlen', auswahl: null })
             }
             setDeko((v) => !v)
           }}

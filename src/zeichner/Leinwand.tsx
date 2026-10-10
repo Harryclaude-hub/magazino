@@ -5,6 +5,7 @@ import { rasterLinien, type Ansicht } from '../components/plan/ansicht'
 import type { Punkt } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
 import type { Auswahl, Dok } from './dok'
+import type { Messpunkt, MesspunktEnde } from './messpunkte'
 import type { Vorschau } from './werkzeuge/typen'
 
 /* Die Zeichenflaeche: Raster, der Plan (dieselben Ebenen wie PlanBild),
@@ -230,7 +231,101 @@ export function Leinwand({
   )
 }
 
+/** Name eines Messpunkts fuer die Anzeige: "Tuer Bad, links", "Ecke".
+ *  Stossen zwei Oeffnungen aneinander, stehen beide Enden da:
+ *  "Tuer Bad, rechts / Fenster Bad, links". */
+function messpunktName(t: (key: string, vars?: Record<string, string | number>) => string, m: Messpunkt): string {
+  if (m.art === 'ecke') return t('zeichner.messen.ecke')
+  return [m, ...(m.auch ?? [])].map((e) => endeName(t, e)).join(' / ')
+}
+
+function endeName(t: (key: string, vars?: Record<string, string | number>) => string, m: MesspunktEnde): string {
+  const was =
+    m.art === 'tuer' ? t('zeichner.werkzeug.tuer') : m.art === 'fenster' ? t('zeichner.werkzeug.fenster') : t('plan.durchgang')
+  const ende = m.ende === 'rechts' ? t('zeichner.messen.rechts') : t('zeichner.messen.links')
+  const name = m.raum ? t('zeichner.messen.punkt', { was, raum: m.raum, ende }) : t('zeichner.messen.punkt_ohne_raum', { was, ende })
+  return m.gegenueber ? t('zeichner.messen.gegenueber', { name }) : name
+}
+
+function messFarbe(m: Messpunkt): string {
+  return m.art === 'ecke' ? 'var(--plan-wand)' : m.art === 'fenster' ? 'var(--plan-fenster)' : 'var(--plan-tuer)'
+}
+
+/* Die Messpunkte der Wohnung beim Messen (E90): Ecken als kleine Quadrate
+ * in der Wandfarbe, Enden von Tueren und Durchgaengen als Punkte in der
+ * Tuerfarbe, Enden von Fenstern in der Fensterfarbe, die Gegenseite einer
+ * Tuer hohl. Mit hellem Rand, damit sie auf der dunklen Wand stehen.
+ * Groessen in Bildpunkten, bei jedem Zoom gleich. Die Liste bleibt beim
+ * Bewegen dieselbe (messpunkte.ts merkt sie sich), darum memo. */
+const MesspunktEbene = memo(function MesspunktEbene({ alle, s }: { alle: Messpunkt[]; s: number }) {
+  const r = 3.5 / s
+  const q = 6.5 / s
+  return (
+    <g pointerEvents="none">
+      {alle.map((m, i) =>
+        m.art === 'ecke' ? (
+          <rect
+            key={i}
+            x={m.p[0] - q / 2}
+            y={m.p[1] - q / 2}
+            width={q}
+            height={q}
+            style={{ fill: 'var(--plan-wand)', stroke: 'var(--surface)' }}
+            strokeWidth={1.5}
+            vectorEffect={NS}
+          />
+        ) : (
+          <circle
+            key={i}
+            cx={m.p[0]}
+            cy={m.p[1]}
+            r={m.gegenueber ? r * 0.9 : r}
+            style={m.gegenueber ? { fill: 'var(--surface)', stroke: messFarbe(m) } : { fill: messFarbe(m), stroke: 'var(--surface)' }}
+            strokeWidth={m.gegenueber ? 2 : 1.5}
+            vectorEffect={NS}
+          />
+        ),
+      )}
+    </g>
+  )
+})
+
+/** Der Messpunkt unter dem Zeiger: Ring in der Auswahlfarbe und sein Name
+ *  rechts oben daneben, bei einer halben Messung auf der Seite, die vom
+ *  Anfang (von) wegzeigt, damit er nicht auf Linie und Zahl steht. Im
+ *  Arabischen mit eigener Leserichtung. */
+function MesspunktAn({ m, s, von }: { m: Messpunkt; s: number; von: Punkt | null }) {
+  const { t, lang } = useSprache()
+  const fs = 12 / s
+  const rechts = !von || m.p[0] >= von[0]
+  const unten = !!von && m.p[1] > von[1]
+  const x = m.p[0] + ((rechts ? 1 : -1) * 11) / s
+  const y = unten ? m.p[1] + 11 / s + fs * 0.8 : m.p[1] - 11 / s
+  const rtl = lang === 'ar'
+  // Text-Anker: im Arabischen (rtl) ist "end" das linke Ende der Zeile.
+  const anker = rechts === rtl ? 'end' : 'start'
+  return (
+    <g pointerEvents="none" className="plan-auswahl-ebene">
+      <circle cx={m.p[0]} cy={m.p[1]} r={9 / s} fill="none" style={{ stroke: 'var(--plan-auswahl)' }} strokeWidth={2.5} vectorEffect={NS} />
+      <circle cx={m.p[0]} cy={m.p[1]} r={4.5 / s} style={{ fill: messFarbe(m), stroke: 'var(--surface)' }} strokeWidth={1.5} vectorEffect={NS} />
+      <text
+        x={x}
+        y={y}
+        direction={rtl ? 'rtl' : 'ltr'}
+        textAnchor={anker}
+        style={{ fill: 'var(--plan-auswahl)', fontSize: fs, paintOrder: 'stroke', stroke: 'var(--surface)', unicodeBidi: 'isolate' }}
+        strokeWidth={3.5 / s}
+        strokeLinejoin="round"
+        fontWeight={800}
+      >
+        {messpunktName(t, m)}
+      </text>
+    </g>
+  )
+}
+
 function VorschauEbene({ v, s }: { v: Vorschau; s: number }) {
+  const { t, lang } = useSprache()
   const fs = 12 / s
   const farbe = (art: string) =>
     art === 'falsch' ? 'var(--plan-hervor)' : art === 'mass' ? 'var(--plan-linie)' : 'var(--plan-auswahl)'
@@ -288,9 +383,11 @@ function VorschauEbene({ v, s }: { v: Vorschau; s: number }) {
           vectorEffect={NS}
         />
       ) : null}
+      {v.messpunkte ? <MesspunktEbene alle={v.messpunkte.alle} s={s} /> : null}
       {v.punkte?.map((p, i) => (
         <circle key={i} cx={p[0]} cy={p[1]} r={6 / s} fill="none" style={{ stroke: 'var(--plan-auswahl)' }} strokeWidth={2} vectorEffect={NS} />
       ))}
+      {v.messpunkte?.an ? <MesspunktAn m={v.messpunkte.an} s={s} von={v.messpunkte.von ?? null} /> : null}
       {v.texte?.map((x, i) => (
         <text
           key={i}
@@ -298,11 +395,19 @@ function VorschauEbene({ v, s }: { v: Vorschau; s: number }) {
           y={x.p[1] - 8 / s}
           textAnchor="middle"
           className="t-serial"
-          style={{ fill: 'var(--plan-auswahl)', fontSize: fs, paintOrder: 'stroke', stroke: 'var(--surface)' }}
+          // "Lichte 80": im Arabischen mit eigener Leserichtung (im style, weil
+          // .t-serial sonst ltr erzwingt), die Zahl bleibt eine Zahl.
+          style={{
+            fill: 'var(--plan-auswahl)',
+            fontSize: fs,
+            paintOrder: 'stroke',
+            stroke: 'var(--surface)',
+            direction: x.lichte && lang === 'ar' ? 'rtl' : undefined,
+          }}
           strokeWidth={3.5 / s}
           fontWeight={800}
         >
-          {x.text}
+          {x.lichte ? `${t('zeichner.messen.lichte')} ${x.text}` : x.text}
         </text>
       ))}
     </g>

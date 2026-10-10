@@ -30,12 +30,22 @@
 //     Verwerfen), "kein Zugriff" erkannt, Umrechnung Welt und Siedlung,
 //     Aus Datei ersetzt genau die offene Siedlung, das erste Laden geht bei
 //     gescheiterter Umgebung trotzdem hinein.
+//  8. E92, Kontextmenue und Moebelkarte: welche Eintraege das Menue je
+//     Zustand hat, wo es steht (am Zeiger, ganz im Bild, nie ueber den
+//     Rand), Masse, Preis, Shop (nur http und https), Kisten darauf oder
+//     darin (auch gestapelt); Menue und Karte gerendert in de und ar
+//     (Name, Masse, Preis, Link mit noopener in neuem Tab, veraltet, ohne
+//     Angaben, ungueltiger Link), der Vertrag zwischen Motor und Raum3D
+//     (Rechtsklick hebt nichts mehr an, Esc der Reihe nach, Eingabe ruht
+//     bei offener Karte) und die Woerter.
 // Alle Namen und Zahlen sind erfunden. Aufruf im Projektordner:
 //   node scripts/bedienung-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { createElement as h } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 
 let fehler = 0
@@ -67,6 +77,9 @@ let SW
 let API
 let IM
 let SL
+let MI
+let MK
+let MM
 try {
   R = await vite.ssrLoadModule('/src/components/plan3d/Raum3D.tsx')
   S = await vite.ssrLoadModule('/src/pages/SiedlungAnsicht.tsx')
@@ -77,6 +90,9 @@ try {
   API = await vite.ssrLoadModule('/src/lib/api.ts')
   IM = await vite.ssrLoadModule('/src/lib/siedlungImport.ts')
   SL = await vite.ssrLoadModule('/src/pages/Siedlungen.tsx')
+  MI = await vite.ssrLoadModule('/src/components/plan3d/moebelInfo.ts')
+  MK = await vite.ssrLoadModule('/src/components/plan3d/MoebelKarte.tsx')
+  MM = await vite.ssrLoadModule('/src/components/plan3d/MoebelMenue.tsx')
 } finally {
   await vite.close()
 }
@@ -958,7 +974,7 @@ function falscheUhr() {
   // und denselben Platzhaltern.
   const alle = { ...P3.plan3dWoerter, ...SW.siedlungWoerter }
   const platz = (x) => [...x.matchAll(/\{(\w+)\}/g)].map((y) => y[1]).sort().join(',')
-  for (const datei of ['src/components/plan3d/Raum3D.tsx', 'src/components/plan3d/Minikarte.tsx', 'src/pages/SiedlungAnsicht.tsx', 'src/pages/Siedlungen.tsx', 'src/components/SiedlungLeute.tsx']) {
+  for (const datei of ['src/components/plan3d/Raum3D.tsx', 'src/components/plan3d/Minikarte.tsx', 'src/pages/SiedlungAnsicht.tsx', 'src/pages/Siedlungen.tsx', 'src/components/SiedlungLeute.tsx', 'src/components/plan3d/MoebelKarte.tsx', 'src/components/plan3d/MoebelMenue.tsx']) {
     for (const m of lesen(datei).matchAll(/'((?:plan3d|siedlung)\.[a-z0-9_.]+)'/g)) {
       const e = alle[m[1]]
       wahr(`${m[1]} (${datei}) steht im Woerterbuch`, !!e)
@@ -969,7 +985,7 @@ function falscheUhr() {
   for (const k of Object.values(R.BEDIEN_NAME)) wahr(`${k} in plan3d.ts (laedt mit 3D)`, k.startsWith('plan3d.'))
 
   const LANGER_STRICH = String.fromCharCode(0x2014)
-  for (const datei of ['scripts/bedienung-pruefen.mjs', 'src/components/plan3d/Raum3D.tsx', 'src/lib/anwesenheit.ts', 'src/pages/SiedlungAnsicht.tsx', 'src/pages/Siedlungen.tsx', 'src/components/SiedlungLeute.tsx', 'src/lib/i18n/bausteine/plan3d.ts', 'src/lib/i18n/bausteine/siedlung.ts', 'src/components/plan3d/oeffnen.tsx', 'src/pages/Grundriss.tsx', 'scripts/siedlung-wohnungen-pruefen.mjs']) {
+  for (const datei of ['scripts/bedienung-pruefen.mjs', 'src/components/plan3d/Raum3D.tsx', 'src/components/plan3d/MoebelKarte.tsx', 'src/components/plan3d/MoebelMenue.tsx', 'src/components/plan3d/moebelInfo.ts', 'src/components/plan3d/motor.ts', 'src/lib/anwesenheit.ts', 'src/pages/SiedlungAnsicht.tsx', 'src/pages/Siedlungen.tsx', 'src/components/SiedlungLeute.tsx', 'src/lib/i18n/bausteine/plan3d.ts', 'src/lib/i18n/bausteine/siedlung.ts', 'src/components/plan3d/oeffnen.tsx', 'src/pages/Grundriss.tsx', 'scripts/siedlung-wohnungen-pruefen.mjs']) {
     const txt = lesen(datei)
     wahr(`${datei}: kein U+2014`, !txt.includes(LANGER_STRICH))
     wahr(`${datei}: keine Mail-Adresse`, !/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(txt))
@@ -977,6 +993,223 @@ function falscheUhr() {
     wahr(`${datei}: keine echten Kennungen`, ids.every((id) => id.startsWith('00000000-0000-4000-8000-')))
     wahr(`${datei}: keine Koordinaten auf der Erde`, !/\b(4[6-9]|5[0-5])\.\d{4,}\b/.test(txt))
   }
+}
+
+/* ------------------------------------------------ 8. Kontextmenue und Moebelkarte (E92) */
+
+{
+  // Eintraege je Zustand: Details immer, Verschieben nur tragbar, Hinsetzen nur sitzbar.
+  wahr('Menue: nur Details', gleich(MI.menueEintraege({ tragbar: false, sitzbar: false }), ['details']))
+  wahr('Menue: Details, Verschieben', gleich(MI.menueEintraege({ tragbar: true, sitzbar: false }), ['details', 'verschieben']))
+  wahr('Menue: Details, Hinsetzen', gleich(MI.menueEintraege({ tragbar: false, sitzbar: true }), ['details', 'hinsetzen']))
+  wahr('Menue: alle drei in fester Reihenfolge', gleich(MI.menueEintraege({ tragbar: true, sitzbar: true }), ['details', 'verschieben', 'hinsetzen']))
+  // Nacharbeit E92: gesperrt (Mauer, Spiegel, Geraet) zeigt Verschieben mit Grund, ein Bett heisst Hinlegen.
+  wahr('Menue: gesperrt, Verschieben bleibt (ausgegraut)', gleich(MI.menueEintraege({ tragbar: false, gesperrt: true, sitzbar: false }), ['details', 'verschieben']))
+  wahr('Menue: Bett, Hinlegen statt Hinsetzen', gleich(MI.menueEintraege({ tragbar: true, sitzbar: true, liegen: true }), ['details', 'verschieben', 'hinlegen']))
+  wahr('Menue: ohne Platz kein Hinlegen', gleich(MI.menueEintraege({ tragbar: false, sitzbar: false, liegen: true }), ['details']))
+
+  // Lage: am Zeiger, sonst links davon oder darueber, nie ueber den Rand.
+  const R8 = MI.MENUE_RAND_PX
+  wahr('Lage: Rand 8 px', R8 === 8)
+  wahr('Lage: Platz rechts unten, am Zeiger', gleich(MI.menueLage(100, 120, 160, 120, 800, 600), { links: 100, oben: 120 }))
+  wahr('Lage: rechts zu wenig, links vom Zeiger', gleich(MI.menueLage(700, 120, 160, 120, 800, 600), { links: 540, oben: 120 }))
+  wahr('Lage: unten zu wenig, ueber dem Zeiger', gleich(MI.menueLage(100, 550, 160, 120, 800, 600), { links: 100, oben: 430 }))
+  wahr('Lage: Ecke rechts unten, links oben vom Zeiger', gleich(MI.menueLage(790, 590, 160, 120, 800, 600), { links: 630, oben: 470 }))
+  wahr('Lage: links oben am Rand bleibt im Bild', gleich(MI.menueLage(0, 0, 160, 120, 800, 600), { links: 8, oben: 8 }))
+  wahr('Lage: Flaeche kleiner als das Menue, oben links am Rand', gleich(MI.menueLage(50, 40, 300, 200, 200, 150), { links: 8, oben: 8 }))
+  wahr('Lage: kaputte Zahlen, trotzdem eine Lage', gleich(MI.menueLage(Number.NaN, Infinity, 160, 120, 800, 600), { links: 8, oben: 8 }))
+  // Handy hochkant, quer und Rechner: an jeder Stelle liegt das Menue ganz im Bild.
+  let drin = true
+  for (const [fb, fh] of [
+    [360, 640],
+    [640, 360],
+    [1280, 720],
+  ]) {
+    for (let x = -20; x <= fb + 20; x += 37) {
+      for (let y = -20; y <= fh + 20; y += 29) {
+        const l = MI.menueLage(x, y, 168, 124, fb, fh)
+        if (l.links < R8 || l.oben < R8 || l.links + 168 > fb - R8 || l.oben + 124 > fh - R8) drin = false
+      }
+    }
+  }
+  wahr('Lage: immer ganz im Bild (360 x 640, 640 x 360, 1280 x 720)', drin)
+
+  // Masse, Preis, Shop.
+  wahr('Masse: ganze cm, B x T x H', MI.masseText({ breite_cm: 120, tiefe_cm: 80.4, hoehe_cm: 74.6 }) === '120 x 80 x 75 cm')
+  wahr('Preis: wie im Zeichner', MI.preisText(129900) === '1.299,00 €' && MI.preisText(4995) === '49,95 €' && MI.preisText(0) === '0,00 €')
+  wahr('Preis: fehlt oder kaputt: null', MI.preisText(null) === null && MI.preisText(undefined) === null && MI.preisText(-5) === null && MI.preisText(Number.NaN) === null)
+  const ikea = MI.shopLink('https://www.ikea.com/at/de/p/stuhl-00000000/')
+  wahr('Shop: Name ohne www', ikea?.host === 'ikea.com' && ikea?.href === 'https://www.ikea.com/at/de/p/stuhl-00000000/')
+  wahr('Shop: http geht auch', MI.shopLink('http://moebel.example/tisch')?.host === 'moebel.example')
+  for (const boese of ['javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,x', 'ftp://moebel.example/x', 'kein link', '', null, undefined, 'https://']) {
+    wahr(`Shop: kein Link aus ${JSON.stringify(boese)}`, MI.shopLink(boese) === null)
+  }
+
+  // Kisten darauf oder darin, auch gestapelt; am Boden zaehlt keine, ein Kreis haengt nicht.
+  const kiste = (id, art, objekt, auf) => ({ id, unterlage_art: art, unterlage_objekt_id: objekt, unterlage_item_id: auf })
+  const kisten = [
+    kiste('k1', 'objekt', 'tisch', null),
+    kiste('k2', 'kiste', null, 'k1'),
+    kiste('k3', 'fach', 'schrank', null),
+    kiste('k4', 'boden', null, null),
+    kiste('k5', 'kiste', null, 'k4'),
+    kiste('k6', 'kiste', null, 'k7'),
+    kiste('k7', 'kiste', null, 'k6'),
+  ]
+  const tr = MI.traegerKarte(kisten)
+  wahr('Kisten: auf dem Tisch zwei (eine gestapelt)', MI.kistenAuf(tr, 'tisch') === 2)
+  wahr('Kisten: im Schrank eine', MI.kistenAuf(tr, 'schrank') === 1)
+  wahr('Kisten: Stuhl keine, Boden und Kreis ohne Traeger', MI.kistenAuf(tr, 'stuhl') === 0 && !tr.has('k6') && !tr.has('k4') && !tr.has('k5'))
+  const raum8 = lesen('src/components/plan3d/Raum3D.tsx')
+  wahr('Raum3D: Traeger nur aus moebelInfo (eine Stelle)', !raum8.includes('function traegerKarte') && raum8.includes('traegerKarte(daten.kisten)'))
+
+  // Menue gerendert: Eintraege, Rollen, Fokus, Sprache.
+  function rendern(element, sprache) {
+    const daten = { 'kistly.lang': sprache }
+    globalThis.localStorage = { getItem: (k) => (k in daten ? daten[k] : null), setItem: () => {}, removeItem: () => {} }
+    try {
+      return renderToStaticMarkup(h(I.SpracheProvider, null, element))
+    } finally {
+      delete globalThis.localStorage
+    }
+  }
+  const nichts = () => {}
+  const menue = (tragbar, sitzbar, sprache = 'de', mehr = {}) => rendern(h(MM.default, { x: 40, y: 50, tragbar, sitzbar, name: 'Stuhl Eiche', onWahl: nichts, onZu: nichts, ...mehr }), sprache)
+  const eintraegeIn = (html) => [...html.matchAll(/data-menue="([a-z]+)"/g)].map((m) => m[1])
+  for (const [tragbar, sitzbar] of [
+    [false, false],
+    [true, false],
+    [false, true],
+    [true, true],
+  ]) {
+    wahr(`Menue gerendert (${tragbar}, ${sitzbar}): Eintraege wie menueEintraege`, gleich(eintraegeIn(menue(tragbar, sitzbar)), MI.menueEintraege({ tragbar, sitzbar })))
+  }
+  const mDe = menue(true, true)
+  wahr('Menue: role menu und menuitem, Name fuer Vorleser', mDe.includes('role="menu"') && (mDe.match(/role="menuitem"/g) ?? []).length === 3 && mDe.includes('aria-label="Möbel: Stuhl Eiche"'))
+  wahr('Menue: nur der erste Eintrag mit Tab erreichbar', (mDe.match(/tabindex="0"/g) ?? []).length === 1 && (mDe.match(/tabindex="-1"/g) ?? []).length === 2 && mDe.indexOf('tabindex="0"') < mDe.indexOf('data-menue="verschieben"'))
+  wahr('Menue: Woerter de', mDe.includes('>Details<') && mDe.includes('>Verschieben<') && mDe.includes('>Hinsetzen<'))
+  const mAr = menue(true, true, 'ar')
+  wahr('Menue: Woerter ar', mAr.includes('>التفاصيل<') && mAr.includes('>نقل<') && mAr.includes('>اجلس<'))
+  wahr('Menue: Eintraege frei, nichts ausgegraut', !mDe.includes('aria-disabled') && !mDe.includes('data-menue-grund'))
+  // Nacharbeit E92: Mauer (gesperrt) und Bett (Liegeplatz).
+  const mauer = menue(false, false, 'de', { gesperrt: true })
+  const verschieben = mauer.slice(mauer.indexOf('data-menue="verschieben"'))
+  wahr('Menue gesperrt: Verschieben ausgegraut mit Grund', gleich(eintraegeIn(mauer), ['details', 'verschieben']) && mauer.includes('aria-disabled="true"') && verschieben.includes('>Das lässt sich nicht verschieben<'))
+  wahr('Menue gesperrt ar: Grund auf Arabisch', menue(false, false, 'ar', { gesperrt: true }).includes('>لا يمكن نقل هذا<'))
+  const bett = menue(true, true, 'de', { liegen: true })
+  wahr('Menue Bett: Hinlegen statt Hinsetzen', gleich(eintraegeIn(bett), ['details', 'verschieben', 'hinlegen']) && bett.includes('>Hinlegen<') && !bett.includes('>Hinsetzen<'))
+  wahr('Menue Bett ar: استلقِ statt اجلس', menue(true, true, 'ar', { liegen: true }).includes('>استلقِ<') && !menue(true, true, 'ar', { liegen: true }).includes('>اجلس<'))
+  const kopfAr = mAr.slice(0, mAr.indexOf('>'))
+  wahr('Menue: vor dem Messen unsichtbar am Zeiger (links und oben)', mDe.includes('left:40px') && mDe.includes('top:50px') && mDe.includes('visibility:hidden') && !mDe.includes('right:'))
+  wahr('Menue ar: Lage nicht gespiegelt (left, top), Eintraege rtl', kopfAr.includes('dir="rtl"') && kopfAr.includes('left:40px') && kopfAr.includes('top:50px') && !kopfAr.includes('right:'))
+
+  // Karte gerendert.
+  const objekt = {
+    id: 'o1',
+    raum_id: 'r1',
+    art: 'moebel',
+    name: 'Stuhl Eiche',
+    farbe: '#8a6a4a',
+    item_id: 'i1',
+    item_code: 'M-1-007',
+    item_title: null,
+    link: 'https://www.ikea.com/at/de/p/stuhl-00000000/',
+    preis_cent: 129900,
+    material: 'holz',
+    x: 0,
+    y: 0,
+    breite_cm: 45,
+    tiefe_cm: 52,
+    hoehe_cm: 88,
+    drehung: 0,
+    form: 'rechteck',
+    ausschnitt_breite_cm: null,
+    ausschnitt_tiefe_cm: null,
+    ausschnitt_ecke: null,
+    brett_cm: null,
+    spalten: 1,
+    boden_cm: 0,
+  }
+  const karte = (o, mehr = {}, sprache = 'de') =>
+    rendern(h(MK.default, { objekt: o, raumName: 'Küche', kisten: 3, seite: '/app/p/p1/moebel/i1', onZurueck: nichts, onSeite: nichts, ...mehr }), sprache)
+  const kDe = karte(objekt)
+  wahr('Karte: Dialog mit Titel', kDe.includes('role="dialog"') && /aria-labelledby="[^"]+"/.test(kDe) && kDe.includes('data-moebel-name=""'))
+  wahr('Karte: Name dir auto, Zimmer', /dir="auto" data-moebel-name="" class="[^"]*">Stuhl Eiche</.test(kDe) && kDe.includes('>Küche<'))
+  wahr('Karte: Art', kDe.includes('>Möbel<'))
+  wahr('Karte: Masse ltr', /<span dir="ltr" data-moebel-masse="" class="t-serial">45 x 52 x 88 cm<\/span>/.test(kDe) && kDe.includes('Breite x Tiefe x Höhe'))
+  wahr('Karte: steht auf dem Boden (kein haengt)', !kDe.includes('data-moebel-haengt'))
+  wahr('Karte: Material', kDe.includes('>Holz<'))
+  wahr('Karte: Preis ltr', /<span dir="ltr" data-moebel-preis="" class="t-serial">1\.299,00 €<\/span>/.test(kDe))
+  const a = kDe.match(/<a [^>]*data-moebel-shop=""[^>]*>/)?.[0] ?? ''
+  wahr('Karte: Shop als Link in neuem Tab mit noopener', a.includes('href="https://www.ikea.com/at/de/p/stuhl-00000000/"') && a.includes('target="_blank"') && a.includes('rel="noopener noreferrer"') && kDe.includes('>ikea.com<'))
+  wahr('Karte: Kisten darauf oder darin', kDe.includes('data-moebel-kisten="3"') && kDe.includes('>3 Kisten<'))
+  wahr('Karte: Nummer des Eintrags ltr, Moebelseite da', kDe.includes('dir="ltr" data-moebel-nummer=""') && kDe.includes('>M-1-007<') && kDe.includes('data-moebel-seite=""') && kDe.includes('Möbelseite öffnen'))
+  wahr('Karte: alle Angaben da, kein Satz "nicht eingetragen"', !kDe.includes('nicht eingetragen'))
+  wahr('Karte: zurueck zur Begehung', kDe.includes(W.WOERTER['schnell.zur_begehung'].de) && kDe.includes(`>${W.WOERTER['aktion.zurueck'].de}<`))
+  const haengt = karte({ ...objekt, art: 'schrank', boden_cm: 140.2 })
+  wahr('Karte: haengt 140 cm, Art Schrank', haengt.includes('hängt 140 cm über dem Boden') && haengt.includes('>Schrank<'))
+  const leer = karte({ ...objekt, art: 'regal', link: null, preis_cent: null, material: null, item_id: null, item_code: null }, { kisten: 0, seite: null })
+  wahr('Karte ohne Angaben: Satz statt leerer Zeilen', leer.includes('Preis, Material und Shop sind nicht eingetragen.') && !leer.includes('data-moebel-preis') && !leer.includes('data-moebel-shop') && leer.includes('>Regal<'))
+  wahr('Karte ohne Kisten: keine', leer.includes('data-moebel-kisten="0"') && leer.includes('>keine<'))
+  wahr('Karte ohne Eintrag oder Umzug: kein Weg zur Moebelseite', !leer.includes('data-moebel-seite') && !leer.includes('data-moebel-nummer'))
+  const boese = karte({ ...objekt, link: 'javascript:alert(1)' })
+  wahr('Karte: ungueltiger Link wird kein Link, steht aber da', !boese.includes('href="javascript') && !boese.includes('data-moebel-shop') && boese.includes('Kein gültiger Link: javascript:alert(1)'))
+  const weg = karte(null, { seite: null, kisten: 0 })
+  wahr('Karte veraltet: klarer Satz, keine Angaben', weg.includes('data-moebel-weg=""') && weg.includes('Dieses Möbelstück gibt es im Plan nicht mehr.') && !weg.includes('data-moebel-name') && !weg.includes('data-moebel-seite'))
+  const kAr = karte(objekt, {}, 'ar')
+  wahr('Karte ar: rtl, Woerter ar, Zahlen ltr', /role="dialog" aria-labelledby="[^"]+" dir="rtl"/.test(kAr) && kAr.includes('>خشب<') && kAr.includes('>السعر<') && kAr.includes('فتح صفحة قطعة الأثاث') && /<span dir="ltr" data-moebel-masse="" class="t-serial">45 x 52 x 88 cm<\/span>/.test(kAr) && /<span dir="ltr" data-moebel-preis="" class="t-serial">1\.299,00 €<\/span>/.test(kAr))
+  const haengtAr = karte({ ...objekt, boden_cm: 30 }, {}, 'ar')
+  wahr('Karte ar: haengt mit Zahl', haengtAr.includes('معلّقة على ارتفاع 30 سم فوق الأرض'))
+  // Material: jede Art aus types.ts hat ein Wort in plan3d.ts; die Art des
+  // Objekts und die geteilten Woerter laden immer (woerter.ts).
+  const typen = lesen('src/lib/types.ts')
+  const materialien = [...(typen.match(/export type Material = ([^\n]+)/)?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map((m) => m[1])
+  wahr('Material: sieben Arten in types.ts', materialien.length === 7)
+  for (const m of materialien) {
+    const e = P3.plan3dWoerter[`plan3d.material.${m}`]
+    wahr(`Material ${m}: de und ar`, !!e?.de && !!e?.ar)
+  }
+  for (const k of ['plan.moebel', 'plan.regal', 'plan.schrank', 'moebel.masse', 'moebel.masse_platzhalter', 'begriff.kisten_anzahl.eins', 'begriff.kisten_anzahl.viele', 'aktion.zurueck', 'schnell.zur_begehung', 'schnell.zur_ansicht']) {
+    wahr(`${k} laedt immer (de und ar)`, !!W.WOERTER[k]?.de && !!W.WOERTER[k]?.ar)
+  }
+
+  // Vertrag zwischen Motor und Raum3D.
+  const motor = lesen('src/components/plan3d/motor.ts')
+  const raum = raum8
+  for (const m of ['moebelKontext', 'moebelKontextZu', 'moebelAnheben', 'moebelHinsetzen']) {
+    wahr(`Motor: ${m} im Vertrag und gebaut`, new RegExp(`\\n  ${m}\\(`).test(motor) && new RegExp(`\\n    ${m}\\(`).test(motor))
+  }
+  wahr('Motor: MoebelKontext3D mit objektId, x, y, tragbar, gesperrt, sitzbar, liegen', /export interface MoebelKontext3D \{\s*objektId: string\s*x: number\s*y: number\s*tragbar: boolean\s*gesperrt: boolean\s*sitzbar: boolean\s*liegen: boolean\s*\}/.test(motor))
+  wahr('Motor: gesperrt nur, wenn Tragen ginge; liegen aus der Art des Platzes', motor.includes("tragbar: traegt, gesperrt: !traegt && tragenGeht(), sitzbar: pl !== null, liegen: pl?.art === 'liegen' })"))
+  wahr('Raum3D: gesperrt und liegen ans Menue', raum8.includes('gesperrt={menue.gesperrt}') && raum8.includes('liegen={menue.liegen}'))
+  // Nacharbeit E92: der Zeiger, der das Menue oeffnete, schaut bis zum Loslassen nicht um.
+  const schauB = motor.slice(motor.indexOf('const schauBewegen = '), motor.indexOf('const schauHoch = '))
+  const schauH = motor.slice(motor.indexOf('const schauHoch = '), motor.indexOf("addEventListener('pointerdown', schauRunter)"))
+  wahr('Motor: Kontext merkt sich den Zeiger, der noch unten ist', motor.includes('neigung: neigungZiel, zeiger: schauen?.id ?? null }'))
+  wahr('Motor: dieser Zeiger dreht den Blick nicht', /if \(kontextOffen && kontextOffen\.zeiger === e\.pointerId\) return\s*gierZiel \+= dx \* 0\.0045/.test(schauB))
+  wahr('Motor: ab dem Loslassen zaehlt Umschauen wieder', /if \(kontextOffen && kontextOffen\.zeiger === e\.pointerId\) \{\s*kontextOffen\.zeiger = null\s*kontextOffen\.gier = gierZiel\s*kontextOffen\.neigung = neigungZiel\s*\}/.test(schauH))
+  const rechts = motor.slice(motor.indexOf('const rechtsKlick = '), motor.indexOf("addEventListener('contextmenu', rechtsKlick)"))
+  wahr('Motor: Rechtsklick oeffnet das Menue, mit getragenem legt er zurueck', /if \(trag\) \{\s*zuruecklegen\(\)\s*return\s*\}\s*kontextBei\(e\.clientX, e\.clientY\)/.test(rechts) && !rechts.includes('aufnehmen(') && !rechts.includes('anheben('))
+  wahr('Motor: langes Druecken oeffnet das Menue', /uhr: window\.setTimeout\(\(\) => \{\s*langDruck = null\s*kontextBei\(x, y\)\s*\}, LANG_DRUECKEN_MS\)/.test(motor))
+  wahr('Motor: angehoben wird nur ueber moebelAnheben', (motor.match(/\baufnehmen\(/g) ?? []).length === 2 && (motor.match(/\banheben\(s, /g) ?? []).length === 1)
+  wahr('Motor: Druck aufs Bild schliesst das Menue, ohne anzutippen', /const tippRunter = \(e: PointerEvent\) => \{[\s\S]*?if \(kontextOffen\) \{\s*kontextAus\(true\)\s*tipp = null\s*return\s*\}/.test(motor))
+  wahr('Motor: Gehen und Umschauen schliessen es (in jedem Bild)', motor.includes('    kontextPruefen()\n') && /halten\.size > 0 \|\|\s*stick\.x !== 0 \|\|\s*stick\.y !== 0/.test(motor) && motor.includes('Math.abs(gierZiel - k.gier) > KONTEXT_BLICK_RAD'))
+  wahr('Motor: neuer Bau, Ende des Begehens, eingabe(false) melden null', (motor.match(/kontextAus\(true\)\s*kontextLetzt = null/g) ?? []).length === 2 && /schauenLoslassen\(\)\s*tipp = null\s*\/\/ E92[^\n]*\n\s*kontextAus\(true\)/.test(motor))
+  wahr('Motor: Kiste meldet sich wie ein Linksklick (Karte)', /if \(t\.art === 'kiste'\) \{[\s\S]*?tippFn\(Math\.round\(t\.x \* 100\), Math\.round\(t\.z \* 100\), \{ objekt: t\.objekt, kiste: t\.kiste \}\)/.test(motor))
+  wahr('Motor: Hinsetzen wie Linksklick, nicht mit Ding in der Hand', motor.includes('const pl = halt.ding ? null : (t.platz ?? naechsterPlatz(s.id, t.x, t.z))'))
+  wahr('Motor: x, y vom host aus', /const r = host\.getBoundingClientRect\(\)\s*kontextMelden\(\{ objektId: s\.id, x: clientX - r\.left, y: clientY - r\.top/.test(motor))
+  wahr('Raum3D: moebelKontext an und ab, Karte und Menue zu beim Ende', /m\.moebelKontext\(\(k\) => setMenue\(k\)\)\s*return \(\) => \{\s*m\.moebelKontext\(null\)\s*setMenue\(null\)\s*setMoebelKarte\(null\)/.test(raum))
+  wahr('Raum3D: Esc zuerst Menue, dann Moebelkarte, vor Kistenkarte und Tragen', /if \(z\.menue \|\| z\.moebelKarte\) \{\s*if \(z\.menue\) \{\s*setMenue\(null\)\s*motor\.current\?\.moebelKontextZu\(\)\s*\} else setMoebelKarte\(null\)/.test(raum) && raum.indexOf('if (z.menue || z.moebelKarte)') < raum.indexOf('if (!z.karte && z.gehen && z.traegt)'))
+  wahr('Raum3D: Eingabe ruht bei offener Karte (Kiste oder Moebel)', raum.includes('motor.current?.eingabe(karte === null && moebelKarte === null)'))
+  wahr('Raum3D: Wahl im Menue', /m\.moebelKontextZu\(\)\s*if \(w === 'details'\) setMoebelKarte\(k\.objektId\)\s*else if \(w === 'verschieben'\) m\.moebelAnheben\(k\.objektId\)\s*else m\.moebelHinsetzen\(k\.objektId\)/.test(raum))
+  wahr('Raum3D: daneben, Mausrad, Rollen und Groesse schliessen', raum.includes("document.addEventListener('pointerdown', druck, true)") && raum.includes("window.addEventListener('wheel', menueZu, { capture: true, passive: true })") && raum.includes("window.addEventListener('scroll', menueZu, true)") && raum.includes("window.addEventListener('resize', menueZu)"))
+  const flaecheAb = raum.indexOf('<div ref={flaeche} dir="ltr"')
+  wahr('Raum3D: Menue und Moebelkarte in der 3D-Flaeche (ltr, auch im Vollbild)', flaecheAb > 0 && raum.indexOf('<MoebelMenue') > flaecheAb && raum.indexOf('<MoebelKarte') > flaecheAb)
+  wahr('Raum3D: Moebelseite nur mit Eintrag und genau diesem Umzug, Weg ueber zielFuerItem', /karteObjekt\?\.item_id && projekt && projekt\.project\.id === projectId\s*\? zielFuerItem\(projectId, \{ id: karteObjekt\.item_id, kind: 'furniture' \} as Item\)\s*: null/.test(raum))
+  const appTxt = lesen('src/App.tsx')
+  const itemRow = lesen('src/components/ItemRow.tsx')
+  wahr('Weg: moebel/:id ist FurnitureDetail, mit der Item-Id', appTxt.includes('<Route path="moebel/:id" element={<FurnitureDetail />} />') && itemRow.includes('`/app/p/${projectId}/moebel/${item.id}`'))
+  for (const d of ['src/components/plan3d/MoebelKarte.tsx', 'src/components/plan3d/MoebelMenue.tsx']) wahr(`${d}: ohne Portal (Vollbild)`, !lesen(d).includes('createPortal'))
 }
 
 if (fehler) {

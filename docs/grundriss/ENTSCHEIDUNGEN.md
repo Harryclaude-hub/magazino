@@ -759,4 +759,61 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   nur auf Knopfdruck (im Zeichner ueber das Dokument, sonst direkt mit
   grundriss_speichern); wer das Begehen ohne Speichern beendet, findet
   alles am alten Platz (Hinweis "Verschiebungen verworfen").
+- **E90 Messpunkte beim Messen:** Messen rastet zuerst an den Stellen ein,
+  an denen man fuer einen Umzug misst: jede Ecke jedes Raums, beide Enden
+  jeder Tuer, jedes Durchgangs und Fensters (links und rechts wie die
+  Angel) und bei Tueren und Durchgaengen dieselben Enden auf der anderen
+  Seite der Wand, wenn dort ein Nachbarraum parallel hoechstens 40 cm
+  entfernt liegt. Damit misst man Tuer zu Wand, die Lichte und die Wand-
+  dicke von beiden Seiten. Erst danach Wand und Raster. Alle Punkte als
+  kleine Marken, der unter dem Zeiger mit Namen ("Tuer Bad, links");
+  zwischen beiden Enden derselben Oeffnung steht "Lichte" vor der Zahl.
+  Zeigt man auf eine Oeffnung, stehen Breite und Abstand jedes Endes bis
+  zur naechsten Ecke da (Schnellmasse). Gemessen wird an den gezeichneten
+  Kanten. Nur im Zeichner, die Ansehen-Seite hat kein Messen.
+- **E91 Ess-Eck, Elternbett, Deko in Bad und WC:** Die Eckbaenke sind
+  BESTA-Unterschraenke (Nord: TV-Bank 180x42x38 mit drei Tueren, Ost:
+  120x42x38 mit zwei Tueren, LAPPVIKEN weiss ohne Griff) mit Sitz- und
+  Rueckenpolstern obenauf. Sie haben eine eigene 3D-Art (besta_bank),
+  damit das Bild dem Link gleicht, und Sitzplaetze auf den Polstern. Das
+  vorhandene Elternbett ist 180 x 220 und so gedreht, dass das Kopfteil an
+  der Wand steht, mit einem Nachttisch an jeder Seite und der Decke am
+  Fussende (Version 108). Bad und WC haben 22 Deko-Stuecke (Version 109):
+  Handtuchstange mit zwei Badetuechern, Ablage ueber der Wanne mit Kerze
+  und Buch, Kerzen auf dem Wannenrand, Zahnputzbecher, Spender und
+  Seifenschale am Waschbecken, Gruenlilie auf der Waschmaschine,
+  Handtuchstapel auf dem Trockner, Bambusregal ueber der Wanne mit
+  Duftstaebchen, gerollten Handtuechern und Efeutute, Bademantel am Haken
+  und ein Bild; im WC Bambusregal ueber dem WC mit Duftstaebchen, Kerzen
+  und Efeutute, Klobuerste, Klopapierhalter mit Ersatzrolle, Gaestetuch am
+  Haken, Spender am Handwaschbecken und ein Bild. Die Deko hat noch keinen
+  Link und keinen Preis: ein falscher Link ist schlimmer als keiner (E88),
+  Karam kann Produkte spaeter waehlen. Alle Deko-Arten liegen in der
+  Deko-Ebene und lassen sich ausblenden; jedes Stueck hat hoechstens 1500
+  Dreiecke, die Kerzenflamme glimmt auch bei Licht aus.
+- **E92 Rechtsklick-Menue beim Begehen:** Rechtsklick (am Handy langes
+  Druecken) auf ein Moebel oeffnet am Zeiger ein kleines Menue: Details,
+  Verschieben (das Tragen aus E89) und Hinsetzen, bei Betten Hinlegen.
+  Linksklick setzt wie bisher. Details zeigt die Moebelkarte wie beim
+  Anklicken im Plan: Name, Groesse B x T x H, Hoehe ueber dem Boden,
+  Material, Raum, Preis, Link (neuer Tab), Kisten darauf und, wenn es ein
+  Moebel in der Liste ist, "Moebelseite oeffnen". Solange Menue oder Karte
+  offen sind, ruht das Gehen; Esc oder ein Klick daneben schliesst. Auf
+  leerem Boden kein Menue. Mauern, Spiegel und Geraete zeigen Verschieben
+  ausgegraut mit dem Satz, dass es sich nicht verschieben laesst. In der
+  Siedlung (kein Projekt) fehlen Verschieben und Moebelseite. Arabisch:
+  Menue und Karte von rechts nach links, Zahlen von links nach rechts.
+  Nacharbeit nach einer gegnerischen Pruefung (9 Funde, alle bestaetigt
+  und behoben): Messpunkte zweier aneinanderstossender Oeffnungen tragen
+  beide Enden; eine grosse Efeutute am Boden bleibt Topf mit Krone (die
+  Haengeform nur bis 50 cm); was auf Deko steht, verschwindet mit der
+  Deko-Ebene; Blaetter mit zwei Neigungen reissen bei Drehung 90 und 270
+  nicht mehr auseinander; der Katalog zaehlt die BESTA-Baenke als
+  Sitzbank; das Menue bleibt nach langem Druecken offen. Ein Korb "mit
+  Deckel" hat einen Deckel, Waeschekorb und kleiner Korb keine Decke.
+  Daten (Version 110): Waende sind 12 cm dick und mittig auf der Raumkante
+  gezeichnet, darum gehoert alles an der Wand an die Innenseite (Kante plus
+  6 cm); die Deko in Bad und WC ist so verschoben, Waschmaschine und
+  Trockner samt Sockel zeigen jetzt mit dem Bullauge in den Raum, das
+  Gaestetuch haengt links vom Handwaschbecken (rechts sitzt der Schalter).
 
