@@ -62,11 +62,14 @@ Stand: 10.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
   Wohnung" steht auf Version 110 (Bett 180 x 220, Ess-Eck, Bad-Deko).
   Wanddinge immer an die Innenseite der Wand setzen: Raumkante plus 6 cm
   (Wand 12 cm, mittig auf der Kante).
+- E93: Messpunkte, Einrasten beim Messen und Schnellmasse liegen an der
+  Innenseite der Wand (Kante plus 6 cm), die Wanddicke zaehlt nicht mit.
+  Nacharbeit nach der Pruefung (6 Funde behoben, siehe ENTSCHEIDUNGEN.md).
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E92.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E93.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler

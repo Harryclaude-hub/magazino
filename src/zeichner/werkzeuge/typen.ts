@@ -88,8 +88,9 @@ export interface Vorschau {
   /** Fangpunkte (Ecke gefangen: Ring). */
   punkte?: Punkt[]
   /** Beschriftungen in cm-Koordinaten (Laengen). lichte: "Lichte" steht
-   *  davor (beide Enden derselben Oeffnung, E90). */
-  texte?: { p: Punkt; text: string; lichte?: boolean }[]
+   *  davor (beide Enden derselben Oeffnung, E90). weg: die Zahl rueckt in
+   *  diese Richtung ab statt nach oben (siehe textLage). */
+  texte?: { p: Punkt; text: string; lichte?: boolean; weg?: Punkt }[]
   /** Nur beim Messen (E90): alle Messpunkte der Wohnung als kleine Marken,
    *  der unter dem Zeiger (an) hervorgehoben und mit Namen. von: Anfang
    *  einer halben Messung; der Name steht auf der abgewandten Seite. */
@@ -125,4 +126,22 @@ export function istLaengenZeichen(key: string): boolean {
 /** Laenge als Text fuer Masse im Plan: "345". */
 export function cmZahl(v: number): string {
   return String(Math.round(v))
+}
+
+/** Wo die Leinwand eine Beschriftung der Vorschau hinsetzt (cm, s
+ *  Bildpunkte je cm, fs Schriftgroesse in cm). Ohne weg steht die
+ *  Grundlinie 8 Bildpunkte ueber dem Punkt, waagrecht. Mit weg (Messung
+ *  entlang der Innenseite einer Wand, Nacharbeit E93) steht die Mitte der
+ *  Zahl 8 Bildpunkte und eine halbe Zeile in diese Richtung abgerueckt, in
+ *  der Wand, und gedreht wie die Masse an jeder Wand (nie kopfueber): auf
+ *  der Raumseite steht dort schon das Wandmass. mitte: Grundlinie in der
+ *  Mitte der Schrift (dominantBaseline middle). */
+export function textLage(x: { p: Punkt; weg?: Punkt }, s: number, fs: number): { p: Punkt; winkel: number; mitte: boolean } {
+  if (!x.weg) return { p: [x.p[0], x.p[1] - 8 / s], winkel: 0, mitte: false }
+  const v = 8 / s + fs * 0.4
+  // Die Schrift laeuft quer zu weg, also entlang der Wand.
+  let winkel = (Math.atan2(-x.weg[0], x.weg[1]) * 180) / Math.PI
+  if (winkel > 90.5) winkel -= 180
+  else if (winkel < -89.5) winkel += 180
+  return { p: [x.p[0] + x.weg[0] * v, x.p[1] + x.weg[1] * v], winkel, mitte: true }
 }

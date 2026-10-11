@@ -9,10 +9,16 @@
  * Oeffnung, steht "Lichte" vor der Zahl. Steht der Zeiger ueber einer
  * Tuer, einem Durchgang oder einem Fenster (ohne halbe Messung), zeigen
  * Schnellmasse ihre Breite und den Abstand bis zur naechsten Ecke.
+ *
+ * E93: Alles liegt auf der Innenseite der Wand, dort wo die gezeichnete
+ * Wand endet (Kante plus 6 cm in den Raum), die Wanddicke zaehlt nie mit:
+ * Messpunkte, das Einrasten an einer Wand und die Schnellmasse. Laeuft eine
+ * Messung entlang der Innenseite, steht ihre Zahl in der Wand, nicht im
+ * Raum auf dem Mass der Wand.
  */
 import type { Punkt } from '../../lib/geometrie.ts'
 import { oeffnungAn } from '../../components/plan/hilfe.ts'
-import { istLichte, messFangen, messpunkte, schnellMasse, type Messpunkt } from '../messpunkte.ts'
+import { istLichte, messFangen, messpunkte, schnellMasse, wandSeite, type Messpunkt } from '../messpunkte.ts'
 import { cmZahl, type Kontext, type Vorschau, type Werkzeug } from './typen.ts'
 
 export interface MessenZustand {
@@ -62,9 +68,10 @@ export const messenWerkzeug: Werkzeug<MessenZustand> = {
     const texte: NonNullable<Vorschau['texte']> = []
     // Schnellmasse nur, wenn gerade keine Messung halb fertig ist.
     if (s.ueber && !(s.a && !s.b)) {
-      // Masslinie 36 Bildpunkte vor der Innenseite der 12 cm dicken Wand:
-      // ihre Zahl steht dann nicht auf der Laenge der Wand (Leinwand, wandMasse).
-      for (const m of schnellMasse(k.dok, s.ueber, 6 + 36 / k.massstab)) {
+      // Masslinie 36 Bildpunkte vor der Innenseite der Wand (schnellMasse
+      // rechnet schon ab der Innenseite): ihre Zahl steht dann nicht auf der
+      // Laenge der Wand (Leinwand, wandMasse, 12 Bildpunkte vor der Innenseite).
+      for (const m of schnellMasse(k.dok, s.ueber, 36 / k.massstab)) {
         linien.push({ a: m.a, b: m.b, art: 'mass' }, { a: m.wandA, b: m.a, art: 'mass' }, { a: m.wandB, b: m.b, art: 'mass' })
         texte.push({ p: [(m.a[0] + m.b[0]) / 2, (m.a[1] + m.b[1]) / 2], text: cmZahl(m.laenge), lichte: m.art === 'breite' })
       }
@@ -75,7 +82,10 @@ export const messenWerkzeug: Werkzeug<MessenZustand> = {
       const bPunkt = s.b ? s.bPunkt : s.zeigerPunkt
       const l = Math.hypot(b[0] - a[0], b[1] - a[1])
       linien.push({ a, b, art: 'mass' })
-      texte.push({ p: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], text: cmZahl(l), lichte: istLichte(s.aPunkt, bPunkt) })
+      // Entlang der Innenseite einer Wand steht die Zahl in der Wand: im
+      // Raum steht dort schon das Mass der Wand (Nacharbeit E93).
+      const weg = wandSeite(k.dok.raeume, a, b)
+      texte.push({ p: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], text: cmZahl(l), lichte: istLichte(s.aPunkt, bPunkt), ...(weg ? { weg } : {}) })
       v.punkte = [a, b]
     } else {
       // Auf einem Messpunkt zeigt die Marke selbst, wo es einrastet.

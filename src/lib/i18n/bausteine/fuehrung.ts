@@ -515,8 +515,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.zeichner.w_messen.titel': { de: 'Messen (A)', ar: 'قياس (A)' },
   'fuehrung.zeichner.w_messen.text': {
-    de: 'Zwei Punkte klicken: Kistly zeigt den Abstand in Zentimetern. Ecken, Türen und Fenster haben feste Messpunkte. Es wird nichts verändert.',
-    ar: 'انقر على نقطتين: يعرض كيستلي المسافة بالسنتيمتر. للزوايا والأبواب والنوافذ نقاط قياس ثابتة. لا يتغير شيء.',
+    de: 'Zwei Punkte klicken: Kistly zeigt den Abstand in Zentimetern. Ecken, Türen und Fenster haben feste Messpunkte an der Innenseite der Wand, die Wanddicke zählt nicht mit. Es wird nichts verändert.',
+    ar: 'انقر على نقطتين: يعرض كيستلي المسافة بالسنتيمتر. للزوايا والأبواب والنوافذ نقاط قياس ثابتة عند الوجه الداخلي للجدار، ولا يُحسب سُمك الجدار. لا يتغير شيء.',
   },
   'fuehrung.zeichner.zimmer.titel': { de: 'Noch nicht gezeichnet', ar: 'لم تُرسم بعد' },
   'fuehrung.zeichner.zimmer.text': {

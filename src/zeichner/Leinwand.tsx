@@ -6,7 +6,7 @@ import type { Punkt } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
 import type { Auswahl, Dok } from './dok'
 import type { Messpunkt, MesspunktEnde } from './messpunkte'
-import type { Vorschau } from './werkzeuge/typen'
+import { textLage, type Vorschau } from './werkzeuge/typen'
 
 /* Die Zeichenflaeche: Raster, der Plan (dieselben Ebenen wie PlanBild),
  * Masse an jeder Wand, Griffe am gewaehlten Raum und was das Werkzeug
@@ -254,7 +254,8 @@ function messFarbe(m: Messpunkt): string {
 /* Die Messpunkte der Wohnung beim Messen (E90): Ecken als kleine Quadrate
  * in der Wandfarbe, Enden von Tueren und Durchgaengen als Punkte in der
  * Tuerfarbe, Enden von Fenstern in der Fensterfarbe, die Gegenseite einer
- * Tuer hohl. Mit hellem Rand, damit sie auf der dunklen Wand stehen.
+ * Tuer hohl. Seit E93 sitzen sie auf der Innenkante der dunklen Wand (dort
+ * wo die Wand endet), der helle Rand hebt sie von Wand und Boden ab.
  * Groessen in Bildpunkten, bei jedem Zoom gleich. Die Liste bleibt beim
  * Bewegen dieselbe (messpunkte.ts merkt sie sich), darum memo. */
 const MesspunktEbene = memo(function MesspunktEbene({ alle, s }: { alle: Messpunkt[]; s: number }) {
@@ -388,28 +389,34 @@ function VorschauEbene({ v, s }: { v: Vorschau; s: number }) {
         <circle key={i} cx={p[0]} cy={p[1]} r={6 / s} fill="none" style={{ stroke: 'var(--plan-auswahl)' }} strokeWidth={2} vectorEffect={NS} />
       ))}
       {v.messpunkte?.an ? <MesspunktAn m={v.messpunkte.an} s={s} von={v.messpunkte.von ?? null} /> : null}
-      {v.texte?.map((x, i) => (
-        <text
-          key={i}
-          x={x.p[0]}
-          y={x.p[1] - 8 / s}
-          textAnchor="middle"
-          className="t-serial"
-          // "Lichte 80": im Arabischen mit eigener Leserichtung (im style, weil
-          // .t-serial sonst ltr erzwingt), die Zahl bleibt eine Zahl.
-          style={{
-            fill: 'var(--plan-auswahl)',
-            fontSize: fs,
-            paintOrder: 'stroke',
-            stroke: 'var(--surface)',
-            direction: x.lichte && lang === 'ar' ? 'rtl' : undefined,
-          }}
-          strokeWidth={3.5 / s}
-          fontWeight={800}
-        >
-          {x.lichte ? `${t('zeichner.messen.lichte')} ${x.text}` : x.text}
-        </text>
-      ))}
+      {v.texte?.map((x, i) => {
+        // Entlang der Innenseite einer Wand in der Wand, sonst darueber.
+        const l = textLage(x, s, fs)
+        return (
+          <text
+            key={i}
+            x={l.p[0]}
+            y={l.p[1]}
+            transform={l.winkel ? `rotate(${l.winkel} ${l.p[0]} ${l.p[1]})` : undefined}
+            textAnchor="middle"
+            dominantBaseline={l.mitte ? 'middle' : undefined}
+            className="t-serial"
+            // "Lichte 80": im Arabischen mit eigener Leserichtung (im style, weil
+            // .t-serial sonst ltr erzwingt), die Zahl bleibt eine Zahl.
+            style={{
+              fill: 'var(--plan-auswahl)',
+              fontSize: fs,
+              paintOrder: 'stroke',
+              stroke: 'var(--surface)',
+              direction: x.lichte && lang === 'ar' ? 'rtl' : undefined,
+            }}
+            strokeWidth={3.5 / s}
+            fontWeight={800}
+          >
+            {x.lichte ? `${t('zeichner.messen.lichte')} ${x.text}` : x.text}
+          </text>
+        )
+      })}
     </g>
   )
 }

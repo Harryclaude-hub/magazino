@@ -816,4 +816,43 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   6 cm); die Deko in Bad und WC ist so verschoben, Waschmaschine und
   Trockner samt Sockel zeigen jetzt mit dem Bullauge in den Raum, das
   Gaestetuch haengt links vom Handwaschbecken (rechts sitzt der Schalter).
+- **E93 Messpunkte an der Innenseite der Wand:** Karam: "Ich will, dass
+  die Messpunkte genau da sind, wo die Wand endet, dass die Wand der Dicke
+  nicht mitgerechnet wird." Das ersetzt den Satz "Gemessen wird an den
+  gezeichneten Kanten" aus E90. Jede Wand ist 12 cm dick und steht mittig
+  auf der Kante, ihre Innenseite ist die Kante 6 cm in den eigenen Raum
+  geschoben (WAND_HALB_CM, dieselbe Zahl wie die Nutzflaeche aus E50), bei
+  jedem Raum, auch draussen. Innenecken liegen dort, wo sich die
+  Innenseiten der beiden Kanten treffen (Aussen- und Innenecken); es gibt
+  sie nur auf der sichtbaren Wand: nicht naeher als 5,5 cm an einer Kante
+  des Raums (schmaler Schlitz, winziger Versprung), keine der beiden Kanten
+  zu kurz fuer die Ecke, und nicht spitzer als 10 Grad (sonst laege der
+  Punkt ueber 69 cm vor der Ecke). Enden von Tueren, Durchgaengen
+  und Fenstern bleiben an ihrer Stelle entlang der Kante, auf der
+  Innenseite; die Lichte bleibt die Breite. Die andere Wandseite liegt auf
+  der Innenseite des Nachbarraums, von Seite zu Seite misst man so die
+  ganze gezeichnete Wand (Abstand der Kanten plus 12 cm). Einrasten:
+  Messpunkt, dann die Innenseite der naechsten Wand (gerade Wand: ihre
+  Koordinate exakt, entlang gerastert), dann das Raster, nie mehr die
+  Wandmitte. Schnellmasse auf der Innenseite bis zu den Innenecken (beim
+  rechten Winkel Abstand weniger 6 cm), auf der anderen Seite bis zu den
+  Innenecken des Nachbarraums. Die Masse an jeder Wand bleiben
+  Kantenlaengen (dort tippt man die Kante ein).
+  Nacharbeit nach einer gegnerischen Pruefung (6 Funde, alle bestaetigt
+  und behoben): Reicht eine Tuer auf der anderen Seite ueber die Innenecke
+  des Nachbarraums hinaus, endet ihre Gegenseite auf dieser Innenecke statt
+  in der quer stehenden Wand, die Lichte dort ist das, was offen ist (Flur
+  300 breit, Bad 200: 84 statt 90). Einspringende Ecken ueber 270 Grad
+  (Pfeiler, Keil) behalten ihre Innenecke: die Innenseiten treffen sich
+  hinter den eckigen Enden der gezeichneten Waende, gemauert genau dort;
+  die Schnellmasse enden auf ihr. Fehlt eine Innenecke (Zipfel spitzer als
+  10 Grad), endet die Innenseite mit der gezeichneten Wand statt Meter
+  weiter im Raum. Eingerastet wird nur auf dem sichtbaren Teil einer
+  Innenseite, nie in der gezeichneten Wand einer anderen Kante (Seiten
+  eines Schlitzes oder einer Nische unter 12 cm). Laeuft eine Messung
+  entlang der Innenseite, steht ihre Zahl in der Wand, gedreht wie das
+  Wandmass; vorher lag sie an der unteren Wand genau auf dem Wandmass.
+  Zur Tuer: Ihre Enden bleiben dort, wo die Mauer endet; die Lichte
+  zwischen ihnen ist darum die Maueroeffnung, also die Durchgangslichte
+  plus 8 cm Zarge (E88). Fuer Moebel zaehlt die Durchgangslichte.
 

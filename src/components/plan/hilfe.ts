@@ -49,8 +49,9 @@ export function datenBox(daten: Pick<GrundrissDaten, 'raeume'>, raumId?: string 
 }
 
 /** Halbe Wandstaerke in cm: jede Wand ist 12 cm dick und steht mittig auf
- *  der Kante (PlanBild, wandStuecke). */
-const WAND_HALB_CM = 6
+ *  der Kante (PlanBild, wandStuecke). Die Innenseite der Wand liegt so weit
+ *  in ihrem Raum (Nutzflaeche, Wanddinge, Messpunkte). */
+export const WAND_HALB_CM = 6
 
 /** Nutzflaeche in Quadratmetern, zwei Nachkommastellen (wie auf einem
  *  Wohnungsplan, 3,97 m2): die Flaeche innen

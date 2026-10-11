@@ -11,6 +11,7 @@ import { zReducer, zStart } from '../src/zeichner/zustand.ts'
 import { fangen, weiterFangen } from '../src/zeichner/fangen.ts'
 import { messpunkte, messFangen, schnellMasse, istLichte } from '../src/zeichner/messpunkte.ts'
 import { WERKZEUGE } from '../src/zeichner/werkzeuge/index.ts'
+import { textLage } from '../src/zeichner/werkzeuge/typen.ts'
 import { raumStart } from '../src/zeichner/werkzeuge/raum.ts'
 import { zielAn } from '../src/zeichner/werkzeuge/auswahl.ts'
 import { KATALOG, REGAL_STANDARD, SCHRANK_STANDARD, gehoertZu } from '../src/zeichner/katalog.ts'
@@ -168,7 +169,9 @@ function spielen(name, schritte, startDok, extra = {}, start) {
   gleich('weiterFangen: frei', weiterFangen(d, [0, 0], [207, 18], { raster: 5, toleranz: 4, winkel: true, frei: true }).p, [205, 20])
 }
 
-/* ------------------------------------------------- Messpunkte (E90) */
+/* ------------------------------------------- Messpunkte (E90, E93) */
+// E93: Alle Messpunkte liegen auf der Innenseite der Wand (Kante plus 6 cm
+// in den eigenen Raum), die Wanddicke zaehlt nicht mit.
 
 function tuer(id, raumId, kante, abstand, breite, art = 'tuer') {
   return { id, raum_id: raumId, art, kante, abstand_cm: abstand, breite_cm: breite, hoehe_cm: 200, bruestung_cm: art === 'fenster' ? 90 : 0, anschlag: 'links', aufschlag: 'innen' }
@@ -177,6 +180,80 @@ function benannt(d, namen) {
   return { ...d, raeume: d.raeume.map((r) => ({ ...r, tag_name: namen[r.id] ?? null })) }
 }
 const kurz = (m) => `${m.art}:${m.p[0]},${m.p[1]}${m.ende ? ':' + m.ende : ''}${m.gegenueber ? ':g' : ''}`
+
+/** Liegt p echt in einer gezeichneten Wand? Unabhaengig von messpunkte.ts
+ *  aus wandStuecke wie PlanBild: 12 cm mittig mit eckigen Enden (6 cm
+ *  ueber die Strecke hinaus), Fuellungen dicker Waende buendig. 0,4 cm
+ *  Spiel: ein Punkt auf dem Rand der Wand liegt nicht darin. */
+function inWand(d, p) {
+  const e = 0.4
+  return wandStuecke(d.raeume, d.oeffnungen).some((s) => {
+    const l = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1])
+    if (l === 0) return false
+    const ux = (s.b[0] - s.a[0]) / l
+    const uy = (s.b[1] - s.a[1]) / l
+    const t = (p[0] - s.a[0]) * ux + (p[1] - s.a[1]) * uy
+    const quer = Math.abs((p[0] - s.a[0]) * uy - (p[1] - s.a[1]) * ux)
+    const ueber = s.dicke ? 0 : 6
+    return quer < (s.dicke ?? 12) / 2 - e && t > -ueber + e && t < l + ueber - e
+  })
+}
+/** Wie weit p von der naechsten gezeichneten Wand weg ist (0: darin oder
+ *  auf ihrem Rand), aus wandStuecke wie inWand. */
+function wandAbstand(d, p) {
+  let beste = Infinity
+  for (const s of wandStuecke(d.raeume, d.oeffnungen)) {
+    const l = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1])
+    if (l === 0) continue
+    const ux = (s.b[0] - s.a[0]) / l
+    const uy = (s.b[1] - s.a[1]) / l
+    const t = (p[0] - s.a[0]) * ux + (p[1] - s.a[1]) * uy
+    const quer = Math.abs((p[0] - s.a[0]) * uy - (p[1] - s.a[1]) * ux)
+    const ueber = s.dicke ? 0 : 6
+    const entlang = Math.max(-ueber - t, t - l - ueber, 0)
+    beste = Math.min(beste, Math.hypot(entlang, Math.max(quer - (s.dicke ?? 12) / 2, 0)))
+  }
+  return beste
+}
+/** Die Zeiger auf einem Gitter (je 1 cm) im Rechteck von bis, die
+ *  messFangen auf die Innenseite einer Wand zieht (kein Messpunkt, nicht
+ *  das Raster des Zeigers) und dort schlecht ablegt: in einer gezeichneten
+ *  Wand oder weiter als weit cm von jeder. */
+function schlechtGezogen(d, von, bis, o, weit = Infinity) {
+  const out = []
+  for (let x = von[0]; x <= bis[0]; x++) {
+    for (let y = von[1]; y <= bis[1]; y++) {
+      const f = messFangen(d, [x, y], o)
+      if (f.messpunkt) continue
+      if (f.p[0] === Math.round(x / o.raster) * o.raster && f.p[1] === Math.round(y / o.raster) * o.raster) continue
+      if (inWand(d, f.p) || wandAbstand(d, f.p) > weit) out.push(`${x},${y} -> ${f.p.join(',')}`)
+    }
+  }
+  return out
+}
+/** Abstand von p zur Strecke a-b. */
+function streckeAbstand(p, a, b) {
+  const dx = b[0] - a[0]
+  const dy = b[1] - a[1]
+  const l2 = dx * dx + dy * dy
+  const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2))
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy)
+}
+/** Eine Innenecke von r: keiner Kante naeher als 6 - 0,5 cm und von
+ *  mindestens zwei Kantenlinien (ihren eigenen) genau 6 cm, auf der
+ *  Innenseite (r im Uhrzeigersinn, innen rechts der Kante). */
+function eckeOk(r, p) {
+  const n = r.punkte.length
+  let genau = 0
+  for (let k = 0; k < n; k++) {
+    const a = r.punkte[k]
+    const b = r.punkte[(k + 1) % n]
+    if (streckeAbstand(p, a, b) < 5.5) return false
+    const innen = ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / Math.hypot(b[0] - a[0], b[1] - a[1])
+    if (Math.abs(innen - 6) < 1e-9) genau++
+  }
+  return genau >= 2
+}
 
 // Wohnung A: Flur oben, Bad darunter an derselben Kante (duenne Wand).
 // Tuer im Bad oben 50 cm von der Ecke, 80 breit; Fenster unten.
@@ -188,28 +265,35 @@ function wohnungA() {
   return d
 }
 // Wohnung B: Zimmer und Kueche mit 24 cm dicker Wand dazwischen. Tuer im
-// Zimmer unten, ein Fenster 0,3 cm neben der Ecke (faellt mit ihr zusammen).
+// Zimmer unten, ein Fenster 0,3 cm neben der Innenecke (faellt mit ihr
+// zusammen).
 function wohnungB() {
   let d = dok.raumAnlegen(leer(), 'zi', [[0, 0], [300, 0], [300, 200], [0, 200]]).dok
   d = dok.raumAnlegen(d, 'ku', [[50, 224], [250, 224], [250, 400], [50, 400]]).dok
   d = benannt(d, { zi: 'Zimmer', ku: 'Kueche' })
-  d.oeffnungen = [tuer('tz', 'zi', 2, 100, 90), tuer('fz', 'zi', 0, 0.3, 100, 'fenster')]
+  d.oeffnungen = [tuer('tz', 'zi', 2, 100, 90), tuer('fz', 'zi', 0, 6.3, 100, 'fenster')]
   return d
 }
 
 {
   const d = wohnungA()
   const mp = messpunkte(d)
-  gleich('Messpunkte A: Anzahl (2 Tuer, 2 Fenster, 8 Ecken)', mp.length, 12)
-  gleich('Messpunkte A: Tuer und Fenster zuerst', mp.slice(0, 4).map(kurz), [
-    'tuer:150,100:links', 'tuer:230,100:rechts', 'fenster:240,300:links', 'fenster:180,300:rechts',
+  gleich('Messpunkte A: Anzahl (2 Tuer, 2 Fenster, 2 Gegenseite, 8 Ecken)', mp.length, 14)
+  gleich('Messpunkte A: Tuer und Fenster zuerst, an der Innenseite', mp.slice(0, 6).map(kurz), [
+    'tuer:150,106:links', 'tuer:230,106:rechts', 'fenster:240,294:links', 'fenster:180,294:rechts',
+    'tuer:150,94:links:g', 'tuer:230,94:rechts:g',
   ])
-  gleich('Messpunkte A: Ecken', mp.filter((m) => m.art === 'ecke').length, 8)
+  gleich('Messpunkte A: Innenecken 6 cm in jedem Raum', mp.filter((m) => m.art === 'ecke').map(kurz), [
+    'ecke:6,6', 'ecke:394,6', 'ecke:394,94', 'ecke:6,94', 'ecke:106,106', 'ecke:294,106', 'ecke:294,294', 'ecke:106,294',
+  ])
   gleich('Messpunkte A: Raumname an der Tuer', mp[0].raum, 'Bad')
-  wahr('Messpunkte A: duenne Wand, Gegenseite faellt weg', !mp.some((m) => m.gegenueber))
+  // Gemeinsame Kante: diese und die andere Wandseite liegen 12 cm auseinander.
+  gleich('Messpunkte A: gemeinsame Kante, Innenseiten 12 cm auseinander', mp[0].p[1] - mp[4].p[1], 12)
+  wahr('Messpunkte A: kein Punkt in einer gezeichneten Wand', mp.every((m) => !inWand(d, m.p)))
+  wahr('Messpunkte A: Innenecken genau 6 cm von ihren Kanten', mp.filter((m) => m.art === 'ecke').every((m) => eckeOk(d.raeume.find((r) => r.id === m.raumId), m.p)))
   wahr('Messpunkte A: gleiche Liste beim zweiten Mal', messpunkte(d) === mp)
   const d2 = { ...d, oeffnungen: d.oeffnungen.slice(0, 1) }
-  gleich('Messpunkte A: neue Oeffnungsliste rechnet neu', messpunkte(d2).length, 10)
+  gleich('Messpunkte A: neue Oeffnungsliste rechnet neu', messpunkte(d2).length, 12)
 }
 
 {
@@ -217,56 +301,73 @@ function wohnungB() {
   const mp = messpunkte(d)
   const k = mp.map(kurz)
   gleich('Messpunkte B: Anzahl (2 Tuer, 2 Fenster, 2 Gegenseite, 8 Ecken weniger 1)', mp.length, 13)
-  wahr('Messpunkte B: Tuerenden', k.includes('tuer:200,200:links') && k.includes('tuer:110,200:rechts'))
-  wahr('Messpunkte B: Gegenseite in der Kueche', k.includes('tuer:200,224:links:g') && k.includes('tuer:110,224:rechts:g'))
-  wahr('Messpunkte B: Fenster bleibt, Ecke 0,3 cm daneben faellt weg', k.includes('fenster:0.3,0:links') && !k.includes('ecke:0,0'))
+  wahr('Messpunkte B: Tuerenden an der Innenseite', k.includes('tuer:200,194:links') && k.includes('tuer:110,194:rechts'))
+  wahr('Messpunkte B: Gegenseite an der Innenseite der Kueche', k.includes('tuer:200,230:links:g') && k.includes('tuer:110,230:rechts:g'))
+  wahr('Messpunkte B: Fenster bleibt, Innenecke 0,3 cm daneben faellt weg', k.includes('fenster:6.3,6:links') && !k.includes('ecke:6,6'))
   wahr('Messpunkte B: keine zwei Punkte naeher als 0,5 cm', mp.every((a, i) => mp.every((b, j) => i === j || Math.hypot(a.p[0] - b.p[0], a.p[1] - b.p[1]) >= 0.5)))
+  wahr('Messpunkte B: kein Punkt in einer gezeichneten Wand', mp.every((m) => !inWand(d, m.p)))
   // Weiter als 40 cm: keine Gegenseite mehr.
   const weit = { ...d, raeume: d.raeume.map((r) => (r.id === 'ku' ? { ...r, punkte: r.punkte.map(([x, y]) => [x, y + 20]) } : r)) }
   wahr('Messpunkte B: 44 cm Abstand, keine Gegenseite', !messpunkte(weit).some((m) => m.gegenueber))
 }
 
 {
-  // Einrasten: Messpunkt vor Wand vor Raster, der naechste gewinnt.
+  // Einrasten: Messpunkt vor Innenseite der Wand vor Raster, der naechste gewinnt.
   const d = wohnungA()
   const o = { raster: 1, toleranz: 10 }
   const an = (p) => {
     const f = messFangen(d, p, o)
     return [f.p, f.messpunkt ? kurz(f.messpunkt) : null]
   }
-  gleich('messFangen: Tuerende', an([153, 103]), [[150, 100], 'tuer:150,100:links'])
-  gleich('messFangen: Ecke', an([104, 102]), [[100, 100], 'ecke:100,100'])
-  gleich('messFangen: sonst Wand', an([60, 103]), [[60, 100], null])
+  gleich('messFangen: Tuerende', an([153, 103]), [[150, 106], 'tuer:150,106:links'])
+  gleich('messFangen: Innenecke', an([104, 104]), [[106, 106], 'ecke:106,106'])
+  gleich('messFangen: sonst Innenseite der Wand', an([60, 103]), [[60, 94], null])
   gleich('messFangen: sonst Raster', an([60.4, 50.6]), [[60, 51], null])
-  // Ecke 6 cm, Tuerende 2 cm weit: das Tuerende gewinnt.
+  // Innenecke 3 cm, Tuerende 1 cm weit: das Tuerende gewinnt.
   const n = { ...d, oeffnungen: [tuer('tn', 'bad', 0, 8, 80)] }
-  gleich('messFangen: naechster gewinnt', messFangen(n, [106, 100], o).messpunkt?.oeffnungId, 'tn')
-  gleich('messFangen: vorher fing fangen die Ecke', fangen(n, [106, 100], { raster: 1, toleranz: 10, kanten: true }).p, [100, 100])
+  gleich('messFangen: naechster gewinnt', messFangen(n, [109, 106], o).messpunkt?.oeffnungId, 'tn')
+}
+
+{
+  // E93: Einrasten an der Innenseite der Wand, nie an der Kante (Wandmitte).
+  const d = wohnungA()
+  const f = (p, raster, toleranz) => messFangen(d, p, { raster, toleranz }).p
+  gleich('Innenseite: Koordinate exakt, entlang gerastert', f([61.4, 97.3], 5, 10), [60, 94])
+  gleich('Innenseite: Raster 1', f([61.4, 97.3], 1, 10), [61, 94])
+  gleich('Innenseite: Bad oben', f([200.6, 109], 1, 10), [201, 106])
+  gleich('Innenseite: von der Wandmitte auf die Innenseite', f([60, 100], 1, 10), [60, 94])
+  // Nahe der Ecke der Kanten (100,100), aber keine Innenecke und keine
+  // Innenseite in Reichweite: Raster, nicht die Wandmitte wie bei fangen.
+  gleich('Innenseite: keine Wandmitte, Raster', f([101, 101], 1, 5), [101, 101])
+  gleich('Innenseite: fangen haette die Wandmitte genommen', fangen(d, [101, 101], { raster: 1, toleranz: 5, kanten: true }).p, [100, 100])
 }
 
 {
   // Messen-Werkzeug: beide Enden derselben Tuer sind die Lichte.
   const d = wohnungA()
-  const zwei = spielen('messen', [{ runter: [152, 101] }, { runter: [228, 99] }], d)
-  gleich('Messen: Punkte an den Tuerenden', [zwei.s.a, zwei.s.b], [[150, 100], [230, 100]])
+  const zwei = spielen('messen', [{ runter: [152, 105] }, { runter: [228, 105] }], d)
+  gleich('Messen: Punkte an den Tuerenden', [zwei.s.a, zwei.s.b], [[150, 106], [230, 106]])
   // Der Zeiger steht noch ueber der Tuer: ihre Schnellmasse stehen davor,
   // die Messung selbst zuletzt.
-  gleich('Messen: Lichte 80', zwei.vorschau.texte?.at(-1), { p: [190, 100], text: '80', lichte: true })
+  gleich('Messen: Lichte 80', zwei.vorschau.texte?.at(-1), { p: [190, 106], text: '80', lichte: true, weg: [0, -1] })
   gleich('Messen: Schnellmasse der Tuer dabei', zwei.vorschau.texte?.length, 6)
-  const ecke = spielen('messen', [{ runter: [152, 101] }, { runter: [101, 101] }], d)
-  gleich('Messen: Tuer bis Ecke ist keine Lichte', ecke.vorschau.texte, [{ p: [125, 100], text: '50', lichte: false }])
-  const halb = spielen('messen', [{ runter: [152, 101] }, { bewegen: [229, 102] }], d)
+  const ecke = spielen('messen', [{ runter: [152, 105] }, { runter: [104, 104] }], d)
+  gleich('Messen: Tuer bis Innenecke 50 - 6, keine Lichte', ecke.vorschau.texte, [{ p: [128, 106], text: '44', lichte: false, weg: [0, -1] }])
+  const halb = spielen('messen', [{ runter: [152, 105] }, { bewegen: [229, 105] }], d)
   gleich('Messen: Lichte schon in der Vorschau', halb.vorschau.texte?.[0]?.lichte, true)
-  gleich('Messen: Marken an', halb.vorschau.messpunkte?.alle.length, 12)
-  gleich('Messen: Punkt unter dem Zeiger', halb.vorschau.messpunkte?.an && kurz(halb.vorschau.messpunkte.an), 'tuer:230,100:rechts')
-  gleich('Messen: Anfang der halben Messung fuer den Namen', halb.vorschau.messpunkte?.von, [150, 100])
+  gleich('Messen: Marken an', halb.vorschau.messpunkte?.alle.length, 14)
+  gleich('Messen: Punkt unter dem Zeiger', halb.vorschau.messpunkte?.an && kurz(halb.vorschau.messpunkte.an), 'tuer:230,106:rechts')
+  gleich('Messen: Anfang der halben Messung fuer den Namen', halb.vorschau.messpunkte?.von, [150, 106])
   gleich('Messen: fertige Messung, Name wieder frei', zwei.vorschau.messpunkte?.von, null)
+  // Gemeinsame Kante: von dieser zur anderen Wandseite die ganze Wand.
+  const quer = spielen('messen', [{ runter: [150, 104] }, { runter: [150, 96] }], d)
+  gleich('Messen: gemeinsame Kante, Wanddicke 12', quer.vorschau.texte?.at(-1), { p: [150, 100], text: '12', lichte: false })
   const b = wohnungB()
   const mpB = (p) => messFangen(b, p, { raster: 1, toleranz: 5 }).messpunkt
-  gleich('Messen: Lichte auf der Gegenseite', istLichte(mpB([200, 224]), mpB([110, 224])), true)
-  gleich('Messen: Wanddicke ist keine Lichte', istLichte(mpB([200, 200]), mpB([200, 224])), false)
-  const dick = spielen('messen', [{ runter: [200, 201] }, { runter: [200, 223] }], b)
-  gleich('Messen: Wanddicke 24', dick.vorschau.texte?.[0]?.text, '24')
+  gleich('Messen: Lichte auf der Gegenseite', istLichte(mpB([200, 230]), mpB([110, 230])), true)
+  gleich('Messen: Wanddicke ist keine Lichte', istLichte(mpB([200, 194]), mpB([200, 230])), false)
+  const dick = spielen('messen', [{ runter: [200, 195] }, { runter: [200, 229] }], b)
+  gleich('Messen: Wanddicke 24 plus 12', dick.vorschau.texte?.[0]?.text, '36')
 }
 
 {
@@ -277,50 +378,299 @@ function wohnungB() {
   d = benannt(d, { ra: 'A' })
   d.oeffnungen = [tuer('t1', 'ra', 0, 50, 80), tuer('t2', 'ra', 0, 130, 80, 'fenster')]
   const mp = messpunkte(d)
-  const dort = mp.filter((m) => Math.hypot(m.p[0] - 130, m.p[1]) < 0.5)
-  gleich('Aneinander: gemeinsamer Punkt einmal', dort.map(kurz), ['tuer:130,0:rechts'])
+  const dort = mp.filter((m) => Math.hypot(m.p[0] - 130, m.p[1] - 6) < 0.5)
+  gleich('Aneinander: gemeinsamer Punkt einmal', dort.map(kurz), ['tuer:130,6:rechts'])
   gleich('Aneinander: Fensterende in auch', dort[0]?.auch?.map((e) => `${e.art}:${e.oeffnungId}:${e.ende}`), ['fenster:t2:links'])
   const an = (p) => messFangen(d, p, { raster: 1, toleranz: 5 }).messpunkt
-  gleich('Aneinander: Lichte des Fensters', istLichte(an([130, 0]), an([210, 0])), true)
-  gleich('Aneinander: Lichte des Fensters, andersherum', istLichte(an([210, 0]), an([130, 0])), true)
-  gleich('Aneinander: Lichte der Tuer bleibt', istLichte(an([50, 0]), an([130, 0])), true)
-  gleich('Aneinander: ueber beide hinweg keine Lichte', istLichte(an([50, 0]), an([210, 0])), false)
-  const zwei = spielen('messen', [{ runter: [131, 1] }, { runter: [209, 1] }], d)
-  gleich('Aneinander: Werkzeug zeigt Lichte 80', zwei.vorschau.texte?.at(-1), { p: [170, 0], text: '80', lichte: true })
+  gleich('Aneinander: Lichte des Fensters', istLichte(an([130, 6]), an([210, 6])), true)
+  gleich('Aneinander: Lichte des Fensters, andersherum', istLichte(an([210, 6]), an([130, 6])), true)
+  gleich('Aneinander: Lichte der Tuer bleibt', istLichte(an([50, 6]), an([130, 6])), true)
+  gleich('Aneinander: ueber beide hinweg keine Lichte', istLichte(an([50, 6]), an([210, 6])), false)
+  const zwei = spielen('messen', [{ runter: [131, 5] }, { runter: [209, 5] }], d)
+  gleich('Aneinander: Werkzeug zeigt Lichte 80', zwei.vorschau.texte?.at(-1), { p: [170, 6], text: '80', lichte: true, weg: [0, -1] })
 }
 
 {
-  // Schnellmasse: Breite und Abstaende bis zur naechsten Ecke, beidseits.
+  // Schnellmasse: Breite und Abstaende bis zur Innenecke, beidseits, alles
+  // auf der Innenseite der Wand.
   const kurzM = (m) => `${m.art}${m.gegenueber ? ':g' : ''} ${m.laenge} ${m.a.join(',')}-${m.b.join(',')}`
   gleich('Schnellmasse A: Tuer im Bad', schnellMasse(wohnungA(), 'tb', 20).map(kurzM), [
-    'breite 80 150,120-230,120',
-    'links 50 100,120-150,120',
-    'rechts 70 230,120-300,120',
-    'links:g 150 0,80-150,80',
-    'rechts:g 170 230,80-400,80',
+    'breite 80 150,126-230,126',
+    'links 44 106,126-150,126',
+    'rechts 64 230,126-294,126',
+    'links:g 144 6,74-150,74',
+    'rechts:g 164 230,74-394,74',
   ])
   gleich('Schnellmasse A: Fenster nur innen', schnellMasse(wohnungA(), 'fb', 20).map(kurzM), [
-    'breite 60 240,280-180,280',
-    'links 60 300,280-240,280',
-    'rechts 80 180,280-100,280',
+    'breite 60 240,274-180,274',
+    'links 54 294,274-240,274',
+    'rechts 74 180,274-106,274',
   ])
   gleich('Schnellmasse B: dicke Wand, Gegenseite in der Kueche', schnellMasse(wohnungB(), 'tz', 20).map(kurzM), [
-    'breite 90 200,180-110,180',
-    'links 100 300,180-200,180',
-    'rechts 110 110,180-0,180',
-    'links:g 50 250,244-200,244',
-    'rechts:g 60 110,244-50,244',
+    'breite 90 200,174-110,174',
+    'links 94 294,174-200,174',
+    'rechts 104 110,174-6,174',
+    'links:g 44 244,250-200,250',
+    'rechts:g 54 110,250-56,250',
   ])
-  gleich('Schnellmasse: Hilfsstrich an der Wand', schnellMasse(wohnungA(), 'tb', 20)[0].wandA, [150, 100])
+  gleich('Schnellmasse: Hilfsstrich an der Innenseite', schnellMasse(wohnungA(), 'tb', 20)[0].wandA, [150, 106])
   gleich('Schnellmasse: unbekannte Oeffnung', schnellMasse(wohnungA(), 'gibtsnicht', 20), [])
   // Werkzeug: Zeiger ueber der Tuer zeigt sie, mitten in einer Messung nicht.
   const ueber = spielen('messen', [{ bewegen: [190, 101] }], wohnungA())
-  gleich('Schnellmasse im Werkzeug: Texte', ueber.vorschau.texte?.map((x) => `${x.lichte ? 'Lichte ' : ''}${x.text}`), ['Lichte 80', '50', '70', '150', '170'])
+  gleich('Schnellmasse im Werkzeug: Texte', ueber.vorschau.texte?.map((x) => `${x.lichte ? 'Lichte ' : ''}${x.text}`), ['Lichte 80', '44', '64', '144', '164'])
   gleich('Schnellmasse im Werkzeug: Linien mit Hilfsstrichen', ueber.vorschau.linien?.length, 15)
+  // Masslinie 36 Bildpunkte vor der Innenseite (Massstab 1: 36 cm), nicht 42.
+  gleich('Schnellmasse im Werkzeug: 36 vor der Innenseite', ueber.vorschau.linien?.[0], { a: [150, 142], b: [230, 142], art: 'mass' })
   const mitten = spielen('messen', [{ runter: [20, 20] }, { bewegen: [190, 101] }], wohnungA())
   gleich('Schnellmasse: nicht mitten in der Messung', mitten.vorschau.texte?.length, 1)
   const fertig = spielen('messen', [{ runter: [20, 20] }, { runter: [60, 20] }, { bewegen: [190, 101] }], wohnungA())
   gleich('Schnellmasse: nach fertiger Messung wieder da', fertig.vorschau.texte?.length, 6)
+  // Gleich breite Raeume an einer Kante: die Gegenseite haette dieselben
+  // Zahlen und fehlt; ihre Messpunkte bleiben.
+  let g = dok.raumAnlegen(leer(), 'o1', [[0, 0], [300, 0], [300, 200], [0, 200]]).dok
+  g = dok.raumAnlegen(g, 'o2', [[0, 200], [300, 200], [300, 400], [0, 400]]).dok
+  g.oeffnungen = [tuer('tg', 'o1', 2, 100, 90)]
+  gleich('Schnellmasse: gleiche Gegenseite fehlt', schnellMasse(g, 'tg', 20).map((m) => `${m.art}${m.gegenueber ? ':g' : ''} ${m.laenge}`), ['breite 90', 'links 94', 'rechts 104'])
+  gleich('Schnellmasse: Gegenseite als Messpunkte trotzdem da', messpunkte(g).filter((m) => m.gegenueber).map(kurz), ['tuer:200,206:links:g', 'tuer:110,206:rechts:g'])
+}
+
+{
+  // E93 Rechteck: Innenecken 6 cm von beiden Kanten, Tuerenden auf der
+  // Innenseite, Tuerende bis Innenecke abstand - 6, die Lichte bleibt.
+  const d = dok.raumAnlegen(leer(), 're', [[0, 0], [400, 0], [400, 300], [0, 300]]).dok
+  d.oeffnungen = [tuer('tr', 're', 0, 100, 90)]
+  const mp = messpunkte(d)
+  gleich('Rechteck: Punkte', mp.map(kurz), ['tuer:100,6:links', 'tuer:190,6:rechts', 'ecke:6,6', 'ecke:394,6', 'ecke:394,294', 'ecke:6,294'])
+  wahr('Rechteck: Innenecken genau 6 cm von ihren Kanten', mp.filter((m) => m.art === 'ecke').every((m) => eckeOk(d.raeume[0], m.p)))
+  wahr('Rechteck: kein Punkt in einer gezeichneten Wand', mp.every((m) => !inWand(d, m.p)))
+  const zug = spielen('messen', [{ runter: [101, 8] }, { runter: [8, 8] }], d)
+  gleich('Rechteck: Tuerende bis Innenecke 100 - 6', [zug.s.a, zug.s.b, zug.vorschau.texte?.at(-1)?.text], [[100, 6], [6, 6], '94'])
+  const licht = spielen('messen', [{ runter: [101, 8] }, { runter: [189, 8] }], d)
+  gleich('Rechteck: Lichte bleibt 90', licht.vorschau.texte?.at(-1), { p: [145, 6], text: '90', lichte: true, weg: [0, -1] })
+  gleich('Rechteck: Schnellmasse', schnellMasse(d, 'tr', 20).map((m) => `${m.art} ${m.laenge}`), ['breite 90', 'links 94', 'rechts 204'])
+}
+
+{
+  // E93 Nachbarraum 1 cm und 28 cm entfernt (dicke Wand): von dieser zur
+  // anderen Wandseite misst man die ganze gezeichnete Wand, Abstand plus 12.
+  for (const [luecke, dicke] of [[1, 13], [28, 40]]) {
+    let d = dok.raumAnlegen(leer(), 'zi', [[0, 0], [300, 0], [300, 200], [0, 200]]).dok
+    d = dok.raumAnlegen(d, 'nb', [[0, 200 + luecke], [300, 200 + luecke], [300, 400], [0, 400]]).dok
+    d.oeffnungen = [tuer('tz', 'zi', 2, 100, 90)]
+    const mp = messpunkte(d)
+    const k = mp.map(kurz)
+    const y = 206 + luecke
+    wahr(`Abstand ${luecke}: Tuerenden auf der Innenseite`, k.includes('tuer:200,194:links') && k.includes('tuer:110,194:rechts'))
+    wahr(`Abstand ${luecke}: Gegenseite auf der Innenseite des Nachbarn`, k.includes(`tuer:200,${y}:links:g`) && k.includes(`tuer:110,${y}:rechts:g`))
+    wahr(`Abstand ${luecke}: kein Punkt in einer gezeichneten Wand`, mp.every((m) => !inWand(d, m.p)))
+    const quer = spielen('messen', [{ runter: [200, 195] }, { runter: [200, y - 1] }], d)
+    gleich(`Abstand ${luecke}: Wanddicke ${dicke}`, quer.vorschau.texte?.at(-1)?.text, String(dicke))
+    gleich(`Abstand ${luecke}: Lichte auf der anderen Seite`, istLichte(messFangen(d, [200, y], { raster: 1, toleranz: 5 }).messpunkt, messFangen(d, [110, y], { raster: 1, toleranz: 5 }).messpunkt), true)
+  }
+}
+
+{
+  // E93 L-Raum: an der einspringenden Ecke treffen sich die Innenseiten im
+  // Raum, 6 cm vor beiden Kanten; dorthin messen auch die Schnellmasse.
+  const d = dok.raumAnlegen(leer(), 'el', [[0, 0], [400, 0], [400, 200], [200, 200], [200, 350], [0, 350]]).dok
+  d.oeffnungen = [tuer('te', 'el', 2, 150, 30)]
+  const mp = messpunkte(d)
+  const ecken = mp.filter((m) => m.art === 'ecke')
+  gleich('L-Raum: Innenecken', ecken.map(kurz), ['ecke:6,6', 'ecke:394,6', 'ecke:394,194', 'ecke:194,194', 'ecke:194,344', 'ecke:6,344'])
+  wahr('L-Raum: Innenecken genau 6 cm von ihren Kanten', ecken.every((m) => eckeOk(d.raeume[0], m.p)))
+  wahr('L-Raum: kein Punkt in einer gezeichneten Wand', mp.every((m) => !inWand(d, m.p)))
+  gleich('L-Raum: Schnellmasse bis zur einspringenden Ecke', schnellMasse(d, 'te', 20).map((m) => `${m.art} ${m.laenge}`), ['breite 30', 'links 144', 'rechts 26'])
+  const zug = spielen('messen', [{ runter: [221, 193] }, { runter: [195, 193] }], d)
+  gleich('L-Raum: Tuerende bis einspringende Ecke', [zug.s.a, zug.s.b, zug.vorschau.texte?.at(-1)?.text], [[220, 194], [194, 194], '26'])
+}
+
+// E93 T-Flur mit 3 cm Versprung in der oberen Wand und einem 3 cm
+// schmalen, 10 cm tiefen Schlitz in der unteren.
+function tFlur() {
+  return dok.raumAnlegen(leer(), 'tf', [
+    [0, 0], [300, 0], [300, 3], [600, 3], [600, 120], [370, 120], [370, 400],
+    [250, 400], [250, 120], [103, 120], [103, 130], [100, 130], [100, 120], [0, 120],
+  ]).dok
+}
+
+{
+  // E93 T-Flur: jede Innenecke liegt auf der sichtbaren Wand, keine in
+  // einer gezeichneten Wand. Die beiden Ecken am Boden des Schlitzes fallen
+  // weg (dort ist nur Wand).
+  const d = tFlur()
+  const r = d.raeume[0]
+  gleich('T-Flur: angelegt', r?.punkte.length, 14)
+  const ecken = messpunkte(d).filter((m) => m.art === 'ecke')
+  gleich('T-Flur: Innenecken', ecken.map(kurz), [
+    'ecke:6,6', 'ecke:294,6', 'ecke:294,9', 'ecke:594,9', 'ecke:594,114', 'ecke:364,114', 'ecke:364,394',
+    'ecke:256,394', 'ecke:256,114', 'ecke:97,114', 'ecke:106,114', 'ecke:6,114',
+  ])
+  wahr('T-Flur: jede Innenecke 6 cm von ihren Kanten, keiner naeher als 5,5', ecken.every((m) => eckeOk(r, m.p)))
+  wahr('T-Flur: keine Innenecke in einer gezeichneten Wand', ecken.every((m) => !inWand(d, m.p)))
+  wahr('T-Flur: im Schlitz keine Innenecke', !ecken.some((m) => m.p[0] > 90 && m.p[0] < 110 && m.p[1] > 114))
+  // Einrasten am Versprung: die Innenseite rechts davon liegt 3 cm tiefer.
+  gleich('T-Flur: Innenseite hinter dem Versprung', messFangen(d, [450, 12], { raster: 1, toleranz: 10 }).p, [450, 9])
+  gleich('T-Flur: Innenseite vor dem Versprung', messFangen(d, [150, 12], { raster: 1, toleranz: 10 }).p, [150, 6])
+}
+
+{
+  // E93 Schraeger Raum (3-4-5 gedreht, 300 x 200): Innenecken 6 cm von
+  // beiden Kanten, Tuerenden auf der Innenseite, Einrasten bleibt auf ihr.
+  const d = dok.raumAnlegen(leer(), 'sr', [[200, 0], [440, 180], [320, 340], [80, 160]]).dok
+  d.oeffnungen = [tuer('ts', 'sr', 0, 50, 80)]
+  const r = d.raeume[0]
+  const mp = messpunkte(d)
+  const nah = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-9
+  // t entlang Kante 0 (0,8; 0,6), w in den Raum (-0,6; 0,8).
+  const bei = (t, w) => [200 + 0.8 * t - 0.6 * w, 0.6 * t + 0.8 * w]
+  const ecken = mp.filter((m) => m.art === 'ecke')
+  wahr('Schraeg: Innenecken', ecken.length === 4 && [bei(6, 6), bei(294, 6), bei(294, 194), bei(6, 194)].every((q, i) => nah(ecken[i].p, q)))
+  wahr('Schraeg: Innenecken genau 6 cm von ihren Kanten', ecken.every((m) => eckeOk(r, m.p)))
+  wahr('Schraeg: Tuerenden auf der Innenseite', nah(mp[0].p, bei(50, 6)) && nah(mp[1].p, bei(130, 6)))
+  wahr('Schraeg: kein Punkt in einer gezeichneten Wand', mp.every((m) => !inWand(d, m.p)))
+  gleich('Schraeg: Schnellmasse', schnellMasse(d, 'ts', 20).map((m) => `${m.art} ${Math.round(m.laenge * 1e6) / 1e6}`), ['breite 80', 'links 44', 'rechts 164'])
+  const zug = spielen('messen', [{ runter: bei(51, 7) }, { runter: bei(7, 7) }], d)
+  gleich('Schraeg: Tuerende bis Innenecke 50 - 6', zug.vorschau.texte?.at(-1)?.text, '44')
+  const licht = spielen('messen', [{ runter: bei(51, 7) }, { runter: bei(129, 7) }], d)
+  gleich('Schraeg: Lichte bleibt 80', [licht.vorschau.texte?.at(-1)?.text, licht.vorschau.texte?.at(-1)?.lichte], ['80', true])
+  // Auf der schraegen Innenseite: Abstand zur Innenecke auf ganze cm, der
+  // Punkt bleibt genau auf der Innenseite.
+  const f = messFangen(d, bei(100.3, 7), { raster: 1, toleranz: 10 })
+  wahr('Schraeg: Einrasten auf der Innenseite', f.messpunkt === null && nah(f.p, bei(100, 6)))
+}
+
+{
+  // E93 Spitzer Winkel: eine Spitze mit 20 Grad hat ihre Innenecke
+  // 6 / sin 10 Grad = 34,6 cm vor der Ecke; unter 10 Grad gibt es keine.
+  const d = dok.raumAnlegen(leer(), 'sp', [[0, 0], [1000, 0], [940, 342]]).dok
+  const ecken = messpunkte(d).filter((m) => m.art === 'ecke')
+  const spitze = ecken.find((m) => Math.hypot(m.p[0], m.p[1]) < 100)
+  const soll = 6 / Math.sin(Math.atan2(342, 940) / 2)
+  wahr('Spitz 20 Grad: Innenecke 34,6 cm vor der Ecke', !!spitze && Math.abs(Math.hypot(spitze.p[0], spitze.p[1]) - soll) < 1e-6)
+  wahr('Spitz 20 Grad: alle drei Innenecken genau 6 cm von ihren Kanten', ecken.length === 3 && ecken.every((m) => eckeOk(d.raeume[0], m.p)))
+  wahr('Spitz 20 Grad: keine Innenecke in einer gezeichneten Wand', ecken.every((m) => !inWand(d, m.p)))
+  const z = dok.raumAnlegen(leer(), 'zp', [[0, 0], [1000, 0], [1000, 80]]).dok
+  const zp = messpunkte(z).filter((m) => m.art === 'ecke')
+  wahr('Spitz 4,6 Grad: an der Spitze keine Innenecke', zp.length === 2 && !zp.some((m) => m.p[0] < 500))
+  wahr('Spitz 4,6 Grad: die anderen beiden bleiben', zp.every((m) => eckeOk(z.raeume[0], m.p)))
+}
+
+{
+  // E93 Draussen (Balkon hinter 24 cm Aussenwand): dieselbe Regel, der Plan
+  // zeichnet die Wand auch dort.
+  let d = dok.raumAnlegen(leer(), 'wz', [[0, 0], [400, 0], [400, 300], [0, 300]]).dok
+  d = dok.raumAnlegen(d, 'ba', [[50, 324], [350, 324], [350, 450], [50, 450]]).dok
+  d = { ...d, raeume: d.raeume.map((r) => (r.id === 'ba' ? { ...r, art: 'draussen' } : r)) }
+  d.oeffnungen = [tuer('tba', 'wz', 2, 150, 100)]
+  const mp = messpunkte(d)
+  const k = mp.map(kurz)
+  gleich('Draussen: Innenecken des Balkons', mp.filter((m) => m.raumId === 'ba').map(kurz), ['ecke:56,330', 'ecke:344,330', 'ecke:344,444', 'ecke:56,444'])
+  wahr('Draussen: Balkontuer innen und auf dem Balkon', k.includes('tuer:250,294:links') && k.includes('tuer:250,330:links:g') && k.includes('tuer:150,330:rechts:g'))
+  wahr('Draussen: kein Punkt in einer gezeichneten Wand', mp.every((m) => !inWand(d, m.p)))
+  gleich('Draussen: Schnellmasse auf dem Balkon', schnellMasse(d, 'tba', 20).filter((m) => m.gegenueber).map((m) => `${m.art} ${m.laenge}`), ['links 94', 'rechts 94'])
+}
+
+{
+  // Nacharbeit E93: Die Tuer im Flur (300 breit) reicht auf der anderen
+  // Seite ueber die Innenecke des Bads (200 breit) hinaus. Die Gegenseite
+  // endet an dieser Innenecke, nie in der quer stehenden Badwand; offen
+  // sind auf der Badseite nur 84 cm (110 bis 194).
+  for (const luecke of [0, 3]) {
+    let d = dok.raumAnlegen(leer(), 'fl', [[0, 0], [300, 0], [300, 200], [0, 200]]).dok
+    d = dok.raumAnlegen(d, 'ba', [[0, 200 + luecke], [200, 200 + luecke], [200, 400], [0, 400]]).dok
+    d.oeffnungen = [tuer('tf', 'fl', 2, 100, 90)]
+    const mp = messpunkte(d)
+    const y = 206 + luecke
+    wahr(`Ueberstand ${luecke}: kein Punkt in einer gezeichneten Wand`, mp.every((m) => !inWand(d, m.p)))
+    gleich(`Ueberstand ${luecke}: Gegenseite bis zur Innenecke des Bads`, mp.filter((m) => m.gegenueber).map(kurz), [`tuer:194,${y}:links:g`, `tuer:110,${y}:rechts:g`])
+    const zug = spielen('messen', [{ runter: [195, y + 1] }, { runter: [111, y + 1] }], d)
+    gleich(`Ueberstand ${luecke}: Lichte auf der Badseite`, [zug.vorschau.texte?.at(-1)?.text, zug.vorschau.texte?.at(-1)?.lichte], ['84', true])
+    gleich(`Ueberstand ${luecke}: Schnellmasse`, schnellMasse(d, 'tf', 20).map((m) => `${m.art}${m.gegenueber ? ':g' : ''} ${m.laenge} ${m.wandA.join(',')}-${m.wandB.join(',')}`), [
+      'breite 90 200,194-110,194', 'links 94 294,194-200,194', 'rechts 104 110,194-6,194', `rechts:g 104 110,${y}-6,${y}`,
+    ])
+  }
+}
+
+{
+  // Nacharbeit E93: Einspringende Ecken ueber 270 Grad. Die Innenseiten
+  // treffen sich dort hinter den eckigen Enden der gezeichneten Waende (der
+  // Plan zeichnet die Spitze stumpf, gemauert trifft sich die Wand dort).
+  // Die Innenecke bleibt, die Schnellmasse enden auf ihr.
+  const r2 = (v) => Math.round(v * 100) / 100
+  const d = dok.raumAnlegen(leer(), 'lr', [[0, 0], [400, 0], [400, 200], [200, 200], [213, 350], [0, 350]]).dok
+  d.oeffnungen = [tuer('tl', 'lr', 2, 100, 80)]
+  const mp = messpunkte(d)
+  gleich('275 Grad: Innenecken', mp.filter((m) => m.art === 'ecke').map((m) => m.p.map(r2).join(',')), ['6,6', '394,6', '394,194', '193.46,194', '206.46,344', '6,344'])
+  const re = schnellMasse(d, 'tl', 20).find((m) => m.art === 'rechts')
+  gleich('275 Grad: Schnellmass bis zur Innenecke', re && [r2(re.laenge), re.wandB.map(r2)], [26.54, [193.46, 194]])
+  wahr('275 Grad: Schnellmass endet auf einem Messpunkt', !!re && mp.some((m) => Math.hypot(m.p[0] - re.wandB[0], m.p[1] - re.wandB[1]) < 1e-9))
+  // Pfeiler mit 45 Grad Spitze, ein Fenster an seiner Seite: die Innenecke
+  // liegt 6 / sin 22,45 Grad = 15,7 cm vor der Spitze, das Mass endet dort.
+  const k = dok.raumAnlegen(leer(), 'kp', [[0, 0], [400, 0], [400, 300], [250, 300], [200, 179], [150, 300], [0, 300]]).dok
+  k.oeffnungen = [tuer('fk', 'kp', 3, 30, 60, 'fenster')]
+  const kp = messpunkte(k)
+  const spitze = kp.find((m) => m.art === 'ecke' && Math.abs(m.p[0] - 200) < 1 && m.p[1] < 179)
+  wahr('45 Grad: Innenecke vor der Spitze', !!spitze && Math.abs(spitze.p[0] - 200) < 1e-9 && Math.abs(179 - spitze.p[1] - 6 / Math.sin(Math.atan2(50, 121))) < 1e-9)
+  const kr = schnellMasse(k, 'fk', 20).find((m) => m.art === 'rechts')
+  wahr('45 Grad: Schnellmass endet auf der Innenecke', !!kr && !!spitze && Math.hypot(kr.wandB[0] - spitze.p[0], kr.wandB[1] - spitze.p[1]) < 1e-9)
+  wahr('45 Grad: kein Punkt in einer gezeichneten Wand', kp.every((m) => !inWand(k, m.p)))
+}
+
+{
+  // Nacharbeit E93: Einrasten zieht nie in eine gezeichnete Wand. Die
+  // Seiten eines Schlitzes (3 cm, T-Flur) und einer Nische (8 cm) liegen
+  // ganz in der Wand der anderen Seite: dort gibt es keine Innenseite, wer
+  // daneben zeigt, bleibt im Raster.
+  const tf = tFlur()
+  gleich('Schlitz: links daneben bleibt im Raster', messFangen(tf, [98, 122], { raster: 2, toleranz: 5 }).p, [98, 122])
+  gleich('Schlitz: rechts daneben bleibt im Raster', messFangen(tf, [105, 121], { raster: 1, toleranz: 5 }).p, [105, 121])
+  const ni = dok.raumAnlegen(leer(), 'ni', [[0, 30], [100, 30], [100, 0], [108, 0], [108, 30], [300, 30], [300, 230], [0, 230]]).dok
+  gleich('Nische: angelegt', ni.raeume[0]?.punkte.length, 8)
+  gleich('Nische: links daneben bleibt im Raster', messFangen(ni, [93, 20], { raster: 1, toleranz: 10 }).p, [93, 20])
+  gleich('Nische: rechts daneben bleibt im Raster', messFangen(ni, [115, 15], { raster: 1, toleranz: 10 }).p, [115, 15])
+  for (const o of [{ raster: 1, toleranz: 5 }, { raster: 2, toleranz: 5 }, { raster: 1, toleranz: 10 }, { raster: 5, toleranz: 10 }]) {
+    gleich(`Schlitz: nie in die Wand gezogen (Raster ${o.raster}, Fangweite ${o.toleranz})`, schlechtGezogen(tf, [85, 105], [120, 140], o), [])
+    gleich(`Nische: nie in die Wand gezogen (Raster ${o.raster}, Fangweite ${o.toleranz})`, schlechtGezogen(ni, [85, -10], [125, 45], o), [])
+  }
+}
+
+{
+  // Nacharbeit E93: Duenner Zipfel (4 cm breit, 150 hoch) im Raum. An
+  // seiner Spitze gibt es keine Innenecke (spitzer als 10 Grad), seine
+  // Innenseiten enden dort mit der gezeichneten Wand und laufen nicht Meter
+  // weiter in den Raum.
+  const d = dok.raumAnlegen(leer(), 'zf', [[0, 0], [400, 0], [400, 300], [202, 300], [200, 150], [198, 300], [0, 300]]).dok
+  gleich('Zipfel: angelegt', d.raeume[0]?.punkte.length, 7)
+  gleich('Zipfel: 90 cm ueber der Spitze bleibt im Raster', messFangen(d, [207, 60], { raster: 1, toleranz: 10 }).p, [207, 60])
+  gleich('Zipfel: an der oberen Wand die Innenseite', messFangen(d, [204, 1], { raster: 1, toleranz: 10 }).p, [204, 6])
+  gleich('Zipfel: eingerastet immer an einer gezeichneten Wand', schlechtGezogen(d, [150, -20], [250, 310], { raster: 1, toleranz: 10 }, 0.5), [])
+}
+
+{
+  // Nacharbeit E93: Die Zahl einer Messung entlang der Innenseite steht in
+  // der Wand. Im Raum steht 12 Bildpunkte vor der Innenseite schon das Mass
+  // der Wand (Leinwand, wandMasse); an der unteren Wand lag die Zahl der
+  // lichten Breite genau darauf.
+  const d = dok.raumAnlegen(leer(), 're', [[0, 0], [400, 0], [400, 300], [0, 300]]).dok
+  const zahl = (a, b) => spielen('messen', [{ runter: a }, { runter: b }], d).vorschau.texte?.at(-1)
+  const unten = zahl([8, 292], [392, 292])
+  gleich('Messzahl: untere Wand, Zahl zur Wand hin', unten, { p: [200, 294], text: '388', lichte: false, weg: [0, 1] })
+  gleich('Messzahl: obere Wand', zahl([8, 8], [392, 8])?.weg, [0, -1])
+  gleich('Messzahl: linke Wand', zahl([8, 8], [8, 292])?.weg, [-1, 0])
+  gleich('Messzahl: rechte Wand', zahl([392, 8], [392, 292])?.weg, [1, 0])
+  gleich('Messzahl: quer durch den Raum wie bisher', zahl([100, 100], [200, 150])?.weg, undefined)
+  // Lage wie in der Leinwand (Schrift 12 / s, ohne weg Grundlinie unter der
+  // Schrift, mit weg mittig) gegen das Wandmass der unteren Kante (Schrift
+  // 11 / s, mittig 6 + 12 / s ueber der Kante y 300), je eine halbe Zeile hoch.
+  const hoehe = (l, fs) => (l.mitte ? [l.p[1] - fs / 2, l.p[1] + fs / 2] : [l.p[1] - 0.8 * fs, l.p[1]])
+  for (const s of [0.5, 0.75, 1, 1.5, 2]) {
+    const [z0, z1] = hoehe(textLage(unten, s, 12 / s), 12 / s)
+    const m = 300 - (6 + 12 / s)
+    wahr(`Messzahl: untere Wand, nicht auf dem Wandmass (Massstab ${s})`, z1 < m - 5.5 / s || z0 > m + 5.5 / s)
+  }
+  const links = textLage(zahl([8, 8], [8, 292]), 1, 12)
+  gleich('Messzahl: linke Wand gedreht wie das Wandmass, in der Wand', [links.winkel, links.p[0] < 6 - 8, links.p[1]], [90, true, 150])
+  gleich('Messzahl: ohne weg wie bisher 8 Bildpunkte darueber', textLage({ p: [10, 20] }, 2, 6), { p: [10, 16], winkel: 0, mitte: false })
 }
 
 /* ---------------------------------------------------------- Teilen */

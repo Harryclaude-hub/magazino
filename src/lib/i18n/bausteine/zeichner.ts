@@ -127,8 +127,8 @@ export const zeichnerWoerter: Woerterbuch = {
     ar: 'خذ صندوقًا من اليمين، ثم انقر على مكانه واختر ما يوضع عليه. Q للتدوير.',
   },
   'zeichner.hilfe.messen': {
-    de: 'Zwei Punkte klicken, der Abstand steht daneben. Die Punkte rasten an Ecken, Türen und Fenstern ein; über einer Tür stehen ihre Maße. Nur zum Nachsehen, nichts wird gespeichert.',
-    ar: 'انقر نقطتين وتظهر المسافة بجانبهما. تلتصق النقاط بالزوايا والأبواب والنوافذ، وفوق الباب تظهر مقاساته. للاطلاع فقط، لا يُحفظ شيء.',
+    de: 'Zwei Punkte klicken, der Abstand steht daneben. Die Punkte rasten an Ecken, Türen und Fenstern ein, immer an der Innenseite der Wand: die Wanddicke zählt nicht mit. Über einer Tür stehen ihre Maße. Nur zum Nachsehen, nichts wird gespeichert.',
+    ar: 'انقر نقطتين وتظهر المسافة بجانبهما. تلتصق النقاط بالزوايا والأبواب والنوافذ، دائمًا عند الوجه الداخلي للجدار: سُمك الجدار لا يُحسب. وفوق الباب تظهر مقاساته. للاطلاع فقط، لا يُحفظ شيء.',
   },
   // Messpunkte beim Messen (E90): "Tür Bad, links", "Lichte 80".
   'zeichner.messen.ecke': { de: 'Ecke', ar: 'زاوية' },
