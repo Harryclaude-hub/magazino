@@ -1,6 +1,6 @@
 # Kistly: Uebergabe fuer eine neue (lokale) Claude-Sitzung
 
-Stand: 10.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
+Stand: 13.10.2026 abends. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 
 ## Wo alles ist
 
@@ -65,11 +65,21 @@ Stand: 10.10.2026 frueh. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - E93: Messpunkte, Einrasten beim Messen und Schnellmasse liegen an der
   Innenseite der Wand (Kante plus 6 cm), die Wanddicke zaehlt nicht mit.
   Nacharbeit nach der Pruefung (6 Funde behoben, siehe ENTSCHEIDUNGEN.md).
+- E94: Am Handy "Gross ansehen" ueber dem Plan: der Grundriss ueber den
+  ganzen Bildschirm, mit Ansehen (Moebel, Regal, Kiste, Tuer, Raum
+  antippen: Karte als Blatt unten) und Messen (Messpunkte aus E93, Tipp 1
+  A, Tipp 2 B, Abstand und Namen gross in der Leiste, Schnellmasse an
+  Tuerenden, Neu). Zurueck am Handy schliesst (&ansicht=gross). Unter dem
+  Plan zeigt ein Moebel jetzt die Moebelkarte. Kein Zeichner-Code am
+  Handy. Mit echtem Handy noch nicht geprueft. Nacharbeit nach der
+  Pruefung (siehe ENTSCHEIDUNGEN.md): Tueren zeigen "Frei fuer Moebel" und
+  Maueroeffnung statt Lichte, links und rechts drueben aus dem
+  Nachbarraum, Blatt quer neben dem Plan, Verlauf und Fokus berichtigt.
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E93.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E94.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler

@@ -38,6 +38,20 @@
 //     Angaben, ungueltiger Link), der Vertrag zwischen Motor und Raum3D
 //     (Rechtsklick hebt nichts mehr an, Esc der Reihe nach, Eingabe ruht
 //     bei offener Karte) und die Woerter.
+//  9. E94, der Grundriss gross am Handy: Messen als reine Rechnung (Tipp 1
+//     ist A, Tipp 2 B, Tipp 3 beginnt neu, Fangweite aus dem Massstab,
+//     Namen wie im Zeichner, Lichte, Schnellmasse nur an Enden von
+//     Oeffnungen, Neu), Antippen beim Ansehen (Messen oeffnet nie eine
+//     Karte), gerendert in de und ar (Knopf unter Ansehen, Ebene mit
+//     Leiste und Schalter, Blatt mit der Moebelkarte, Raum, Tuer, Leiste
+//     beim Messen, Zeichnung im Plan), die Adresse (ansicht=gross) und
+//     dass das Handy keinen Zeichner-Code laedt. Nacharbeit nach der
+//     Pruefung: X nach Zurueck ohne doppelten Eintrag (state im Verlauf),
+//     kein verhinderter Klick ausser in der grossen Ansicht, Tuer mit
+//     "Frei fuer Moebel" und Maueroeffnung statt Lichte, links und rechts
+//     drueben aus dem Nachbarraum (mit Blick zur Wand) und im Plan
+//     gezeichnet, Blatt quer neben dem Plan, Fokus in der Ebene und zurueck,
+//     Raumhoehe arabisch wie die Flaeche, Titel bricht um.
 // Alle Namen und Zahlen sind erfunden. Aufruf im Projektordner:
 //   node scripts/bedienung-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
@@ -46,6 +60,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { createMemoryRouter, MemoryRouter } from 'react-router-dom'
 import { createServer } from 'vite'
 
 let fehler = 0
@@ -80,6 +95,13 @@ let SL
 let MI
 let MK
 let MM
+let HM
+let PG
+let PD
+let PB
+let HI
+let ZW
+let MP
 try {
   R = await vite.ssrLoadModule('/src/components/plan3d/Raum3D.tsx')
   S = await vite.ssrLoadModule('/src/pages/SiedlungAnsicht.tsx')
@@ -93,8 +115,46 @@ try {
   MI = await vite.ssrLoadModule('/src/components/plan3d/moebelInfo.ts')
   MK = await vite.ssrLoadModule('/src/components/plan3d/MoebelKarte.tsx')
   MM = await vite.ssrLoadModule('/src/components/plan3d/MoebelMenue.tsx')
+  HM = await vite.ssrLoadModule('/src/components/plan/handyMessen.ts')
+  PG = await vite.ssrLoadModule('/src/components/plan/PlanGross.tsx')
+  PD = await vite.ssrLoadModule('/src/components/plan/PlanDetails.tsx')
+  PB = await vite.ssrLoadModule('/src/components/plan/PlanBild.tsx')
+  HI = await vite.ssrLoadModule('/src/components/plan/hilfe.ts')
+  ZW = await vite.ssrLoadModule('/src/lib/i18n/bausteine/zeichner.ts')
+  MP = await vite.ssrLoadModule('/src/zeichner/messpunkte.ts')
 } finally {
   await vite.close()
+}
+
+// E94: die Seite Grundriss (Ansehen) mit einem erfundenen Umzug statt
+// ProjectLayout; i18n aus demselben Lauf, damit der Sprach-Kontext passt.
+globalThis.__projekt = { project: { id: 'p1', name: 'Erfunden' }, canEdit: false, members: [], tags: [], rooms: [], people: [] }
+const viteSeite = await createServer({
+  cacheDir: path.join(os.tmpdir(), 'kistly-bedienung-pruefen-seite'),
+  server: { middlewareMode: true, hmr: false, ws: false },
+  appType: 'custom',
+  logLevel: 'error',
+  optimizeDeps: { noDiscovery: true, include: [] },
+  plugins: [
+    {
+      name: 'erfundenes-projekt',
+      enforce: 'pre',
+      load(id) {
+        if (id.replace(/\\/g, '/').endsWith('/src/pages/ProjectLayout.tsx')) {
+          return 'export function useProject() { return globalThis.__projekt }\nexport function useProjektOptional() { return globalThis.__projekt }\nexport default function ProjectLayout() { return null }\n'
+        }
+        return null
+      },
+    },
+  ],
+})
+let GS
+let IS
+try {
+  GS = await viteSeite.ssrLoadModule('/src/pages/Grundriss.tsx')
+  IS = await viteSeite.ssrLoadModule('/src/lib/i18n/index.tsx')
+} finally {
+  await viteSeite.close()
 }
 W.woerterNachladen(P3.plan3dWoerter)
 W.woerterNachladen(SW.siedlungWoerter)
@@ -1210,6 +1270,338 @@ function falscheUhr() {
   const itemRow = lesen('src/components/ItemRow.tsx')
   wahr('Weg: moebel/:id ist FurnitureDetail, mit der Item-Id', appTxt.includes('<Route path="moebel/:id" element={<FurnitureDetail />} />') && itemRow.includes('`/app/p/${projectId}/moebel/${item.id}`'))
   for (const d of ['src/components/plan3d/MoebelKarte.tsx', 'src/components/plan3d/MoebelMenue.tsx']) wahr(`${d}: ohne Portal (Vollbild)`, !lesen(d).includes('createPortal'))
+}
+
+/* ------------------------------------------------ 9. Grundriss gross am Handy (E94) */
+
+{
+  // Erfundene Wohnung: Kinderzimmer mit Tuer zur Diele (die Diele ist
+  // kuerzer, darum hat die Tuer auf der anderen Wandseite andere
+  // Abstaende), ein Fenster, ein Bett mit Eintrag und Link, ein Regal mit
+  // einer Kiste im Fach.
+  const raum9 = (id, name, punkte) => ({
+    id, grundriss_id: 'g9', project_id: 'p1', tag_id: null, name, art: 'innen', punkte, hoehe_cm: 250,
+    bodenfarbe: null, wandfarben: null, sort: 0, tag_name: null, tag_short: null, tag_color: null,
+  })
+  const objekt9 = (id, art, name, x, y, b, t, hh, mehr = {}) => ({
+    id, raum_id: 'ki', art, name, farbe: null, item_id: null, item_code: null, item_title: null, x, y, breite_cm: b, tiefe_cm: t, hoehe_cm: hh,
+    drehung: 0, form: 'rechteck', ausschnitt_breite_cm: null, ausschnitt_tiefe_cm: null, ausschnitt_ecke: null, brett_cm: null, spalten: 1, ...mehr,
+  })
+  const tuer9 = (id, raumId, art, kante, abstand, breite) => ({ id, raum_id: raumId, art, kante, abstand_cm: abstand, breite_cm: breite, hoehe_cm: 200, bruestung_cm: 0, anschlag: 'links', aufschlag: 'innen' })
+  const d9 = {
+    grundriss: { id: 'g9', project_id: 'p1', name: 'Erfundene Wohnung', sort: 0, version: 1, created_at: '', updated_at: '' },
+    raeume: [raum9('ki', 'Kinderzimmer', [[0, 0], [400, 0], [400, 300], [0, 300]]), raum9('di', 'Diele', [[400, 0], [600, 0], [600, 200], [400, 200]])],
+    oeffnungen: [tuer9('td', 'ki', 'tuer', 1, 50, 80), tuer9('fk', 'ki', 'fenster', 2, 100, 120)],
+    objekte: [
+      objekt9('bett', 'moebel', 'Bett', 20, 80, 140, 200, 45, { item_id: 'i-bett', item_code: 'M-1-009', link: 'https://moebel.example/bett', preis_cent: 25000, material: 'holz' }),
+      objekt9('regal', 'regal', 'Regal', 200, 10, 100, 30, 150, { brett_cm: [50, 100] }),
+    ],
+    kisten: [
+      {
+        id: 'k9', code: 'ZZ-2-009', prefix: 'ZZ', size: 2, seq: 9, kind: 'box', status: 'open', title: null, room_id: null, room_color: null, mark_color: null,
+        eigene_groesse_name: null, platz_raum_id: 'ki', platz_x: 250, platz_y: 25, platz_drehung: 0, unterlage_art: 'fach', unterlage_item_id: null,
+        unterlage_objekt_id: 'regal', fach_ebene: 1, fach_spalte: null, laenge_cm: 40, breite_cm: 30, hoehe_cm: 30, unten_cm: 52, oben_cm: 82,
+        grenze_cm: 100, wurzel_art: 'fach', nr: 1,
+      },
+    ],
+  }
+  const tDe = (k, v) => I.uebersetzen('de', k, v)
+  const tAr = (k, v) => I.uebersetzen('ar', k, v)
+  const kurz9 = (m) => (m ? `${m.art}:${m.p.join(',')}${m.ende ? ':' + m.ende : ''}${m.gegenueber ? ':g' : ''}` : null)
+
+  // --- Fangweite: eine Fingerbreite, aus dem Massstab.
+  wahr('Messen: Fingerbreite 24 Bildpunkte', HM.FINGER_PX === 24)
+  wahr('Messen: Fangweite in cm aus dem Massstab', HM.fingerToleranz(0.5) === 48 && HM.fingerToleranz(1) === 24 && HM.fingerToleranz(2) === 12)
+  wahr('Messen: kaputter Massstab gibt eine endliche Fangweite', [0, -1, Number.NaN, Infinity].every((x) => Number.isFinite(HM.fingerToleranz(x)) && HM.fingerToleranz(x) > 0))
+  const bei1 = HM.messenTippen(d9, HM.MESSUNG_LEER, [374, 50], 1)
+  const bei2 = HM.messenTippen(d9, HM.MESSUNG_LEER, [374, 50], 2)
+  wahr('Messen: 20 cm neben dem Tuerende rastet bei 1 Bildpunkt je cm ein (24 cm)', kurz9(bei1.aPunkt) === 'tuer:394,50:links' && gleich(bei1.a, [394, 50]))
+  wahr('Messen: bei 2 Bildpunkten je cm nicht mehr (12 cm), dann Raster 1', bei2.aPunkt === null && gleich(bei2.a, [374, 50]))
+
+  // --- Tipp 1 = A, Tipp 2 = B, Tipp 3 beginnt neu.
+  const m1 = HM.messenTippen(d9, HM.MESSUNG_LEER, [390, 52], 1)
+  wahr('Messen: Tipp 1 setzt A am Tuerende, B leer', kurz9(m1.aPunkt) === 'tuer:394,50:links' && m1.b === null && m1.bPunkt === null)
+  wahr('Messen: mit A allein kein Abstand, keine Lichte', HM.messAbstand(m1) === null && HM.messLichte(m1) === false)
+  wahr('Messen: A am Tuerende zeigt die Schnellmasse dieser Tuer', HM.schnellOeffnung(m1) === 'td')
+  const m2 = HM.messenTippen(d9, m1, [10, 10], 1)
+  wahr('Messen: Tipp 2 setzt B an der Innenecke', kurz9(m2.bPunkt) === 'ecke:6,6' && gleich(m2.a, [394, 50]))
+  wahr('Messen: Abstand A bis B', Math.abs(HM.messAbstand(m2) - Math.hypot(388, 44)) < 1e-9)
+  wahr('Messen: mit B keine Schnellmasse mehr', HM.schnellOeffnung(m2) === null)
+  const m3 = HM.messenTippen(d9, m2, [596, 196], 1)
+  wahr('Messen: Tipp 3 beginnt neu (neues A, kein B)', kurz9(m3.aPunkt) === 'ecke:594,194' && m3.b === null && HM.messAbstand(m3) === null)
+  wahr('Messen: A an einer Ecke zeigt keine Schnellmasse', HM.schnellOeffnung(m3) === null)
+  const fenster = HM.messenTippen(d9, HM.MESSUNG_LEER, [300, 290], 1)
+  wahr('Messen: A am Fensterende zeigt die Schnellmasse des Fensters', kurz9(fenster.aPunkt) === 'fenster:300,294:links' && HM.schnellOeffnung(fenster) === 'fk')
+  const gegen = HM.messenTippen(d9, HM.MESSUNG_LEER, [408, 128], 1)
+  wahr('Messen: A auf der anderen Wandseite gehoert auch zur Tuer', kurz9(gegen.aPunkt) === 'tuer:406,130:links:g' && HM.schnellOeffnung(gegen) === 'td')
+  const frei = HM.messenTippen(d9, HM.MESSUNG_LEER, [200, 150], 1)
+  wahr('Messen: mitten im Raum frei (Raster), keine Schnellmasse', frei.aPunkt === null && gleich(frei.a, [200, 150]) && HM.schnellOeffnung(frei) === null)
+
+  // --- Lichte: beide Enden derselben Tuer.
+  const lichte = HM.messenTippen(d9, HM.messenTippen(d9, HM.MESSUNG_LEER, [393, 51], 1), [393, 129], 1)
+  wahr('Messen: beide Enden der Tuer sind die Lichte 80', HM.messLichte(lichte) && Math.round(HM.messAbstand(lichte)) === 80)
+  wahr('Messen: Tuerende und Ecke sind keine Lichte', !HM.messLichte(m2))
+
+  // --- Namen wie im Zeichner (eine Stelle: messpunktName).
+  wahr('Namen: Tuerende', HM.punktName(tDe, m1.aPunkt) === 'Tür Kinderzimmer, links')
+  wahr('Namen: Ecke', HM.punktName(tDe, m2.bPunkt) === 'Ecke')
+  wahr('Namen: andere Wandseite', HM.punktName(tDe, gegen.aPunkt) === 'Tür Kinderzimmer, links, andere Wandseite')
+  wahr('Namen: Fenster', HM.punktName(tDe, fenster.aPunkt) === 'Fenster Kinderzimmer, links')
+  wahr('Namen: frei gesetzt heisst Punkt', HM.punktName(tDe, null) === 'Punkt')
+  wahr('Namen ar: باب, يسار, الجهة الأخرى', HM.punktName(tAr, m1.aPunkt) === 'باب Kinderzimmer، يسار' && HM.punktName(tAr, gegen.aPunkt) === 'باب Kinderzimmer، يسار، الجهة الأخرى من الجدار' && HM.punktName(tAr, null) === 'نقطة')
+  wahr('Namen: Zeichner und Handy aus messpunktName', HM.punktName(tDe, m1.aPunkt) === MP.messpunktName(tDe, m1.aPunkt))
+  const leinwand = lesen('src/zeichner/Leinwand.tsx')
+  wahr('Leinwand: Namen aus messpunkte.ts, keine eigene Fassung', leinwand.includes("import { messpunktName, type Messpunkt } from './messpunkte'") && !leinwand.includes('function messpunktName') && !leinwand.includes('function endeName') && leinwand.includes("t('plan.messen.lichte')"))
+  for (const k of ['plan.messen.ecke', 'plan.messen.links', 'plan.messen.rechts', 'plan.messen.punkt', 'plan.messen.punkt_ohne_raum', 'plan.messen.gegenueber', 'plan.messen.lichte', 'plan.tuer', 'plan.fenster', 'plan.durchgang']) {
+    wahr(`${k} laedt immer, auch am Handy (de und ar)`, !!W.WOERTER[k]?.de && !!W.WOERTER[k]?.ar && !(k in ZW.zeichnerWoerter))
+  }
+  wahr('zeichner.ts: die alten zeichner.messen.* sind weg', !Object.keys(ZW.zeichnerWoerter).some((k) => k.startsWith('zeichner.messen.')))
+
+  // --- Schnellmasse als Zahlen fuer die Leiste.
+  wahr('Schnellmasse Tuer: Maueroeffnung, frei fuer Moebel, beide Seiten bis zur Ecke, andere Wandseite', gleich(HM.schnellUebersicht(d9, 'td'), { lichte: 80, durchgang: 72, links: 44, rechts: 164, gegenueber: { links: 64, rechts: 44 } }))
+  wahr('Schnellmasse Fenster: ohne andere Wandseite, ohne Zarge', gleich(HM.schnellUebersicht(d9, 'fk'), { lichte: 120, durchgang: null, links: 94, rechts: 174, gegenueber: null }))
+
+  // --- Nacharbeit: Tuer mit DL 80 (breite_cm 88, E88). Die Enden sind die
+  // Maueroeffnung, frei fuer Moebel ist, was zwischen der Zarge bleibt.
+  const d9t = { ...d9, oeffnungen: [tuer9('td', 'ki', 'tuer', 1, 50, 88), d9.oeffnungen[1]] }
+  wahr('Zarge: eine Stelle fuer 2D und 3D (hilfe.ts), 4 cm je Seite', HI.ZARGE_CM === 4 && HI.durchgangslichte({ art: 'tuer', breite_cm: 88 }) === 80 && HI.durchgangslichte({ art: 'tuer', breite_cm: 98 }) === 90 && HI.durchgangslichte({ art: 'fenster', breite_cm: 88 }) === 88 && HI.durchgangslichte({ art: 'durchgang', breite_cm: 88 }) === 88)
+  wahr('Zarge: hoechstens ein Viertel der Breite', HI.zargeCm(8) === 2 && HI.durchgangslichte({ art: 'tuer', breite_cm: 8 }) === 4)
+  const szeneTxt = lesen('src/components/plan3d/szene.ts')
+  wahr('Zarge: 3D nimmt dieselbe Zahl (zargeCm), keine eigene', szeneTxt.includes('const z = zargeCm(l)') && !/const ZARGE_CM\s*=/.test(szeneTxt))
+  wahr('Tuer DL 80: Maueroeffnung 88, frei fuer Moebel 80', gleich(HM.schnellUebersicht(d9t, 'td'), { lichte: 88, durchgang: 80, links: 44, rechts: 156, gegenueber: { links: 56, rechts: 44 } }))
+  const lichte88 = HM.messenTippen(d9t, HM.messenTippen(d9t, HM.MESSUNG_LEER, [393, 51], 1), [393, 137], 1)
+  wahr('Tuer DL 80: Messen der Lichte ist die Maueroeffnung 88, frei 80', HM.messLichte(lichte88) && Math.round(HM.messAbstand(lichte88)) === 88 && HM.messDurchgang(d9t, lichte88) === 80)
+  wahr('Tuer DL 80: Tuerende und Ecke ist keine Lichte, kein Durchgang', HM.messDurchgang(d9t, HM.messenTippen(d9t, HM.messenTippen(d9t, HM.MESSUNG_LEER, [393, 51], 1), [10, 10], 1)) === null)
+  const fensterLichte = HM.messenTippen(d9, HM.messenTippen(d9, HM.MESSUNG_LEER, [300, 293], 1), [180, 293], 1)
+  wahr('Fenster: Lichte ohne Durchgang (keine Zarge)', HM.messLichte(fensterLichte) && HM.messDurchgang(d9, fensterLichte) === null)
+  // Drueben bis zur Innenecke der Diele (194): die Lichte dort ist 74, frei
+  // ist von der Zarge (4) bis zur Innenecke, also 70 statt 72.
+  const d9e = { ...d9, oeffnungen: [tuer9('td', 'ki', 'tuer', 1, 120, 80), d9.oeffnungen[1]] }
+  const drueben = HM.messenTippen(d9e, HM.messenTippen(d9e, HM.MESSUNG_LEER, [407, 121], 1), [407, 193], 1)
+  wahr('Tuer drueben an der Innenecke: Lichte 74, frei 70', HM.messLichte(drueben) && Math.round(HM.messAbstand(drueben)) === 74 && HM.messDurchgang(d9e, drueben) === 70)
+  const hueben = HM.messenTippen(d9e, HM.messenTippen(d9e, HM.MESSUNG_LEER, [393, 121], 1), [393, 199], 1)
+  wahr('Tuer hueben: Lichte 80, frei 72', HM.messLichte(hueben) && Math.round(HM.messAbstand(hueben)) === 80 && HM.messDurchgang(d9e, hueben) === 72)
+
+  // --- Nacharbeit: links und rechts gelten im jeweiligen Raum mit Blick zur
+  // Wand. Wer in der Diele zur Tuer blickt (nach Westen), hat das "linke"
+  // Ende links von sich, wer im Kinderzimmer zur Tuer blickt (nach Osten),
+  // ebenso. Links von jemandem, der am Bildschirm (y nach unten) in
+  // Richtung f blickt, ist (f[1], -f[0]).
+  const linksVon = (f) => [f[1], -f[0]]
+  const endenTd = MP.messpunkte(d9).filter((m) => m.oeffnungId === 'td')
+  for (const [seite, blick] of [[false, [1, 0]], [true, [-1, 0]]]) {
+    const li = endenTd.find((m) => !!m.gegenueber === seite && m.ende === 'links')
+    const re = endenTd.find((m) => !!m.gegenueber === seite && m.ende === 'rechts')
+    const l = linksVon(blick)
+    wahr(`Links und rechts: ${seite ? 'in der Diele' : 'im Kinderzimmer'} mit Blick zur Tuer liegt "links" links`, !!li && !!re && (li.p[0] - re.p[0]) * l[0] + (li.p[1] - re.p[1]) * l[1] > 0)
+  }
+  const schnellTd = MP.schnellMasse(d9, 'td', 0).filter((m) => m.gegenueber)
+  const linksDrueben = schnellTd.find((m) => m.art === 'links')
+  wahr('Links und rechts: Schnellmass "links" drueben endet am linken Ende (aus der Diele)', !!linksDrueben && [linksDrueben.wandA, linksDrueben.wandB].some((q) => gleich(q, endenTd.find((m) => m.gegenueber && m.ende === 'links').p)))
+  wahr('Schnellmasse: unbekannte Oeffnung null', HM.schnellUebersicht(d9, 'gibtsnicht') === null)
+
+  // --- Grosse Ansicht: Antippen und Messen als Zustand.
+  const start = HM.GROSS_START
+  wahr('Gross: beginnt mit Ansehen, nichts gewaehlt, keine Messung', start.modus === 'ansehen' && start.tipp === null && start.messung.a === null && start.messung.b === null)
+  const bettTreffer = HI.trefferAn(d9, [90, 180], 10)
+  wahr('Gross: Bett wird getroffen', gleich(bettTreffer, { art: 'objekt', id: 'bett' }))
+  const angetippt = HM.grossTippen(start, d9, [90, 180], bettTreffer, 1)
+  wahr('Gross: Ansehen waehlt das Getroffene, misst nicht', gleich(angetippt.tipp, { art: 'objekt', id: 'bett' }) && angetippt.messung.a === null)
+  wahr('Gross: daneben schliesst das Blatt', HM.grossTippen(angetippt, d9, [500, 100], null, 1).tipp === null)
+  const messen = HM.grossModus(angetippt, 'messen')
+  wahr('Gross: Umschalten auf Messen schliesst das Blatt', messen.modus === 'messen' && messen.tipp === null)
+  const gemessen = HM.grossTippen(messen, d9, [90, 180], bettTreffer, 1)
+  wahr('Gross: Messen oeffnet nie eine Karte, auch auf einem Moebel', gemessen.tipp === null && gemessen.messung.a !== null)
+  const zwei = HM.grossTippen(gemessen, d9, [390, 52], HI.trefferAn(d9, [390, 52], 10), 1)
+  wahr('Gross: zweiter Tipp beim Messen ist B, wieder ohne Karte', zwei.tipp === null && kurz9(zwei.messung.bPunkt) === 'tuer:394,50:links')
+  wahr('Gross: zurueck zu Ansehen, die Messung bleibt bis Neu', gleich(HM.grossModus(zwei, 'ansehen').messung, zwei.messung))
+  const neu = HM.messungNeu(zwei)
+  wahr('Gross: Neu loescht die Messung, Messen bleibt', neu.modus === 'messen' && gleich(neu.messung, HM.MESSUNG_LEER))
+
+  // --- Gerendert.
+  function rendern9(element, sprache, I0 = I) {
+    const daten = { 'kistly.lang': sprache }
+    globalThis.localStorage = { getItem: (k) => (k in daten ? daten[k] : null), setItem: () => {}, removeItem: () => {} }
+    try {
+      return renderToStaticMarkup(h(I0.SpracheProvider, null, h(MemoryRouter, { initialEntries: ['/app/p/p1/grundriss/g9'] }, element)))
+    } finally {
+      delete globalThis.localStorage
+    }
+  }
+  const nichts9 = () => {}
+  const gross = (zustand, sprache = 'de', mehr = {}) =>
+    rendern9(h(PG.GrossAnsicht, { daten: d9, projektId: 'p1', hervor: null, raumId: null, onZu: nichts9, onSeite: nichts9, start: zustand, ...mehr }), sprache)
+
+  // Unter dem Plan (Ansehen der Seite): der Knopf, noch keine Ebene.
+  const ansehen = (sprache) => rendern9(h(GS.Ansehen, { daten: d9, raumId: null, kisteId: null, begehen: false, onBegehen: nichts9, onGespeichert: nichts9 }), sprache, IS)
+  const aDe = ansehen('de')
+  const knopf = aDe.match(/<button[^>]*data-gross-knopf=""[^>]*>[\s\S]*?<\/button>/)?.[0] ?? ''
+  wahr('Ansehen: Knopf "Groß ansehen" mit Symbol', knopf.includes('Groß ansehen') && knopf.includes('lucide-maximize') && knopf.includes('min-h-12'))
+  wahr('Ansehen: Knopf vor dem Plan, Plan wie bisher, keine Ebene', aDe.indexOf('data-gross-knopf') < aDe.indexOf('data-tour="grundriss-plan"') && aDe.includes('aspect-ratio') && !aDe.includes('data-plan-gross'))
+  wahr('Ansehen: ohne Tipp keine Karte', !aDe.includes('data-moebel-karte') && !aDe.includes('data-plan-kiste'))
+  wahr('Ansehen ar: Knopf auf Arabisch', ansehen('ar').includes('عرض بحجم الشاشة'))
+
+  // Die Ebene.
+  const gDe = gross(start)
+  wahr('Gross: Ebene ueber allem, ganze Hoehe, Dialog', /role="dialog" aria-modal="true" aria-label="Erfundene Wohnung" dir="ltr" data-plan-gross="ansehen"/.test(gDe) && gDe.includes('fixed inset-0 z-50') && gDe.includes('h-dvh') && gDe.includes('safe-top'))
+  wahr('Gross: Schliessen 44 px mit Namen fuer Vorleser', /<button type="button" aria-label="Große Ansicht schließen"[^>]*class="[^"]*h-11 w-11/.test(gDe))
+  const schalter = gDe.match(/<div role="group" aria-label="Antippen zum Ansehen oder Messen"[\s\S]*?<\/div>/)?.[0] ?? ''
+  wahr('Gross: Schalter Ansehen | Messen, Ansehen gedrueckt', /aria-pressed="true" data-modus="ansehen"[^>]*>[\s\S]*?Ansehen<\/button>/.test(schalter) && /aria-pressed="false" data-modus="messen"[^>]*>[\s\S]*?Messen<\/button>/.test(schalter) && (schalter.match(/min-h-11/g) ?? []).length === 2)
+  wahr('Gross: Hinweis zum Antippen, keine Leiste beim Messen', gDe.includes('Tippe auf ein Möbel, eine Kiste, eine Tür oder einen Raum.') && !gDe.includes('data-mess-leiste'))
+  wahr('Gross: Plan fuellt den Platz (kein Seitenverhaeltnis), links nach rechts, mit Zoom', /<div dir="ltr" class="relative w-full overflow-hidden h-full"/.test(gDe) && !gDe.includes('aspect-ratio') && gDe.includes('touch-action:none'))
+  wahr('Gross: ohne Tipp kein Blatt', !gDe.includes('data-moebel-karte') && !gDe.includes('data-plan-blatt'))
+  const gAr = gross(start, 'ar')
+  wahr('Gross ar: Ebene rtl, Plan ltr, Woerter ar', gAr.includes('dir="rtl" data-plan-gross="ansehen"') && gAr.includes('<div dir="ltr" class="relative w-full overflow-hidden h-full"') && gAr.includes('إغلاق العرض الكبير') && gAr.includes('>قياس</button>') && gAr.includes('>عرض</button>'))
+
+  // Ein Tipp aufs Bett: das Blatt mit der Moebelkarte.
+  const bett = gross(angetippt)
+  wahr('Gross: Bett zeigt die Moebelkarte als Blatt', bett.includes('data-moebel-karte="blatt"') && /data-moebel-name=""[^>]*>Bett</.test(bett))
+  wahr('Gross: Blatt in der Spalte unter dem Plan, hoechstens halb so hoch', bett.includes('max-h-[50%]') && !/data-moebel-karte="blatt"[^>]*class="[^"]*absolute/.test(bett) && bett.indexOf('data-moebel-karte') > bett.indexOf('<svg'))
+  wahr('Gross: Karte mit Massen, Preis, Link, Zimmer, Nummer', bett.includes('140 x 200 x 45 cm') && bett.includes('250,00 €') && bett.includes('>moebel.example<') && bett.includes('>Kinderzimmer<') && bett.includes('>M-1-009<'))
+  wahr('Gross: Knopf Schliessen statt Zurueck, Moebelseite da, keine Begehung', bett.includes('>Schließen</button>') && bett.includes('data-moebel-seite=""') && bett.includes('Möbelseite öffnen') && !bett.includes(W.WOERTER['schnell.zur_begehung'].de))
+  wahr('Gross: das Bett bleibt markiert', bett.includes('plan-auswahl-ebene'))
+  const bettAr = gross(angetippt, 'ar')
+  wahr('Gross ar: Blatt rtl, Masse ltr', /data-moebel-karte="blatt"/.test(bettAr) && /role="dialog" aria-labelledby="[^"]+" dir="rtl" data-moebel-karte="blatt"/.test(bettAr) && bettAr.includes('<span dir="ltr" data-moebel-masse="" class="t-serial">140 x 200 x 45 cm</span>') && bettAr.includes('إغلاق'))
+  const fremd = rendern9(h(PG.GrossAnsicht, { daten: d9, projektId: 'anderer', hervor: null, raumId: null, onZu: nichts9, onSeite: nichts9, start: angetippt }), 'de')
+  wahr('Gross: Plan eines anderen Umzugs ohne Weg zur Moebelseite', fremd.includes('data-moebel-karte="blatt"') && !fremd.includes('data-moebel-seite'))
+  const regal = gross({ ...start, tipp: { art: 'objekt', id: 'regal' } })
+  wahr('Gross: Regal mit Moebelkarte und Faechern, eine Kiste darin', regal.includes('data-moebel-karte="blatt"') && regal.includes('data-moebel-kisten="1"') && regal.includes('50 bis 98 cm'))
+  const raumBlatt = gross({ ...start, tipp: { art: 'raum', id: 'di' } })
+  wahr('Gross: Raum zeigt Name, Nutzflaeche (flaecheQm), Hoehe', raumBlatt.includes('data-plan-blatt="raum"') && raumBlatt.includes('>Diele</h2>') && raumBlatt.includes(`data-plan-flaeche="${HI.flaecheQm(d9.raeume[1].punkte)}"`) && raumBlatt.includes('Nutzfläche') && raumBlatt.includes('2,50 m'))
+  const tuerBlatt = gross({ ...start, tipp: { art: 'oeffnung', id: 'td' } })
+  wahr('Gross: Tuer zeigt Lichte und die Abstaende bis zur Ecke', tuerBlatt.includes('data-plan-blatt="oeffnung"') && tuerBlatt.includes('>Tür Kinderzimmer</h2>') && tuerBlatt.includes('data-schnell-mass="innen-lichte"') && tuerBlatt.includes('data-schnell-mass="gegen-rechts"') && tuerBlatt.includes('>64 cm</span>'))
+  const zeilen9 = (html) => [...html.matchAll(/<dt class="[^"]*">([^<]*)<\/dt><dd[^>]*><span data-schnell-mass="([a-z-]+)"><span[^>]*>([^<]*)<\/span>/g)].map((x) => `${x[2]}=${x[1]} ${x[3]}`)
+  const tuer88 = gross({ ...start, tipp: { art: 'oeffnung', id: 'td' } }, 'de', { daten: d9t })
+  wahr('Tuer DL 80 im Blatt: frei fuer Moebel 80, Maueroeffnung 88, kein "Lichte"', gleich(zeilen9(tuer88), ['innen-durchgang=Frei für Möbel 80 cm', 'innen-lichte=Maueröffnung 88 cm', 'innen-links=links bis zur Ecke 44 cm', 'innen-rechts=rechts bis zur Ecke 156 cm', 'gegen-links=links bis zur Ecke 56 cm', 'gegen-rechts=rechts bis zur Ecke 44 cm']) && !/>Lichte</.test(tuer88), JSON.stringify(zeilen9(tuer88)))
+  const tuer88Ar = gross({ ...start, tipp: { art: 'oeffnung', id: 'td' } }, 'ar', { daten: d9t })
+  wahr('Tuer DL 80 im Blatt ar: العرض الحر للأثاث 80, فتحة الجدار 88, Zahlen ltr', gleich(zeilen9(tuer88Ar).slice(0, 2), ['innen-durchgang=العرض الحر للأثاث 80 cm', 'innen-lichte=فتحة الجدار 88 cm']) && tuer88Ar.includes('<span dir="ltr" class="t-serial whitespace-nowrap">80 cm</span>'), JSON.stringify(zeilen9(tuer88Ar)))
+  const fensterBlatt = gross({ ...start, tipp: { art: 'oeffnung', id: 'fk' } })
+  wahr('Fenster im Blatt: weiter Lichte, ohne frei fuer Moebel', zeilen9(fensterBlatt)[0] === 'innen-lichte=Lichte 120 cm' && !fensterBlatt.includes('data-schnell-mass="innen-durchgang"'))
+  wahr('Blatt: Satz, von wo aus links und rechts gelten (de und ar)', tuerBlatt.includes('data-schnell-blick=""') && tuerBlatt.includes('Links und rechts gelten im jeweiligen Raum, mit Blick zur Wand.') && tuer88Ar.includes('اليسار واليمين من داخل كل غرفة مع النظر إلى الجدار.'))
+  wahr('Gross: beim Ansehen einer Tuer stehen ihre Schnellmasse im Plan (5 Linien), keine Messmarken', tuerBlatt.includes('data-schnell-zeichnung="td"') && (tuerBlatt.match(/data-schnell-linie=/g) ?? []).length === 5 && !tuerBlatt.includes('data-mess-marken'))
+  wahr('Gross: beim Ansehen eines Moebels keine Schnellmasse im Plan', !bett.includes('data-schnell-zeichnung'))
+  const kisteBlatt = gross({ ...start, tipp: { art: 'kiste', id: 'k9' } })
+  wahr('Gross: Kiste zeigt ihre Karte im Blatt', kisteBlatt.includes('data-plan-blatt="kiste"') && kisteBlatt.includes('data-plan-kiste="k9"') && kisteBlatt.includes('href="/app/p/p1/kisten/k9"'))
+  wahr('Gross: Blaetter mit Knopf Schliessen (44 px)', [raumBlatt, tuerBlatt, kisteBlatt].every((x) => /<button id="[^"]+" class="[^"]*min-h-12[^"]*">[\s\S]*?Schließen<\/button>/.test(x)))
+  wahr('Gross: Titel im Blatt bricht um statt abgeschnitten zu werden', [raumBlatt, tuerBlatt, kisteBlatt].every((x) => /<h2 id="[^"]+" dir="auto" class="t-name min-w-0 flex-1 break-words">/.test(x) && !/<h2[^>]*truncate/.test(x)))
+  wahr('Gross: Raumhoehe wie die Flaeche (de ltr)', /<span data-plan-hoehe="250" class="t-serial" style="direction:ltr">2,50 m<\/span>/.test(raumBlatt))
+  const raumBlattAr = gross({ ...start, tipp: { art: 'raum', id: 'di' } }, 'ar')
+  wahr('Gross ar: Raumhoehe rtl wie die Flaeche ("م" links der Zahl)', /<span data-plan-hoehe="250" class="t-serial" style="direction:rtl">2\.50 م<\/span>/.test(raumBlattAr) && /data-plan-flaeche="[^"]+" class="t-serial" style="direction:rtl"/.test(raumBlattAr))
+
+  // Quer mit wenig Hoehe: das Blatt neben dem Plan (wie ab md).
+  const QUER = '[@media(orientation:landscape)_and_(max-height:30rem)]'
+  wahr('Quer: Blatt als Leiste neben dem Plan, volle Hoehe, hoechstens halb so breit', ['max-h-none', 'w-72', 'max-w-[50%]', 'rounded-none', 'border-y-0', 'border-e-0'].every((k) => MI.BLATT_KLASSEN.split(' ').includes(`${QUER}:${k}`)))
+  wahr('Quer: Spalte der grossen Ansicht nebeneinander', gDe.includes(`flex min-h-0 flex-1 flex-col md:flex-row ${QUER}:flex-row`))
+  wahr('Quer: Moebelkarte als Blatt mit schmaler Fussleiste bei wenig Hoehe', /data-moebel-seite=""/.test(bett) && /<div class="[^"]*\[@media\(max-height:30rem\)\]:pt-2[^"]*\[@media\(max-height:30rem\)\]:pb-\[calc\(env\(safe-area-inset-bottom,0px\)\+0\.5rem\)\][^"]*"><button[^>]*data-moebel-seite/.test(bett))
+  const raumMarkiert = gross(start, 'de', { raumId: 'di' })
+  wahr('Gross: Raum aus der Adresse markiert, solange nichts angetippt ist', raumMarkiert.includes('plan-auswahl-ebene') && !gDe.includes('plan-auswahl-ebene'))
+
+  // Unter dem Plan: dieselben Karten im Fluss.
+  const block = (tipp, sprache = 'de') => rendern9(h(PD.TippDetails, { daten: d9, tipp, projektId: 'p1', hervor: null, form: 'block', onZu: nichts9, onSeite: nichts9 }), sprache)
+  const bettBlock = block({ art: 'objekt', id: 'bett' })
+  wahr('Ansehen: Bett zeigt die Moebelkarte unter dem Plan (im Fluss)', bettBlock.includes('data-moebel-karte="block"') && !bettBlock.includes('absolute') && bettBlock.includes('>Schließen</button>') && bettBlock.includes('Möbelseite öffnen'))
+  wahr('Ansehen: Kiste wie bisher', block({ art: 'kiste', id: 'k9' }).includes('data-plan-kiste="k9"') && block({ art: 'kiste', id: 'k9' }).includes('Zur Kiste'))
+  wahr('Ansehen: nichts angetippt, nichts da', block(null) === '')
+  const tuerBlock = block({ art: 'oeffnung', id: 'td' })
+  wahr('Ansehen: Tuer unter dem Plan mit Titel, Lichte und X zum Schliessen', tuerBlock.includes('data-plan-blatt="oeffnung"') && tuerBlock.includes('>Tür Kinderzimmer</h2>') && tuerBlock.includes('aria-label="Schließen"') && tuerBlock.includes('data-schnell-mass="innen-lichte"') && !tuerBlock.includes('max-h-[50%]'))
+  wahr('Ansehen ar: Moebelkarte rtl', block({ art: 'objekt', id: 'bett' }, 'ar').includes('dir="rtl" data-moebel-karte="block"'))
+
+  // Messen: Leiste und Zeichnung.
+  const mA = { ...start, modus: 'messen', messung: m1 }
+  const mDe = gross(mA)
+  const leiste = mDe.match(/<div data-mess-leiste=""[\s\S]*?<\/header>/)?.[0] ?? ''
+  wahr('Messen: Schalter auf Messen, Leiste mit A', mDe.includes('data-plan-gross="messen"') && /aria-pressed="true" data-modus="messen"/.test(mDe) && leiste.includes('Tür Kinderzimmer, links') && leiste.includes('Jetzt den zweiten Punkt tippen.') && !leiste.includes('data-mess-zahl'))
+  const schnell = [...leiste.matchAll(/data-schnell-mass="([a-z-]+)"[^>]*>([\s\S]*?)<\/span><\/span>/g)].map((x) => `${x[1]}=${x[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()}`)
+  wahr('Messen: Schnellmasse in der Leiste (Tuer: frei fuer Moebel und Maueroeffnung)', gleich(schnell, ['innen-durchgang=Frei für Möbel 72 cm', 'innen-lichte=Maueröffnung 80 cm', 'innen-links=links 44 cm', 'innen-rechts=rechts 164 cm', 'gegen-links=links 64 cm', 'gegen-rechts=rechts 44 cm']), JSON.stringify(schnell))
+  wahr('Messen: in der Leiste kein Wort "Lichte" bei einer Tuer', !/>Lichte</.test(leiste))
+  wahr('Messen: Neu da (44 px), Name fuer Vorleser', /<button aria-label="Neue Messung" title="Neue Messung" data-mess-neu="" class="[^"]*min-h-11/.test(leiste) && leiste.includes('Neu</button>'))
+  const marken = Number(mDe.match(/data-mess-marken="(\d+)"/)?.[1] ?? -1)
+  wahr('Messen: alle Messpunkte als Marken im Plan', marken === MP.messpunkte(d9).length && marken === 14)
+  wahr('Messen: Schnellmasse auch im Plan (5 Linien), A markiert', (mDe.match(/data-schnell-linie=/g) ?? []).length === 5 && mDe.includes('data-mess-punkt="A"') && !mDe.includes('data-mess-punkt="B"'))
+  wahr('Messen: keine Karte, kein Blatt', !mDe.includes('data-moebel-karte') && !mDe.includes('data-plan-blatt'))
+  const mAB = gross({ ...start, modus: 'messen', messung: m2 })
+  wahr('Messen: A und B, Abstand gross in der Leiste und im Plan', mAB.includes(`data-mess-zahl="${Math.round(Math.hypot(388, 44))}"`) && mAB.includes('>Abstand</span>') && mAB.includes('data-mess-b=""') && mAB.includes('>Ecke</span>') && mAB.includes('data-mess-punkt="B"') && (mAB.match(/data-schnell-linie=/g) ?? []).length === 0)
+  wahr('Messen: Zahl in der Leiste links nach rechts', /<span dir="ltr" data-mess-zahl="390" class="t-serial[^"]*">390 cm<\/span>/.test(mAB))
+  const mLichte = gross({ ...start, modus: 'messen', messung: lichte })
+  wahr('Messen: bei einer Tuer Maueroeffnung statt Abstand, dazu frei fuer Moebel', mLichte.includes('data-mess-zahl="80"') && /<span class="text-sm font-bold text-muted">Maueröffnung<\/span>/.test(mLichte) && /data-mess-durchgang="72"[\s\S]*?Frei für Möbel[\s\S]*?72 cm/.test(mLichte) && !/>Lichte</.test(mLichte))
+  const mFenster = gross({ ...start, modus: 'messen', messung: fensterLichte })
+  wahr('Messen: beim Fenster bleibt es die Lichte, ohne frei fuer Moebel', /<span class="text-sm font-bold text-muted">Lichte<\/span>/.test(mFenster) && !mFenster.includes('data-mess-durchgang'))
+  const m88 = gross({ ...start, modus: 'messen', messung: lichte88 }, 'de', { daten: d9t })
+  wahr('Messen: Tuer DL 80 zeigt Maueroeffnung 88 und frei 80', m88.includes('data-mess-zahl="88"') && m88.includes('data-mess-durchgang="80"'))
+  const mLeer = gross({ ...start, modus: 'messen' })
+  wahr('Messen: ohne A der Satz zum Anfangen, kein Neu', mLeer.includes('Tippe auf den ersten Punkt.') && !mLeer.includes('data-mess-neu') && mLeer.includes('data-mess-marken="14"'))
+  const mAr = gross({ ...start, modus: 'messen', messung: lichte }, 'ar')
+  wahr('Messen ar: Leiste arabisch, Zahl ltr', mAr.includes('فتحة الجدار') && mAr.includes('العرض الحر للأثاث') && mAr.includes('باب Kinderzimmer، يسار') && mAr.includes('<span dir="ltr" data-mess-zahl="80"') && mAr.includes('جديد'))
+
+  // PlanBild: fuellen nur in der grossen Ansicht, sonst wie bisher.
+  const pb = (mehr) => rendern9(h(PB.PlanBild, { daten: d9, ...mehr }), 'de')
+  wahr('PlanBild: ohne fuellen Seitenverhaeltnis, Rahmen, maxHoehe wie bisher', /aspect-ratio:[^;"]+;max-height:68vh/.test(pb({ maxHoehe: '68vh' })) && pb({}).includes('rounded-2xl border border-line'))
+  wahr('PlanBild: fuellen ohne Seitenverhaeltnis und Rahmen', !pb({ fuellen: true }).includes('aspect-ratio') && !pb({ fuellen: true }).includes('rounded-2xl'))
+  const planBild = lesen('src/components/plan/PlanBild.tsx')
+  wahr('PlanBild: onTipp bekommt den Massstab', planBild.includes('onTipp(p, trefferAn(daten, p, px(massstab, 10), ebenen?.kisten !== false), massstab)'))
+  wahr('PlanBild: kein Klick nach dem Tipp mit dem Finger, nur in der grossen Ansicht (sonst behielte ein Eingabefeld den Fokus)', planBild.includes('onTouchEnd={fuellen && mitGesten ? (e) => e.cancelable && e.preventDefault() : undefined}'))
+
+  // Adresse: ansicht=gross mit neuem Eintrag im Verlauf, Zurueck schliesst.
+  const gr9 = lesen('src/pages/Grundriss.tsx')
+  wahr('Grundriss: ansicht=gross aus der Adresse', gr9.includes("const gross = params.get('ansicht') === 'gross'"))
+  wahr('Grundriss: Oeffnen schiebt einen Eintrag mit state in den Verlauf (raum, kiste bleiben)', /const q = new URLSearchParams\(params\)\s*q\.set\('ansicht', 'gross'\)\s*setParams\(q, \{ state: GROSS_SELBST \}\)\s*\}/.test(gr9))
+  wahr('Grundriss: X geht einen Schritt zurueck, wenn der Eintrag es sagt, sonst nimmt es ansicht heraus', /if \(zuUnterwegs\.current\) return\s*if \(grossSelbstGeoeffnet\(ort\.state\)\) \{\s*zuUnterwegs\.current = true\s*nav\(-1\)\s*return\s*\}\s*const q = new URLSearchParams\(params\)\s*q\.delete\('ansicht'\)\s*setParams\(q, \{ replace: true \}\)/.test(gr9))
+  wahr('Grundriss: ein zweites X vor dem Ankommen geht nicht weiter zurueck (bis zur naechsten Adresse)', /useEffect\(\(\) => \{\s*zuUnterwegs\.current = false\s*\}, \[ort\.key\]\)/.test(gr9))
+  wahr('Grundriss: kein Merker in der Seite mehr (er war nach Zurueck und Neuladen weg)', !gr9.includes('selbstGeoeffnet'))
+  wahr('Gross: state des Eintrags erkannt, Direktlink und fremder state nicht', HM.grossSelbstGeoeffnet(HM.GROSS_SELBST) && !HM.grossSelbstGeoeffnet(null) && !HM.grossSelbstGeoeffnet(undefined) && !HM.grossSelbstGeoeffnet({}) && !HM.grossSelbstGeoeffnet({ grossSelbst: 'ja' }) && !HM.grossSelbstGeoeffnet('gross'))
+  {
+    // Der Fehlerfall aus der Pruefung mit dem echten Router: Gross ansehen,
+    // Moebelseite, Zurueck. Der state bleibt am Eintrag, das X geht zurueck.
+    const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: ['/app/p/p1', '/app/p/p1/grundriss/g9'], initialIndex: 1 })
+    await router.navigate('/app/p/p1/grundriss/g9?ansicht=gross', { state: HM.GROSS_SELBST })
+    await router.navigate('/app/p/p1/moebel/i-bett')
+    await router.navigate(-1)
+    const zurueck = router.state.location
+    wahr('Verlauf: nach Zurueck von der Moebelseite weiss der Eintrag, dass er selbst geoeffnet ist', zurueck.search === '?ansicht=gross' && HM.grossSelbstGeoeffnet(zurueck.state))
+    await router.navigate(-1)
+    wahr('Verlauf: das X (ein Schritt zurueck) landet auf dem Grundriss ohne ansicht', router.state.location.pathname === '/app/p/p1/grundriss/g9' && router.state.location.search === '')
+    await router.navigate(-1)
+    wahr('Verlauf: das naechste Zurueck verlaesst die Seite (kein doppelter Eintrag)', router.state.location.pathname === '/app/p/p1')
+    router.dispose()
+    const direkt = createMemoryRouter([{ path: '*', element: null }], { initialEntries: ['/app/p/p1/grundriss/g9?ansicht=gross'] })
+    wahr('Verlauf: Direktlink ohne state, das X nimmt nur ansicht heraus', !HM.grossSelbstGeoeffnet(direkt.state.location.state))
+    direkt.dispose()
+  }
+  wahr('Grundriss: Ebene nur mit Raeumen, mit Umzug und Weg zur Moebelseite', gr9.includes('{gross && daten.raeume.length > 0 ? (') && gr9.includes('<PlanGross daten={daten} projektId={project.id} hervor={kisteId} raumId={raumId} onZu={grossZu} onSeite={(pfad) => nav(pfad)} />'))
+  const pg = lesen('src/components/plan/PlanGross.tsx')
+  wahr('PlanGross: Portal an body, Seite rollt nicht, Escape erst Blatt dann Ebene', pg.includes('createPortal(<GrossAnsicht {...props} />, document.body)') && pg.includes("document.body.style.overflow = 'hidden'") && /if \(tippRef\.current\) setZ\(\(v\) => \(\{ \.\.\.v, tipp: null \}\)\)\s*else zuRef\.current\(\)/.test(pg))
+  wahr('PlanGross: beim Oeffnen Fokus auf dem X in der Ebene', pg.includes('zuKnopf.current?.focus({ preventScroll: true })') && pg.includes('ref={zuKnopf}'))
+  wahr('PlanGross: Seite darunter inert, solange offen, danach wieder frei', pg.includes("root?.setAttribute('inert', '')") && pg.includes("root?.removeAttribute('inert')") && pg.includes("document.getElementById('root')"))
+  wahr('PlanGross: Fokus beim Schliessen zurueck, gemerkt vor dem X (Layout-Effekt)', /useLayoutEffect\(\(\) => \{\s*const fokus = document\.activeElement instanceof HTMLElement \? document\.activeElement : null/.test(pg) && pg.includes('if (fokus?.isConnected) fokus.focus({ preventScroll: true })'))
+  wahr('Grundriss: unter dem Plan stehen die Schnellmasse einer angetippten Tuer im Plan', gr9.includes("const oeffnungId = tipp?.art === 'oeffnung' ? tipp.id : null") && gr9.includes('zusatz={oeffnungId ? (s) => <SchnellZeichnung daten={daten} oeffnungId={oeffnungId} s={s} /> : undefined}'))
+  wahr('PlanGross: jedes Oeffnen beginnt mit GROSS_START (nur offen gerendert)', pg.includes('start = GROSS_START') && pg.includes('useState<GrossZustand>(start)'))
+
+  // Das Handy laedt keinen Zeichner-Code: nur reine Rechnung aus src/zeichner.
+  const importe = (datei) => [...lesen(datei).matchAll(/^import (?!type )[\s\S]*?from '([^']+)'/gm)].map((x) => x[1])
+  for (const datei of ['src/pages/Grundriss.tsx', 'src/components/plan/PlanGross.tsx', 'src/components/plan/PlanDetails.tsx', 'src/components/plan/handyMessen.ts', 'src/components/plan3d/MoebelKarte.tsx', 'src/components/plan/PlanBild.tsx']) {
+    const aus = importe(datei).filter((x) => x.includes('zeichner'))
+    wahr(`${datei}: aus dem Zeichner nur messpunkte und typen`, aus.every((x) => /zeichner\/(messpunkte|werkzeuge\/typen)(\.ts)?$/.test(x)), JSON.stringify(aus))
+  }
+  wahr('Grundriss: der Zeichner nur per lazy import', gr9.includes("const Zeichner = lazy(() => import('../zeichner/Zeichner'))") && !/^import [^\n]*'\.\.\/zeichner\//m.test(gr9))
+  for (const datei of ['src/zeichner/messpunkte.ts', 'src/zeichner/werkzeuge/typen.ts']) {
+    const txt = lesen(datei)
+    const werte = [...txt.matchAll(/^import (?!type )[\s\S]*?from '([^']+)'/gm)].map((x) => x[1])
+    wahr(`${datei}: reine Rechnung (kein React, nichts aus dem Zeichner ausser Typen)`, !txt.includes("from 'react'") && werte.every((x) => /lib\/geometrie|components\/plan\/hilfe/.test(x)), JSON.stringify(werte))
+  }
+
+  // Woerter der neuen Teile: de und ar mit denselben Platzhaltern, alle laden immer.
+  const platz9 = (x) => [...x.matchAll(/\{(\w+)\}/g)].map((y) => y[1]).sort().join(',')
+  for (const datei of ['src/components/plan/PlanGross.tsx', 'src/components/plan/PlanDetails.tsx', 'src/components/plan/handyMessen.ts', 'src/zeichner/messpunkte.ts', 'src/pages/Grundriss.tsx']) {
+    for (const m of lesen(datei).matchAll(/\bt\(\s*'([a-z_]+\.[a-z0-9_.]+)'/g)) {
+      const e = W.WOERTER[m[1]]
+      wahr(`${m[1]} (${datei}) laedt immer, de und ar`, !!e?.de && !!e?.ar && platz9(e.de) === platz9(e.ar))
+    }
+  }
+  const LANG9 = String.fromCharCode(0x2014)
+  for (const datei of ['src/components/plan/PlanGross.tsx', 'src/components/plan/PlanDetails.tsx', 'src/components/plan/handyMessen.ts', 'src/components/plan/PlanBild.tsx', 'src/zeichner/messpunkte.ts', 'src/lib/i18n/bausteine/grundriss.ts']) {
+    const txt = lesen(datei)
+    wahr(`${datei}: kein U+2014, keine Mail-Adresse, keine Koordinaten`, !txt.includes(LANG9) && !/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(txt) && !/\b(4[6-9]|5[0-5])\.\d{4,}\b/.test(txt))
+  }
 }
 
 if (fehler) {

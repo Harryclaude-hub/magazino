@@ -5,7 +5,7 @@ import { rasterLinien, type Ansicht } from '../components/plan/ansicht'
 import type { Punkt } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
 import type { Auswahl, Dok } from './dok'
-import type { Messpunkt, MesspunktEnde } from './messpunkte'
+import { messpunktName, type Messpunkt } from './messpunkte'
 import { textLage, type Vorschau } from './werkzeuge/typen'
 
 /* Die Zeichenflaeche: Raster, der Plan (dieselben Ebenen wie PlanBild),
@@ -231,21 +231,8 @@ export function Leinwand({
   )
 }
 
-/** Name eines Messpunkts fuer die Anzeige: "Tuer Bad, links", "Ecke".
- *  Stossen zwei Oeffnungen aneinander, stehen beide Enden da:
- *  "Tuer Bad, rechts / Fenster Bad, links". */
-function messpunktName(t: (key: string, vars?: Record<string, string | number>) => string, m: Messpunkt): string {
-  if (m.art === 'ecke') return t('zeichner.messen.ecke')
-  return [m, ...(m.auch ?? [])].map((e) => endeName(t, e)).join(' / ')
-}
-
-function endeName(t: (key: string, vars?: Record<string, string | number>) => string, m: MesspunktEnde): string {
-  const was =
-    m.art === 'tuer' ? t('zeichner.werkzeug.tuer') : m.art === 'fenster' ? t('zeichner.werkzeug.fenster') : t('plan.durchgang')
-  const ende = m.ende === 'rechts' ? t('zeichner.messen.rechts') : t('zeichner.messen.links')
-  const name = m.raum ? t('zeichner.messen.punkt', { was, raum: m.raum, ende }) : t('zeichner.messen.punkt_ohne_raum', { was, ende })
-  return m.gegenueber ? t('zeichner.messen.gegenueber', { name }) : name
-}
+/* Der Name eines Messpunkts ("Tuer Bad, links", "Ecke") steht seit E94 in
+ * messpunkte.ts (messpunktName), damit das Handy dieselben Namen zeigt. */
 
 function messFarbe(m: Messpunkt): string {
   return m.art === 'ecke' ? 'var(--plan-wand)' : m.art === 'fenster' ? 'var(--plan-fenster)' : 'var(--plan-tuer)'
@@ -413,7 +400,7 @@ function VorschauEbene({ v, s }: { v: Vorschau; s: number }) {
             strokeWidth={3.5 / s}
             fontWeight={800}
           >
-            {x.lichte ? `${t('zeichner.messen.lichte')} ${x.text}` : x.text}
+            {x.lichte ? `${t('plan.messen.lichte')} ${x.text}` : x.text}
           </text>
         )
       })}

@@ -23,6 +23,7 @@ import {
   spaltenBereich,
   streckenAbstand,
   symbolAnWand,
+  zargeCm,
 } from '../plan/hilfe.ts'
 import type { GrundrissDaten, Objekt, PlanKiste, Raum } from '../../lib/types'
 import { dekoEbene, moebelArt, type MoebelArt } from '../plan/moebelArt.ts'
@@ -287,7 +288,6 @@ export const SCHEIBE_DECKKRAFT = 0.35
 export const GEDAEMPFT = 0.38
 
 const KOPF_CM = 2
-const ZARGE_CM = 4
 const BLATT_CM = 4
 const RAHMEN_CM = 4
 const BRETT_CM = 2
@@ -584,8 +584,9 @@ function oeffnungen(daten: GrundrissDaten, raeume: Raum[], f: Farben3D, raumId: 
       // Sturz ueber der Tuer, in der Wandfarbe.
       dazu(streifen('sturz', a, b, th, H - KOPF_CM, WAND_CM, wf, { kante: f.wandKante, innen }))
       dazu(streifen('wandkopf', a, b, H - KOPF_CM, H, WAND_CM, f.wandKopf, { innen }))
-      // Zarge: zwei Pfosten und oben ein Streifen, orange.
-      const z = Math.min(ZARGE_CM, l / 4)
+      // Zarge: zwei Pfosten und oben ein Streifen, orange. Wie breit, steht
+      // an einer Stelle (hilfe.ts, zargeCm): 2D nennt damit den Durchgang.
+      const z = zargeCm(l)
       dazu(streifen('zarge', bei(0), bei(z), 0, th, WAND_CM + 2, f.zarge3d, { kante: f.wandKante, innen }))
       dazu(streifen('zarge', bei(l - z), bei(l), 0, th, WAND_CM + 2, f.zarge3d, { kante: f.wandKante, innen }))
       dazu(streifen('zarge', a, b, Math.max(0, th - z), th, WAND_CM + 2, f.zarge3d, { kante: f.wandKante, innen }))

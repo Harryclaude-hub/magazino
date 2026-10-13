@@ -130,14 +130,8 @@ export const zeichnerWoerter: Woerterbuch = {
     de: 'Zwei Punkte klicken, der Abstand steht daneben. Die Punkte rasten an Ecken, Türen und Fenstern ein, immer an der Innenseite der Wand: die Wanddicke zählt nicht mit. Über einer Tür stehen ihre Maße. Nur zum Nachsehen, nichts wird gespeichert.',
     ar: 'انقر نقطتين وتظهر المسافة بجانبهما. تلتصق النقاط بالزوايا والأبواب والنوافذ، دائمًا عند الوجه الداخلي للجدار: سُمك الجدار لا يُحسب. وفوق الباب تظهر مقاساته. للاطلاع فقط، لا يُحفظ شيء.',
   },
-  // Messpunkte beim Messen (E90): "Tür Bad, links", "Lichte 80".
-  'zeichner.messen.ecke': { de: 'Ecke', ar: 'زاوية' },
-  'zeichner.messen.links': { de: 'links', ar: 'يسار' },
-  'zeichner.messen.rechts': { de: 'rechts', ar: 'يمين' },
-  'zeichner.messen.punkt': { de: '{was} {raum}, {ende}', ar: '{was} {raum}، {ende}' },
-  'zeichner.messen.punkt_ohne_raum': { de: '{was}, {ende}', ar: '{was}، {ende}' },
-  'zeichner.messen.gegenueber': { de: '{name}, andere Wandseite', ar: '{name}، الجهة الأخرى من الجدار' },
-  'zeichner.messen.lichte': { de: 'Lichte', ar: 'العرض الصافي' },
+  // Die Namen der Messpunkte (E90, "Tür Bad, links", "Lichte 80") stehen
+  // seit E94 als plan.messen.* in grundriss.ts: das Handy misst auch.
   'zeichner.zurueck': { de: 'Rückgängig', ar: 'تراجع' },
   'zeichner.vor': { de: 'Wiederholen', ar: 'إعادة' },
   'zeichner.zurueck_taste': { de: 'Rückgängig (Strg+Z)', ar: 'تراجع (Ctrl+Z)' },

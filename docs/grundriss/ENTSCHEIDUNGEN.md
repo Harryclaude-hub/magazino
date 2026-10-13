@@ -855,4 +855,105 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Zur Tuer: Ihre Enden bleiben dort, wo die Mauer endet; die Lichte
   zwischen ihnen ist darum die Maueroeffnung, also die Durchgangslichte
   plus 8 cm Zarge (E88). Fuer Moebel zaehlt die Durchgangslichte.
+- **E94 Grundriss am Handy gross, antippen und messen:** Karam: "Ich will,
+  dass man den Grundriss in 2D auch voll sehen kann ... bestimmte Sachen
+  anklicken kann und auch messen koennen, diese Messpunkte." Am Handy (und
+  fuer Betrachter ohne Zeichenrecht am Computer) steht direkt ueber dem
+  Plan der Knopf "Gross ansehen". Er oeffnet den Plan ueber den ganzen
+  Bildschirm (eine Ebene ueber allem, volle Hoehe, mit den Raendern des
+  Geraets, die Seite darunter rollt nicht), hochkant wie quer. Oben eine
+  Leiste mit X, dem Namen des Plans und dem Schalter "Ansehen | Messen",
+  darunter fuellt der Plan den Rest; Zwei-Finger-Zoom, Verschieben mit
+  einem Finger und "Ganz zeigen" wie bisher. Gezeigt wird immer die ganze
+  Wohnung, ein Raum aus der Adresse ist markiert. Offen steht als
+  &ansicht=gross in der Adresse, mit eigenem Eintrag im Verlauf: Zurueck
+  am Handy schliesst die Ansicht, raum und kiste bleiben; Escape am
+  Computer schliesst erst ein offenes Blatt, dann die Ansicht. Jedes
+  Oeffnen beginnt mit Ansehen, ohne Auswahl und ohne Messung.
+  Ansehen: Ein Tipp auf ein Moebel zeigt die Moebelkarte aus der Begehung
+  (E92: Name, Masse, Hoehe ueber dem Boden, Material, Raum, Preis, Link,
+  Kisten darauf, "Moebelseite oeffnen" nur fuer Eintraege dieses Umzugs),
+  Regal und Schrank dieselbe Karte mit ihren Faechern, eine Kiste ihre
+  kleine Karte wie bisher, eine Tuer oder ein Fenster die Lichte und die
+  Abstaende bis zur Innenecke (auch auf der anderen Wandseite), ein Raum
+  Name, Nutzflaeche und Raumhoehe. In der grossen Ansicht steht das als
+  Blatt unten in derselben Spalte, hoechstens halb so hoch; der Plan
+  rueckt darueber zusammen und zeigt denselben Ausschnitt kleiner, so
+  bleibt das Angetippte zu sehen und markiert (ab md eine Leiste neben dem
+  Plan). Unter dem Plan der normalen Seite stehen dieselben Karten im
+  Fluss, ein Raum wird dort wie bisher gewaehlt.
+  Messen: Alle Messpunkte aus E90/E93 stehen als kleine Marken im Plan,
+  bei jedem Zoom gleich gross. Tipp 1 setzt A, Tipp 2 B, Tipp 3 beginnt
+  neu; "Neu" loescht. Eingerastet wird wie im Zeichner (messFangen, Raster
+  1 cm), aber mit einer Fingerbreite: 24 Bildpunkte, mit dem Massstab in cm
+  umgerechnet (eine knapp 7 m breite Wohnung ganz im Bild: rund 47 cm,
+  hineingezoomt weniger). Linie und Zahl stehen im Plan und gross in der Leiste, dazu die
+  Namen von A und B wie im Zeichner ("Tuer Bad, links", "Ecke", "andere
+  Wandseite", "Lichte"), denn der Finger liegt auf dem Plan. Liegt A auf
+  einem Ende einer Tuer, eines Durchgangs oder eines Fensters und fehlt B,
+  stehen deren Schnellmasse in Plan und Leiste. Im Plan steht eine
+  Schnellmass-Zahl nur, wenn sie auf ihre Linie passt; in der Leiste
+  stehen immer alle. Beim Messen oeffnet ein Tipp nie eine Karte.
+  Technik: Das Handy laedt weiter keinen Zeichner-Code, nur reine Rechnung
+  (messpunkte.ts, cmZahl und textLage aus werkzeuge/typen.ts); nach dem
+  Bauen geprueft: im Teil Grundriss und allem, was er statisch laedt,
+  steht nichts aus Zeichner.tsx oder der Leinwand. Der Name eines
+  Messpunkts steht jetzt an einer Stelle (messpunktName in messpunkte.ts)
+  fuer Zeichner und Handy, seine Woerter als plan.messen.* in grundriss.ts
+  (laden immer). PlanBild kann den Platz fuellen (fuellen) und gibt beim
+  Tipp den Massstab mit. Nach einem Tipp mit dem Finger schickt der Browser
+  noch einen Klick an dieselbe Stelle; oeffnete der Tipp dort ein Blatt,
+  traf der Klick dessen Knopf "Schliessen" und das Blatt ging sofort wieder
+  zu (im Browser gefunden). PlanBild verhindert diesen Klick jetzt am Plan
+  selbst, der Plan braucht ihn nie.
+  Was am Handy nicht geht: zeichnen und aendern (Raeume, Tueren, Moebel,
+  Kisten setzen bleibt am Computer, Platz waehlen fuer eine Kiste wie
+  bisher auf der Kistenseite); Messungen speichern (Messen ist nur
+  Nachsehen, wie im Zeichner); eine Vorschau unter dem Zeiger (kein
+  Zeiger: der Name steht nach dem Tipp in der Leiste); Masse an jeder Wand
+  antippen und eintippen. Ein Doppeltipp passt den Plan in der grossen
+  Ansicht nicht ein, dafuer ist "Ganz zeigen" da. Mit echtem Handy noch
+  nicht geprueft, nur im Browser mit Handy-Emulation.
+  Nacharbeit nach einer gegnerischen Pruefung (9 Funde, zwei davon
+  derselbe, alle bestaetigt und behoben):
+  Verlauf: Ob die Ansicht mit dem Knopf geoeffnet wurde, steht im Eintrag
+  selbst (state grossSelbst), nicht mehr in der Seite. So geht das X auch
+  nach Zurueck von der Moebelseite oder der Kiste und nach Neuladen einen
+  Schritt zurueck; vorher ersetzte es den Eintrag, und Zurueck stand danach
+  zweimal auf derselben Seite. Ein Direktlink mit ansicht=gross hat keinen
+  state, dort nimmt das X weiter nur ansicht aus der Adresse.
+  Klick nach dem Fingertipp: PlanBild verhindert ihn nur noch in der
+  grossen Ansicht (fuellen). Sonst behielt ein Eingabefeld beim Tipp auf
+  den Plan den Fokus und die Tastatur blieb offen (PlatzWahl).
+  Tueren: breite_cm ist die Maueroeffnung (E88), fuer Moebel zaehlt die
+  Durchgangslichte. Blatt und Leiste nennen bei einer Tuer darum zwei
+  Breiten statt "Lichte": "Frei fuer Moebel" (Maueroeffnung weniger 4 cm
+  Zarge an jeder Seite, DL 80 bei 88) und "Maueroeffnung". Misst man die
+  Lichte einer Tuer, heisst die grosse Zahl "Maueroeffnung", daneben steht
+  "Frei fuer Moebel"; auf der anderen Wandseite, wo eine Innenecke des
+  Nachbarraums schon etwas abschneidet, zaehlt an jeder Seite, was mehr
+  wegnimmt, Zarge oder Innenecke. Fenster und Durchgaenge bleiben bei
+  "Lichte". Die Zarge steht an einer Stelle (hilfe.ts, zargeCm, 4 cm,
+  hoechstens ein Viertel der Breite), 3D nimmt dieselbe. Der Zeichner am
+  Computer sagt weiter "Lichte" (E93), dort ist nichts geaendert.
+  Links und rechts: Sie gelten im jeweiligen Raum mit Blick zur Wand. Im
+  eigenen Raum war das schon so (Raeume laufen im Uhrzeigersinn), auf der
+  anderen Wandseite hiess bisher das Ende ueber dem Anfang der Kante
+  "links", fuer jemanden im Nachbarraum liegt es aber rechts. Jetzt sind
+  die Enden drueben aus dem Nachbarraum benannt, in den Messpunkten, den
+  Schnellmassen und damit auch in den Namen im Zeichner. Das Blatt sagt in
+  einem Satz, von wo aus links und rechts gelten, und beim Ansehen einer
+  Tuer oder eines Fensters stehen ihre Schnellmasse auch im Plan (unter
+  dem Plan und gross): man sieht, welches Ende gemeint ist.
+  Quer: Bei wenig Hoehe (Handy quer, unter md) steht das Blatt neben dem
+  Plan wie ab md, hoechstens halb so breit; unter dem Plan blieben fuer
+  Name und Masse nur rund 27 Bildpunkte. Jetzt sind Name, Raum und Art
+  sofort zu sehen, die Masse nach kurzem Rollen, "Moebelseite oeffnen"
+  ganz. Die Fussleiste der Moebelkarte wird bei wenig Hoehe schmaler.
+  Fokus: Solange die Ansicht offen ist, ist die Seite darunter inert (Tab,
+  Umschalt+Tab und Vorleser bleiben in der Ebene); beim Schliessen steht
+  der Fokus wieder auf "Gross ansehen".
+  Kleinigkeiten: Die Raumhoehe steht im Arabischen wie die Flaeche
+  ("م" links der Zahl), der Titel im Blatt bricht um statt abgeschnitten
+  zu werden ("Fenster Kinderzimmer" bei 360 px).
 

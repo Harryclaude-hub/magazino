@@ -281,7 +281,7 @@ function wohnungB() {
   gleich('Messpunkte A: Anzahl (2 Tuer, 2 Fenster, 2 Gegenseite, 8 Ecken)', mp.length, 14)
   gleich('Messpunkte A: Tuer und Fenster zuerst, an der Innenseite', mp.slice(0, 6).map(kurz), [
     'tuer:150,106:links', 'tuer:230,106:rechts', 'fenster:240,294:links', 'fenster:180,294:rechts',
-    'tuer:150,94:links:g', 'tuer:230,94:rechts:g',
+    'tuer:150,94:rechts:g', 'tuer:230,94:links:g',
   ])
   gleich('Messpunkte A: Innenecken 6 cm in jedem Raum', mp.filter((m) => m.art === 'ecke').map(kurz), [
     'ecke:6,6', 'ecke:394,6', 'ecke:394,94', 'ecke:6,94', 'ecke:106,106', 'ecke:294,106', 'ecke:294,294', 'ecke:106,294',
@@ -302,7 +302,7 @@ function wohnungB() {
   const k = mp.map(kurz)
   gleich('Messpunkte B: Anzahl (2 Tuer, 2 Fenster, 2 Gegenseite, 8 Ecken weniger 1)', mp.length, 13)
   wahr('Messpunkte B: Tuerenden an der Innenseite', k.includes('tuer:200,194:links') && k.includes('tuer:110,194:rechts'))
-  wahr('Messpunkte B: Gegenseite an der Innenseite der Kueche', k.includes('tuer:200,230:links:g') && k.includes('tuer:110,230:rechts:g'))
+  wahr('Messpunkte B: Gegenseite an der Innenseite der Kueche', k.includes('tuer:200,230:rechts:g') && k.includes('tuer:110,230:links:g'))
   wahr('Messpunkte B: Fenster bleibt, Innenecke 0,3 cm daneben faellt weg', k.includes('fenster:6.3,6:links') && !k.includes('ecke:6,6'))
   wahr('Messpunkte B: keine zwei Punkte naeher als 0,5 cm', mp.every((a, i) => mp.every((b, j) => i === j || Math.hypot(a.p[0] - b.p[0], a.p[1] - b.p[1]) >= 0.5)))
   wahr('Messpunkte B: kein Punkt in einer gezeichneten Wand', mp.every((m) => !inWand(d, m.p)))
@@ -398,8 +398,8 @@ function wohnungB() {
     'breite 80 150,126-230,126',
     'links 44 106,126-150,126',
     'rechts 64 230,126-294,126',
-    'links:g 144 6,74-150,74',
-    'rechts:g 164 230,74-394,74',
+    'rechts:g 144 6,74-150,74',
+    'links:g 164 230,74-394,74',
   ])
   gleich('Schnellmasse A: Fenster nur innen', schnellMasse(wohnungA(), 'fb', 20).map(kurzM), [
     'breite 60 240,274-180,274',
@@ -410,8 +410,8 @@ function wohnungB() {
     'breite 90 200,174-110,174',
     'links 94 294,174-200,174',
     'rechts 104 110,174-6,174',
-    'links:g 44 244,250-200,250',
-    'rechts:g 54 110,250-56,250',
+    'rechts:g 44 244,250-200,250',
+    'links:g 54 110,250-56,250',
   ])
   gleich('Schnellmasse: Hilfsstrich an der Innenseite', schnellMasse(wohnungA(), 'tb', 20)[0].wandA, [150, 106])
   gleich('Schnellmasse: unbekannte Oeffnung', schnellMasse(wohnungA(), 'gibtsnicht', 20), [])
@@ -431,7 +431,7 @@ function wohnungB() {
   g = dok.raumAnlegen(g, 'o2', [[0, 200], [300, 200], [300, 400], [0, 400]]).dok
   g.oeffnungen = [tuer('tg', 'o1', 2, 100, 90)]
   gleich('Schnellmasse: gleiche Gegenseite fehlt', schnellMasse(g, 'tg', 20).map((m) => `${m.art}${m.gegenueber ? ':g' : ''} ${m.laenge}`), ['breite 90', 'links 94', 'rechts 104'])
-  gleich('Schnellmasse: Gegenseite als Messpunkte trotzdem da', messpunkte(g).filter((m) => m.gegenueber).map(kurz), ['tuer:200,206:links:g', 'tuer:110,206:rechts:g'])
+  gleich('Schnellmasse: Gegenseite als Messpunkte trotzdem da', messpunkte(g).filter((m) => m.gegenueber).map(kurz), ['tuer:200,206:rechts:g', 'tuer:110,206:links:g'])
 }
 
 {
@@ -461,7 +461,7 @@ function wohnungB() {
     const k = mp.map(kurz)
     const y = 206 + luecke
     wahr(`Abstand ${luecke}: Tuerenden auf der Innenseite`, k.includes('tuer:200,194:links') && k.includes('tuer:110,194:rechts'))
-    wahr(`Abstand ${luecke}: Gegenseite auf der Innenseite des Nachbarn`, k.includes(`tuer:200,${y}:links:g`) && k.includes(`tuer:110,${y}:rechts:g`))
+    wahr(`Abstand ${luecke}: Gegenseite auf der Innenseite des Nachbarn`, k.includes(`tuer:200,${y}:rechts:g`) && k.includes(`tuer:110,${y}:links:g`))
     wahr(`Abstand ${luecke}: kein Punkt in einer gezeichneten Wand`, mp.every((m) => !inWand(d, m.p)))
     const quer = spielen('messen', [{ runter: [200, 195] }, { runter: [200, y - 1] }], d)
     gleich(`Abstand ${luecke}: Wanddicke ${dicke}`, quer.vorschau.texte?.at(-1)?.text, String(dicke))
@@ -565,9 +565,9 @@ function tFlur() {
   const mp = messpunkte(d)
   const k = mp.map(kurz)
   gleich('Draussen: Innenecken des Balkons', mp.filter((m) => m.raumId === 'ba').map(kurz), ['ecke:56,330', 'ecke:344,330', 'ecke:344,444', 'ecke:56,444'])
-  wahr('Draussen: Balkontuer innen und auf dem Balkon', k.includes('tuer:250,294:links') && k.includes('tuer:250,330:links:g') && k.includes('tuer:150,330:rechts:g'))
+  wahr('Draussen: Balkontuer innen und auf dem Balkon', k.includes('tuer:250,294:links') && k.includes('tuer:250,330:rechts:g') && k.includes('tuer:150,330:links:g'))
   wahr('Draussen: kein Punkt in einer gezeichneten Wand', mp.every((m) => !inWand(d, m.p)))
-  gleich('Draussen: Schnellmasse auf dem Balkon', schnellMasse(d, 'tba', 20).filter((m) => m.gegenueber).map((m) => `${m.art} ${m.laenge}`), ['links 94', 'rechts 94'])
+  gleich('Draussen: Schnellmasse auf dem Balkon', schnellMasse(d, 'tba', 20).filter((m) => m.gegenueber).map((m) => `${m.art} ${m.laenge}`), ['rechts 94', 'links 94'])
 }
 
 {
@@ -582,11 +582,11 @@ function tFlur() {
     const mp = messpunkte(d)
     const y = 206 + luecke
     wahr(`Ueberstand ${luecke}: kein Punkt in einer gezeichneten Wand`, mp.every((m) => !inWand(d, m.p)))
-    gleich(`Ueberstand ${luecke}: Gegenseite bis zur Innenecke des Bads`, mp.filter((m) => m.gegenueber).map(kurz), [`tuer:194,${y}:links:g`, `tuer:110,${y}:rechts:g`])
+    gleich(`Ueberstand ${luecke}: Gegenseite bis zur Innenecke des Bads`, mp.filter((m) => m.gegenueber).map(kurz), [`tuer:194,${y}:rechts:g`, `tuer:110,${y}:links:g`])
     const zug = spielen('messen', [{ runter: [195, y + 1] }, { runter: [111, y + 1] }], d)
     gleich(`Ueberstand ${luecke}: Lichte auf der Badseite`, [zug.vorschau.texte?.at(-1)?.text, zug.vorschau.texte?.at(-1)?.lichte], ['84', true])
     gleich(`Ueberstand ${luecke}: Schnellmasse`, schnellMasse(d, 'tf', 20).map((m) => `${m.art}${m.gegenueber ? ':g' : ''} ${m.laenge} ${m.wandA.join(',')}-${m.wandB.join(',')}`), [
-      'breite 90 200,194-110,194', 'links 94 294,194-200,194', 'rechts 104 110,194-6,194', `rechts:g 104 110,${y}-6,${y}`,
+      'breite 90 200,194-110,194', 'links 94 294,194-200,194', 'rechts 104 110,194-6,194', `links:g 104 110,${y}-6,${y}`,
     ])
   }
 }

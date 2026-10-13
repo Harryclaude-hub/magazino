@@ -45,8 +45,13 @@
  *  - bei Tueren und Durchgaengen dieselben Enden auf der anderen Seite der
  *    Wand, wenn dort ein Nachbarraum mit paralleler Kante hoechstens
  *    WAND_DURCH_CM (40 cm) entfernt liegt (gegenkante), auf der Innenseite
- *    des Nachbarraums. Von dieser Seite zur anderen misst man so die ganze
- *    gezeichnete Wanddicke: Abstand der Kanten plus 12 cm. Reicht die
+ *    des Nachbarraums. Links und rechts gelten dort aus dem Nachbarraum,
+ *    mit Blick zur Wand (E94, Nacharbeit): das Ende ueber dem Anfang der
+ *    Kante heisst drueben rechts. Raeume laufen im Uhrzeigersinn
+ *    (umlaufRichten), also hat man im eigenen Raum mit Blick zur Wand
+ *    links den Anfang, im Nachbarraum dasselbe Ende rechts von sich. Von
+ *    dieser Seite zur anderen misst man so die ganze gezeichnete
+ *    Wanddicke: Abstand der Kanten plus 12 cm. Reicht die
  *    Oeffnung dort ueber eine Innenecke des Nachbarraums hinaus, steht ihr
  *    Ende auf dieser Innenecke, nicht in der quer stehenden Wand; die
  *    Lichte auf dieser Seite ist dann das, was dort offen ist.
@@ -66,6 +71,10 @@
  * Die Masse an jeder Wand (Leinwand, wandMasse) bleiben Kantenlaengen:
  * dort tippt man die Laenge der Kante ein. Reine Rechnung ohne React und
  * ohne Browser, geprueft in scripts/zeichner-pruefen.mjs.
+ *
+ * E94: Auch das Handy misst damit (components/plan/handyMessen.ts). Diese
+ * Datei darf darum nichts aus dem Zeichner laden ausser reiner Rechnung:
+ * kein React, kein Zeichner.tsx, keine Leinwand.
  */
 import { einrasten, flaeche2, zuUmriss, WAND_DURCH_CM, type Punkt } from '../lib/geometrie.ts'
 import { oeffnungPunkte, raumTitel, streckenAbstand, WAND_HALB_CM } from '../components/plan/hilfe.ts'
@@ -371,8 +380,9 @@ function messpunkteRechnen(daten: MessDaten): Messpunkt[] {
     if (o.art === 'fenster') continue
     const g = gegenkante(daten, innen, r, o.kante, s[0], s[1])
     if (!g) continue
-    gegen.push({ p: punktAuf(g.seite, g.t0), art: o.art, raumId: r.id, raum, oeffnungId: o.id, ende: 'links', gegenueber: true })
-    gegen.push({ p: punktAuf(g.seite, g.t1), art: o.art, raumId: r.id, raum, oeffnungId: o.id, ende: 'rechts', gegenueber: true })
+    // Drueben aus dem Nachbarraum gesehen: ueber s0 rechts, ueber s1 links.
+    gegen.push({ p: punktAuf(g.seite, g.t0), art: o.art, raumId: r.id, raum, oeffnungId: o.id, ende: 'rechts', gegenueber: true })
+    gegen.push({ p: punktAuf(g.seite, g.t1), art: o.art, raumId: r.id, raum, oeffnungId: o.id, ende: 'links', gegenueber: true })
   }
   const ecken: Messpunkt[] = []
   for (const r of daten.raeume) {
@@ -401,6 +411,28 @@ function messpunkteRechnen(daten: MessDaten): Messpunkt[] {
 /** Der Punkt selbst und alle Enden in auch. */
 function endenVon(m: Messpunkt): MesspunktEnde[] {
   return [m, ...(m.auch ?? [])]
+}
+
+/** Uebersetzer, wie useSprache ihn liefert (hier ohne React). */
+type Uebersetzer = (key: string, vars?: Record<string, string | number>) => string
+
+/** Name eines Messpunkts fuer die Anzeige: "Tuer Bad, links", "Ecke".
+ *  Stossen zwei Oeffnungen aneinander, stehen beide Enden da:
+ *  "Tuer Bad, rechts / Fenster Bad, links". Die Gegenseite heisst
+ *  "Tuer Bad, links, andere Wandseite". Eine Stelle fuer den Zeichner
+ *  (Leinwand) und das Handy (E94), die Woerter plan.messen.* laden immer. */
+export function messpunktName(t: Uebersetzer, m: Messpunkt): string {
+  if (m.art === 'ecke') return t('plan.messen.ecke')
+  return endenVon(m)
+    .map((e) => endeName(t, e))
+    .join(' / ')
+}
+
+function endeName(t: Uebersetzer, m: MesspunktEnde): string {
+  const was = m.art === 'tuer' ? t('plan.tuer') : m.art === 'fenster' ? t('plan.fenster') : t('plan.durchgang')
+  const ende = m.ende === 'rechts' ? t('plan.messen.rechts') : t('plan.messen.links')
+  const name = m.raum ? t('plan.messen.punkt', { was, raum: m.raum, ende }) : t('plan.messen.punkt_ohne_raum', { was, ende })
+  return m.gegenueber ? t('plan.messen.gegenueber', { name }) : name
 }
 
 /** Der Messpunkt, der p am naechsten liegt, hoechstens toleranz cm weit. */
@@ -497,17 +529,26 @@ export function wandSeite(raeume: Raum[], a: Punkt, b: Punkt): Punkt | null {
  *  der Wand? Dann ist der Abstand ihre lichte Weite. Gezaehlt werden auch
  *  die Enden in auch (zwei Oeffnungen stossen aneinander). */
 export function istLichte(a: Messpunkt | null, b: Messpunkt | null): boolean {
-  if (!a || !b) return false
-  return endenVon(a).some((x) =>
-    endenVon(b).some(
-      (y) =>
+  return lichteVon(a, b) !== null
+}
+
+/** Die Oeffnung, deren lichte Weite a bis b ist (wie istLichte), oder
+ *  null. E94: die Leiste am Handy nennt bei einer Tuer dazu den Durchgang. */
+export function lichteVon(a: Messpunkt | null, b: Messpunkt | null): string | null {
+  if (!a || !b) return null
+  for (const x of endenVon(a)) {
+    for (const y of endenVon(b)) {
+      if (
         x.art !== 'ecke' &&
         x.oeffnungId !== undefined &&
         x.oeffnungId === y.oeffnungId &&
         x.ende !== y.ende &&
-        !!x.gegenueber === !!y.gegenueber,
-    ),
-  )
+        !!x.gegenueber === !!y.gegenueber
+      )
+        return x.oeffnungId
+    }
+  }
+  return null
 }
 
 export interface Schnellmass {
@@ -520,7 +561,8 @@ export interface Schnellmass {
   wandB: Punkt
   laenge: number
   /** 'breite': die Oeffnung selbst; 'links'/'rechts': vom Ende bis zur
-   *  Innenecke an diesem Ende der Kante. */
+   *  Innenecke an diesem Ende der Kante, mit Blick zur Wand aus dem Raum,
+   *  auf dessen Seite das Mass liegt (gegenueber: aus dem Nachbarraum). */
   art: 'breite' | 'links' | 'rechts'
   gegenueber: boolean
 }
@@ -562,8 +604,9 @@ export function schnellMasse(daten: MessDaten, oeffnungId: string, versatz: numb
   if (o.art === 'fenster') return out
   const g = gegenkante(daten, innen, r, o.kante, s[0], s[1])
   if (!g) return out
-  // Auf der Nachbarkante: links ist das Ende ueber s0, rechts das ueber s1,
-  // jede Seite bis zur Innenecke des Nachbarraums an ihrem Ende.
+  // Auf der Nachbarkante, jede Seite bis zur Innenecke des Nachbarraums an
+  // ihrem Ende. Links und rechts aus dem Nachbarraum gesehen (wie die
+  // Messpunkte dort): das Ende ueber s0 ist rechts, das ueber s1 links.
   const w = g.seite
   const gleichLauf = g.gleichLauf
   const ecke0 = gleichLauf ? w.von : w.bis
@@ -571,7 +614,7 @@ export function schnellMasse(daten: MessDaten, oeffnungId: string, versatz: numb
   const l0 = gleichLauf ? g.t0 - w.von : w.bis - g.t0
   const l1 = gleichLauf ? w.bis - g.t1 : g.t1 - w.von
   if (Math.abs(l0 - vorne) < GLEICH_CM && Math.abs(l1 - hinten) < GLEICH_CM) return out
-  dazu(w, ecke0, g.t0, l0, 'links', true)
-  dazu(w, g.t1, ecke1, l1, 'rechts', true)
+  dazu(w, ecke0, g.t0, l0, 'rechts', true)
+  dazu(w, g.t1, ecke1, l1, 'links', true)
   return out
 }

@@ -268,6 +268,23 @@ export function trefferAn(
   return null
 }
 
+/** Zarge einer Tuer an jeder Seite in cm, hoechstens ein Viertel ihrer
+ *  Breite. breite_cm einer Tuer ist die Maueroeffnung (E88: Durchgangslichte
+ *  plus 8 cm, DL 80 ergibt 88); 3D setzt die Zarge in die Oeffnung
+ *  (szene.ts), und frei fuer Moebel ist, was zwischen ihr bleibt. */
+export const ZARGE_CM = 4
+
+/** Zarge je Seite bei dieser Breite (cm). */
+export function zargeCm(breite: number): number {
+  return Math.min(ZARGE_CM, breite / 4)
+}
+
+/** Durchgangslichte (frei fuer Moebel): bei einer Tuer die Breite weniger
+ *  der Zarge an beiden Seiten, bei Durchgang und Fenster die Breite. */
+export function durchgangslichte(o: Pick<Oeffnung, 'art' | 'breite_cm'>): number {
+  return o.art === 'tuer' ? o.breite_cm - 2 * zargeCm(o.breite_cm) : o.breite_cm
+}
+
 /** Anfang und Ende einer Oeffnung (Kommazahl, nur Zeichnung). */
 export function oeffnungPunkte(r: Pick<Raum, 'punkte'>, o: Pick<Oeffnung, 'kante' | 'abstand_cm' | 'breite_cm'>): [Punkt, Punkt] | null {
   const n = r.punkte.length

@@ -647,9 +647,16 @@ export interface PlanBildProps {
   hervor?: string | null
   auswahl?: PlanTreffer | null
   ebenen?: { kisten?: boolean; beschriftung?: boolean; teppiche?: boolean; deko?: boolean }
-  onTipp?: (p: Punkt, treffer: PlanTreffer | null) => void
+  /** Ein Tipp auf den Plan: die Stelle in ganzen cm, was dort liegt, und
+   *  der Massstab in Bildpunkten je cm (E94: Fangweite beim Messen). */
+  onTipp?: (p: Punkt, treffer: PlanTreffer | null, massstab: number) => void
   /** Hoechstens so hoch (CSS), die Breite folgt dem Platz. */
   maxHoehe?: string
+  /** E94: den Platz des Elternteils ganz fuellen (grosse Ansicht), ohne
+   *  festes Seitenverhaeltnis, ohne Rahmen und ohne maxHoehe. Der Plan
+   *  steht mittig darin (meet). Das Elternteil braucht eine Hoehe. Nur
+   *  hier verhindert der Plan den Klick nach einem Fingertipp (unten). */
+  fuellen?: boolean
   className?: string
   label?: string
   /** Zwei-Finger-Zoom und Verschieben mit einem Finger (Handy). Nur dann
@@ -685,6 +692,7 @@ export function PlanBild({
   label,
   zoomen = false,
   zusatz,
+  fuellen = false,
 }: PlanBildProps) {
   const { t } = useSprache()
   const huelle = useRef<HTMLDivElement>(null)
@@ -745,7 +753,7 @@ export function PlanBild({
     const q = inPlan(clientX, clientY)
     if (!q) return
     const p: Punkt = [Math.round(q[0]), Math.round(q[1])]
-    onTipp(p, trefferAn(daten, p, px(massstab, 10), ebenen?.kisten !== false))
+    onTipp(p, trefferAn(daten, p, px(massstab, 10), ebenen?.kisten !== false), massstab)
   }
 
   /** Die Ansicht, wie sie gerade zu sehen ist (Mitte nach dem Begrenzen). */
@@ -866,14 +874,18 @@ export function PlanBild({
     <div
       dir="ltr"
       ref={huelle}
-      className={cx('relative w-full overflow-hidden rounded-2xl border border-line', className)}
-      style={{
-        aspectRatio: `${box.w} / ${box.h}`,
-        maxHeight: maxHoehe,
-        // Mit Gesten braucht auch ein sehr breiter Plan Platz zum Greifen.
-        minHeight: zoomen ? `min(16rem, ${maxHoehe})` : undefined,
-        background: 'var(--plan-grund)',
-      }}
+      className={cx('relative w-full overflow-hidden', fuellen ? 'h-full' : 'rounded-2xl border border-line', className)}
+      style={
+        fuellen
+          ? { background: 'var(--plan-grund)' }
+          : {
+              aspectRatio: `${box.w} / ${box.h}`,
+              maxHeight: maxHoehe,
+              // Mit Gesten braucht auch ein sehr breiter Plan Platz zum Greifen.
+              minHeight: zoomen ? `min(16rem, ${maxHoehe})` : undefined,
+              background: 'var(--plan-grund)',
+            }
+      }
     >
       <svg
         ref={svg}
@@ -887,6 +899,13 @@ export function PlanBild({
         onPointerMove={zoomen ? bewegen : undefined}
         onPointerUp={mitGesten ? hoch : undefined}
         onPointerCancel={zoomen ? abbrechen : undefined}
+        // E94: Nach einem Tipp mit dem Finger schickt der Browser noch einen
+        // Klick an die Stelle. Oeffnet der Tipp dort etwas (das Blatt der
+        // grossen Ansicht), traefe der Klick dessen Knopf ("Schliessen").
+        // Der Plan selbst braucht den Klick nie: er arbeitet mit Zeigern.
+        // Nur beim Fuellen (grosse Ansicht): verhindert nimmt der Tipp auch
+        // keinem Eingabefeld den Fokus, die Tastatur bliebe offen (PlatzWahl).
+        onTouchEnd={fuellen && mitGesten ? (e) => e.cancelable && e.preventDefault() : undefined}
       >
         <PlanEbenen
           daten={daten}

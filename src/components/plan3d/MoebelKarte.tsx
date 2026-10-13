@@ -1,10 +1,10 @@
 import { useEffect, useId, type KeyboardEvent, type ReactNode, type SyntheticEvent } from 'react'
-import { ArrowLeft, ChevronRight, ExternalLink, Footprints, MapPin, SearchX } from 'lucide-react'
+import { ArrowLeft, ChevronRight, ExternalLink, Footprints, MapPin, SearchX, X } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
 import type { Objekt } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { Button } from '../ui'
-import { masseText, preisText, shopLink } from './moebelInfo'
+import { BLATT_KLASSEN, masseText, preisText, shopLink } from './moebelInfo'
 
 /* Karte eines Moebels in der 3D-Begehung (E92), wie die Kistenkarte
  * (KistenKarte.tsx): Rechtsklick (am Handy langes Druecken) auf ein Moebel,
@@ -22,6 +22,14 @@ import { masseText, preisText, shopLink } from './moebelInfo'
  * neue Daten), steht das klar da statt einer leeren Karte. Fehlen Preis,
  * Material und Shop, sagt ein Satz, dass sie nicht eingetragen sind.
  * Escape regelt die einbindende Seite.
+ *
+ * E94: Auch der Grundriss (Ansehen, am Handy) zeigt sie, wenn man ein
+ * Moebel, Regal oder einen Schrank antippt. form sagt wo: 'blatt' in der
+ * grossen Ansicht (unten in der Spalte unter dem Plan, hoechstens halb so
+ * hoch, der Plan rueckt darueber zusammen; ab md eine Leiste daneben),
+ * 'block' unter dem Plan im Fluss der Seite. In beiden heisst der Knopf oben "Schliessen", unten
+ * steht nur der Weg zur Moebelseite (wenn es sie gibt). children stehen
+ * unter den Angaben (Regal und Schrank: die Faecher, FachAnsicht).
  */
 
 export interface MoebelKarteProps {
@@ -40,6 +48,11 @@ export interface MoebelKarteProps {
   /** Kam man aus dem Begehen? Dann heisst der untere Knopf "Zurueck zur
    *  Begehung", sonst "Zurueck zur 3D-Ansicht". Ohne Angabe: ja. */
   begehen?: boolean
+  /** Wo die Karte steht (E94): 'begehen' (Standard, 3D), 'blatt' (grosse
+   *  Ansicht des Grundrisses) oder 'block' (unter dem Plan). */
+  form?: 'begehen' | 'blatt' | 'block'
+  /** Unter den Angaben, etwa die Faecher eines Regals (E94). */
+  children?: ReactNode
 }
 
 /** Nichts, was auf der Karte passiert, darf in der Szene ankommen: ein
@@ -70,7 +83,7 @@ function Zeile({ begriff, children }: { begriff: string; children: ReactNode }) 
   )
 }
 
-function Karte({ objekt, raumName, kisten, seite, onZurueck, onSeite, begehen = true }: MoebelKarteProps) {
+function Karte({ objekt, raumName, kisten, seite, onZurueck, onSeite, begehen = true, form = 'begehen', children }: MoebelKarteProps) {
   const { t, tn, dir } = useSprache()
   const titelId = useId()
   const zurueckId = useId()
@@ -85,22 +98,34 @@ function Karte({ objekt, raumName, kisten, seite, onZurueck, onSeite, begehen = 
   const link = objekt ? shopLink(objekt.link) : null
   const material = objekt?.material ?? null
   const boden = objekt ? Math.round(objekt.boden_cm ?? 0) : 0
+  // Im Grundriss (E94) schliesst die Karte nur, es geht nirgends zurueck.
+  const imPlan = form !== 'begehen'
 
   return (
     <div
       role="dialog"
       aria-labelledby={titelId}
       dir={dir}
-      data-moebel-karte=""
+      data-moebel-karte={form}
       onPointerDown={anhalten}
       onWheel={anhalten}
       onKeyDown={tastenHalten}
       className={cx(
-        'animate-in absolute bottom-0 left-0 right-0 z-40 flex max-h-[70%] flex-col overflow-hidden',
-        'rounded-t-3xl border border-b-0 border-line bg-surface text-ink shadow-dialog',
-        // Ab md eine Leiste rechts, oben bis unten mit Rand (wie die Kistenkarte).
-        'md:bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:left-auto md:right-[calc(env(safe-area-inset-right,0px)+0.75rem)] md:top-[calc(env(safe-area-inset-top,0px)+0.75rem)]',
-        'md:max-h-none md:w-96 md:max-w-[calc(100%-1.5rem)] md:rounded-karte md:border-b',
+        'animate-in flex flex-col overflow-hidden border border-line bg-surface text-ink',
+        form === 'block'
+          ? // Unter dem Plan, im Fluss der Seite (E94).
+            'relative rounded-2xl'
+          : form === 'blatt'
+            ? // Grosse Ansicht (E94): unter dem Plan in derselben Spalte, hoechstens
+              // halb so hoch; der Plan rueckt darueber zusammen, das Angetippte
+              // bleibt zu sehen. Ab md eine Leiste neben dem Plan.
+              cx(BLATT_KLASSEN)
+            : cx(
+                'absolute bottom-0 left-0 right-0 z-40 max-h-[70%] rounded-t-3xl border-b-0 shadow-dialog',
+                // Ab md eine Leiste rechts, oben bis unten mit Rand (wie die Kistenkarte).
+                'md:bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:left-auto md:right-[calc(env(safe-area-inset-right,0px)+0.75rem)] md:top-[calc(env(safe-area-inset-top,0px)+0.75rem)]',
+                'md:max-h-none md:w-96 md:max-w-[calc(100%-1.5rem)] md:rounded-karte md:border-b',
+              ),
       )}
     >
       {/* Farbstreifen: die Farbe des Moebels im Plan, sonst neutral. */}
@@ -109,8 +134,8 @@ function Karte({ objekt, raumName, kisten, seite, onZurueck, onSeite, begehen = 
       {/* Kopfleiste: Zurueck und, wenn verknuepft, die Nummer des Eintrags. */}
       <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2.5 [@media(max-height:30rem)]:py-1.5">
         <Button id={zurueckId} variant="outline" onClick={onZurueck} className="shrink-0">
-          <ArrowLeft size={20} className="spiegeln shrink-0" />
-          {t('aktion.zurueck')}
+          {imPlan ? <X size={20} className="shrink-0" /> : <ArrowLeft size={20} className="spiegeln shrink-0" />}
+          {imPlan ? t('aktion.schliessen') : t('aktion.zurueck')}
         </Button>
         <span className="min-w-0 flex-1" />
         {objekt?.item_code ? (
@@ -198,13 +223,31 @@ function Karte({ objekt, raumName, kisten, seite, onZurueck, onSeite, begehen = 
               </Zeile>
             </dl>
             {!material && !preis && !objekt.link ? <p className="t-sub mt-3">{t('plan3d.moebel_ohne_angaben')}</p> : null}
+            {children ? <div className="mt-3">{children}</div> : null}
           </>
         )}
       </div>
 
       {/* Fussleiste: zur Moebelseite (wenn es sie gibt) und zurueck. Bei
           sehr wenig Hoehe (Handy quer) faellt neben der Moebelseite das
-          untere Zurueck weg, das obere tut dasselbe. */}
+          untere Zurueck weg, das obere tut dasselbe. Im Grundriss (E94)
+          nur der Weg zur Moebelseite, ohne ihn keine Fussleiste. */}
+      {imPlan ? (
+        objekt && seite ? (
+          // Bei wenig Hoehe (Handy quer) schmaler, wie die Fussleiste beim Begehen.
+          <div
+            className={cx(
+              'shrink-0 border-t border-line bg-surface px-3 py-3 [@media(max-height:30rem)]:pt-2',
+              form === 'blatt' && 'pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-3 [@media(max-height:30rem)]:pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)]',
+            )}
+          >
+            <Button full variant="outline" data-moebel-seite="" onClick={() => onSeite(seite)}>
+              {t('plan3d.moebel_seite')}
+              <ChevronRight size={18} className="spiegeln shrink-0" />
+            </Button>
+          </div>
+        ) : null
+      ) : (
       <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-line bg-surface px-3 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-3 [@media(max-height:30rem)]:pt-2 [@media(max-height:30rem)]:pb-2">
         {objekt && seite ? (
           <Button full size="sm" variant="outline" data-moebel-seite="" onClick={() => onSeite(seite)}>
@@ -223,6 +266,7 @@ function Karte({ objekt, raumName, kisten, seite, onZurueck, onSeite, begehen = 
           {begehen ? t('schnell.zur_begehung') : t('schnell.zur_ansicht')}
         </Button>
       </div>
+      )}
     </div>
   )
 }

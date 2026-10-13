@@ -1,17 +1,18 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Monitor, Pencil, Plus, Trash2 } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, Maximize2, Monitor, Pencil, Plus, Trash2 } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { ErklaerKnopf } from '../components/Fuehrung'
 import { displayNameOf, useAuth } from '../lib/auth'
-import { FachAnsicht } from '../components/plan/FachAnsicht'
 import { raumTitel, type PlanTreffer } from '../components/plan/hilfe'
 import { PlanBild, PlanLegende } from '../components/plan/PlanBild'
+import { GROSS_SELBST, grossSelbstGeoeffnet } from '../components/plan/handyMessen'
+import { TippDetails } from '../components/plan/PlanDetails'
+import { PlanGross, SchnellZeichnung } from '../components/plan/PlanGross'
 import {
   Avatar,
   Button,
   Chip,
-  CodeChip,
   ConfirmDialog,
   Empty,
   ErrorBox,
@@ -37,7 +38,7 @@ import { useZeichnen } from '../lib/desktop'
 import { Knopf3D } from '../components/plan3d/oeffnen'
 import { useSprache } from '../lib/i18n'
 import type { Grundriss as GrundrissTyp, GrundrissDaten } from '../lib/types'
-import { cx, useAsync } from '../lib/util'
+import { cx, rollenArt, useAsync } from '../lib/util'
 import { useProject } from './ProjectLayout'
 
 /* Der Grundriss eines Umzugs (START 4.1, BAUPLAN 5.2).
@@ -55,6 +56,13 @@ import { useProject } from './ProjectLayout'
  * gleich und beginnt das Begehen, einmal: die Seite nimmt es sofort aus
  * der Adresse (replace, Neuladen wiederholt es nicht) und vergisst den
  * Wunsch, sobald Knopf3D oder der Zeichner ihn angenommen hat.
+ *
+ * E94: Beim Ansehen (Handy, Betrachter) oeffnet "Gross ansehen" den Plan
+ * ueber den ganzen Bildschirm, zum Antippen und Messen (PlanGross.tsx).
+ * Offen steht als &ansicht=gross in der Adresse, mit einem neuen Eintrag
+ * im Verlauf: Zurueck am Handy schliesst sie, raum und kiste bleiben.
+ * Ein Tipp auf ein Moebel, Regal oder einen Schrank zeigt unter dem Plan
+ * die Moebelkarte (PlanDetails.tsx), eine Kiste ihre Karte wie bisher.
  */
 
 const Zeichner = lazy(() => import('../zeichner/Zeichner'))
@@ -309,7 +317,7 @@ function NameDialog({
 
 /* ---------------------------------------------------- Nur ansehen */
 
-function Ansehen({
+export function Ansehen({
   daten,
   raumId,
   kisteId,
@@ -329,17 +337,53 @@ function Ansehen({
   const { project } = useProject()
   const { t } = useSprache()
   const zeichnen = useZeichnen()
-  const [, setParams] = useSearchParams()
+  const nav = useNavigate()
+  const [params, setParams] = useSearchParams()
   const [tipp, setTipp] = useState<PlanTreffer | null>(null)
   const raum = raumId ? daten.raeume.find((r) => r.id === raumId) ?? null : null
+  // Eine angetippte Tuer oder ein Fenster: ihre Schnellmasse auch im Plan,
+  // damit man sieht, welches Ende im Blatt links und rechts ist.
+  const oeffnungId = tipp?.art === 'oeffnung' ? tipp.id : null
 
   useEffect(() => setTipp(null), [raumId])
 
-  const gewaehlt = useMemo(() => {
-    if (tipp?.art === 'kiste') return { kiste: daten.kisten.find((k) => k.id === tipp.id) ?? null, objekt: null }
-    if (tipp?.art === 'objekt') return { kiste: null, objekt: daten.objekte.find((o) => o.id === tipp.id) ?? null }
-    return { kiste: null, objekt: null }
-  }, [tipp, daten])
+  /* E94: die grosse Ansicht. Selbst geoeffnet (neuer Eintrag im Verlauf)
+   * schliesst sie mit einem Schritt zurueck, damit Zurueck am Handy und
+   * das X dasselbe tun; kam sie mit der Adresse (Direktlink), nimmt das X
+   * nur ansicht heraus. Nacharbeit: Ob selbst geoeffnet, steht im Eintrag
+   * selbst (state), nicht in der Seite: es gilt auch nach Zurueck von der
+   * Moebelseite oder der Kiste und nach Neuladen, sonst ersetzte das X den
+   * Eintrag und Zurueck stuende danach zweimal auf derselben Seite. */
+  const gross = params.get('ansicht') === 'gross'
+  const ort = useLocation()
+  // Ein zweiter Tipp aufs X, bevor das Zurueck angekommen ist, geht nicht
+  // noch einen Schritt weiter (aus der Seite hinaus).
+  const zuUnterwegs = useRef(false)
+  useEffect(() => {
+    zuUnterwegs.current = false
+  }, [ort.key])
+  const grossAuf = () => {
+    const q = new URLSearchParams(params)
+    q.set('ansicht', 'gross')
+    setParams(q, { state: GROSS_SELBST })
+  }
+  const grossZu = () => {
+    if (zuUnterwegs.current) return
+    if (grossSelbstGeoeffnet(ort.state)) {
+      zuUnterwegs.current = true
+      nav(-1)
+      return
+    }
+    const q = new URLSearchParams(params)
+    q.delete('ansicht')
+    setParams(q, { replace: true })
+  }
+
+  // Was angetippt ist, steht unter dem Plan: bei Bedarf ins Bild rollen.
+  const details = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (tipp) details.current?.scrollIntoView({ block: 'nearest', behavior: rollenArt() })
+  }, [tipp])
 
   return (
     <Page wide>
@@ -375,24 +419,33 @@ function Ansehen({
                 </Chip>
               ))}
             </div>
-            <div data-tour="grundriss-plan">
-            <PlanBild
-              daten={daten}
-              ausschnitt={raum ? { raumId: raum.id } : 'alles'}
-              hervor={kisteId}
-              auswahl={tipp ?? (raum ? { art: 'raum', id: raum.id } : null)}
-              maxHoehe="68vh"
-              label={daten.grundriss.name}
-              zoomen
-              onTipp={(_p, treffer) => {
-                if (treffer?.art === 'raum' && treffer.id !== raumId) {
-                  setParams(kisteId ? { raum: treffer.id, kiste: kisteId } : { raum: treffer.id }, { replace: true })
-                } else setTipp(treffer && treffer.art !== 'raum' ? treffer : null)
-              }}
-            />
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* E94: "Gross ansehen" direkt ueber dem Plan, immer im Bild,
+                ohne etwas vom Plan zu verdecken; daneben die Legende. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <PlanLegende mitKiste={Boolean(kisteId)} />
+              <Button variant="outline" onClick={grossAuf} data-gross-knopf="" className="ms-auto">
+                <Maximize2 size={18} className="shrink-0" />
+                {t('grundriss.gross')}
+              </Button>
+            </div>
+            <div data-tour="grundriss-plan">
+              <PlanBild
+                daten={daten}
+                ausschnitt={raum ? { raumId: raum.id } : 'alles'}
+                hervor={kisteId}
+                auswahl={tipp ?? (raum ? { art: 'raum', id: raum.id } : null)}
+                maxHoehe="68vh"
+                label={daten.grundriss.name}
+                zoomen
+                onTipp={(_p, treffer) => {
+                  if (treffer?.art === 'raum' && treffer.id !== raumId) {
+                    setParams(kisteId ? { raum: treffer.id, kiste: kisteId } : { raum: treffer.id }, { replace: true })
+                  } else setTipp(treffer && treffer.art !== 'raum' ? treffer : null)
+                }}
+                zusatz={oeffnungId ? (s) => <SchnellZeichnung daten={daten} oeffnungId={oeffnungId} s={s} /> : undefined}
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-3">
               <Knopf3D
                 daten={daten}
                 raumId={raum?.id ?? null}
@@ -404,27 +457,25 @@ function Ansehen({
                 onGespeichert={onGespeichert}
               />
             </div>
-            {gewaehlt.kiste ? (
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-3">
-                <CodeChip code={gewaehlt.kiste.code} />
-                <span className="t-sub min-w-0 flex-1">
-                  {t('lage.hoehe', { von: gewaehlt.kiste.unten_cm, bis: gewaehlt.kiste.oben_cm })}
-                </span>
-                <Link to={`/app/p/${project.id}/kisten/${gewaehlt.kiste.id}`}>
-                  <Button size="sm" variant="outline">
-                    {t('suche.zur_kiste')}
-                  </Button>
-                </Link>
-              </div>
-            ) : null}
-            {gewaehlt.objekt && gewaehlt.objekt.art !== 'moebel' ? (
-              <div className="rounded-2xl border border-line bg-surface p-3">
-                <FachAnsicht objekt={gewaehlt.objekt} kisten={daten.kisten} hervor={kisteId} />
-              </div>
-            ) : null}
+            {/* Kiste: ihre Karte wie bisher; Moebel, Regal, Schrank: die
+                Moebelkarte (E94), Regal und Schrank mit ihren Faechern. */}
+            <div ref={details} className="scroll-mt-4 scroll-mb-24">
+              <TippDetails
+                daten={daten}
+                tipp={tipp}
+                projektId={project.id}
+                hervor={kisteId}
+                form="block"
+                onZu={() => setTipp(null)}
+                onSeite={(pfad) => nav(pfad)}
+              />
+            </div>
           </>
         )}
       </div>
+      {gross && daten.raeume.length > 0 ? (
+        <PlanGross daten={daten} projektId={project.id} hervor={kisteId} raumId={raumId} onZu={grossZu} onSeite={(pfad) => nav(pfad)} />
+      ) : null}
     </Page>
   )
 }

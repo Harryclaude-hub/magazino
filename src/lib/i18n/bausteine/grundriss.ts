@@ -68,6 +68,37 @@ export const grundriss: Woerterbuch = {
     ar: 'هذه الصناديق ستصبح خارج الغرفة: {codes}. أزلها من موضعها أولًا أو انقلها.',
   },
 
+  // ------------------------------------- Groß ansehen und messen (E94)
+  'grundriss.gross': { de: 'Groß ansehen', ar: 'عرض بحجم الشاشة' },
+  'grundriss.gross_zu': { de: 'Große Ansicht schließen', ar: 'إغلاق العرض الكبير' },
+  'grundriss.modus': { de: 'Antippen zum Ansehen oder Messen', ar: 'الضغط للعرض أو للقياس' },
+  'grundriss.modus_ansehen': { de: 'Ansehen', ar: 'عرض' },
+  'grundriss.modus_messen': { de: 'Messen', ar: 'قياس' },
+  'grundriss.antippen': {
+    de: 'Tippe auf ein Möbel, eine Kiste, eine Tür oder einen Raum.',
+    ar: 'اضغط على قطعة أثاث أو صندوق أو باب أو غرفة.',
+  },
+  'grundriss.messen_start': {
+    de: 'Tippe auf den ersten Punkt. Ecken, Türen und Fenster rasten ein, immer an der Innenseite der Wand.',
+    ar: 'اضغط على النقطة الأولى. تلتصق النقاط بالزوايا والأبواب والنوافذ، دائمًا عند الوجه الداخلي للجدار.',
+  },
+  'grundriss.messen_b': { de: 'Jetzt den zweiten Punkt tippen.', ar: 'اضغط الآن على النقطة الثانية.' },
+  'grundriss.messen_neu': { de: 'Neue Messung', ar: 'قياس جديد' },
+  'grundriss.messen_frei': { de: 'Punkt', ar: 'نقطة' },
+  'grundriss.messen_abstand': { de: 'Abstand', ar: 'المسافة' },
+  'grundriss.schnell_links': { de: 'links bis zur Ecke', ar: 'من اليسار حتى الزاوية' },
+  'grundriss.schnell_rechts': { de: 'rechts bis zur Ecke', ar: 'من اليمين حتى الزاوية' },
+  'grundriss.schnell_gegenueber': { de: 'Andere Wandseite', ar: 'الجهة الأخرى من الجدار' },
+  'grundriss.schnell_ecke': { de: 'Bis zur Ecke:', ar: 'حتى الزاوية:' },
+  'grundriss.schnell_gegen_ecke': { de: 'Andere Wandseite bis zur Ecke:', ar: 'الجهة الأخرى من الجدار حتى الزاوية:' },
+  'grundriss.schnell_blick': {
+    de: 'Links und rechts gelten im jeweiligen Raum, mit Blick zur Wand.',
+    ar: 'اليسار واليمين من داخل كل غرفة مع النظر إلى الجدار.',
+  },
+  'grundriss.raum_flaeche': { de: 'Nutzfläche', ar: 'المساحة الصافية' },
+  'grundriss.raum_hoehe': { de: 'Raumhöhe', ar: 'ارتفاع الغرفة' },
+  'grundriss.oeffnung_name': { de: '{was} {raum}', ar: '{was} {raum}' },
+
   // --------------------------------------------------------------- Plan
   'plan.tuer': { de: 'Tür', ar: 'باب' },
   'plan.durchgang': { de: 'Durchgang', ar: 'ممر' },
@@ -87,6 +118,17 @@ export const grundriss: Woerterbuch = {
   'plan.legende_hier': { de: 'Hier steht es', ar: 'موجود هنا' },
   'plan.legende_ziel': { de: 'Hier kommt es hin', ar: 'هنا سيوضع' },
   'plan.raum_ohne_name': { de: 'Raum ohne Namen', ar: 'غرفة بلا اسم' },
+  // Messpunkte beim Messen (E90, seit E94 auch am Handy, darum hier und
+  // nicht in zeichner.ts): "Tür Bad, links", "Lichte 80".
+  'plan.messen.ecke': { de: 'Ecke', ar: 'زاوية' },
+  'plan.messen.links': { de: 'links', ar: 'يسار' },
+  'plan.messen.rechts': { de: 'rechts', ar: 'يمين' },
+  'plan.messen.punkt': { de: '{was} {raum}, {ende}', ar: '{was} {raum}، {ende}' },
+  'plan.messen.punkt_ohne_raum': { de: '{was}, {ende}', ar: '{was}، {ende}' },
+  'plan.messen.gegenueber': { de: '{name}, andere Wandseite', ar: '{name}، الجهة الأخرى من الجدار' },
+  'plan.messen.lichte': { de: 'Lichte', ar: 'العرض الصافي' },
+  'plan.messen.durchgang': { de: 'Frei für Möbel', ar: 'العرض الحر للأثاث' },
+  'plan.messen.maueroeffnung': { de: 'Maueröffnung', ar: 'فتحة الجدار' },
   'plan.farbe.anthrazit': { de: 'Anthrazit', ar: 'فحمي' },
   'plan.farbe.schiefer': { de: 'Schiefer', ar: 'رمادي أردوازي' },
   'plan.farbe.taubenblau': { de: 'Taubenblau', ar: 'أزرق رمادي' },

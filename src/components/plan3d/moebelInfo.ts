@@ -11,6 +11,9 @@
  *  shopLink        Link zum Shop, nur http und https, mit Namen des Shops
  *  traegerKarte    Kiste -> Objekt, auf oder in dem ihr Stapel steht
  *  kistenAuf       wie viele Kisten auf oder in einem Objekt stehen
+ *  BLATT_KLASSEN   E94: Lage der Moebelkarte und der anderen Blaetter in
+ *                  der grossen Ansicht des Grundrisses (PlanDetails.tsx),
+ *                  quer mit wenig Hoehe neben dem Plan
  */
 import { euroText } from '../../lib/preis'
 import type { Objekt, PlanKiste } from '../../lib/types'
@@ -114,3 +117,19 @@ export function kistenAuf(traeger: ReadonlyMap<string, string>, objektId: string
   for (const o of traeger.values()) if (o === objektId) n++
   return n
 }
+
+/** E94: das Blatt in der grossen Ansicht des Grundrisses (Moebelkarte in
+ *  form 'blatt' und die Blaetter in PlanDetails.tsx): unten in der Spalte
+ *  unter dem Plan, hoechstens halb so hoch, oben rund; ab md eine Leiste
+ *  neben dem Plan mit Rand nur zum Plan hin. Nur Klassen, keine Farben.
+ *  Nacharbeit: quer mit wenig Hoehe (Handy quer, unter md) ebenso eine
+ *  Leiste daneben, hoechstens halb so breit wie die Ansicht. Unter dem
+ *  Plan blieben dort fuer Name und Masse nur wenige Bildpunkte, Kopf und
+ *  Fuss der Karte nahmen den Rest (PlanGross.tsx stellt die Spalte dann
+ *  ebenfalls nebeneinander, mit derselben Medienabfrage). Tailwind braucht
+ *  die Klassen ausgeschrieben. */
+export const BLATT_KLASSEN =
+  'relative z-10 max-h-[50%] shrink-0 rounded-t-3xl border-b-0 md:max-h-none md:w-96 md:rounded-none md:border-y-0 md:border-e-0 ' +
+  '[@media(orientation:landscape)_and_(max-height:30rem)]:max-h-none [@media(orientation:landscape)_and_(max-height:30rem)]:w-72 ' +
+  '[@media(orientation:landscape)_and_(max-height:30rem)]:max-w-[50%] [@media(orientation:landscape)_and_(max-height:30rem)]:rounded-none ' +
+  '[@media(orientation:landscape)_and_(max-height:30rem)]:border-y-0 [@media(orientation:landscape)_and_(max-height:30rem)]:border-e-0'
