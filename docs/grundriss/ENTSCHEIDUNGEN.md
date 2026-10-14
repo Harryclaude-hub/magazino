@@ -957,3 +957,55 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   ("م" links der Zahl), der Titel im Blatt bricht um statt abgeschnitten
   zu werden ("Fenster Kinderzimmer" bei 360 px).
 
+- **E95 Schienenregal mit Wandschienen und 45-Grad-Enden:** Karams Keller:
+  ein U aus Schwerlast-Wandschienen mit Doppelschlitz (links, rechts und an
+  der Rueckwand), Konsolen in den Schienen, Massivholzbretter darauf, die
+  sich in jeden Schlitz setzen, ganz nach oben, ganz nach unten oder
+  herausnehmen lassen. In den beiden Innenecken hinten laeuft die
+  Vorderkante 45 Grad quer ueber die Ecke (ein Dreieck mehr Platz statt
+  des rechten Winkels), an den offenen Enden vorn an der Tuer sind die
+  Bretter auf 45 Grad abgeschnitten, damit sich niemand stoesst.
+  Daten: nichts Neues in der Datenbank. Ein Objekt der Art 'regal' mit
+  brett_cm und spalten wie bisher; erkannt am Namen ("Schienenregal",
+  "Wandschiene", arabisch "رف سكة", "رف بسكك", "سكة جدارية"), die Enden
+  ebenfalls: "45 links", "45 rechts", "45 beide" (auch "45°", "45 Grad",
+  arabisch "45 يسار", "45 يمين", "45 الجهتين", auch mit ٤٥). Links und
+  rechts mit Blick auf die Wand, an der der Lauf haengt, wie im ganzen
+  Plan; links ist lokal x = 0. Die vordere Ecke dieses Endes ist auf 45
+  Grad abgeschnitten, beide Schenkel so lang wie die Tiefe T: die
+  Vorderkante laeuft schraeg bis an die Wand. "Ecke" (arabisch "زاوية")
+  macht ein Eckbrett ohne eigene Schienen. Die Regel steht im Kopf von
+  src/components/plan/schienenregal.ts, szene-pruefen prueft sie am U.
+  Das U: drei Laeufe und zwei Eckbretter. Linke Wand "Schienenregal
+  links, 45 links" (dort liegt das Tuerende mit Blick auf die Wand
+  links), rechte Wand "Schienenregal rechts, 45 rechts", Rueckwand
+  "Schienenregal hinten" von Wand zu Wand; die Seitenlaeufe enden an der
+  Vorderkante der Rueckwand. In jede Innenecke ein Quadrat (Seite meist
+  T) "Schienenregal Ecke, 45 rechts" (links hinten) bzw. "Schienenregal
+  Ecke, 45 links" (rechts hinten): es liegt an den Vorderkanten beider
+  Laeufe, sein Dreieck fuellt die Ecke. Verworfen: die Rueckwand mit "45
+  beide". Ein Abschnitt nimmt nur etwas weg; das Dreieck vor der Innenecke
+  liegt ausserhalb jedes rechteckigen Laufs. Mit "45 beide" an der
+  Rueckwand bliebe hinten in der Ecke ein dreieckiges Loch und vorn der
+  rechte Winkel. Die Eckbretter haben dieselben brett_cm wie die Laeufe
+  daneben; das setzt man von Hand.
+  3D: keine Seiten, keine Rueckwand, kein Deckel. Je Lauf Schienen ueber
+  die volle Hoehe an der Wand (unter 80 cm zwei, unter 130 drei, sonst
+  vier; etwas eingerueckt, an einem schraegen Ende um die halbe Tiefe
+  weiter hinein), dunkles Metall mit zwei Schlitzreihen; unter jedem Brett
+  an jeder Schiene eine Konsole, so lang, wie das Brett dort tief ist.
+  Bretter 2,7 cm, helle Birke (Multiplex, aus den Holz- und Weiss-Tokens
+  gemischt), eigene Farbe, wenn gesetzt; ein Brett bei 0 ist der Boden und
+  fehlt. Brettenden mit Schraege als echter Keil: neue Form 'keil' im
+  Motor (halber Quader, dreieckiger Grundriss, 8 Dreiecke, eigene
+  Kantenlinien). Nichts ragt aus dem Kasten B x T x H. Schienen und
+  Bretter halten beim Begehen auf, die Keile nicht (sonst stiesse man sich
+  am ganzen Quadrat, also gerade an der abgeschnittenen Ecke). Ein
+  Schienenregal als L bleibt wie bisher zwei Kloetze. Dreiecke: 300 cm
+  mit 5 Brettern rund 900. Kisten stehen wie bisher auf den Faechern;
+  die Datenbank kennt nur das Rechteck, eine Kiste ganz vorn am schraegen
+  Ende kann also ueber den Schnitt ragen.
+  Plan: die Bretter mit Schraegen als Flaeche, die doppelte Vorderkante
+  folgt den Schraegen bis an die Wand, kurze Striche an der Wandkante
+  zeigen die Schienen (10 cm lang, die ersten 6 liegen unter der halben
+  Wand). Tippen und Ziehen nutzen weiter das Rechteck.

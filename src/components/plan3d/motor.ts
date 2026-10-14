@@ -171,7 +171,8 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
-  type BufferGeometry,
+  BufferGeometry,
+  Float32BufferAttribute,
   type Fog,
   type Material,
   type Object3D,
@@ -1402,8 +1403,40 @@ export function motorStarten(host: HTMLElement): Motor | null {
   /** Feine Fase an Moebeln und Kisten, damit keine Kante messerscharf ist
    *  und das Licht an den Kanten weich abbricht. Meter. */
   const FASE_ROLLEN = new Set(['moebel', 'front', 'regal', 'brett', 'kiste'])
+  /** E95: Keil, das halbe Einheitsquadrat im Grundriss (x, z) mit dem
+   *  rechten Winkel bei ecke, von y -0,5 bis 0,5. Die Dreiecke werden nach
+   *  aussen gewendet, die Normalen flach (jede Flaeche eigene Ecken). */
+  function keilGeo(ex: number, ez: number): BufferGeometry {
+    const a: [number, number] = [ex * 0.5, ez * 0.5]
+    const b: [number, number] = [-ex * 0.5, ez * 0.5]
+    const c: [number, number] = [ex * 0.5, -ez * 0.5]
+    const p = (q: [number, number], y: number): [number, number, number] => [q[0], y, q[1]]
+    const roh: [number, number, number][][] = [
+      [p(a, 0.5), p(b, 0.5), p(c, 0.5)],
+      [p(a, -0.5), p(c, -0.5), p(b, -0.5)],
+    ]
+    for (const [u, v] of [[a, b], [b, c], [c, a]] as [[number, number], [number, number]][]) {
+      roh.push([p(u, -0.5), p(v, -0.5), p(v, 0.5)], [p(u, -0.5), p(v, 0.5), p(u, 0.5)])
+    }
+    // Schwerpunkt (ex/6, 0, ez/6): jedes Dreieck zeigt von ihm weg.
+    const m = [ex / 6, 0, ez / 6]
+    const pos: number[] = []
+    for (const [d0, d1, d2] of roh) {
+      const u = [d1[0] - d0[0], d1[1] - d0[1], d1[2] - d0[2]]
+      const v = [d2[0] - d0[0], d2[1] - d0[1], d2[2] - d0[2]]
+      const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+      const z = [(d0[0] + d1[0] + d2[0]) / 3 - m[0], (d0[1] + d1[1] + d2[1]) / 3 - m[1], (d0[2] + d1[2] + d2[2]) / 3 - m[2]]
+      const aussen = n[0] * z[0] + n[1] * z[1] + n[2] * z[2] >= 0
+      pos.push(...d0, ...(aussen ? d1 : d2), ...(aussen ? d2 : d1))
+    }
+    const g = new BufferGeometry()
+    g.setAttribute('position', new Float32BufferAttribute(pos, 3))
+    g.computeVertexNormals()
+    return g
+  }
   function form(k: Quader): { geo: BufferGeometry; echt: boolean } {
     const f = k.form
+    if (f?.art === 'keil') return { geo: geteilt(`keil:${f.ecke[0]}:${f.ecke[1]}`, () => keilGeo(f.ecke[0], f.ecke[1])), echt: false }
     if (f?.art === 'kugel') return { geo: geteilt('kugel', () => new SphereGeometry(0.5, 32, 20)), echt: false }
     if (f?.art === 'zylinder') {
       const oben = Math.round(f.oben * 100) / 100
@@ -2274,7 +2307,8 @@ export function motorStarten(host: HTMLElement): Motor | null {
       if (k.kante) {
         const deck = k.hervor ? 1 : k.deckkraft
         linien = new LineSegments(
-          kanten,
+          // E95: der Keil bekommt seine eigenen Kanten (Schraege statt Quader).
+          k.form?.art === 'keil' ? geteilt(`keilkante:${k.form.ecke[0]}:${k.form.ecke[1]}`, () => new EdgesGeometry(gestalt.geo)) : kanten,
           wand
             ? new LineBasicMaterial({ color: new Color(k.kante), transparent: durch, opacity: deck })
             : linieMaterial(k.kante, deck, durch),

@@ -8,12 +8,18 @@
 // Geraet, Spiegel, Neigung, Griff), automatische Schalter, Balkon, Deko;
 // E91: Namen der BESTA-Eckbank und der Bad-Deko (deutsch, arabisch,
 // Reihenfolge), die Eckbank in der Szene mit Sitzplaetzen und Hindernis.
+// E95: Schienenregal am Namen (deutsch, arabisch, Enden 45 links, rechts,
+// beide, Eckbrett) und das U im Keller nach der Namensregel aus
+// src/components/plan/schienenregal.ts: Innenecken mit 45-Grad-Fuellung,
+// Tuerenden schraeg, Schienen nur an der Wand.
 // Aufruf im Projektordner: node scripts/szene-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import { baueSzene, blickAus, hervorMitte, lichter, moebelQuader, szeneRahmen, GEDAEMPFT, SCHEIBE_DECKKRAFT } from '../src/components/plan3d/szene.ts'
 import { moebelTeile } from '../src/components/plan3d/moebel3d.ts'
 import { autoSchalter, symbolAnWand } from '../src/components/plan/hilfe.ts'
 import { DEKO_ARTEN, dekoEbene, istDeko, moebelArt } from '../src/components/plan/moebelArt.ts'
+import { brettTiefe, schienenregal, schienenStriche, vorderlinie } from '../src/components/plan/schienenregal.ts'
+import { objektLokal, objektRechtecke } from '../src/lib/geometrie.ts'
 
 let fehler = 0
 function gleich(name, ist, soll) {
@@ -851,6 +857,104 @@ for (const k of [...alle, ...balkon, ...offen]) {
     console.log('ABWEICHUNG leerer Quader', k.rolle, k.id)
     fehler++
   }
+}
+
+/* ------------------------------------------------------------ E95: Schienenregal */
+{
+  const n = (name, art = 'regal') => schienenregal({ art, name })
+  gleich('Schienenregal: nur der Name', n('Schienenregal hinten'), { links: false, rechts: false, ecke: false })
+  gleich('Schienenregal: 45 links', n('Schienenregal links, 45 links'), { links: true, rechts: false, ecke: false })
+  gleich('Schienenregal: 45° rechts', n('Schienen-Regal rechts 45° rechts'), { links: false, rechts: true, ecke: false })
+  gleich('Schienenregal: 45 Grad beide', n('Wandschiene Werkstatt 45 Grad beide'), { links: true, rechts: true, ecke: false })
+  gleich('Schienenregal: zweimal 45', n('Schienenregal, 45 links, 45 rechts'), { links: true, rechts: true, ecke: false })
+  gleich('Schienenregal: Eckbrett', n('Schienenregal Ecke, 45 rechts'), { links: false, rechts: true, ecke: true })
+  gleich('Schienenregal arabisch', n('رف سكة خلفي'), { links: false, rechts: false, ecke: false })
+  gleich('Schienenregal arabisch 45 يسار', n('رف بسكك 45 يسار'), { links: true, rechts: false, ecke: false })
+  gleich('Schienenregal arabisch ٤٥ الجهتين', n('سكة جدارية ٤٥ الجهتين'), { links: true, rechts: true, ecke: false })
+  gleich('Schienenregal arabisch Ecke', n('رف سكة زاوية 45 يمين'), { links: false, rechts: true, ecke: true })
+  gleich('Schienenregal: Wand links ist keine Schraege', n('Schienenregal Wand links'), { links: false, rechts: false, ecke: false })
+  gleich('Schienenregal: Decke ist keine Ecke', n('Schienenregal unter der Decke'), { links: false, rechts: false, ecke: false })
+  gleich('Kein Schienenregal: anderes Regal', n('Kellerregal 45 links'), null)
+  gleich('Kein Schienenregal: Schrank', n('Schienenregal', 'schrank'), null)
+  gleich('Kein Schienenregal: Moebel', n('Schienenregal', 'moebel'), null)
+  gleich('Schienenregal ist keine Moebelart', ['Schienenregal hinten', 'Wandschiene', 'رف سكة', 'Schienenregal Ecke'].map(moebelArt), [null, null, null, null])
+
+  // Der Keller: 300 x 250, Rueckwand oben (y = 0), Tuer unten. Drei Laeufe
+  // (T 40, H 200) und zwei Eckbretter, genau wie im Kopf von schienenregal.ts.
+  const keller = raum('kel', [[0, 0], [300, 0], [300, 250], [0, 250]], { name: 'Keller' })
+  const B5 = [0, 40, 80, 120, 160]
+  const sr = (id, name, extra) => objekt(id, 'kel', 'regal', { name, tiefe_cm: 40, hoehe_cm: 200, brett_cm: B5, ...extra })
+  const lauf = [
+    sr('hinten', 'Schienenregal hinten', { x: 0, y: 0, breite_cm: 300 }),
+    sr('links', 'Schienenregal links, 45 links', { x: 0, y: 200, breite_cm: 160, drehung: 270 }),
+    sr('rechts', 'Schienenregal rechts, 45 rechts', { x: 300, y: 40, breite_cm: 160, drehung: 90 }),
+    sr('eckeL', 'Schienenregal Ecke, 45 rechts', { x: 40, y: 40, breite_cm: 40 }),
+    sr('eckeR', 'Schienenregal Ecke, 45 links', { x: 220, y: 40, breite_cm: 40 }),
+  ]
+  // Auf welchem Brett liegt ein Punkt (Grundriss-cm)? Ids der Laeufe.
+  const auf = (x, y) =>
+    lauf
+      .filter((o) => {
+        const [lx, ly] = objektLokal(o, x, y)
+        return lx > 0 && lx < o.breite_cm && ly > 0 && ly < brettTiefe(lx, o.breite_cm, o.tiefe_cm, schienenregal(o))
+      })
+      .map((o) => o.id)
+  gleich('Keller: Ecke hinten links an der Wand belegt', auf(5, 5), ['hinten'])
+  gleich('Keller: Innenecke links gefuellt (Dreieck)', auf(58, 58), ['eckeL'])
+  gleich('Keller: Innenecke rechts gefuellt (Dreieck)', auf(242, 58), ['eckeR'])
+  gleich('Keller: vor der Schraege links frei', auf(62, 62), [])
+  gleich('Keller: vor der Schraege rechts frei', auf(238, 62), [])
+  gleich('Keller: Seitenlauf links bis an die Rueckwand', auf(20, 42), ['links'])
+  gleich('Keller: Tuerende links schraeg (aussen frei)', auf(35, 195), [])
+  gleich('Keller: Tuerende links an der Wand belegt', auf(2, 197), ['links'])
+  gleich('Keller: Tuerende rechts schraeg (aussen frei)', auf(265, 195), [])
+  gleich('Keller: Tuerende rechts an der Wand belegt', auf(298, 197), ['rechts'])
+  // Die 45-Grad-Linie an der Innenecke: von der Vorderkante des Seitenlaufs zu der der Rueckwand.
+  for (let i = 1; i < 10; i++) {
+    const t = i / 10
+    const [x, y] = [40 + 40 * t, 80 - 40 * t]
+    wahr(`Keller: Schraege der Innenecke bei ${t}`, auf(x - 0.5, y - 0.5).length === 1 && auf(x + 0.5, y + 0.5).length === 0)
+  }
+  // Keine zwei Laeufe ueberdecken sich.
+  for (let i = 0; i < lauf.length; i++)
+    for (let j = i + 1; j < lauf.length; j++) {
+      const [a] = objektRechtecke(lauf[i])
+      const [b] = objektRechtecke(lauf[j])
+      wahr(`Keller: ${lauf[i].id} und ${lauf[j].id} ueberdecken sich nicht`, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) <= 0 || Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) <= 0)
+    }
+  const kd = {
+    ...daten,
+    raeume: [keller],
+    oeffnungen: [oeffnung('kt', 'kel', 'tuer', 2, 105, 90)],
+    objekte: lauf,
+    kisten: [kiste('k1', 'kel', 150, 20, { unterlage_art: 'fach', unterlage_objekt_id: 'hinten', fach_ebene: 3, fach_spalte: 1, unten_cm: 80, oben_cm: 120, wurzel_art: 'fach' })],
+  }
+  const ks = baueSzene(kd, F).filter((k) => k.art === 'quader')
+  const von = (id) => ks.filter((k) => k.id === id)
+  const schienen = ks.filter((k) => k.rolle === 'regal' && Math.abs(k.masse[1] - 2) < 1e-9)
+  gleich('Keller: Schienen 4 + 4 + 4, Eckbretter ohne', schienen.length, 12)
+  wahr('Keller: Schienen nur an der Wand', schienen.every((k) => Math.min(k.mitte[0], 3 - k.mitte[0], k.mitte[2]) < 0.02))
+  wahr('Keller: keine Seiten und keine Rueckwand', !ks.some((k) => (k.rolle === 'regal' || k.rolle === 'brett') && k.masse[1] > 0.1 && k.masse[0] > 0.05 && k.masse[2] > 0.05))
+  const bretter = (id) => von(id).filter((k) => Math.abs(k.masse[1] - 0.027) < 1e-9)
+  gleich('Keller: Rueckwand 4 Bretter (bei 0 der Boden)', bretter('hinten').length, 4)
+  gleich('Keller: Seitenlauf links 4 Rechtecke und 4 Keile', [bretter('links').length, bretter('links').filter((k) => k.form?.art === 'keil').length], [8, 4])
+  gleich('Keller: Eckbrett nur Keile', [bretter('eckeL').length, bretter('eckeL').every((k) => k.form?.art === 'keil')], [4, true])
+  // Keil links hinten: rechter Winkel bei (40, 40), also Richtung -x, -z von der Mitte.
+  gleich('Keller: Keil der Innenecke links zeigt in die Ecke', bretter('eckeL')[0].form.ecke, [-1, -1])
+  gleich('Keller: Keil der Innenecke rechts zeigt in die Ecke', bretter('eckeR')[0].form.ecke, [1, -1])
+  // Tuerenden: rechter Winkel an der Wand, zur Rueckwand hin (z kleiner).
+  gleich('Keller: Keil am Tuerende links', bretter('links').find((k) => k.form)?.form.ecke, [-1, -1])
+  gleich('Keller: Keil am Tuerende rechts', bretter('rechts').find((k) => k.form)?.form.ecke, [1, -1])
+  wahr('Keller: Bretter heller Birke', bretter('hinten').every((k) => k.farbe !== F.fach && k.farbe !== F.objekt))
+  wahr('Keller: Kiste auf dem Brett bei 80', ks.some((k) => k.rolle === 'kiste' && Math.abs(k.mitte[1] - k.masse[1] / 2 - 0.8) < 0.005))
+  wahr('Keller: Konsolen unter jedem Brett der Rueckwand', [40, 80, 120, 160].every((b) => von('hinten').filter((k) => k.rolle === 'regal' && Math.abs(k.mitte[1] + k.masse[1] / 2 - (b - 2.7) / 100) < 1e-9).length === 4))
+  wahr('Keller: alle Zahlen endlich', ks.every((k) => [...k.mitte, ...k.masse, k.drehY].every(Number.isFinite) && k.masse.every((v) => v > 0)))
+  // Plan: doppelte Vorderkante folgt der Schraege bis an die Wand, Striche an der Wand.
+  const vl = vorderlinie(160, 40, schienenregal({ art: 'regal', name: 'Schienenregal 45 links' }), 3)
+  wahr('Plan: Vorderlinie beginnt an der Wand, endet an der Seite', vl.length === 3 && Math.abs(vl[0][1]) < 1e-9 && Math.abs(vl[2][0] - 160) < 1e-9 && Math.abs(vl[1][1] - 37) < 1e-9)
+  const vr = vorderlinie(100, 40, schienenregal({ art: 'regal', name: 'Schienenregal' }), 3)
+  gleich('Plan: ohne Schraege wie bei Regalen', vr, [[0, 37], [100, 37]])
+  gleich('Plan: Striche an der Wandkante je Schiene', schienenStriche(300, 40, { links: false, rechts: false, ecke: false }).map(([a]) => a[1]), [0, 0, 0, 0])
 }
 
 if (fehler) {

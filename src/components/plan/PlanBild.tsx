@@ -31,6 +31,7 @@ import {
 } from './hilfe'
 import { objektName } from './lage'
 import { dekoEbene } from './moebelArt'
+import { brettUmriss, schienenregal, schienenStriche, vorderlinie } from './schienenregal'
 import { MoebelSymbol, moebelArt } from './moebelSymbol'
 import { radArt, radFaktor } from './ansicht'
 
@@ -203,6 +204,9 @@ const ObjektEbene = memo(function ObjektEbene({ objekte, massstab }: { objekte: 
     <g>
       {objekte.map((o) => {
         const umriss = objektUmriss(o)
+        // Schienenregal (E95): Bretter mit Schraegen, Striche fuer die Schienen.
+        const schiene = o.form !== 'l' ? schienenregal(o) : null
+        const flaeche = schiene ? brettUmriss(o.breite_cm, o.tiefe_cm, schiene).map((p) => objektPunkt(o, p[0], p[1])) : umriss
         const fs = px(massstab, 11)
         const mitte = innenPunkt(umriss)
         // Beschriftung nur, wenn sie in den Rahmen passt (grob: 0,6 Schriftbreiten je Zeichen).
@@ -224,7 +228,7 @@ const ObjektEbene = memo(function ObjektEbene({ objekte, massstab }: { objekte: 
         return (
           <g key={o.id}>
             <polygon
-              points={umriss.map((p) => p.join(',')).join(' ')}
+              points={flaeche.map((p) => p.join(',')).join(' ')}
               style={mauer ? { fill: 'var(--plan-wand)', stroke: 'var(--plan-wand)' } : { fill: o.farbe ?? 'var(--plan-objekt)', stroke: 'var(--plan-objekt-rand)' }}
               strokeWidth={1.5}
               vectorEffect={NS}
@@ -232,7 +236,22 @@ const ObjektEbene = memo(function ObjektEbene({ objekte, massstab }: { objekte: 
               strokeDasharray={o.boden_cm ? '6 4' : undefined}
               fillOpacity={o.boden_cm ? 0.55 : undefined}
             />
-            {o.art !== 'moebel' ? (
+            {schiene ? (
+              <g style={{ stroke: 'var(--plan-objekt-rand)' }} fill="none" vectorEffect={NS}>
+                <polyline
+                  points={vorderlinie(o.breite_cm, o.tiefe_cm, schiene, 3)
+                    .map((p) => objektPunkt(o, p[0], p[1]).join(','))
+                    .join(' ')}
+                  strokeWidth={1}
+                  vectorEffect={NS}
+                />
+                {schienenStriche(o.breite_cm, o.tiefe_cm, schiene).map(([a, b], i) => {
+                  const p = objektPunkt(o, a[0], a[1])
+                  const q = objektPunkt(o, b[0], b[1])
+                  return <line key={i} x1={p[0]} y1={p[1]} x2={q[0]} y2={q[1]} strokeWidth={3} vectorEffect={NS} />
+                })}
+              </g>
+            ) : o.art !== 'moebel' ? (
               // Regal und Schrank: die Vorderkante doppelt, damit man sieht, wo man hineingreift.
               <line
                 x1={objektPunkt(o, 0, o.tiefe_cm - 3)[0]}

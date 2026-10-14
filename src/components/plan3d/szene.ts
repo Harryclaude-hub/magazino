@@ -28,6 +28,8 @@ import {
 import type { GrundrissDaten, Objekt, PlanKiste, Raum } from '../../lib/types'
 import { dekoEbene, moebelArt, type MoebelArt } from '../plan/moebelArt.ts'
 import { moebelTeile, ton, type Teil } from './moebel3d.ts'
+import { misch } from './moebelDeko3d.ts'
+import { schienenregal, schienenTeile, type Schienenregal } from '../plan/schienenregal.ts'
 
 /** Die Farben, die die Szene braucht. Raum3D liest sie aus den Tokens. */
 export interface Farben3D {
@@ -236,7 +238,14 @@ export interface Quader {
   glut?: number
 }
 
-export type Form3D = { art: 'zylinder'; oben: number; achse: 'x' | 'y' | 'z' } | { art: 'kugel' }
+export type Form3D =
+  | { art: 'zylinder'; oben: number; achse: 'x' | 'y' | 'z' }
+  | { art: 'kugel' }
+  /** E95: halber Quader, ein Prisma mit dreieckigem Grundriss (Brettende
+   *  eines Schienenregals mit 45-Grad-Schraege). ecke: Vorzeichen (x, z)
+   *  der Ecke mit dem rechten Winkel, von der Mitte aus; die Schraege
+   *  verbindet die beiden Nachbarecken. */
+  | { art: 'keil'; ecke: [1 | -1, 1 | -1] }
 
 /** E82: Alle Teile mit tuer (Blatt, Klinke, Rosette, Schluessel, Griff
  *  einer Moebeltuer) sind in der Stellung zu beschrieben (mitte, drehY).
@@ -790,6 +799,13 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
       }
       continue
     }
+    // Schienenregal (E95): Wandschienen, Konsolen und Bretter statt Kasten.
+    // Als L (oben schon als zwei Quader gezeichnet) bleibt es ohne.
+    const schiene = schienenregal(o)
+    if (schiene) {
+      out.push(...schienenQuader(o, schiene, f, ist))
+      continue
+    }
     // Regal und Schrank: Seiten, Teiler zwischen den Spalten, Deckel, Bretter.
     const B = o.breite_cm
     const T = o.tiefe_cm
@@ -826,6 +842,36 @@ function objekte(liste: Objekt[], f: Farben3D, hervor: string | null, raeume: Ra
         })
       }
     }
+  }
+  return out
+}
+
+/** Ein Schienenregal (E95) als Quader: Schienen und Konsolen in dunklem
+ *  Metall ohne Fase, die Bretter in der eigenen Farbe oder heller Birke
+ *  (Multiplex), Brettenden mit Schraege als Keil. Gesucht alles in der
+ *  Hervorfarbe. Reine Rechnung, auch fuer die Pruefung. */
+export function schienenQuader(o: Objekt, s: Schienenregal, f: Farben3D, ist: boolean): Quader[] {
+  const out: Quader[] = []
+  const unten = o.boden_cm ?? 0
+  const metall = ist ? f.hervor : misch(f.metall, f.schwarz, 0.55)
+  const holz = ist ? f.hervor : (o.farbe ?? misch(f.holz, f.weiss, 0.55))
+  for (const q of schienenTeile(o, s)) {
+    const brett = q.art === 'brett'
+    const farbe = brett ? holz : q.art === 'schlitz' ? (ist ? f.hervor : f.schwarz) : metall
+    const kante = ist ? f.kisteRand : brett ? ton(holz, 0.68) : null
+    // Rolle 'regal' haelt beim Begehen auf (wie die Seiten eines Regals).
+    // Ein Keil nicht: sein Hindernis waere das ganze Quadrat, man stiesse
+    // sich gerade an der abgeschnittenen Ecke.
+    const k = lokalQuader(o, q.keil ? 'brett' : 'regal', q.x0, q.y0, q.x1, q.y1, unten + q.z0, unten + q.z1, farbe, { kante, id: o.id, hervor: ist })
+    if (!k) continue
+    k.glanz = brett ? materialGlanz('holz') : 0.55
+    if (!brett) k.rund = 0
+    if (q.keil) {
+      // Rechter Winkel lokal bei (x1, y0) (links) oder (x0, y0) (rechts).
+      const [dx, dz] = globalRichtung(o, q.keil === 'links' ? 1 : -1, -1)
+      k.form = { art: 'keil', ecke: [dx > 0 ? 1 : -1, dz > 0 ? 1 : -1] }
+    }
+    out.push(k)
   }
   return out
 }

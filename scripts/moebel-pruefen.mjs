@@ -23,6 +23,9 @@
 // ausgerichtet; Dinge mit demselben Namen haengen zusammen; Teilebudget
 // (Stuhl 40, Kuechenzeile 200); kleine Deko ganz aufhebbar; eigene Farbe
 // wird genutzt; die Szene baut alles ohne kaputte Zahlen.
+// E95: Schienenregal (Schienenzahl nach Breite, alles im Kasten, auch die
+// Keile der 45-Grad-Enden, je Brett eine Konsole an jeder Schiene, keine
+// kaputten Zahlen bei winzigen Massen, hoechstens 2000 Dreiecke).
 // E91: die BESTA-Eckbank (Tueren, Sitzplaetze, Rueckenpolster), die Deko
 // fuer Bad und WC mit ihren Abarten, Farben aus dem Namen, hoechstens 1500
 // Dreiecke je Stueck (so gezaehlt, wie der Motor die Formen baut), weicher
@@ -35,6 +38,8 @@ import { moebelTeile } from '../src/components/plan3d/moebel3d.ts'
 import { misch } from '../src/components/plan3d/moebelDeko3d.ts'
 import { baueSzene, moebelQuader } from '../src/components/plan3d/szene.ts'
 import { DEKO_ARTEN, moebelArt } from '../src/components/plan/moebelArt.ts'
+import { brettTiefe, brettUmriss, schienenregal, schienenTeile, schienenX, schienenZahl } from '../src/components/plan/schienenregal.ts'
+import { schienenQuader } from '../src/components/plan3d/szene.ts'
 
 let fehler = 0
 function wahr(name, ist) {
@@ -527,6 +532,7 @@ for (const art of ['kuechenzeile', 'sofa']) {
 // Segmenten (unter 2 mm: glatter Quader), Moebelteile ohne Rundung mit Fase.
 const FASE_ROLLEN = new Set(['moebel', 'front', 'regal', 'brett', 'kiste'])
 function dreiecke(k) {
+  if (k.form?.art === 'keil') return 8
   if (k.form?.art === 'kugel') return 32 * 20 * 2 - 2 * 32
   if (k.form?.art === 'zylinder') return 40 * 4
   const klein = Math.min(...k.masse)
@@ -601,6 +607,66 @@ const dreieckeVon = (name, art) => {
   const linien = (name, art) => moebelQuader(faelle.find((c) => c.name === name).o, ergebnis.get(name), F, art, false).filter((k) => k.kante).length
   wahr('Stoff ohne Kantenlinie: Handtuecher, Stapel, Bademantel', linien('handtuch', 'handtuch') === 0 && linien('handtuchstapel', 'handtuchstapel') === 0 && teile('bademantel').filter((q) => q.ding).every((q) => q.weich))
   wahr('Holz und Kaesten mit Kantenlinie wie bisher', linien('wandregal', 'wandregal') > 0 && linien('sideboard', 'sideboard') > 0 && linien('vorhang', 'vorhang') > 0)
+}
+
+/* ------------------------------------------------------------ E95: Schienenregal */
+{
+  const regal = (name, B, T, H, brett) => ({ ...objekt(null, [B, T, H]), art: 'regal', name, brett_cm: brett, spalten: 1 })
+  // Schienenzahl: unter 80 zwei, unter 130 drei, sonst vier; Eckbrett keine.
+  const ohne = { links: false, rechts: false, ecke: false }
+  for (const [B, n] of [[40, 2], [79, 2], [80, 3], [129, 3], [130, 4], [300, 4]]) wahr(`Schienenregal ${B} cm: ${n} Schienen`, schienenZahl(B, ohne) === n && schienenX(B, 40, ohne).length === n)
+  wahr('Schienenregal Ecke: keine Schienen', schienenZahl(60, { ...ohne, ecke: true }) === 0)
+  const faelleS = [
+    ['Schienenregal hinten', 300, 40, 200, [0, 40, 80, 120, 160, 197]],
+    ['Schienenregal links, 45 links', 160, 40, 200, [0, 40, 80, 120, 160, 197]],
+    ['Schienenregal rechts, 45 rechts', 120, 40, 200, [0, 35, 75]],
+    ['Schienenregal 45 beide', 100, 40, 180, [10, 60, 120]],
+    ['Schienenregal 45 beide schmal', 50, 40, 180, [10, 60]],
+    ['Schienenregal Ecke, 45 rechts', 40, 40, 200, [0, 40, 80, 120, 160]],
+    ['Schienenregal 45 links schmal', 30, 40, 180, [50]],
+  ]
+  for (const [name, B, T, H, brett] of faelleS) {
+    const o = regal(name, B, T, H, brett)
+    const s = schienenregal(o)
+    wahr(`${name}: erkannt`, !!s)
+    const teile = schienenTeile(o, s)
+    const fin = teile.every((q) => [q.x0, q.x1, q.y0, q.y1, q.z0, q.z1].every(Number.isFinite) && q.x0 < q.x1 && q.y0 < q.y1 && q.z0 < q.z1)
+    wahr(`${name}: Zahlen endlich, Masse positiv`, fin)
+    wahr(`${name}: alles im Kasten B x T x H`, teile.every((q) => q.x0 >= -1e-9 && q.x1 <= B + 1e-9 && q.y0 >= -1e-9 && q.y1 <= T + 1e-9 && q.z0 >= -1e-9 && q.z1 <= H + 1e-9))
+    // Jeder Keil liegt im Umriss: seine drei Ecken haben hoechstens die Brett-Tiefe an ihrer Stelle.
+    const keile = teile.filter((q) => q.keil)
+    const ecken = (q) => (q.keil === 'links' ? [[q.x0, q.y0], [q.x1, q.y0], [q.x1, q.y1]] : [[q.x0, q.y0], [q.x1, q.y0], [q.x0, q.y1]])
+    wahr(`${name}: Keile im Umriss`, keile.every((q) => ecken(q).every(([x, y]) => y <= brettTiefe(x, B, T, s) + 1e-9)))
+    // Die Flaeche der Brettteile ist die des Umrisses.
+    const u = brettUmriss(B, T, s)
+    let fl = 0
+    for (let i = 0; i < u.length; i++) fl += u[i][0] * u[(i + 1) % u.length][1] - u[(i + 1) % u.length][0] * u[i][1]
+    const bretter = brett.filter((b) => b >= 2.7 && b <= H)
+    const teilFl = teile.filter((q) => q.art === 'brett').reduce((a, q) => a + (q.x1 - q.x0) * (q.y1 - q.y0) * (q.keil ? 0.5 : 1), 0)
+    wahr(`${name}: Brettflaeche wie der Umriss (${Math.round(teilFl)} zu ${Math.round(Math.abs(fl / 2) * bretter.length)})`, Math.abs(teilFl - Math.abs(fl / 2) * bretter.length) < 0.01)
+    const n = schienenZahl(B, s)
+    wahr(`${name}: ${n} Schienen ueber die volle Hoehe`, teile.filter((q) => q.art === 'schiene').length === n && teile.filter((q) => q.art === 'schiene').every((q) => q.z0 === 0 && q.z1 === H && q.y0 === 0))
+    // Konsolen: je Brett (ab 6,2 cm) eine an jeder Schiene, direkt darunter.
+    const arme = teile.filter((q) => q.art === 'arm')
+    const mitArm = brett.filter((b) => b >= 6.2 && b <= H)
+    if (!name.includes('schmal')) wahr(`${name}: ${mitArm.length} x ${n} Konsolen`, arme.length === mitArm.length * n && mitArm.every((b) => arme.filter((q) => Math.abs(q.z1 - (b - 2.7)) < 1e-9).length === n))
+    const welt = schienenQuader({ ...o, id: 'sr', x: 100, y: 100, drehung: 270, raum_id: 'r' }, s, F, false)
+    wahr(`${name}: Quader endlich`, welt.every((k) => [...k.mitte, ...k.masse, k.drehY].every(Number.isFinite) && k.masse.every((v) => v > 0)))
+    wahr(`${name}: Keil-Form nur an Keilen`, welt.filter((k) => k.form?.art === 'keil').length === keile.length)
+    const d = welt.reduce((a, k) => a + dreiecke(k), 0)
+    if (name === 'Schienenregal hinten') console.log(`Dreiecke Schienenregal 300 cm, 5 Bretter: ${d}`)
+    wahr(`${name}: ${d} Dreiecke, hoechstens 2000`, d <= 2000)
+  }
+  // Winzige und kaputte Masse: keine kaputten Zahlen.
+  for (const [B, T, H] of [[1, 1, 1], [0.5, 40, 100], [100, 0.4, 100], [3, 3, 3], [0, 40, 100]]) {
+    for (const name of ['Schienenregal 45 beide', 'Schienenregal 45 links', 'Schienenregal']) {
+      const o = regal(name, B, T, H, [0, 1, 2.8, 5, 50])
+      const s = schienenregal(o)
+      const teile = schienenTeile(o, s)
+      wahr(`${name} ${B}x${T}x${H}: keine kaputten Zahlen`, teile.every((q) => [q.x0, q.x1, q.y0, q.y1, q.z0, q.z1].every(Number.isFinite) && q.x0 < q.x1 && q.y0 < q.y1 && q.z0 < q.z1 && q.x1 <= B + 1e-9 && q.y1 <= T + 1e-9 && q.z1 <= H + 1e-9))
+      wahr(`${name} ${B}x${T}x${H}: Umriss endlich`, brettUmriss(B, T, s).every((p) => p.every(Number.isFinite)))
+    }
+  }
 }
 
 // Die Szene baut alles ohne kaputte Zahlen.
