@@ -4,6 +4,7 @@ import { AuthShell } from '../components/AuthShell'
 import { Button, ErrorBox, Field, Input, PasswordInput } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
+import { passwortGenug } from '../lib/passwort'
 
 export default function Register() {
   const { signUp, session, ready } = useAuth()
@@ -13,6 +14,9 @@ export default function Register() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [repeat, setRepeat] = useState('')
+  // Nach dem Anlegen gehen beide Augen wieder zu.
+  const [verbergen, setVerbergen] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -20,19 +24,24 @@ export default function Register() {
   // Wer neu ist, hat noch keinen Umzug. Darum geht es hier immer zur Uebersicht.
   if (ready && session) return <Navigate to="/app" replace />
 
-  const weak = password.length > 0 && password.length < 8
+  const weak = password.length > 0 && !passwortGenug(password)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
     setInfo(null)
-    if (password.length < 8) {
+    if (!passwortGenug(password)) {
       setError(t('konto.passwort_kurz'))
+      return
+    }
+    if (password !== repeat) {
+      setError(t('konto.passwoerter_ungleich'))
       return
     }
     setBusy(true)
     try {
       const { needsConfirm } = await signUp(email, password, name)
+      setVerbergen((n) => n + 1)
       if (needsConfirm) {
         // Nicht so tun als waere alles fertig. Der Hinweis muss sichtbar sein.
         setInfo(t('konto.bestaetigung_noetig'))
@@ -94,6 +103,16 @@ export default function Register() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={t('konto.neues_passwort_platzhalter')}
+            verbergen={verbergen}
+          />
+        </Field>
+        <Field label={t('konto.passwort_nochmal')} required>
+          <PasswordInput
+            autoComplete="new-password"
+            required
+            value={repeat}
+            onChange={(e) => setRepeat(e.target.value)}
+            verbergen={verbergen}
           />
         </Field>
 

@@ -1,6 +1,6 @@
 # Kistly: Uebergabe fuer eine neue (lokale) Claude-Sitzung
 
-Stand: 13.10.2026 abends. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
+Stand: 15.10.2026. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 
 ## Wo alles ist
 
@@ -9,7 +9,9 @@ Stand: 13.10.2026 abends. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - Repo: https://github.com/Harryclaude-hub/kistly, Zweig `main` ist aktuell
   (der Cloud-Arbeitszweig `claude/vibrant-planck-jlsatf` ist identisch).
 - Datenbank: Supabase `vqpirkgvclfsduklnnzv` (nur dieses Projekt!).
-  Migrationen 0001 bis 0048 sind angewandt.
+  Migrationen 0001 bis 0048 sind angewandt. 0049 liegt in `main`,
+  geprueft, aber NICHT eingespielt (erst nach Karams "stell live");
+  naechste: 0050.
 
 ## Was fertig ist
 
@@ -75,15 +77,28 @@ Stand: 13.10.2026 abends. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
   Pruefung (siehe ENTSCHEIDUNGEN.md): Tueren zeigen "Frei fuer Moebel" und
   Maueroeffnung statt Lichte, links und rechts drueben aus dem
   Nachbarraum, Blatt quer neben dem Plan, Verlauf und Fokus berichtigt.
+- Passwort sicher (E96, am 15.10. aus dem Zweig `passwort-sicher-2026-10-09`
+  in `main`): Auge im Passwortfeld, Passwort vergessen mit neutralem Satz,
+  Passwort neu nur nach einem in diesem Tab eingeloesten Link
+  (src/lib/linkstand.ts), mit Konto im Formular und Hinweis bei fremdem
+  Konto, Aendern in den Einstellungen nur mit dem aktuellen Passwort.
+  Neue Passwoerter: mindestens 10 Zeichen mit Buchstaben und Ziffern (wie
+  die Supabase-Einstellung, die Karam im Dashboard setzt). Migration 0049
+  (geprueft, NOCH NICHT EINGESPIELT, erst nach Karams "stell live"):
+  Mitgliedschaft fest, Einladungscodes nur fuer Bearbeiter und Besitzer,
+  owner_id nur durch Besitzer oder Admin. Probelauf:
+  supabase/probelauf/0049_mitglieder_und_einladungen_absichern.sql.
 
 ## Wichtige Dokumente
 
 - `docs/grundriss/STAND.md`: Stand und offene Punkte.
-- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E94.
+- `docs/grundriss/ENTSCHEIDUNGEN.md`: alle Entscheidungen E1 bis E96.
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler
-  bekommen eine neue Nummer (naechste: 0049).
+  bekommen eine neue Nummer. 0049 ist noch nicht eingespielt und darf bis
+  dahin noch geaendert werden (dann den Probelauf mitziehen, Teil A muss
+  Wort fuer Wort gleich sein); naechste: 0050.
 - Regel-Spiegel: SQL-Geometrie und `src/lib/geometrie.ts` immer zusammen
   aendern (`scripts/geometrie-pruefen.mjs`).
 
@@ -103,6 +118,22 @@ Stand: 13.10.2026 abends. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
    protection" in Auth einschalten; einige security-definer-Funktionen.
 6. Bilderkennung: einziger Versuch (24.09.) brach mit Zeitueberschreitung
    ab; nicht Teil des Umbaus.
+7. Passwort sicher (seit 15.10.2026 in `main`, E96). 0049 ist fertig
+   vorbereitet: Der Probelauf
+   `supabase/probelauf/0049_mitglieder_und_einladungen_absichern.sql` ist
+   eine Datei zum direkten Ausfuehren (begin; Migration; Pruefblock;
+   rollback;) und lief am 15.10. in PGlite gegen 0001 bis 0048: 18 von 18
+   Zeilen ok, nichts blieb stehen, 0049 zweimal hintereinander ohne
+   Fehler, ohne 0049 meldet er 9 FEHLER. Gegen das echte Projekt ist er
+   noch NICHT gelaufen. Erst nach Karams "stell live" im Chat:
+   `npx.cmd --yes supabase@2.120.0 db query --linked --project-ref vqpirkgvclfsduklnnzv -f <datei>`,
+   zuerst mit dem Probelauf, nur wenn alles ok ist mit der Migration.
+   Im Dashboard die Schritte aus dem README, Abschnitt "Passwort
+   zuruecksetzen" (Redirect URL, Mail-Vorlage mit token_hash, "Secure
+   password change", Passwortregel 10 Zeichen mit Buchstaben und Ziffern),
+   danach einmal den Weg ueber die Mail echt durchspielen. Mit echtem
+   Supabase ist der Weg noch nicht getestet. Die Seite geht erst online,
+   wenn GitHub Actions wieder laeuft (Abrechnung, Stand 15.10.2026).
 
 ## Arbeitsweise
 

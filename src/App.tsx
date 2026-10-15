@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { ToastProvider, Loading, Wordmark } from './components/ui'
 import { configError } from './lib/supabase'
 import { SpracheProvider } from './lib/i18n'
+import { LINK_BEIM_LADEN, useWiederherstellung } from './lib/linkstand'
 
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -63,6 +64,29 @@ function Gate({ children }: { children: ReactNode }) {
   return <FreigabeTor>{children}</FreigabeTor>
 }
 
+/* Solange ein Passwort-Link eingeloest, das neue Passwort aber noch nicht
+ * gesetzt ist, fuehrt jede andere Seite zurueck zu Passwort neu. Sonst
+ * waere der Link aus der Mail eine gewoehnliche Anmeldung. Der Merker lebt
+ * nur im Speicher dieses Seitenaufrufs (src/lib/linkstand.ts). */
+function WiederherstellungsWache({ children }: { children: ReactNode }) {
+  const aktiv = useWiederherstellung()
+  const loc = useLocation()
+  if (aktiv && loc.pathname !== '/passwort-neu') return <Navigate to="/passwort-neu" replace />
+  return <>{children}</>
+}
+
+/* Die Wurzel fuehrt zur Anmeldung. Landet ein Link aus einer Auth-Mail
+ * hier (Supabase nimmt die Site URL, wenn die Zieladresse nicht in der
+ * Liste der erlaubten Adressen steht), geht es mit allen Parametern zu
+ * Passwort neu weiter, statt sie auf dem Weg zur Anmeldung zu verlieren. */
+function Wurzel() {
+  const loc = useLocation()
+  if (LINK_BEIM_LADEN && (loc.search || loc.hash)) {
+    return <Navigate to={{ pathname: '/passwort-neu', search: loc.search, hash: loc.hash }} replace />
+  }
+  return <Navigate to="/login" replace />
+}
+
 function SetupHint() {
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 p-6 text-center">
@@ -85,10 +109,11 @@ export default function App() {
       <SpracheProvider>
         <AuthProvider>
           <ToastProvider>
+          <WiederherstellungsWache>
           <Routes>
             {/* Die Werbeseite (pages/Landing.tsx) ist abgeschaltet: nach aussen soll
                 nichts verraten, was Kistly ist. Wer kommt, landet bei der Anmeldung. */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<Wurzel />} />
             <Route path="/login" element={<Login />} />
             <Route path="/registrieren" element={<Register />} />
             <Route path="/passwort-vergessen" element={<ResetRequest />} />
@@ -145,6 +170,7 @@ export default function App() {
 
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </WiederherstellungsWache>
           </ToastProvider>
         </AuthProvider>
       </SpracheProvider>

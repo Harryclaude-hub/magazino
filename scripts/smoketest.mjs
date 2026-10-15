@@ -6,6 +6,13 @@
  *
  * Aufruf:  node scripts/smoketest.mjs
  * Liest .env.local. Schreibt nur in ein Projekt, das es selbst anlegt.
+ *
+ * Das Passwort des Testzugangs kommt nur aus der Umgebung (SMOKE_PASSWORD),
+ * nie aus einer Datei im Repo: das Repo ist oeffentlich. So setzen, dass es
+ * weder in der Befehlszeile noch im Verlauf steht:
+ *   PowerShell:  $env:SMOKE_PASSWORD = Read-Host 'Passwort des Testzugangs'
+ *   Git Bash:    read -rs SMOKE_PASSWORD; export SMOKE_PASSWORD
+ * Optional SMOKE_EMAIL fuer eine andere Adresse des Testzugangs.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -32,6 +39,18 @@ const URL_BASE = env.VITE_SUPABASE_URL
 const KEY = env.VITE_SUPABASE_ANON_KEY
 if (!URL_BASE || !KEY) {
   console.error('VITE_SUPABASE_URL oder VITE_SUPABASE_ANON_KEY fehlt in .env.local')
+  process.exit(1)
+}
+
+// Ohne Passwort gar nicht erst loslegen, es gibt keinen Ersatzwert.
+const SMOKE_PASSWORD = process.env.SMOKE_PASSWORD
+if (!SMOKE_PASSWORD) {
+  console.error(
+    'SMOKE_PASSWORD fehlt. Das Passwort des Testzugangs kommt nur aus der Umgebung,\n' +
+      'nie aus einer Datei im Repo. Vorher setzen, zum Beispiel:\n' +
+      "  PowerShell:  $env:SMOKE_PASSWORD = Read-Host 'Passwort des Testzugangs'\n" +
+      '  Git Bash:    read -rs SMOKE_PASSWORD; export SMOKE_PASSWORD',
+  )
   process.exit(1)
 }
 
@@ -81,7 +100,7 @@ async function main() {
   // hier nur benutzt. So laeuft der Test auch dann, wenn das Projekt noch
   // eine E-Mail-Bestaetigung verlangt.
   const email = process.env.SMOKE_EMAIL ?? 'smoketest@kistly.app'
-  const password = process.env.SMOKE_PASSWORD ?? 'Smoketest-2026-kistly'
+  const password = SMOKE_PASSWORD
 
   // ------------------------------------------------------------ Anmeldung
   console.log('\n1. Anmelden als', email)
@@ -92,13 +111,17 @@ async function main() {
   check('Anmeldung angenommen', login.ok, JSON.stringify(login.data).slice(0, 220))
   if (!login.ok) {
     console.log(
-      '\n  Der Testzugang fehlt. Lege ihn einmalig im SQL-Editor an:\n' +
+      '\n  Der Testzugang fehlt, oder SMOKE_PASSWORD passt nicht zu ihm.\n' +
+        '  Anlegen einmalig im SQL-Editor (eigenes Passwort statt des Platzhalters,\n' +
+        '  dasselbe dann als SMOKE_PASSWORD setzen):\n' +
         "  insert into auth.users (instance_id, id, aud, role, email, encrypted_password,\n" +
-        "    email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)\n" +
+        "    email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data,\n" +
+        "    confirmation_token, recovery_token, email_change_token_new, email_change)\n" +
         "  values ('00000000-0000-0000-0000-000000000000', gen_random_uuid(),\n" +
         "    'authenticated', 'authenticated', 'smoketest@kistly.app',\n" +
-        "    crypt('Smoketest-2026-kistly', gen_salt('bf')), now(), now(), now(),\n" +
-        "    '{\"provider\":\"email\",\"providers\":[\"email\"]}'::jsonb, '{}'::jsonb);",
+        "    crypt('<DEIN-TESTPASSWORT>', gen_salt('bf')), now(), now(), now(),\n" +
+        "    '{\"provider\":\"email\",\"providers\":[\"email\"]}'::jsonb, '{}'::jsonb,\n" +
+        "    '', '', '', '');",
     )
     return
   }

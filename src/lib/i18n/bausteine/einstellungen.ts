@@ -65,13 +65,26 @@ export const einstellungen: Woerterbuch = {
 
   // --------------------------------------------------------------- Passwort
   'einstellungen.passwort': { de: 'Passwort', ar: 'كلمة المرور' },
+  'einstellungen.aktuelles_passwort': { de: 'Aktuelles Passwort', ar: 'كلمة المرور الحالية' },
   'einstellungen.neues_passwort': { de: 'Neues Passwort', ar: 'كلمة مرور جديدة' },
   'einstellungen.passwort_hinweis': {
-    de: 'Mindestens 8 Zeichen. Mit dem Auge kannst du es anzeigen.',
-    ar: '8 أحرف على الأقل. اضغط على العين لإظهارها.',
+    de: 'Mindestens 10 Zeichen, mit Buchstaben und Ziffern. Mit dem Auge kannst du es anzeigen.',
+    ar: '10 أحرف على الأقل، مع حروف لاتينية وأرقام. اضغط على العين لإظهارها.',
+  },
+  'einstellungen.passwort_wiederholen': {
+    de: 'Neues Passwort wiederholen',
+    ar: 'أعد كتابة كلمة المرور الجديدة',
   },
   'einstellungen.aendern': { de: 'Ändern', ar: 'تغيير' },
-  'einstellungen.passwort_geaendert': { de: 'Passwort geändert', ar: 'تم تغيير كلمة المرور' },
+  'einstellungen.passwort_geaendert': {
+    de: 'Passwort geändert. Auf allen anderen Geräten bist du jetzt abgemeldet.',
+    ar: 'تم تغيير كلمة المرور. تم تسجيل خروجك الآن من جميع الأجهزة الأخرى.',
+  },
+  // Das Passwort steht, nur das Abmelden der anderen Geraete schlug fehl.
+  'einstellungen.passwort_geaendert_andere_offen': {
+    de: 'Passwort geändert. Andere Geräte konnten wir gerade nicht abmelden. Bist du dort noch angemeldet, melde dich dort selbst ab.',
+    ar: 'تم تغيير كلمة المرور. لم نتمكن الآن من تسجيل خروجك من الأجهزة الأخرى. إن كنت لا تزال مسجّل الدخول عليها، فسجّل الخروج منها بنفسك.',
+  },
   'einstellungen.sicherheit_hinweis': {
     de: 'Die Verbindung läuft verschlüsselt, Passwörter liegen nur als Hash beim Anbieter. Deine Daten sieht nur, wer im jeweiligen Umzug eingetragen ist.',
     ar: 'الاتصال مشفّر، وكلمات المرور محفوظة كبصمة مشفّرة فقط. بياناتك لا يراها إلا من كان مسجّلاً في النقلة نفسها.',

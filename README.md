@@ -267,7 +267,9 @@ node scripts/smoketest.mjs
 
 Der Smoketest legt einen Umzug an, prueft die komplette Codevergabe, die
 Code-Historie, Rechte und Abschottung, und raeumt danach wieder auf. Er
-braucht einmalig einen Testzugang:
+braucht einmalig einen Testzugang. `<DEIN-TESTPASSWORT>` durch ein eigenes,
+nirgends sonst benutztes Passwort ersetzen; es gehoert in keine Datei im
+Repo:
 
 ```sql
 insert into auth.users (
@@ -278,7 +280,7 @@ insert into auth.users (
 ) values (
   '00000000-0000-0000-0000-000000000000', gen_random_uuid(),
   'authenticated', 'authenticated', 'smoketest@kistly.app',
-  crypt('Smoketest-2026-kistly', gen_salt('bf')), now(), now(), now(),
+  crypt('<DEIN-TESTPASSWORT>', gen_salt('bf')), now(), now(), now(),
   '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
   '', '', '', ''
 );
@@ -287,6 +289,17 @@ insert into auth.users (
 Die leeren Zeichenketten am Ende sind kein Zierrat: GoTrue liest diese Spalten
 in nicht-nullbare Felder und meldet sonst beim Anmelden
 "Database error querying schema".
+
+Das Passwort bekommt der Smoketest nur aus der Umgebung, ohne
+`SMOKE_PASSWORD` bricht er sofort mit einem Hinweis ab. So gesetzt steht es
+weder in der Befehlszeile noch im Verlauf:
+
+```powershell
+$env:SMOKE_PASSWORD = Read-Host 'Passwort des Testzugangs'
+node scripts/smoketest.mjs
+```
+
+`SMOKE_EMAIL` setzt bei Bedarf eine andere Adresse fuer den Testzugang.
 
 ### 7. Symbole neu erzeugen (nur wenn das Logo geaendert wird)
 
@@ -324,6 +337,53 @@ npm run build     # erzeugt dist/
 Nach dem Deployen die URL in Supabase unter
 **Authentication → URL Configuration** als Site URL eintragen, sonst zeigt
 der Link zum Zuruecksetzen des Passworts auf localhost.
+
+### Passwort zuruecksetzen
+
+Die Seite "Passwort vergessen" schickt den Link mit der Zieladresse
+`<Adresse der App>/passwort-neu`. Damit Supabase dorthin zurueckleitet:
+
+1. **Authentication → URL Configuration → Redirect URLs**: die Adresse
+   `https://harryclaude-hub.github.io/kistly/passwort-neu` eintragen (lokal
+   zusaetzlich `http://localhost:5173/passwort-neu`).
+2. Empfohlen: **Authentication → Emails → Reset Password** im Text der Mail
+   den Link `{{ .ConfirmationURL }}` ersetzen durch
+   `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`.
+   Dann loest erst der Knopf "Weiter zum neuen Passwort" den Link ein. Ein
+   Mail-Scanner, der Links vorab oeffnet, verbraucht ihn so nicht, und der
+   Link klappt auch auf einem anderen Geraet als dem, auf dem er angefordert
+   wurde. Ohne diese Aenderung kommt der Link als `?code=` an und geht nur im
+   selben Browser, die Seite sagt das dann auch.
+3. Empfohlen, die Wand auf dem Server: **Authentication → Sign In /
+   Providers → Email → Secure password change** einschalten und speichern
+   (direkt: https://supabase.com/dashboard/project/_/auth/providers, dort
+   das Projekt waehlen und "Email" aufklappen). Dann lehnt Supabase selbst
+   jedes Aendern des Passworts ab, wenn die Anmeldung schon laenger
+   zurueckliegt (bei Supabase derzeit 24 Stunden), auch wenn jemand die App
+   umgeht. Die Einstellungen zeigen dann "neu anmelden"; nach Ab- und
+   wieder Anmelden klappt es. Der Link aus der Mail meldet frisch an und
+   sollte deshalb weiter gehen. **Danach den Weg ueber die Mail einmal echt
+   testen:** auf "Passwort vergessen" einen Link anfordern, ihn oeffnen,
+   ein neues Passwort setzen und mit ihm anmelden. Klappt das nicht, den
+   Schalter wieder ausschalten und Bescheid geben.
+4. **Passwortregel, gleich wie in der App:** Authentication → Sign In /
+   Providers → Email: **Minimum password length** `10`, **Password
+   Requirements** "Letters and digits", speichern. Die App verlangt beim
+   Registrieren, Zuruecksetzen und Aendern dasselbe (mindestens 10 Zeichen,
+   ein Buchstabe a bis z und eine Ziffer, `src/lib/passwort.ts`). Alte,
+   kuerzere Passwoerter gehen beim Anmelden weiter.
+
+Das Formular fuer das neue Passwort erscheint nur, wenn dieser Tab den Link
+in diesem Seitenaufruf selbst eingeloest hat; meldet ein anderer Tab das
+Einloesen, zaehlt das hier nicht. Nur angemeldet sein reicht nicht. Im
+Formular steht, fuer welches Konto das neue Passwort gilt; war vorher ein
+anderes Konto angemeldet, sagt ein Hinweis das (nur beim Link mit
+token_hash nach dem Klick auf "Weiter", beim alten Link mit ?code= nicht).
+Bis das neue Passwort
+steht, fuehrt jede andere Seite dorthin zurueck. Danach werden alle anderen
+Geraete abgemeldet; klappt das nicht, sagt die Seite das, statt es zu
+behaupten. Wer angemeldet ist, aendert das Passwort in den Einstellungen,
+dort nur mit dem aktuellen Passwort.
 
 ---
 
@@ -371,6 +431,10 @@ Ehrlich aufgeschrieben, damit niemand davon ueberrascht wird:
 - **Der Passwort-Link zum Zuruecksetzen** laeuft ueber den eingebauten
   Mailversand von Supabase. Der ist stark begrenzt (wenige Mails pro Stunde).
   Fuer mehr braucht es einen eigenen SMTP-Zugang im Supabase-Projekt.
+- **Der Merker "Link eingeloest" lebt nur im Speicher der Seite.** Laedt man
+  die Seite neu, bevor das neue Passwort gesetzt ist, ist er weg, die
+  Sitzung aus dem Link aber noch da: man ist dann normal angemeldet. Die App
+  merkt sich den Zustand absichtlich nicht im Browser-Speicher.
 
 ## Ordner
 

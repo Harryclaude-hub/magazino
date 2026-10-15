@@ -36,6 +36,15 @@ export const fehler: Woerterbuch = {
     de: 'Dein Konto ist noch nicht freigeschaltet.',
     ar: 'حسابك لم يُفعَّل بعد.',
   },
+  // Aus 0049: Mitgliedschaft und Eigentuemer bleiben fest.
+  'fehler.db.mitglied.fest': {
+    de: 'Eine Mitgliedschaft lässt sich nicht in einen anderen Umzug oder auf eine andere Person verschieben.',
+    ar: 'لا يمكن نقل العضوية إلى نقلة أخرى أو إلى شخص آخر.',
+  },
+  'fehler.db.umzug.eigentuemer_nur_besitzer': {
+    de: 'Den Eigentümer eines Umzugs ändert nur ein Besitzer.',
+    ar: 'لا يغيّر صاحبَ النقلة إلا أحدُ مالكيها.',
+  },
   'fehler.admin_laden': {
     de: 'Admin-Übersicht nicht geladen: {grund}',
     ar: 'تعذّر تحميل لوحة الإدارة: {grund}',
@@ -326,12 +335,36 @@ export const fehler: Woerterbuch = {
     ar: 'الحساب ما زال بانتظار التأكيد. أخبرنا وسيتم تفعيله.',
   },
   'fehler.passwort_kurz': {
-    de: 'Das Passwort braucht mindestens 6 Zeichen.',
-    ar: 'كلمة المرور تحتاج 6 أحرف على الأقل.',
+    de: 'Das Passwort braucht mindestens 10 Zeichen, mit Buchstaben und Ziffern.',
+    ar: 'كلمة المرور تحتاج 10 أحرف على الأقل، مع حروف لاتينية وأرقام.',
   },
   'fehler.passwort_gleich': {
     de: 'Das neue Passwort muss sich vom alten unterscheiden.',
     ar: 'كلمة المرور الجديدة يجب أن تختلف عن القديمة.',
+  },
+  'fehler.passwort_schwach': {
+    de: 'Das Passwort ist zu schwach. Nimm mindestens 10 Zeichen, darunter mindestens einen Buchstaben (a bis z) und eine Ziffer.',
+    ar: 'كلمة المرور ضعيفة. استخدم 10 أحرف على الأقل، منها حرف لاتيني واحد على الأقل (a إلى z) ورقم واحد.',
+  },
+  'fehler.passwort_geleakt': {
+    de: 'Dieses Passwort ist schon in Datenlecks aufgetaucht. Nimm bitte ein anderes.',
+    ar: 'ظهرت كلمة المرور هذه في تسريبات بيانات سابقة. اختر كلمة أخرى من فضلك.',
+  },
+  'fehler.passwort_aktuell_falsch': {
+    de: 'Das aktuelle Passwort stimmt nicht.',
+    ar: 'كلمة المرور الحالية غير صحيحة.',
+  },
+  'fehler.neu_anmelden_noetig': {
+    de: 'Aus Sicherheitsgründen musst du dich dafür neu anmelden. Melde dich ab und wieder an und ändere das Passwort gleich danach.',
+    ar: 'لأسباب أمنية يجب أن تسجّل الدخول من جديد. سجّل الخروج ثم الدخول، وغيّر كلمة المرور بعدها مباشرة.',
+  },
+  'fehler.link_abgelaufen': {
+    de: 'Der Link ist abgelaufen oder wurde schon benutzt.',
+    ar: 'انتهت صلاحية الرابط أو استُخدم من قبل.',
+  },
+  'fehler.link_anderer_browser': {
+    de: 'Bitte öffne den Link im selben Browser, in dem du ihn angefordert hast, oder fordere einen neuen Link an.',
+    ar: 'افتح الرابط من فضلك في المتصفح نفسه الذي طلبته منه، أو اطلب رابطًا جديدًا.',
   },
   'fehler.sitzung_weg': {
     de: 'Die Sitzung ist abgelaufen. Bitte neu anmelden.',
