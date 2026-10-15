@@ -24,7 +24,7 @@
 // (Stuhl 40, Kuechenzeile 200); kleine Deko ganz aufhebbar; eigene Farbe
 // wird genutzt; die Szene baut alles ohne kaputte Zahlen.
 // E95: Schienenregal (Schienenzahl nach Breite, alles im Kasten, auch die
-// Keile der 45-Grad-Enden, je Brett eine Konsole an jeder Schiene, keine
+// Prismen der 45-Grad-Enden, je Brett eine Konsole an jeder Schiene, keine
 // kaputten Zahlen bei winzigen Massen, hoechstens 2000 Dreiecke).
 // E91: die BESTA-Eckbank (Tueren, Sitzplaetze, Rueckenpolster), die Deko
 // fuer Bad und WC mit ihren Abarten, Farben aus dem Namen, hoechstens 1500
@@ -532,7 +532,7 @@ for (const art of ['kuechenzeile', 'sofa']) {
 // Segmenten (unter 2 mm: glatter Quader), Moebelteile ohne Rundung mit Fase.
 const FASE_ROLLEN = new Set(['moebel', 'front', 'regal', 'brett', 'kiste'])
 function dreiecke(k) {
-  if (k.form?.art === 'keil') return 8
+  if (k.form?.art === 'prisma') return (k.form.punkte.length - 2) * 2 + k.form.punkte.length * 2
   if (k.form?.art === 'kugel') return 32 * 20 * 2 - 2 * 32
   if (k.form?.art === 'zylinder') return 40 * 4
   const klein = Math.min(...k.masse)
@@ -633,16 +633,17 @@ const dreieckeVon = (name, art) => {
     const fin = teile.every((q) => [q.x0, q.x1, q.y0, q.y1, q.z0, q.z1].every(Number.isFinite) && q.x0 < q.x1 && q.y0 < q.y1 && q.z0 < q.z1)
     wahr(`${name}: Zahlen endlich, Masse positiv`, fin)
     wahr(`${name}: alles im Kasten B x T x H`, teile.every((q) => q.x0 >= -1e-9 && q.x1 <= B + 1e-9 && q.y0 >= -1e-9 && q.y1 <= T + 1e-9 && q.z0 >= -1e-9 && q.z1 <= H + 1e-9))
-    // Jeder Keil liegt im Umriss: seine drei Ecken haben hoechstens die Brett-Tiefe an ihrer Stelle.
-    const keile = teile.filter((q) => q.keil)
-    const ecken = (q) => (q.keil === 'links' ? [[q.x0, q.y0], [q.x1, q.y0], [q.x1, q.y1]] : [[q.x0, q.y0], [q.x1, q.y0], [q.x0, q.y1]])
-    wahr(`${name}: Keile im Umriss`, keile.every((q) => ecken(q).every(([x, y]) => y <= brettTiefe(x, B, T, s) + 1e-9)))
+    // Ein Brett mit Schraege ist ein Stueck: ein Teil je Brettebene, mit dem Umriss.
+    const mitSchraege = s.links || s.rechts
+    const brettTeile = teile.filter((q) => q.art === 'brett')
+    wahr(`${name}: Bretter mit Schraege tragen ihren Umriss, die anderen nicht`, brettTeile.every((q) => (mitSchraege ? q.umriss && q.umriss.every(([x, y]) => y <= brettTiefe(x, B, T, s) + 1e-9) : !q.umriss)))
     // Die Flaeche der Brettteile ist die des Umrisses.
     const u = brettUmriss(B, T, s)
     let fl = 0
     for (let i = 0; i < u.length; i++) fl += u[i][0] * u[(i + 1) % u.length][1] - u[(i + 1) % u.length][0] * u[i][1]
     const bretter = brett.filter((b) => b >= 2.7 && b <= H)
-    const teilFl = teile.filter((q) => q.art === 'brett').reduce((a, q) => a + (q.x1 - q.x0) * (q.y1 - q.y0) * (q.keil ? 0.5 : 1), 0)
+    const flaecheVon = (p) => Math.abs(p.reduce((a, q, i) => a + q[0] * p[(i + 1) % p.length][1] - p[(i + 1) % p.length][0] * q[1], 0)) / 2
+    const teilFl = teile.filter((q) => q.art === 'brett').reduce((a, q) => a + (q.umriss ? flaecheVon(q.umriss) : (q.x1 - q.x0) * (q.y1 - q.y0)), 0)
     wahr(`${name}: Brettflaeche wie der Umriss (${Math.round(teilFl)} zu ${Math.round(Math.abs(fl / 2) * bretter.length)})`, Math.abs(teilFl - Math.abs(fl / 2) * bretter.length) < 0.01)
     const n = schienenZahl(B, s)
     wahr(`${name}: ${n} Schienen ueber die volle Hoehe`, teile.filter((q) => q.art === 'schiene').length === n && teile.filter((q) => q.art === 'schiene').every((q) => q.z0 === 0 && q.z1 === H && q.y0 === 0))
@@ -652,7 +653,7 @@ const dreieckeVon = (name, art) => {
     if (!name.includes('schmal')) wahr(`${name}: ${mitArm.length} x ${n} Konsolen`, arme.length === mitArm.length * n && mitArm.every((b) => arme.filter((q) => Math.abs(q.z1 - (b - 2.7)) < 1e-9).length === n))
     const welt = schienenQuader({ ...o, id: 'sr', x: 100, y: 100, drehung: 270, raum_id: 'r' }, s, F, false)
     wahr(`${name}: Quader endlich`, welt.every((k) => [...k.mitte, ...k.masse, k.drehY].every(Number.isFinite) && k.masse.every((v) => v > 0)))
-    wahr(`${name}: Keil-Form nur an Keilen`, welt.filter((k) => k.form?.art === 'keil').length === keile.length)
+    wahr(`${name}: Prisma-Form nur an Brettern mit Schraege`, welt.filter((k) => k.form?.art === 'prisma').length === (mitSchraege ? brettTeile.length : 0))
     const d = welt.reduce((a, k) => a + dreiecke(k), 0)
     if (name === 'Schienenregal hinten') console.log(`Dreiecke Schienenregal 300 cm, 5 Bretter: ${d}`)
     wahr(`${name}: ${d} Dreiecke, hoechstens 2000`, d <= 2000)

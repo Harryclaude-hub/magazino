@@ -26,23 +26,20 @@
  *               liegt in der Innenecke zwischen zwei Laeufen auf deren
  *               Konsolen und zeigt nur Bretter.
  *
- * Das U im Keller (Rueckwand, linke und rechte Wand, Tuer vorn) besteht so
- * aus drei Laeufen und zwei Eckbrettern:
- *   linke Wand   "Schienenregal links, 45 links"   (Tuerende vorn liegt mit
- *                Blick auf die linke Wand links)
- *   Rueckwand    "Schienenregal hinten", von Wand zu Wand, ohne Schraege
- *   rechte Wand  "Schienenregal rechts, 45 rechts"
- *   Innenecken   "Schienenregal Ecke, 45 rechts" (links hinten) und
- *                "Schienenregal Ecke, 45 links" (rechts hinten), je ein
- *                Quadrat mit der Seite c (meist T), an der Wandseite an
- *                der Vorderkante der Rueckwand, an der Seite an der
- *                Vorderkante des Seitenlaufs. Das Dreieck fuellt die Ecke:
- *                die Vorderkante laeuft dort 45 Grad quer ueber die Ecke.
- * Die Seitenlaeufe enden an der Vorderkante der Rueckwand. Warum Eckbretter
- * und nicht die Rueckwand mit "45 beide": ein Abschnitt nimmt nur etwas
- * weg, das Dreieck vor der Innenecke liegt aber ausserhalb jedes Laufs.
- * Mit "45 beide" an der Rueckwand bliebe hinten in der Ecke ein Loch und
- * vorn der rechte Winkel. scripts/szene-pruefen.mjs prueft die Regel.
+ * Das U im Keller (Rueckwand, linke und rechte Wand, Tuer vorn) besteht aus
+ * drei Laeufen, alle mit "45 beide" (E96, Gehrung statt Eckbrett):
+ *   Rueckwand    "Schienenregal hinten, 45 beide", von Wand zu Wand
+ *   linke Wand   "Schienenregal links, 45 beide", bis an die Rueckwand
+ *   rechte Wand  "Schienenregal rechts, 45 beide", bis an die Rueckwand
+ * Die Seitenlaeufe gehen ganz bis zur Rueckwand und ueberdecken so das
+ * Eckquadrat. Der 45-Grad-Schnitt am hinteren Ende jedes Seitenlaufs und an
+ * beiden Enden der Rueckwand liegt auf der Diagonale durch die Wandecke:
+ * dort treffen sich zwei Bretter in einer Gehrung, ohne Luecke und ohne
+ * Ueberdeckung, jedes aus einem Stueck (in 3D ein Prisma, keine Naht quer
+ * durch das Brett). Sind die Tiefen verschieden (30 gegen 35), steht die
+ * Vorderkante dort um die Differenz versetzt. Das alte Eckbrett ("Ecke")
+ * bleibt als Teil fuer andere Ecken moeglich. scripts/szene-pruefen.mjs
+ * prueft die Gehrung am Keller mit seinen echten Massen.
  */
 
 import type { Punkt } from '../../lib/geometrie.ts'
@@ -112,10 +109,13 @@ export function brettTiefe(x: number, B: number, T: number, s: Schienenregal): n
 export function brettUmriss(B: number, T: number, s: Schienenregal): Punkt[] {
   const c = schraegen(B, T, s)
   const p: Punkt[] = [[0, 0], [B, 0]]
+  // Reicht die Schraege eines Endes ueber die ganze Breite (schmales Brett),
+  // endet sie am anderen Rand: die Vorderecke dort faellt weg, sonst bliebe
+  // ein Zacken (E96).
   if (c.rechts > 0) p.push([B - c.rechts, c.rechts])
-  else p.push([B, T])
+  else if (c.links < B - 1e-9) p.push([B, T])
   if (c.links > 0) p.push([c.links, c.links])
-  else p.push([0, T])
+  else if (c.rechts < B - 1e-9) p.push([0, T])
   // Treffen sich beide Schraegen in der Mitte, faellt ein Punkt weg.
   return p.filter((q, i) => {
     const v = p[(i + p.length - 1) % p.length]
@@ -138,10 +138,9 @@ export function schienenX(B: number, T: number, s: Schienenregal): number[] {
   return Array.from({ length: n }, (_, i) => a + ((b - a) * i) / (n - 1))
 }
 
-/** Ein Teil des Schienenregals lokal (cm), wie Teil in moebel3d.ts. keil:
- *  nur das halbe Rechteck, rechter Winkel bei lokal (x1, y0) ('links',
- *  Schraege von (x0, y0) nach (x1, y1)) oder bei (x0, y0) ('rechts',
- *  Schraege von (x0, y1) nach (x1, y0)). */
+/** Ein Teil des Schienenregals lokal (cm), wie Teil in moebel3d.ts. umriss
+ *  (nur Bretter mit Schraege an einem Ende): die Ecken des Bretts, ein
+ *  Stueck aus einem Prisma (E96), sonst ist das Brett das Rechteck. */
 export interface SchienenTeil {
   art: 'schiene' | 'schlitz' | 'arm' | 'brett'
   x0: number
@@ -150,13 +149,13 @@ export interface SchienenTeil {
   y1: number
   z0: number
   z1: number
-  keil?: 'links' | 'rechts'
+  umriss?: Punkt[]
 }
 
 /** Alle Teile: Schienen ueber die volle Hoehe an der Wand (mit dunklem
  *  Schlitzband vorn), je Brett eine Konsole an jeder Schiene, die Bretter
  *  (Oberkante bei brett_cm, ein Brett bei 0 ist der Boden und fehlt).
- *  Bretter mit Schraege: ein Rechteck in der Mitte und je Ende ein Keil.
+ *  Ein Brett mit Schraege ist ein Stueck (umriss), keine Naht.
  *  Nichts ragt aus dem Kasten B x T x H. */
 export function schienenTeile(o: { breite_cm: number; tiefe_cm: number; hoehe_cm: number; brett_cm: number[] | null }, s: Schienenregal): SchienenTeil[] {
   const B = o.breite_cm
@@ -175,12 +174,12 @@ export function schienenTeile(o: { breite_cm: number; tiefe_cm: number; hoehe_cm
     for (const m of [x0 + sb * 0.3, x0 + sb * 0.7]) out.push({ art: 'schlitz', x0: m - w / 2, x1: m + w / 2, y0: st, y1: Math.min(T, st + 0.15), z0: Math.min(2, H / 4), z1: Math.max(H / 2, H - 2) })
   }
   const c = schraegen(B, T, s)
+  const umriss = brettUmriss(B, T, s)
   for (const b of o.brett_cm ?? []) {
     if (!Number.isFinite(b) || b < BRETT_DICKE_CM || b > H) continue
     const z0 = b - BRETT_DICKE_CM
-    if (c.links > 0) out.push({ art: 'brett', x0: 0, x1: c.links, y0: 0, y1: c.links, z0, z1: b, keil: 'links' })
-    if (B - c.rechts - c.links > 0.01) out.push({ art: 'brett', x0: c.links, x1: B - c.rechts, y0: 0, y1: T, z0, z1: b })
-    if (c.rechts > 0) out.push({ art: 'brett', x0: B - c.rechts, x1: B, y0: 0, y1: c.rechts, z0, z1: b, keil: 'rechts' })
+    if (c.links > 0 || c.rechts > 0) out.push({ art: 'brett', x0: 0, x1: B, y0: 0, y1: Math.max(...umriss.map((q) => q[1])), z0, z1: b, umriss })
+    else out.push({ art: 'brett', x0: 0, x1: B, y0: 0, y1: T, z0, z1: b })
     // Konsole unter dem Brett an jeder Schiene, so lang, wie das Brett dort tief ist.
     const az0 = Math.max(0, z0 - ARM_HOCH_CM)
     if (z0 - az0 < 0.5) continue

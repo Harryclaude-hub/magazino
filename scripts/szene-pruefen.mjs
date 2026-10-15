@@ -18,8 +18,8 @@ import { baueSzene, blickAus, hervorMitte, lichter, moebelQuader, szeneRahmen, G
 import { moebelTeile } from '../src/components/plan3d/moebel3d.ts'
 import { autoSchalter, symbolAnWand } from '../src/components/plan/hilfe.ts'
 import { DEKO_ARTEN, dekoEbene, istDeko, moebelArt } from '../src/components/plan/moebelArt.ts'
-import { brettTiefe, schienenregal, schienenStriche, vorderlinie } from '../src/components/plan/schienenregal.ts'
-import { objektLokal, objektRechtecke } from '../src/lib/geometrie.ts'
+import { brettTiefe, brettUmriss, schienenregal, schienenStriche, schraegen, vorderlinie } from '../src/components/plan/schienenregal.ts'
+import { objektGlobal, objektLokal, objektRechtecke } from '../src/lib/geometrie.ts'
 
 let fehler = 0
 function gleich(name, ist, soll) {
@@ -937,14 +937,22 @@ for (const k of [...alle, ...balkon, ...offen]) {
   wahr('Keller: keine Seiten und keine Rueckwand', !ks.some((k) => (k.rolle === 'regal' || k.rolle === 'brett') && k.masse[1] > 0.1 && k.masse[0] > 0.05 && k.masse[2] > 0.05))
   const bretter = (id) => von(id).filter((k) => Math.abs(k.masse[1] - 0.027) < 1e-9)
   gleich('Keller: Rueckwand 4 Bretter (bei 0 der Boden)', bretter('hinten').length, 4)
-  gleich('Keller: Seitenlauf links 4 Rechtecke und 4 Keile', [bretter('links').length, bretter('links').filter((k) => k.form?.art === 'keil').length], [8, 4])
-  gleich('Keller: Eckbrett nur Keile', [bretter('eckeL').length, bretter('eckeL').every((k) => k.form?.art === 'keil')], [4, true])
-  // Keil links hinten: rechter Winkel bei (40, 40), also Richtung -x, -z von der Mitte.
-  gleich('Keller: Keil der Innenecke links zeigt in die Ecke', bretter('eckeL')[0].form.ecke, [-1, -1])
-  gleich('Keller: Keil der Innenecke rechts zeigt in die Ecke', bretter('eckeR')[0].form.ecke, [1, -1])
-  // Tuerenden: rechter Winkel an der Wand, zur Rueckwand hin (z kleiner).
-  gleich('Keller: Keil am Tuerende links', bretter('links').find((k) => k.form)?.form.ecke, [-1, -1])
-  gleich('Keller: Keil am Tuerende rechts', bretter('rechts').find((k) => k.form)?.form.ecke, [1, -1])
+  gleich('Keller: Seitenlauf links 4 Bretter aus einem Stueck, je ein Prisma', [bretter('links').length, bretter('links').filter((k) => k.form?.art === 'prisma').length], [4, 4])
+  gleich('Keller: Eckbrett nur Prismen (Dreieck)', [bretter('eckeL').length, bretter('eckeL').every((k) => k.form?.art === 'prisma' && k.form.punkte.length === 3)], [4, true])
+  // Der rechte Winkel des Dreiecks liegt von der Mitte aus bei (vx, vz); die
+  // Gegenecke (-vx, -vz) gehoert nicht dazu.
+  const hat = (k, x, z) => k.form.punkte.some(([px, pz]) => Math.abs(px - x) < 1e-6 && Math.abs(pz - z) < 1e-6)
+  wahr('Keller: Dreieck der Innenecke links hat den rechten Winkel in der Ecke', hat(bretter('eckeL')[0], -0.5, -0.5) && !hat(bretter('eckeL')[0], 0.5, 0.5))
+  wahr('Keller: Dreieck der Innenecke rechts hat den rechten Winkel in der Ecke', hat(bretter('eckeR')[0], 0.5, -0.5) && !hat(bretter('eckeR')[0], -0.5, 0.5))
+  // Seitenlauf mit einer Schraege: ein Trapez, Flaeche B x T minus die Ecke c x c / 2.
+  const flaeche = (k) => {
+    const p = k.form.punkte
+    let a = 0
+    for (let i = 0; i < p.length; i++) a += p[i][0] * p[(i + 1) % p.length][1] - p[(i + 1) % p.length][0] * p[i][1]
+    return (Math.abs(a) / 2) * k.masse[0] * k.masse[2] * 1e4
+  }
+  wahr('Keller: Seitenlauf links Flaeche 160 x 40 minus 40 x 40 / 2', bretter('links').every((k) => k.form.punkte.length === 4 && Math.abs(flaeche(k) - (160 * 40 - 800)) < 1e-6))
+  wahr('Keller: Seitenlauf rechts Flaeche 160 x 40 minus 40 x 40 / 2', bretter('rechts').every((k) => k.form.punkte.length === 4 && Math.abs(flaeche(k) - (160 * 40 - 800)) < 1e-6))
   wahr('Keller: Bretter heller Birke', bretter('hinten').every((k) => k.farbe !== F.fach && k.farbe !== F.objekt))
   wahr('Keller: Kiste auf dem Brett bei 80', ks.some((k) => k.rolle === 'kiste' && Math.abs(k.mitte[1] - k.masse[1] / 2 - 0.8) < 0.005))
   wahr('Keller: Konsolen unter jedem Brett der Rueckwand', [40, 80, 120, 160].every((b) => von('hinten').filter((k) => k.rolle === 'regal' && Math.abs(k.mitte[1] + k.masse[1] / 2 - (b - 2.7) / 100) < 1e-9).length === 4))
@@ -955,6 +963,74 @@ for (const k of [...alle, ...balkon, ...offen]) {
   const vr = vorderlinie(100, 40, schienenregal({ art: 'regal', name: 'Schienenregal' }), 3)
   gleich('Plan: ohne Schraege wie bei Regalen', vr, [[0, 37], [100, 37]])
   gleich('Plan: Striche an der Wandkante je Schiene', schienenStriche(300, 40, { links: false, rechts: false, ecke: false }).map(([a]) => a[1]), [0, 0, 0, 0])
+}
+
+/* ------------------------------------------------------------ E96: Gehrung statt Eckbrett */
+{
+  // Der Keller des Besitzers (Raum x 1924..2097, y 90..319, Waende 12 cm,
+  // innen x 1930..2091, y 96..313): drei Laeufe, alle mit "45 beide", die
+  // Seitenlaeufe bis an die Rueckwand. Je Ecke treffen sich zwei Bretter in
+  // einer Gehrung auf der Diagonale durch die Wandecke.
+  const keller96 = raum('k96', [[1924, 90], [2097, 90], [2097, 319], [1924, 319]], { name: 'Keller' })
+  const B5 = [0, 45, 85, 125, 165]
+  const sr = (id, name, x, y, b, t, drehung) => objekt(id, 'k96', 'regal', { name, x, y, breite_cm: b, tiefe_cm: t, hoehe_cm: 205, brett_cm: B5, drehung })
+  const lauf = [
+    sr('hinten', 'Schienenregal hinten, 45 beide', 2091, 313, 161, 35, 180),
+    sr('links', 'Schienenregal links, 45 beide', 2091, 96, 217, 35, 90),
+    sr('rechts', 'Schienenregal rechts, 45 beide', 1930, 313, 217, 30, 270),
+  ]
+  const auf = (x, y) =>
+    lauf
+      .filter((o) => {
+        const [lx, ly] = objektLokal(o, x, y)
+        return lx > 0 && lx < o.breite_cm && ly > 0 && ly < brettTiefe(lx, o.breite_cm, o.tiefe_cm, schienenregal(o))
+      })
+      .map((o) => o.id)
+  // Raster 0,5 cm, in y um 0,12 verschoben: kein Punkt liegt auf einer Kante oder der Diagonale.
+  let doppelt = 0
+  let belegt = 0
+  let luecke = []
+  for (let x = 1930.25; x < 2091; x += 0.5)
+    for (let y = 96.37; y < 313; y += 0.5) {
+      const n = auf(x, y).length
+      if (n > 1) doppelt++
+      if (n === 1) belegt++
+      // Ostecke: Quadrat 35 x 35 an der Wandecke (2091, 313), ganz belegt.
+      if (x > 2056 && y > 278 && n !== 1) luecke.push(['ost', x, y])
+      // Westecke: Quadrat 35 x 35 an (1930, 313); frei bleibt nur das 5-cm-Dreieck vor dem schmaleren Seitenlauf.
+      if (x < 1965 && y > 278 && n !== 1 && !(x > 1960 && x + y < 2243 && y > 278)) luecke.push(['west', x, y])
+    }
+  gleich('Gehrung: kein Punkt liegt unter zwei Brettern', doppelt, 0)
+  gleich('Gehrung: keine Luecke in den Eckquadraten (ausser dem 5-cm-Dreieck im Westen)', luecke.slice(0, 3), [])
+  // Flaeche der Vereinigung = Summe der drei Bretter.
+  const summe = lauf.reduce((a, o) => a + (o.breite_cm * o.tiefe_cm - (schraegen(o.breite_cm, o.tiefe_cm, schienenregal(o)).links ** 2) / 2 - (schraegen(o.breite_cm, o.tiefe_cm, schienenregal(o)).rechts ** 2) / 2), 0)
+  wahr(`Gehrung: Vereinigung ${belegt / 4} = Summe der Bretter ${summe} (auf Rasterfehler genau)`, Math.abs(belegt / 4 - summe) < 60)
+  // Die Schnittlinien liegen alle auf der Diagonale durch die Wandecke.
+  for (const [ecke, [wx, wy], o] of [['ost hinten', [2091, 313], lauf[0]], ['ost Seitenlauf', [2091, 313], lauf[1]], ['west hinten', [1930, 313], lauf[0]], ['west Seitenlauf', [1930, 313], lauf[2]]]) {
+    const u = brettUmriss(o.breite_cm, o.tiefe_cm, schienenregal(o))
+    const g = u.map(([lx, ly]) => objektGlobal(o, lx, ly))
+    const naechste = g.filter(([x, y]) => Math.abs(Math.abs(x - wx) - Math.abs(y - wy)) < 1e-9 && Math.hypot(x - wx, y - wy) > 1)
+    wahr(`Gehrung ${ecke}: Schnittkante laeuft 45 Grad von der Wandecke`, g.some(([x, y]) => Math.abs(x - wx) < 1e-9 && Math.abs(y - wy) < 1e-9) && naechste.length >= 1)
+  }
+  // 3D: je Lauf und Brettebene genau ein Quader, ein Prisma, keine Naht; gleiche Hoehe.
+  const kd = { ...daten, raeume: [keller96], oeffnungen: [oeffnung('kt96', 'k96', 'tuer', 0, 41, 80)], objekte: lauf, kisten: [] }
+  const ks = baueSzene(kd, F).filter((k) => k.art === 'quader')
+  const bretter = (id) => ks.filter((k) => k.id === id && Math.abs(k.masse[1] - 0.027) < 1e-9)
+  for (const o of lauf) gleich(`Gehrung 3D: ${o.id} vier Bretter, je ein Prisma mit 4 Ecken`, [bretter(o.id).length, bretter(o.id).every((k) => k.form?.art === 'prisma' && k.form.punkte.length === 4)], [4, true])
+  // Die Ecken des Prismas in Meter, zurueck in den Plan, sind die des Umrisses.
+  for (const o of lauf) {
+    const u = brettUmriss(o.breite_cm, o.tiefe_cm, schienenregal(o)).map(([lx, ly]) => objektGlobal(o, lx, ly))
+    const k = bretter(o.id)[0]
+    const p = k.form.punkte.map(([px, pz]) => [k.mitte[0] * 100 + px * k.masse[0] * 100, k.mitte[2] * 100 + pz * k.masse[2] * 100])
+    wahr(`Gehrung 3D: ${o.id} Prisma = Umriss im Plan`, u.every(([x, y]) => p.some(([a, b]) => Math.abs(a - x) < 1e-6 && Math.abs(b - y) < 1e-6)))
+  }
+  for (const b of [45, 85, 125, 165]) {
+    const hoehen = lauf.map((o) => bretter(o.id).filter((k) => Math.abs(k.mitte[1] + k.masse[1] / 2 - b / 100) < 1e-9).length)
+    gleich(`Gehrung 3D: Brett bei ${b} in allen drei Laeufen auf einer Hoehe`, hoehen, [1, 1, 1])
+  }
+  // Schienen: an den Waenden, keine in den Eckquadraten (Mitte der Schiene mindestens 17,5 cm von der Wandecke).
+  const schienen = ks.filter((k) => k.rolle === 'regal' && Math.abs(k.masse[1] - 2.05) < 1e-9)
+  wahr('Gehrung 3D: Schienen nicht in den Ecken (mind. 17 cm von jeder Wandecke)', schienen.length === 12 && schienen.every((k) => [[2091, 313], [1930, 313]].every(([wx, wy]) => Math.hypot(k.mitte[0] * 100 - wx, k.mitte[2] * 100 - wy) > 17)))
 }
 
 if (fehler) {

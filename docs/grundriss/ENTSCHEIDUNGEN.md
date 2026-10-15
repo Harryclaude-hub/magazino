@@ -996,11 +996,10 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   an jeder Schiene eine Konsole, so lang, wie das Brett dort tief ist.
   Bretter 2,7 cm, helle Birke (Multiplex, aus den Holz- und Weiss-Tokens
   gemischt), eigene Farbe, wenn gesetzt; ein Brett bei 0 ist der Boden und
-  fehlt. Brettenden mit Schraege als echter Keil: neue Form 'keil' im
-  Motor (halber Quader, dreieckiger Grundriss, 8 Dreiecke, eigene
-  Kantenlinien). Nichts ragt aus dem Kasten B x T x H. Schienen und
-  Bretter halten beim Begehen auf, die Keile nicht (sonst stiesse man sich
-  am ganzen Quadrat, also gerade an der abgeschnittenen Ecke). Ein
+  fehlt. Brettenden mit Schraege zuerst als Keil (E95), seit E96b ein
+  Brett aus einem Stueck: Form 'prisma' im Motor. Nichts ragt aus dem Kasten B x T x H. Schienen und
+  Bretter halten beim Begehen auf (seit E96b auch Bretter mit Schraege,
+  mit ihrem ganzen Kasten). Ein
   Schienenregal als L bleibt wie bisher zwei Kloetze. Dreiecke: 300 cm
   mit 5 Brettern rund 900. Kisten stehen wie bisher auf den Faechern;
   die Datenbank kennt nur das Rechteck, eine Kiste ganz vorn am schraegen
@@ -1009,6 +1008,22 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   folgt den Schraegen bis an die Wand, kurze Striche an der Wandkante
   zeigen die Schienen (10 cm lang, die ersten 6 liegen unter der halben
   Wand). Tippen und Ziehen nutzen weiter das Rechteck.
+- **E96b Gehrung statt Eckbrett** (Schienenregal, hintere Ecken): drei
+  Laeufe, die Seitenlaeufe gehen bis an die Rueckwand, "45 beide" an allen
+  drei. Der Schnitt am hinteren Ende jedes Seitenlaufs und an beiden
+  Enden der Rueckwand liegt auf der Diagonale durch die Wandecke: zwei
+  Bretter treffen sich in einer Gehrung, keine Luecke, keine
+  Ueberdeckung, keine Eckbretter. Bei verschiedenen Tiefen (Keller: West
+  30, Rueckwand und Ost 35) steht die Vorderkante an der Ecke um 5 cm
+  versetzt, im Osten (35 und 35) ist die Innenecke sauber rechtwinklig.
+  Code: ein Brett mit Schraege ist jetzt EIN Quader mit Form 'prisma'
+  (Grundriss aus brettUmriss), vorher Rechteck plus Keile, die quer durch
+  das Brett eine sichtbare Kantenlinie zeigten. brettUmriss gibt bei einem
+  schmalen Brett (Schraege ueber die ganze Breite) keinen Zacken mehr
+  zurueck. Beim Begehen haelt ein Brett mit Schraege mit seinem ganzen
+  Kasten auf, auch am Tuerende (dort ein 35 x 35 Dreieck mehr, an der
+  Wand). Tests: Gehrung am Keller mit den echten Massen (Raster ohne
+  Ueberdeckung und ohne Luecke, Flaeche, 3D-Prisma = Umriss).
 - **E96 Passwort, Einladungscodes, Eigentuemer** (gebaut am 09.10. im
   Zweig `passwort-sicher-2026-10-09`, am 15.10. in `main`; Migration 0049
   geprueft, aber noch nicht eingespielt):
