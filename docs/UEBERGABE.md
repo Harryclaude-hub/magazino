@@ -96,9 +96,10 @@ Stand: 15.10.2026. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - `docs/grundriss/BAUPLAN.md`: Datenmodell, Regeln, Code-Karten (nur bei
   Bedarf abschnittsweise lesen, er ist lang).
 - `supabase/migrations/`: SQL; angewandte Dateien nie aendern, Fehler
-  bekommen eine neue Nummer. 0049 ist noch nicht eingespielt und darf bis
-  dahin noch geaendert werden (dann den Probelauf mitziehen, Teil A muss
-  Wort fuer Wort gleich sein); naechste: 0050.
+  bekommen eine neue Nummer. 0049 ist seit 15.10.2026 LIVE (nach Karams
+  "stell live": Probelauf 18 von 18 ok, dann begin/commit, nachgemessen:
+  2 Trigger, einladung_erlaubt, invites_select neu); der Satz "NOCH NICHT
+  EINGESPIELT" in ihrem Kopf ist damit ueberholt. Naechste: 0050.
 - Regel-Spiegel: SQL-Geometrie und `src/lib/geometrie.ts` immer zusammen
   aendern (`scripts/geometrie-pruefen.mjs`).
 
