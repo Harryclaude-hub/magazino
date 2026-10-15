@@ -10,6 +10,9 @@ Angaben der Hersteller in den Online-Shops, nicht aus einer eigenen
 Prüfung. Wie viel die Wand hält, weiß man erst nach einem Test im Keller
 (Schritt 4). Vor dem Beladen mit 150 kg je Fachboden diesen Test machen.
 
+Eine Zeichnung mit Draufsicht, Wandansichten, Schnitt und Zuschnitt und eine
+Anleitung zum Ausdrucken steht als PDF daneben: `SCHIENENREGAL-BAUPLAN.pdf`.
+
 ## 1. Aufbau in einem Satz
 
 Je Wand senkrechte Doppelschlitz-Schienen (verzinkt, 2 m lang) mit
@@ -55,7 +58,7 @@ Birke-Multiplex 21 mm kostet bei Hornbach Österreich rund 58 € pro m2
 Die Längen "an der Wand" sind die langen Kanten, die vordere Kante ist
 kürzer, weil beide Enden im 45-Grad-Winkel abgeschnitten sind (Länge minus
 zweimal die Tiefe). Fläche je Höhe etwa 1,95 m2. Für 4 Höhen rund 7,8 m2,
-dazu Verschnitt, also 3 Platten.
+dazu Verschnitt: wegen der 217-cm-Bretter gibt eine Platte eine Höhe, also 4 Platten.
 
 Zuschneiden lassen: Im Markt die Rechtecke auf Maß schneiden lassen, die
 45-Grad-Ecken schneiden bei Bedarf selbst mit einer Tauchsäge und
@@ -153,7 +156,7 @@ Beim Umbauen am echten Regal danach im Programm nachziehen.
 | Doppelschlitz-Wandschiene verzinkt, 2 m | 12 | Dolle (Hornbach) oder OBI, 55 kg je 200 mm |
 | Doppelhaken-Träger 35 cm | 32 | 8 Brett-Träger je Höhe mal 4 Höhen |
 | Doppelhaken-Träger 30 cm | 16 | rechtes Brett, 4 je Höhe |
-| Multiplex Birke 21 mm wasserfest | 3 Platten | zugeschnitten, Verschnitt eingerechnet |
+| Multiplex Birke 21 mm wasserfest | 4 Platten | zugeschnitten, 1 Platte je Höhe |
 | Dübel DuoPower 8x40 | 100 | oder Betonschrauben 6x60 |
 | Schrauben 6x60 für Schienen | 100 | passend zum Dübel |
 | Holzschrauben 4x16 | 200 | 2 je Träger, 96 Träger |
@@ -162,8 +165,8 @@ Beim Umbauen am echten Regal danach im Programm nachziehen.
 
 Preise: im Markt prüfen. Ich habe keine Preise für Schienen und Träger
 online gefunden, die ich belegen kann. Das Multiplex ist bei Hornbach
-Österreich mit 177,50 € je Platte 2500 x 1220 x 21 mm gelistet. Bei 3
-Platten sind das etwa 530 €.
+Österreich mit 177,50 € je Platte 2500 x 1220 x 21 mm gelistet. Bei 4
+Platten sind das etwa 710 €.
 
 ## 7. Arbeitsplan
 
