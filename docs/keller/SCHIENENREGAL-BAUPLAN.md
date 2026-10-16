@@ -28,11 +28,16 @@ weg. Abheben: Brett vorn anheben und nach oben nehmen.
 1. Leitungssucher über jede Schienenlinie, Vermieter fragen.
 2. Höhenlinie bei etwa 100 cm mit Laser oder Wasserwaage auf beiden
    Wänden. Jede Schiene so setzen, dass derselbe Schlitz auf der Linie liegt.
-3. Schiene anhalten, oberstes Loch anzeichnen, 8 mm bohren, Dübel setzen,
-   locker anschrauben.
-4. Lotrecht stellen, restliche Löcher anzeichnen, Schiene zur Seite
+3. Schiene anhalten, oberstes Loch anzeichnen, 6 mm bohren (45 mm tief),
+   Dübel setzen, locker anschrauben.
+4. Lotrecht stellen, restliche 9 Löcher anzeichnen, Schiene zur Seite
    drehen, bohren, Dübel setzen.
-5. Alle Senkkopfschrauben 6 x 60 eindrehen, Köpfe flach in der Schiene.
+5. Alle 10 Senkkopfschrauben 4,5 x 50 eindrehen, Köpfe flach in der
+   Schiene.
+
+Die Schiene 1995 mm hat laut Dolle-Datenblatt 10 Schraublöcher: das erste
+47,5 mm von oben, dann alle 200 mm. Dazu passt das Dolle-Set WallFix
+(Dübel 6 x 36, Senkkopfschraube 4,5 x 50, TX 20).
 6. Träger einhängen, kräftig nach unten ziehen: nichts darf sich bewegen.
 
 Reihenfolge je Wand: die zwei äußeren Schienen, dann die mittlere, dann
@@ -49,6 +54,6 @@ keine normalen Dübel.
 ## Material für 4 Ebenen
 
 10 Schienen Dolle 2-reihig 1995 mm, 40 Träger Dolle 2-reihig 370 mm,
-3 Platten Multiplex 2500 x 1220 x 21 mm, 80 Dübel 8 x 40,
-80 Senkkopfschrauben 6 x 60, 3 Vierkantleisten 10 x 10 mm je 1 m,
+3 Platten Multiplex 2500 x 1220 x 21 mm, 5 Packungen Dolle WallFix
+(je 20 Dübel und Schrauben), 3 Vierkantleisten 10 x 10 mm je 1 m,
 40 Antirutsch-Pads, Holzleim, Hartwachsöl. Artikelnummern im PDF.

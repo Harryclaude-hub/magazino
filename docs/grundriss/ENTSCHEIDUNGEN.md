@@ -1100,3 +1100,11 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   anderen Baumarkts lieferte 404 und dessen passende Träger waren nicht
   belegt, darum gibt es nur noch einen Weg: Dolle-Schiene und Dolle-Träger
   (beide 2-reihig, gleicher Hersteller), alles in einem Markt.
+- **E99c Schrauben nach Dolle-Datenblatt:** Das Datenblatt "Wall uprights
+  Primeslot" zeigt 10 Schraublöcher je Schiene 1995 mm (47,5 mm von oben,
+  dann alle 200 mm), nicht 8. Dolle verkauft dazu WallFix: Dübel 6 x 36 und
+  Senkkopfschrauben 4,5 x 50. Die bisher geplanten Schrauben 6 x 60 hätten
+  womöglich nicht durch die Löcher gepasst. Plan, Traglast (10 Schrauben
+  zu je 25 kg = 250 kg je Schiene, Ergebnis unverändert) und Liste
+  angepasst. Neue Montage-Seite mit drei Zeichnungen: Schiene mit Lochmaßen
+  und Höhenlinie, Schnitt durch eine Bohrung, Lage der Schienen an der Wand.

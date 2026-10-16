@@ -172,13 +172,14 @@ def teil_schiene():
     # Uebersicht: 2000 mm als 200 Einheiten
     ox, oy = 62, 18
     o.append(rect(ox, oy, 4, 200, RAIL, RAIL, 0.0))
-    for i in range(8):
-        yy = oy + 6 + i * 26.5
+    # Dolle-Datenblatt: 10 Schraubloecher, das erste 47,5 mm von oben, dann alle 200 mm
+    for i in range(10):
+        yy = oy + 4.75 + i * 20
         o.append(circ(ox + 2, yy, 0.9, "#fff", "#fff", 0))
     o.append(mass_v(ox - 6, oy, oy + 200, "2000 mm", 11.0, -1))
     o.append(t(ox + 2, oy + 210, "Schiene ganz", 9.9))
-    o.append(t(ox + 8, oy + 30, "Befestigungsloecher", 8.4, "start", "#555"))
-    o.append(t(ox + 8, oy + 41, "etwa alle 25 bis 30 cm", 8.4, "start", "#555"))
+    o.append(t(ox + 8, oy + 30, "10 Schraubloecher", 8.4, "start", "#555"))
+    o.append(t(ox + 8, oy + 41, "alle 200 mm", 8.4, "start", "#555"))
     # Ausschnitt vergroessert: 26 x 120 mm, Schlitze 2-reihig
     k = 1.0
     ax, ay = 175, 30
@@ -222,11 +223,11 @@ def teil_klein():
     o = []
     # Duebel 8x40
     o.append(rect(10, 20, 40, 8, "#d0d0d0", "#111", 0.4))
-    o.append(t(30, 40, "Duebel 8 x 40", 5))
+    o.append(t(30, 40, "Duebel 6 x 36", 5))
     # Schraube 6x60
     o.append(rect(70, 22, 60, 4, "#888", "#111", 0.4))
     o.append(rect(66, 19, 4, 10, "#888", "#111", 0.4))
-    o.append(t(98, 40, "Schraube 6 x 60", 5))
+    o.append(t(98, 40, "Senkkopf 4,5 x 50", 5))
     # Fuehrungsleiste 10 x 10 x 80
     o.append(rect(145, 21, 32, 6, "#c24", "#111", 0.4))
     o.append(t(161, 40, "Leiste 10 x 10 x 80", 5))
@@ -234,6 +235,72 @@ def teil_klein():
     o.append(rect(205, 20, 10, 10, "#777", "#111", 0.4))
     o.append(t(210, 40, "Pad 20 x 20", 5))
     return svg(228, 48, "".join(o), "22mm")
+
+
+def bild_montage_schiene():
+    # Eine Schiene von vorn, Massstab 0,15 px je mm. Boden unten, Hoehenlinie rot.
+    k = 0.15
+    o = []
+    ox, boden = 120, 340
+    def y(mm):
+        return boden - mm * k
+    o.append(rect(ox - 70, y(2150), 170, 2150 * k, "#eeeeea", "none", 0))
+    o.append(line(ox - 80, boden, ox + 110, boden, 1.4))
+    o.append(t(ox + 104, boden + 12, "Boden", 9, "end", "#555"))
+    unten, oben = 50, 50 + 1995
+    o.append(rect(ox - 6, y(oben), 12, 1995 * k, RAIL, "#111", 0.6))
+    for i in range(10):
+        mm = oben - 47.5 - i * 200
+        o.append(circ(ox, y(mm), 2.2, "#fff", "#111", 0.5))
+    o.append(line(ox - 80, y(1000), ox + 110, y(1000), 1.2, "#c22", "6 3"))
+    o.append(t(ox + 108, y(1000) + 13, "Höhenlinie 100 cm", 9.5, "end", "#c22", weight="bold"))
+    o.append(mass_v(ox - 30, y(unten), boden, "5 cm Luft", 9, -1, tick=3))
+    o.append(mass_v(ox - 30, y(oben), y(oben - 47.5), "4,75 cm", 9, -1, tick=3))
+    o.append(mass_v(ox - 30, y(oben - 47.5), y(oben - 247.5), "20 cm", 9, -1, tick=3))
+    o.append(mass_v(ox - 30, y(oben - 247.5), y(oben - 447.5), "20 cm", 9, -1, tick=3))
+    o.append(line(ox + 22, y(unten), ox + 22, y(oben), 0.35))
+    o.append(line(ox + 19, y(unten), ox + 25, y(unten), 0.35))
+    o.append(line(ox + 19, y(oben), ox + 25, y(oben), 0.35))
+    o.append(t(ox + 32, y(1550), "Schiene 199,5 cm", 9, rot=-90))
+    o.append(t(ox, y(oben) - 8, "10 Löcher, je 1 Schraube", 9.5, weight="bold"))
+    return svg(240, 360, "".join(o), "120mm")
+
+
+def bild_montage_wand():
+    # Draufsicht einer Seitenwand: wo die 5 Schienen sitzen, gemessen ab der Tuerwand.
+    o = []
+    ox, oy, k = 20, 40, 2.0
+    o.append(rect(ox, oy - 12, D * k, 12, "#cfcfcf", "#111", 0.5))
+    o.append(t(ox + D * k / 2, oy - 16, "Seitenwand (von oben gesehen)", 9.5, fill="#333"))
+    o.append(rect(ox - 12, oy - 12, 12, 70, "#cfcfcf", "#111", 0.5))
+    o.append(t(ox - 6, oy + 72, "Türwand", 8.5, fill="#333"))
+    for s in SCH:
+        o.append(rect(ox + s * k - 2.6, oy, 5.2, 2.4, RAIL, "#111", 0.3))
+        o.append(line(ox + s * k, oy + 3, ox + s * k, oy + 30, 0.4, "#888", "2 2"))
+        o.append(t(ox + s * k, oy + 42, z(s) + " cm", 9.5, weight="bold"))
+    o.append(t(ox + D * k / 2, oy + 62, "Maß bis zur Schienenmitte, immer ab der Türwand messen", 9, fill="#555"))
+    return svg(D * k + 40, 112, "".join(o), "40mm")
+
+
+def bild_montage_loch():
+    # Schnitt durch ein Loch: Wand, Duebel 6 x 36, Schiene, Senkkopfschraube buendig.
+    o = []
+    wx = 120
+    o.append(rect(wx - 110, 10, 110, 120, "#d6d6d6", "#111", 0.6))
+    for i in range(0, 120, 14):
+        o.append(line(wx - 110, 10 + i + 14, wx - 96, 10 + i, 0.3, "#999"))
+    o.append(rect(wx - 60, 64, 60, 12, "#fff", "#111", 0.5, "3 2"))
+    o.append(rect(wx - 52, 65, 52, 10, "#e9c46a", "#7a5b12", 0.6))
+    o.append(rect(wx, 40, 18, 60, RAIL, "#111", 0.6))
+    o.append(poly([(wx + 18, 62), (wx + 18, 78), (wx + 10, 72), (wx + 10, 68)], "#888", "#111", 0.5))
+    o.append(rect(wx - 56, 68.5, 66, 3, "#888", "#111", 0.4))
+    o.append(mass_h(wx - 60, wx, 56, "Loch 6 mm, 45 mm tief", 8.5, tick=3))
+    o.append(t(wx - 26, 92, "Dübel 6 x 36", 8.5, fill="#7a5b12", weight="bold"))
+    o.append(t(wx + 9, 112, "Schiene", 8.5))
+    o.append(t(wx + 24, 66, "Kopf flach", 8.5, "start", weight="bold"))
+    o.append(t(wx + 24, 77, "in der Schiene", 8.5, "start"))
+    o.append(t(wx + 24, 90, "Schraube 4,5 x 50", 8.5, "start"))
+    return svg(220, 136, "".join(o), "45mm")
 
 
 def bild_schnitt():
@@ -247,7 +314,7 @@ def bild_schnitt():
     o.append(t(ox + 22, oy + 50, "Schiene 12 mm tief, 26 mm breit", 10, "start", "#111"))
     for yy in (oy + 70, oy + 270):
         o.append(rect(ox - 28, yy - 2, 40, 4, "#888", "#111", 0.3))
-    o.append(t(ox + 40, oy + 75, "Schraube 6x60 + Duebel 8x40", 10, "start", "#222"))
+    o.append(t(ox + 40, oy + 75, "Dolle WallFix: Schraube 4,5x50 + Duebel 6x36", 10, "start", "#222"))
     by = oy + 160
     o.append(rect(ox + 12, by - 21, 370, 21, HOLZ, "#6b4a1e", 0.8))
     o.append(t(ox + 190, by - 7, "Brett Multiplex 21 mm", 12, "middle", "#4a2f08"))
@@ -306,7 +373,7 @@ abst = z(ABST)
 URL_SCHIENE = "https://www.hornbach.at/p/dolle-regale-wandschiene-2-reihig-weiss-1995-x-26-x-12-mm/7023195/"
 URL_TRAEGER = "https://www.hornbach.at/p/traeger-dolle-regale-2-reihig-370-mm-weiss/7023207/"
 URL_HOLZ = "https://www.hornbach.at/p/multiplexplatte-platte-unbehandelt-holz-2500-x-1220-x-21-mm/10578448/"
-URL_DUEBEL = "https://www.bauhaus.at/universalduebel/fischer-duopower-duebel-schraubenbox-duopower/p/24505064"
+URL_WALLFIX = "https://www.hornbach.at/p/befestigungsset-wallfix-fuer-wandschiene-20-stueck/7023250/"
 POS = ", ".join(z(x) for x in SCH)
 
 
@@ -355,35 +422,37 @@ seiten.append(f"""
 
 seiten.append(f"""
 <div class="seite">
-<h2>Schienen an der Wand befestigen</h2>
+<h2>Schienen an der Wand befestigen (der wichtigste Teil)</h2>
+<p>Schiene und Träger sind fertige Teile. Deine Arbeit: <b>10 Schienen gerade und gleich hoch an die Wand</b>. Pro Schiene 10 Schrauben.</p>
 <div class="zwei">
 <div>
-<h3>Du brauchst</h3>
-<ul>
-<li>Schlagbohrmaschine, Steinbohrer 8 mm, Staubsauger oder Blasebalg</li>
-<li>Wasserwaage (mindestens 60 cm, besser 1 m) und, wenn möglich, Kreuzlinienlaser</li>
-<li>Zollstock, Bleistift, Malerkrepp, Leitungssucher</li>
-<li>Akkuschrauber oder Schraubendreher, Hammer</li>
-<li>Je Schiene 8 Dübel 8 x 40 und 8 Schrauben 6 x 60 (bei Beton auch Betonschrauben 6 x 60)</li>
-</ul>
-<div class="warn"><b>Vorher:</b> Leitungssucher über jede Schienenlinie führen. Keine Schiene über einer Steckdose oder einem Schalter. Vermieter oder Hausverwaltung fragen, ob gebohrt werden darf.</div>
-<h3>Der wichtigste Trick: eine Höhenlinie</h3>
-<p>Der Kellerboden ist selten ganz eben. Darum misst du die Schienen <b>nicht vom Boden</b>, sondern von einer waagrechten Linie: Ziehe mit Laser oder Wasserwaage auf beiden Seitenwänden eine Linie bei etwa 100 cm Höhe. Alle Schienen werden so gesetzt, dass derselbe Schlitz (zum Beispiel der 38. von unten) genau auf dieser Linie liegt. Dann hängen alle Träger gleich hoch, auch bei schiefem Boden.</p>
+{bild_montage_schiene()}
 </div>
 <div>
-<h3>Schritt für Schritt, je Schiene</h3>
-<ol>
-<li><b>Lage anzeichnen.</b> Von der Türwand aus messen: Schienenmitten bei {POS} cm. An jeder Stelle mit der Wasserwaage eine senkrechte Linie ziehen.</li>
-<li><b>Schiene anhalten.</b> Schiene auf die Linie halten, Unterkante etwa 5 cm über dem Boden, den gewählten Schlitz genau auf die Höhenlinie. Oberstes Loch der Schiene anzeichnen.</li>
-<li><b>Erstes Loch bohren.</b> 8 mm, mindestens 50 mm tief, waagrecht in die Wand. Bei Beton und Vollziegel mit Schlag, bei Lochziegel <b>ohne</b> Schlag. Loch aussaugen, Dübel bündig einschlagen.</li>
-<li><b>Oben locker festschrauben.</b> Schiene mit der obersten Schraube locker anschrauben, sie hängt jetzt und lässt sich noch drehen.</li>
-<li><b>Lotrecht stellen, restliche Löcher anzeichnen.</b> Wasserwaage seitlich an die Schiene, lotrecht ausrichten, Schlitz auf der Höhenlinie prüfen, dann durch alle Löcher der Schiene anzeichnen (mindestens alle 25 bis 30 cm, unten das letzte Loch nutzen).</li>
-<li><b>Schiene zur Seite drehen, bohren.</b> Schiene um die obere Schraube wegdrehen, alle Löcher bohren, aussaugen, Dübel setzen.</li>
-<li><b>Alle Schrauben eindrehen.</b> Zurückdrehen, von oben nach unten festschrauben. Nicht überdrehen. Die <b>Schraubenköpfe müssen flach in der Schiene liegen</b>, sonst gehen die Träger nicht in die Schlitze. Darum Senkkopfschrauben passend zu den Löchern der Schiene nehmen.</li>
-<li><b>Prüfen.</b> Noch einmal lotrecht prüfen. Einen Träger einhängen und kräftig nach unten ziehen: nichts darf sich bewegen.</li>
-</ol>
-<p class="klein">Reihenfolge: zuerst die beiden äußeren Schienen einer Wand, dann die mittlere, dann die zwei dazwischen. So siehst du früh, ob die Höhen passen.</p>
+<h3>Was du brauchst</h3>
+<ul>
+<li><b>Dolle WallFix</b> (Art. 7023250): 20 Dübel 6 x 36 und 20 Senkkopfschrauben 4,5 x 50, passend zu den Löchern der Schiene. <b>5 Packungen</b>.</li>
+<li>Schlagbohrmaschine, <b>Steinbohrer 6 mm</b>, Akkuschrauber mit <b>Bit TX 20</b></li>
+<li>Wasserwaage, Kreuzlinienlaser (wenn da), Zollstock, Bleistift, Leitungssucher, Staubsauger</li>
+</ul>
+<h3>Die Bohrung</h3>
+{bild_montage_loch()}
+<div class="warn"><b>Vorher:</b> Leitungssucher über jede Stelle. Vermieter fragen, ob du bohren darfst. WallFix ist für Beton und Zement gemacht. Fühlt sich die Wand hohl an oder ist sie Porenbeton (leicht, grau, weich), nicht weiterbohren und im Markt passende Dübel holen.</div>
 </div></div>
+<h3>Wo die Schienen hinkommen (beide Seitenwände gleich)</h3>
+{bild_montage_wand()}
+<h3>So geht es, je Schiene</h3>
+<ol>
+<li><b>Höhenlinie ziehen</b> (einmal für beide Wände): rote Linie bei 100 cm, mit Laser oder Wasserwaage.</li>
+<li><b>Schiene anhalten:</b> Mitte auf dem Maß von oben, unten 5 cm Luft. Merke dir den Schlitz, der auf der roten Linie liegt, zum Beispiel mit Malerkrepp an der Schiene. Bei jeder Schiene liegt <b>genau dieser Schlitz</b> auf der Linie.</li>
+<li><b>Oberstes Loch anzeichnen</b>, Schiene weg, 6 mm bohren (45 mm tief), aussaugen, Dübel bündig rein.</li>
+<li><b>Oben anschrauben, aber locker.</b> Die Schiene hängt und lässt sich noch drehen.</li>
+<li><b>Gerade stellen</b> mit der Wasserwaage an der Seite. Dann durch alle 9 anderen Löcher anzeichnen.</li>
+<li><b>Schiene zur Seite drehen</b>, 9 Löcher bohren, aussaugen, Dübel rein.</li>
+<li><b>Zurückdrehen, alle 10 Schrauben fest</b>, von oben nach unten. Köpfe müssen flach in der Schiene liegen. Nicht überdrehen.</li>
+<li><b>Prüfen:</b> Träger einhängen, kräftig nach unten ziehen. Nichts wackelt.</li>
+</ol>
+<p class="klein">Reihenfolge je Wand: erst die zwei äußeren Schienen (10 und 207 cm), dann die mittlere (108,5 cm), dann die zwei dazwischen. Zeit: etwa 20 Minuten je Schiene. Lochmaße aus dem Dolle-Datenblatt "Wall uprights Primeslot".</p>
 </div>
 """)
 
@@ -420,7 +489,7 @@ seiten.append(f"""
 <div class="teil"><h3>Teil B: Träger 2-reihig, gerade (etwa 370 mm)</h3>{teil_traeger(370, "10 je Ebene")}
 <p class="klein">Gerader Arm ohne Dreieck, an der Wand etwa 5 cm hoch. Ein Träger hält etwa 55 kg (Herstellerangabe 110 kg je Paar).</p></div>
 <div class="teil"><h3>Teil D: Kleinteile</h3>{teil_klein()}
-<p class="klein">Dübel 8 x 40 und Schraube 6 x 60: Wand zu Schiene, 8 je Schiene. Leiste 10 x 10 x 80 mm: 4 je Brett. Pad: 1 je Träger.</p></div>
+<p class="klein">Dolle WallFix (Dübel 6 x 36, Senkkopfschraube 4,5 x 50, TX 20): Wand zu Schiene, 10 je Schiene. Leiste 10 x 10 x 80 mm: 4 je Brett. Pad: 1 je Träger.</p></div>
 </div>
 <div>
 <div class="teil"><h3>Teil C: Wandschiene 2-reihig, 2 m</h3>{teil_schiene()}
@@ -449,9 +518,8 @@ seiten.append(f"""
 {tabelle(["Teil","hält etwa","Woher"],[
  ["1 Träger (B)","55 kg","Herstellerangabe 110 kg je Paar"],
  ["1 Brett mit 5 Trägern","275 kg, sinnvoll 180 kg","5 x 55 kg, mit Reserve"],
- ["1 Schiene (C)","250 kg","sinnvoller Wert, begrenzt durch 8 Dübel in der Wand"],
- ["1 Dübel in Beton","etwa 110 kg","Händlerangabe 1,1 kN"],
- ["1 Dübel in Vollziegel","etwa 60 kg","Händlerangabe 0,6 kN"],
+ ["1 Schiene (C)","250 kg","sinnvoller Wert: 10 Schrauben zu je 25 kg"],
+ ["Schiene laut Dolle","55 kg je 20 cm","Datenblatt, gilt nur bei fester Wand"],
 ])}
 <h3>So viele Schienen, so viel Last je Wand</h3>
 {tabelle(["Schienen je Wand","Last je Wand (250 kg je Schiene)"],[
@@ -463,7 +531,7 @@ seiten.append(f"""
 </div>
 <div>
 <h3>Rechenbeispiel</h3>
-<p>6 Ebenen mit je 180 kg sind 1080 kg je Wand. Jede der 5 Schienen trägt dann etwa 216 kg, jeder Dübel (8 je Schiene) etwa 27 kg.</p>
+<p>6 Ebenen mit je 180 kg sind 1080 kg je Wand. Jede der 5 Schienen trägt dann etwa 216 kg, jeder Dübel (10 je Schiene) etwa 22 kg.</p>
 <div class="warn"><b>Wichtig:</b>
 <ul>
 <li>Alle Werte stammen aus Händlerangaben, nicht aus eigener Prüfung.</li>
@@ -476,12 +544,12 @@ seiten.append(f"""
 
 zeilen = []
 for e, platten in ((4, 3), (6, 4), (8, 6)):
-    zeilen.append([f"<b>{e}</b>", str(2 * e), "10", str(e * 10), str(platten), str(-(-8 * e * 8 // 100)), str(e * 10), "80", "80"])
+    zeilen.append([f"<b>{e}</b>", str(2 * e), "10", str(e * 10), str(platten), str(-(-8 * e * 8 // 100)), str(e * 10), "5"])
 
 seiten.append(f"""
 <div class="seite">
 <h2>Materialliste und Bezugsquellen</h2>
-{tabelle(["Ebenen","Bretter 216 x 37","Schienen 2 m","Träger","Platten 2500 x 1220 x 21","Leisten 10 x 10, 1 m","Pads","Dübel 8 x 40","Schrauben 6 x 60"], zeilen)}
+{tabelle(["Ebenen","Bretter 216 x 37","Schienen 2 m","Träger","Platten 2500 x 1220 x 21","Leisten 10 x 10, 1 m","Pads","WallFix-Packungen (je 20)"], zeilen)}
 <p class="klein">Aus einer Platte (122 cm breit) bekommst du drei Bretter 216 x 37 cm. Kauf ein paar Dübel, Schrauben und Pads als Reserve.</p>
 <h3>Schiene, Träger und Holz (Hornbach, online reservieren und im Markt abholen oder liefern lassen)</h3>
 {tabelle(["Teil","Produkt","Preis (Stand Oktober 2026)","Link"],[
@@ -491,8 +559,7 @@ seiten.append(f"""
 ])}
 <h3>Kleinteile (im selben Markt)</h3>
 {tabelle(["Teil","Produkt","Link"],[
- ["D Dübel","Fischer DuoPower 8 x 40 (oder Betonschraube 6 x 60 bei Beton)", link(URL_DUEBEL, "Beispiel")],
- ["D Schrauben","Senkkopfschrauben 6 x 60, Kopf muss flach in der Schiene liegen",""],
+ ["D Dübel und Schrauben","Dolle WallFix (Art. 7023250): 20 Senkkopfschrauben 4,5 x 50 mm und 20 Dübel 6 x 36 mm, Bohrer 6 mm. 5 Packungen für 10 Schienen.", link(URL_WALLFIX, "hornbach.at")],
  ["D Leisten","Vierkantleiste Kiefer 10 x 10 mm, 1 m, in Stücke zu 8 cm sägen, dazu Holzleim",""],
  ["D Pads","Antirutsch-Pads selbstklebend, Gummi, etwa 20 x 20 mm",""],
  ["Pflege","Hartwachsöl oder farbloser Lack, 1 Liter",""],
@@ -508,7 +575,7 @@ seiten.append(f"""
 <div>
 <ol>
 <li><b>Nachmessen.</b> Wandlänge links und rechts, Höhe, Tür. Brettlänge = Wandlänge minus 1 cm.</li>
-<li><b>Wand prüfen.</b> Probebohrung 8 mm: rotes Mehl = Ziegel, graues hartes = Beton, plötzlich hohl = Lochziegel. Leitungen suchen.</li>
+<li><b>Wand prüfen.</b> Probebohrung 6 mm: rotes Mehl = Ziegel, graues hartes = Beton, plötzlich hohl = Lochziegel. Leitungen suchen.</li>
 <li><b>Einkaufen.</b> Materialliste, Schiene und Träger von Dolle, Bretter auf 216 x 37 cm zuschneiden lassen.</li>
 <li><b>Schienen setzen.</b> Wie auf der Seite "Schienen an der Wand befestigen", mit Höhenlinie.</li>
 <li><b>Bretter vorbereiten.</b> Kanten schleifen, zweimal versiegeln, trocknen lassen.</li>
