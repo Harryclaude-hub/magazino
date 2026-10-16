@@ -1108,3 +1108,13 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   zu je 25 kg = 250 kg je Schiene, Ergebnis unverändert) und Liste
   angepasst. Neue Montage-Seite mit drei Zeichnungen: Schiene mit Lochmaßen
   und Höhenlinie, Schnitt durch eine Bohrung, Lage der Schienen an der Wand.
+- **E100 Alles von Bauhaus:** Karam will alles aus einem Baumarkt in seiner
+  Nähe. Schiene Element System EL 50 (einreihig, Raster 50 mm, 2 m),
+  Träger Bodenträger-Set S 50 40 cm (60 kg je Träger), Bretter Leimholz
+  Fichte 2500 x 400 x 18 mm, nur auf 216 cm gekürzt. Die Bretter werden
+  dadurch 40 statt 37 cm tief (passend zum 40-cm-Träger), der Gang 81 cm.
+  Kosten etwa 452 statt 780 Euro. Lochabstand der Schiene nennt der Händler
+  nicht (etwa alle 20 cm), darum "in jedes Loch eine Schraube". Laut
+  Hersteller liegen Holzböden auf diesem Träger mit Aufsteckhaltern; Pads
+  und Leisten übernehmen das hier. Die Kistly-Daten des Kellers stehen noch
+  auf 37 cm Tiefe, Änderung erst auf Karams Wort.
