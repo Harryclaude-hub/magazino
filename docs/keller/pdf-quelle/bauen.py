@@ -38,8 +38,9 @@ def poly(pts, fill="none", stroke="#111", w=0.6):
     return f'<polygon points="{p}" fill="{fill}" stroke="{stroke}" stroke-width="{w}" stroke-linejoin="round"/>'
 
 
-def rect(x, y, w, h, fill="none", stroke="#111", sw=0.5):
-    return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"/>'
+def rect(x, y, w, h, fill="none", stroke="#111", sw=0.5, dash=None):
+    d = f' stroke-dasharray="{dash}"' if dash else ""
+    return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{d}/>'
 
 
 def circ(x, y, r, fill="#fff", stroke="#111", sw=0.4):
@@ -143,21 +144,22 @@ def teil_brett(L, T, name, menge):
     o.append(t(ox + L / 2, oy - 3, "Wandseite", 4, fill="#555"))
     o.append(t(ox + L / 2, oy + T / 2 + 1.5, name, 6, weight="bold", fill="#4a2f08"))
     # Unterseite: wo die Traeger liegen (gestrichelt), Antirutsch-Pads
-    # (graue Quadrate) auf jedem Traeger, Haltestift (rot) nur am ersten und
-    # letzten Traeger, ueber dem hinteren Loch des Traegers (8 cm von der Wand).
+    # (graue Quadrate) auf jedem Traeger, Fuehrungsleisten (rot) links und
+    # rechts vom ersten und letzten Traeger, 10 bis 18 cm von der Wand.
     for i, x in enumerate(SCH):
         bx = x - 0.5
         o.append(line(ox + bx, oy, ox + bx, oy + T - 2, 0.3, "#888", "1.5 1.5"))
-        o.append(rect(ox + bx - 1, oy + 17, 2, 2, "#777", "#333", 0.2))
+        o.append(rect(ox + bx - 1, oy + 22, 2, 2, "#777", "#333", 0.2))
         if i in (0, len(SCH) - 1):
-            o.append(circ(ox + bx, oy + 8, 1.1, "#c24", "#c24", 0.3))
+            for sx in (-2.2, 1.2):
+                o.append(rect(ox + bx + sx, oy + 10, 1, 8, "#c24", "#c24", 0))
     o.append(mass_h(ox, ox + L, oy + T + 10, f"{L} cm", size=5))
     o.append(mass_v(ox + L + 6, oy, oy + T, f"{T} cm", size=5))
     prev = 0
     for x in [s - 0.5 for s in SCH]:
         o.append(mass_h(ox + prev, ox + x, oy + T + 20, z(x - prev), size=3.6, tick=1.4))
         prev = x
-    o.append(t(ox, oy + T + 32, f"Menge je Ebene: {menge}. Ansicht von unten. Grau: Antirutsch-Pad auf jedem Traeger. Rot: Haltestift 4 mm nur am ersten und letzten Traeger, faellt ins Loch des Traegers.", 4, "start", "#333"))
+    o.append(t(ox, oy + T + 32, f"Menge je Ebene: {menge}. Ansicht von unten. Grau: Antirutsch-Pad auf jedem Traeger. Rot: Fuehrungsleisten 10 x 10 x 80 mm links und rechts vom ersten und letzten Traeger.", 4, "start", "#333"))
     # Dicke
     o.append(rect(ox, oy + T + 40, 60, 2.1 * 3, HOLZ, "#6b4a1e", 0.5))
     o.append(t(ox + 66, oy + T + 45, "Dicke 21 mm (hier 3-fach gross gezeichnet), Kanten leicht gebrochen", 4, "start", "#333"))
@@ -208,8 +210,6 @@ def teil_traeger(L, menge_text):
     o.append(poly([(ox, oy), (ox + L, oy), (ox + L, oy + 14), (ox + 12, oy + h), (ox, oy + h)], STAHL, "#111", 0.5))
     for hy in (oy + 6, oy + 31):
         o.append(poly([(ox, hy), (ox - 7, hy + 2), (ox - 7, hy + 11), (ox, hy + 11)], STAHL, "#111", 0.4))
-    for sx in (80, L - 70):
-        o.append(circ(ox + sx, oy + 4, 1.8, "#fff", "#c24", 0.4))
     o.append(mass_h(ox, ox + L, oy - 8, f"{L} mm", 13.2, tick=4))
     o.append(mass_v(ox - 16, oy, oy + h, f"ca. {h} mm", 10, -1, tick=4))
     o.append(t(ox + L / 2, oy + h + 14, "gerader Arm ohne Dreieck, oben liegt das Brett", 11, fill="#333"))
@@ -227,13 +227,13 @@ def teil_klein():
     o.append(rect(70, 22, 60, 4, "#888", "#111", 0.4))
     o.append(rect(66, 19, 4, 10, "#888", "#111", 0.4))
     o.append(t(98, 40, "Schraube 6 x 60", 5))
-    # Haltestift 4 x 20
-    o.append(rect(150, 23, 20, 3, "#888", "#111", 0.4))
-    o.append(t(160, 40, "Stift 4 x 20", 5))
+    # Fuehrungsleiste 10 x 10 x 80
+    o.append(rect(145, 21, 32, 6, "#c24", "#111", 0.4))
+    o.append(t(161, 40, "Leiste 10 x 10 x 80", 5))
     # Antirutsch-Pad
-    o.append(rect(190, 20, 10, 10, "#777", "#111", 0.4))
-    o.append(t(195, 40, "Pad 20 x 20", 5))
-    return svg(215, 48, "".join(o), "22mm")
+    o.append(rect(205, 20, 10, 10, "#777", "#111", 0.4))
+    o.append(t(210, 40, "Pad 20 x 20", 5))
+    return svg(228, 48, "".join(o), "22mm")
 
 
 def bild_schnitt():
@@ -253,13 +253,14 @@ def bild_schnitt():
     o.append(t(ox + 190, by - 7, "Brett Multiplex 21 mm", 12, "middle", "#4a2f08"))
     o.append(poly([(ox + 12, by), (ox + 370, by), (ox + 370, by + 14), (ox + 24, by + 50), (ox + 12, by + 50)], STAHL, "#111", 0.6))
     o.append(t(ox + 200, by + 72, "Traeger 370 mm, gerader Arm", 11, "middle", "#222"))
-    # Haltestift im Brett, faellt ins hintere Loch des Traegers; Pad zwischen Traeger und Brett
-    o.append(rect(ox + 90 - 2, by - 12, 4, 17, "#c24", "#c24", 0))
-    o.append(rect(ox + 150, by - 2, 24, 2, "#555", "#333", 0.3))
-    o.append(t(ox + 92, by + 100, "Haltestift 4 mm im Brett, steckt im Traegerloch", 10, "start", "#c24"))
-    o.append(line(ox + 110, by + 92, ox + 92, by + 7, 0.4, "#c24"))
+    # Fuehrungsleiste unter dem Brett neben dem Traeger (gestrichelt, weil sie
+    # vor und hinter dem Traeger sitzt); Pad zwischen Traeger und Brett
+    o.append(rect(ox + 112, by, 80, 10, "none", "#c24", 0.9, "4 2"))
+    o.append(rect(ox + 230, by - 2, 24, 2, "#555", "#333", 0.3))
+    o.append(t(ox + 92, by + 100, "Leiste 10 x 10 mm unter dem Brett, links und rechts vom Traeger", 10, "start", "#c24"))
+    o.append(line(ox + 140, by + 92, ox + 150, by + 11, 0.4, "#c24"))
     o.append(t(ox + 250, by + 120, "Antirutsch-Pad auf dem Traeger, Brett liegt lose", 10, "middle", "#222"))
-    o.append(line(ox + 230, by + 112, ox + 162, by, 0.4, "#222"))
+    o.append(line(ox + 250, by + 112, ox + 242, by, 0.4, "#222"))
     o.append(mass_h(ox + 12, ox + 382, by - 40, "Brett 370 mm tief (beide Seiten)", size=11, tick=5))
     o.append(line(ox + 386, by - 21, ox + 400, by - 21, 0.3))
     o.append(line(ox + 386, by, ox + 400, by, 0.3))
@@ -306,7 +307,6 @@ URL_SCHIENE = "https://www.hornbach.at/p/dolle-regale-wandschiene-2-reihig-weiss
 URL_TRAEGER = "https://www.hornbach.at/p/traeger-dolle-regale-2-reihig-370-mm-weiss/7023207/"
 URL_HOLZ = "https://www.hornbach.at/p/multiplexplatte-platte-unbehandelt-holz-2500-x-1220-x-21-mm/10578448/"
 URL_DUEBEL = "https://www.bauhaus.at/universalduebel/fischer-duopower-duebel-schraubenbox-duopower/p/24505064"
-URL_OBI_SCHIENE = "https://www.obi.at/p/1474717/metall-wandschiene-2-reihig-200-cm-weiss"
 POS = ", ".join(z(x) for x in SCH)
 
 
@@ -328,7 +328,7 @@ seiten.append(f"""
 <ul>
 <li>Regale nur an den <b>zwei Seitenwänden</b>. Die hintere Wand und die Ecken bleiben frei.</li>
 <li><b>Grundgerüst:</b> je Wand 5 Schienen (gleicher Abstand {abst} cm, 10 cm von beiden Enden) und darin eingehängte <b>gerade Träger</b> ohne Dreieck.</li>
-<li><b>Bretter liegen lose auf den Trägern</b>, nichts wird verschraubt. Zwei kleine Stifte unter jedem Brett fallen in die Löcher der Träger, Antirutsch-Pads halten es fest. Zum Umstellen hebst du das Brett einfach ab.</li>
+<li><b>Bretter liegen lose auf den Trägern</b>, nichts wird verschraubt. Vier kleine Holzleisten unter jedem Brett umfassen zwei Träger, Antirutsch-Pads halten es fest. Zum Umstellen hebst du das Brett einfach ab.</li>
 <li><b>Gleiche Bretter</b> links und rechts: 216 x 37 cm, gerade Enden. Die Tür geht nach außen auf.</li>
 </ul>
 <h3>Die wichtigsten Zahlen</h3>
@@ -396,17 +396,16 @@ seiten.append(f"""
 <h3>So hält das Brett ohne Schrauben</h3>
 <ol>
 <li><b>Antirutsch-Pads:</b> Auf jeden Träger oben ein selbstklebendes Gummi-Pad (etwa 20 x 20 mm, 2 bis 3 mm dick). Das Gewicht drückt das Brett darauf, es rutscht nicht.</li>
-<li><b>Haltestifte:</b> Unter jedem Brett zwei Stifte (Stahl- oder Holzstift 4 mm, 20 mm lang), am ersten und letzten Träger. Sie stehen 5 mm aus dem Brett und fallen beim Auflegen in das hintere Loch des Trägers. Das Brett kann dann weder nach vorn noch zur Seite wegrutschen.</li>
+<li><b>Führungsleisten:</b> Unter jedem Brett vier Stücke Holzleiste 10 x 10 mm, 8 cm lang: je eines links und rechts vom ersten und vom letzten Träger. Beim Auflegen rutscht der Träger zwischen die zwei Leisten. Das Brett kann dann nicht zur Seite wandern, hinten stoppt die Wand.</li>
 <li><b>Abheben:</b> Brett vorne anheben, nach oben abnehmen. Die Träger bleiben in der Schiene.</li>
 </ol>
 </div>
 <div>
-<h3>Stifte setzen</h3>
+<h3>Leisten ankleben</h3>
 <ol>
-<li>Träger an der gewünschten Höhe einhängen, Brett auflegen und ausrichten.</li>
-<li>Von unten durch das hintere Loch des ersten und des letzten Trägers mit dem Bleistift auf das Brett anzeichnen.</li>
-<li>Brett abnehmen, an den Marken 4 mm, 15 mm tief bohren.</li>
-<li>Stift mit einem Tropfen Holzleim einsetzen, 5 mm stehen lassen, trocknen lassen.</li>
+<li>Träger einhängen, Brett auflegen und ausrichten.</li>
+<li>Von unten am ersten und letzten Träger links und rechts einen Bleistiftstrich aufs Brett ziehen.</li>
+<li>Brett umdrehen, Leisten mit Holzleim direkt an die Striche kleben (1 bis 2 mm Luft zum Träger lassen), trocknen lassen.</li>
 </ol>
 <p class="klein">Weil alle Schienen gleich weit auseinander sitzen, passt jedes Brett an jede Höhe und auf beide Wände.</p>
 </div></div>
@@ -419,9 +418,9 @@ seiten.append(f"""
 <div class="zwei">
 <div>
 <div class="teil"><h3>Teil B: Träger 2-reihig, gerade (etwa 370 mm)</h3>{teil_traeger(370, "10 je Ebene")}
-<p class="klein">Gerader Arm ohne Dreieck, an der Wand etwa 5 cm hoch. Ein Träger hält etwa 55 kg (Herstellerangabe 110 kg je Paar). Rote Kreise: Löcher im Träger, ins hintere fällt der Haltestift.</p></div>
+<p class="klein">Gerader Arm ohne Dreieck, an der Wand etwa 5 cm hoch. Ein Träger hält etwa 55 kg (Herstellerangabe 110 kg je Paar).</p></div>
 <div class="teil"><h3>Teil D: Kleinteile</h3>{teil_klein()}
-<p class="klein">Dübel 8 x 40 und Schraube 6 x 60: Wand zu Schiene, 8 je Schiene. Stift 4 x 20: 2 je Brett. Pad: 1 je Träger.</p></div>
+<p class="klein">Dübel 8 x 40 und Schraube 6 x 60: Wand zu Schiene, 8 je Schiene. Leiste 10 x 10 x 80 mm: 4 je Brett. Pad: 1 je Träger.</p></div>
 </div>
 <div>
 <div class="teil"><h3>Teil C: Wandschiene 2-reihig, 2 m</h3>{teil_schiene()}
@@ -437,7 +436,7 @@ seiten.append(f"""
 <div>{bild_schnitt()}</div>
 <div>
 <div class="ok"><b>Gleich hohe Schlitze:</b> Alle 5 Schienen einer Wand müssen auf derselben Höhenlinie sitzen, sonst liegt das Brett schief (Seite "Schienen an der Wand befestigen").</div>
-<div class="warn"><b>Lose Bretter:</b> Nicht auf die Vorderkante eines Bretts treten oder sich daran hochziehen. Schwere Kisten von vorn nur ziehen, wenn das Brett beladen ist; ein leeres Brett hält allein durch die Stifte.</div>
+<div class="warn"><b>Lose Bretter:</b> Nicht auf die Vorderkante eines Bretts treten oder sich daran hochziehen. Schwere Kisten von vorn nur ziehen, wenn das Brett beladen ist; ein leeres Brett liegt nur durch sein Gewicht.</div>
 </div></div>
 </div>
 """)
@@ -477,30 +476,24 @@ seiten.append(f"""
 
 zeilen = []
 for e, platten in ((4, 3), (6, 4), (8, 6)):
-    zeilen.append([f"<b>{e}</b>", str(2 * e), "10", str(e * 10), str(platten), str(4 * e), str(e * 10), "80", "80"])
+    zeilen.append([f"<b>{e}</b>", str(2 * e), "10", str(e * 10), str(platten), str(-(-8 * e * 8 // 100)), str(e * 10), "80", "80"])
 
 seiten.append(f"""
 <div class="seite">
 <h2>Materialliste und Bezugsquellen</h2>
-{tabelle(["Ebenen","Bretter 216 x 37","Schienen 2 m","Träger","Platten 2500 x 1220 x 21","Stifte 4 x 20","Pads","Dübel 8 x 40","Schrauben 6 x 60"], zeilen)}
+{tabelle(["Ebenen","Bretter 216 x 37","Schienen 2 m","Träger","Platten 2500 x 1220 x 21","Leisten 10 x 10, 1 m","Pads","Dübel 8 x 40","Schrauben 6 x 60"], zeilen)}
 <p class="klein">Aus einer Platte (122 cm breit) bekommst du drei Bretter 216 x 37 cm. Kauf ein paar Dübel, Schrauben und Pads als Reserve.</p>
-<h3>Weg 1: Dolle-System (Hornbach, online bestellen oder im Markt abholen)</h3>
+<h3>Schiene, Träger und Holz (Hornbach, online reservieren und im Markt abholen oder liefern lassen)</h3>
 {tabelle(["Teil","Produkt","Preis (Stand Oktober 2026)","Link"],[
  ["C Schiene","Dolle Wandschiene 2-reihig weiß 1995 mm (Art. 7023195)","5,95 €, ab 10 Stück 5,35 €", link(URL_SCHIENE, "hornbach.at")],
  ["B Träger","Dolle Träger 2-reihig 370 mm weiß (Art. 7023207)","3,75 €, ab 10 Stück 3,35 €", link(URL_TRAEGER, "hornbach.at")],
  ["A Holz","Multiplexplatte 2500 x 1220 x 21 mm (Art. 10578448), Zuschnitt im Markt","177,50 € je Platte", link(URL_HOLZ, "hornbach.at")],
 ])}
-<h3>Weg 2: OBI-System (im nächsten OBI-Markt)</h3>
-{tabelle(["Teil","Produkt","Hinweis","Link"],[
- ["C Schiene","Metall-Wandschiene 2-reihig 200 cm weiß (Art. 1474717), 55 kg","im Markt vorrätig? vorher online prüfen", link(URL_OBI_SCHIENE, "obi.at")],
- ["B Träger","Winkelträger 2-reihig (Doppelhaken) aus demselben OBI-System, etwa 38 cm","Länge im Markt wählen: 38 cm passt zum Brett 37 cm",""],
- ["A Holz","Multiplex Birke oder Tischlerplatte 21 mm, Zuschnitt 216 x 37 cm","im Markt zuschneiden lassen",""],
-])}
-<h3>Für beide Wege</h3>
+<h3>Kleinteile (im selben Markt)</h3>
 {tabelle(["Teil","Produkt","Link"],[
- ["D Dübel","Fischer DuoPower 8 x 40 (oder Betonschraube 6 x 60 bei Beton)", link(URL_DUEBEL, "bauhaus.at")],
+ ["D Dübel","Fischer DuoPower 8 x 40 (oder Betonschraube 6 x 60 bei Beton)", link(URL_DUEBEL, "Beispiel")],
  ["D Schrauben","Senkkopfschrauben 6 x 60, Kopf muss flach in der Schiene liegen",""],
- ["D Stifte","Stahlstift oder Holzdübel 4 mm, 20 mm lang, dazu Holzleim",""],
+ ["D Leisten","Vierkantleiste Kiefer 10 x 10 mm, 1 m, in Stücke zu 8 cm sägen, dazu Holzleim",""],
  ["D Pads","Antirutsch-Pads selbstklebend, Gummi, etwa 20 x 20 mm",""],
  ["Pflege","Hartwachsöl oder farbloser Lack, 1 Liter",""],
 ])}
@@ -516,7 +509,7 @@ seiten.append(f"""
 <ol>
 <li><b>Nachmessen.</b> Wandlänge links und rechts, Höhe, Tür. Brettlänge = Wandlänge minus 1 cm.</li>
 <li><b>Wand prüfen.</b> Probebohrung 8 mm: rotes Mehl = Ziegel, graues hartes = Beton, plötzlich hohl = Lochziegel. Leitungen suchen.</li>
-<li><b>Einkaufen.</b> Materialliste, ein System wählen, Bretter auf 216 x 37 cm zuschneiden lassen.</li>
+<li><b>Einkaufen.</b> Materialliste, Schiene und Träger von Dolle, Bretter auf 216 x 37 cm zuschneiden lassen.</li>
 <li><b>Schienen setzen.</b> Wie auf der Seite "Schienen an der Wand befestigen", mit Höhenlinie.</li>
 <li><b>Bretter vorbereiten.</b> Kanten schleifen, zweimal versiegeln, trocknen lassen.</li>
 </ol>
@@ -524,7 +517,7 @@ seiten.append(f"""
 <div>
 <ol start="6">
 <li><b>Träger einhängen, Pads kleben.</b> 5 Träger je Ebene auf derselben Schlitzhöhe, auf jeden ein Pad.</li>
-<li><b>Stifte setzen.</b> Brett auflegen, Löcher anzeichnen, bohren, Stifte einleimen.</li>
+<li><b>Leisten kleben.</b> Brett auflegen, neben dem ersten und letzten Träger anzeichnen, Leisten ankleben.</li>
 <li><b>Belastungstest.</b> Ein Brett, schrittweise 50, 100, 180 kg, je 10 Minuten, nach 24 Stunden nochmal prüfen.</li>
 <li><b>Beladen.</b> Schwere Kisten nach unten und nahe an die Wand.</li>
 <li><b>Im Programm eintragen.</b> Im Zeichner die Böden auf die echten Höhen stellen.</li>
@@ -535,7 +528,7 @@ seiten.append(f"""
 <li><span class="box"></span>10 Schienen lotrecht, gleicher Schlitz auf der Höhenlinie</li>
 <li><span class="box"></span>Schraubenköpfe flach, Träger lassen sich einhängen</li>
 <li><span class="box"></span>Belastungstest bestanden</li>
-<li><span class="box"></span>Stifte sitzen in den Trägerlöchern, Brett liegt eben</li>
+<li><span class="box"></span>Träger sitzen zwischen den Leisten, Brett liegt eben</li>
 </ul>
 <p><b>Zeit:</b> etwa ein Tag im Keller, wenn der Zuschnitt fertig ist.</p>
 </div></div>

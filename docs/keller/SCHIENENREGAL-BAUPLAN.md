@@ -1,6 +1,6 @@
 # Schienenregal im Keller: Bauplan
 
-Stand 17.10.2026 (E99). Die vollständige Fassung mit Zeichnungen aller
+Stand 17.10.2026 (E99b). Die vollständige Fassung mit Zeichnungen aller
 Einzelteile steht als PDF daneben: `SCHIENENREGAL-BAUPLAN.pdf`, erzeugt aus
 `pdf-quelle/bauen.py`.
 
@@ -18,10 +18,10 @@ Einzelteile steht als PDF daneben: `SCHIENENREGAL-BAUPLAN.pdf`, erzeugt aus
 ## Bretter liegen lose
 
 Brett und Träger sind getrennte Teile, nichts wird verschraubt. Auf jedem
-Träger ein Antirutsch-Pad 20 x 20 mm. Unter jedem Brett zwei Stifte
-4 x 20 mm (eingeleimt, 5 mm überstehend) über dem ersten und letzten
-Träger, sie fallen ins hintere Trägerloch. Abheben: Brett vorn anheben und
-nach oben nehmen.
+Träger ein Antirutsch-Pad 20 x 20 mm. Unter jedem Brett vier Stücke
+Holzleiste 10 x 10 x 80 mm, angeleimt links und rechts vom ersten und
+letzten Träger: der Träger sitzt dazwischen, das Brett kann nicht seitlich
+weg. Abheben: Brett vorn anheben und nach oben nehmen.
 
 ## Schienen an der Wand
 
@@ -48,7 +48,7 @@ keine normalen Dübel.
 
 ## Material für 4 Ebenen
 
-10 Schienen 2-reihig 2 m, 40 Träger 2-reihig 370 mm (beides vom selben
-System), 3 Platten Multiplex 2500 x 1220 x 21 mm, 80 Dübel 8 x 40,
-80 Senkkopfschrauben 6 x 60, 16 Stifte 4 x 20, 40 Antirutsch-Pads,
-Holzleim, Hartwachsöl. Artikelnummern im PDF.
+10 Schienen Dolle 2-reihig 1995 mm, 40 Träger Dolle 2-reihig 370 mm,
+3 Platten Multiplex 2500 x 1220 x 21 mm, 80 Dübel 8 x 40,
+80 Senkkopfschrauben 6 x 60, 3 Vierkantleisten 10 x 10 mm je 1 m,
+40 Antirutsch-Pads, Holzleim, Hartwachsöl. Artikelnummern im PDF.

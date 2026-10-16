@@ -1092,3 +1092,11 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   (Träger dort im Markt passend wählen, nie Systeme mischen). Die
   Einkaufsliste nennt Märkte am Wohnort und liegt darum nicht mehr im Repo,
   sondern in `_privat.local` (Quelle des privaten Artifacts).
+- **E99b Leisten statt Stifte, nur noch Dolle:** Die Händlerseite des
+  Dolle-Trägers nennt keine Löcher im Träger, die Stifte aus E99 hätten
+  also vielleicht kein Loch gefunden. Stattdessen vier angeleimte
+  Leistenstücke 10 x 10 x 80 mm je Brett links und rechts vom ersten und
+  letzten Träger; das klappt bei jedem Träger. Der Link zur Schiene des
+  anderen Baumarkts lieferte 404 und dessen passende Träger waren nicht
+  belegt, darum gibt es nur noch einen Weg: Dolle-Schiene und Dolle-Träger
+  (beide 2-reihig, gleicher Hersteller), alles in einem Markt.
