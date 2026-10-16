@@ -1,11 +1,12 @@
 # Erzeugt SCHIENENREGAL-BAUPLAN.html (Zeichnungen als SVG). PDF danach mit Chrome:
 #   chrome --headless=new --no-pdf-header-footer --print-to-pdf=SCHIENENREGAL-BAUPLAN.pdf SCHIENENREGAL-BAUPLAN.html
-# Stand E97: nur die zwei Seitenwaende, gerade Enden, 5 Schienen je Wand.
+# Stand E98: nur die zwei Seitenwaende, gleiche Bretter 216 x 37, 5 Schienen je Wand,
+# gerade Traeger 370 mm, Tuer geht nach aussen auf.
 import sys, html
 ziel = sys.argv[1]
 
 W, D = 161, 217            # Keller innen: Breite (x) und Tiefe (y), cm
-T_L, T_R = 35, 30          # Brett links (Ost) und rechts (West), Tiefe cm
+T_L, T_R = 37, 37          # Brett links (Ost) und rechts (West), Tiefe cm
 BRETT_L = 216              # Brettlaenge: 5 mm Luft an jedem Ende
 N = 5                      # Schienen je Wand
 RAND = 10                  # Schienenmitte ab Wand, cm
@@ -64,24 +65,25 @@ def svg(vw, vh, inner, maxh="150mm"):
 # ------------------------------------------------ Bild 1: Draufsicht
 def bild_draufsicht():
     pad = 22
-    vw, vh = W + 2 * pad + 85, D + 2 * pad + 34
+    vw, vh = W + 2 * pad + 85, D + 2 * pad + 34 + 82
     o = []
-    ox, oy = pad + 14, pad + 14
+    ox, oy = pad + 14, pad + 14 + 82
     o.append(rect(ox - 8, oy - 8, W + 16, D + 16, "#c9c9c9", "none", 0))
     o.append(rect(ox, oy, W, D, "#f5f1e8", "#111", 0.5))
     o.append(rect(ox + 35, oy - 8, 80, 8, "#f5f1e8", "none", 0))
-    o.append(f'<path d="M {ox+35} {oy+80} A 80 80 0 0 1 {ox+115} {oy}" fill="none" stroke="#c24" stroke-width="0.5" stroke-dasharray="3 2"/>')
-    o.append(line(ox + 35, oy, ox + 35, oy + 80, 1.6, "#c24"))
-    o.append(t(ox + 75, oy - 11, "Tuer 80 cm (Angel links, offen nach innen)", 4.5, fill="#c24"))
+    # Tuer geht nach aussen auf (in den Gang vor dem Keller)
+    o.append(f'<path d="M {ox+35} {oy-8-80} A 80 80 0 0 1 {ox+115} {oy-8}" fill="none" stroke="#c24" stroke-width="0.5" stroke-dasharray="3 2"/>')
+    o.append(line(ox + 35, oy - 8, ox + 35, oy - 8 - 80, 1.6, "#c24"))
+    o.append(t(ox + 75, oy - 12, "Tuer 80 cm, geht nach aussen auf", 4.5, fill="#c24"))
     # Bretter: 5 mm Luft an beiden Enden
     o.append(rect(ox + W - T_L, oy + 0.5, T_L, BRETT_L, HOLZ, "#6b4a1e", 0.6))
     o.append(rect(ox, oy + 0.5, T_R, BRETT_L, HOLZ, "#6b4a1e", 0.6))
     for y in SCH:
         o.append(rect(ox + W - 3, oy + y - 1.3, 3, 2.6, RAIL, RAIL, 0))
         o.append(rect(ox, oy + y - 1.3, 3, 2.6, RAIL, RAIL, 0))
-    o.append(t(ox + W - T_L / 2 + 1.5, oy + D / 2, "LINKS (Ost) 216 x 35", 4.5, rot=90))
-    o.append(t(ox + T_R / 2 + 1.5, oy + D / 2, "RECHTS (West) 216 x 30", 4.5, rot=-90))
-    o.append(t(ox + W / 2, oy + D / 2 - 6, "Gang 96 cm", 6, fill="#555"))
+    o.append(t(ox + W - T_L / 2 + 1.5, oy + D / 2, "LINKS (Ost) 216 x 37", 4.5, rot=90))
+    o.append(t(ox + T_R / 2 + 1.5, oy + D / 2, "RECHTS (West) 216 x 37", 4.5, rot=-90))
+    o.append(t(ox + W / 2, oy + D / 2 - 6, "Gang 87 cm", 6, fill="#555"))
     o.append(t(ox + W / 2, oy + D - 12, "hintere Wand frei", 5, fill="#555"))
     o.append(t(ox + W / 2, oy + D - 5, "(Ecken frei)", 4, fill="#777"))
     o.append(mass_h(ox, ox + W, oy + D + 24, "161 cm innen", size=5.5))
@@ -195,22 +197,22 @@ def teil_schiene():
 
 
 def teil_traeger(L, menge_text):
-    # Seitenansicht in mm (L = Armlaenge in mm)
+    # Seitenansicht in mm: gerader Arm ohne Strebe, an der Wand hoch, vorn
+    # schmal (wie die Dolle-Traeger 2-reihig), oben liegt das Brett.
     o = []
     ox, oy = 60, 24
-    h = 120
-    o.append(poly([(ox, oy), (ox + 8, oy), (ox + 8, oy + h - 20), (ox + L * 0.35, oy + 8), (ox + L, oy + 8), (ox + L, oy), (ox + 8, oy)], STAHL, "#111", 0.5))
-    o.append(poly([(ox, oy), (ox + 8, oy), (ox + 8, oy + h), (ox, oy + h)], STAHL, "#111", 0.5))
-    for hy in (oy + 10, oy + 35):
-        o.append(poly([(ox, hy), (ox - 6, hy + 2), (ox - 6, hy + 10), (ox, hy + 10)], STAHL, "#111", 0.4))
+    h = 50
+    o.append(poly([(ox, oy), (ox + L, oy), (ox + L, oy + 14), (ox + 12, oy + h), (ox, oy + h)], STAHL, "#111", 0.5))
+    for hy in (oy + 6, oy + 31):
+        o.append(poly([(ox, hy), (ox - 7, hy + 2), (ox - 7, hy + 11), (ox, hy + 11)], STAHL, "#111", 0.4))
     for sx in (80, L - 70):
         o.append(circ(ox + sx, oy + 4, 1.8, "#fff", "#c24", 0.4))
-    o.append(mass_h(ox, ox + L, oy - 6, f"{L} mm", 13.2))
-    o.append(mass_v(ox - 12, oy, oy + h, f"{h} mm", 11.0, -1))
-    o.append(t(ox + L / 2, oy + 28, "Arm, oben liegt das Brett", 11.0, fill="#333"))
-    o.append(t(ox + 10, oy + h + 12, "Doppelhaken greifen in die Schiene (typisch, je nach System)", 9.9, "start", "#333"))
-    o.append(t(ox + L * 0.55, oy + 46, menge_text, 11.0, weight="bold"))
-    return svg(L + 90, h + 56, "".join(o), "55mm")
+    o.append(mass_h(ox, ox + L, oy - 8, f"{L} mm", 13.2, tick=4))
+    o.append(mass_v(ox - 16, oy, oy + h, f"ca. {h} mm", 10, -1, tick=4))
+    o.append(t(ox + L / 2, oy + 50, "gerader Arm ohne Dreieck, oben liegt das Brett", 11, fill="#333"))
+    o.append(t(ox + 4, oy + h + 30, "Doppelhaken an der Wandseite greifen in die Schiene", 9.9, "start", "#333"))
+    o.append(t(ox + L * 0.62, oy + 72, menge_text, 12, weight="bold"))
+    return svg(L + 90, h + 90, "".join(o), "50mm")
 
 
 def teil_klein():
@@ -242,21 +244,20 @@ def bild_schnitt():
         o.append(rect(ox - 28, yy - 2, 40, 4, "#888", "#111", 0.3))
     o.append(t(ox + 40, oy + 75, "Schraube 6x60 + Duebel 8x40", 10, "start", "#222"))
     by = oy + 160
-    o.append(rect(ox + 12, by - 21, 350, 21, HOLZ, "#6b4a1e", 0.8))
+    o.append(rect(ox + 12, by - 21, 370, 21, HOLZ, "#6b4a1e", 0.8))
     o.append(t(ox + 190, by - 7, "Brett Multiplex 21 mm", 12, "middle", "#4a2f08"))
-    o.append(poly([(ox + 12, by), (ox + 350, by), (ox + 350, by + 6), (ox + 12, by + 6)], STAHL, "#111", 0.6))
-    o.append(poly([(ox + 12, by), (ox + 12, by + 110), (ox + 22, by + 110), (ox + 22, by + 6), (ox + 150, by + 6)], STAHL, "#111", 0.6))
-    o.append(t(ox + 190, by + 30, "Doppelhaken-Traeger", 11, "middle", "#222"))
-    for sx in (ox + 90, ox + 300):
+    o.append(poly([(ox + 12, by), (ox + 370, by), (ox + 370, by + 14), (ox + 24, by + 50), (ox + 12, by + 50)], STAHL, "#111", 0.6))
+    o.append(t(ox + 200, by + 72, "Traeger 370 mm, gerader Arm", 11, "middle", "#222"))
+    for sx in (ox + 90, ox + 320):
         o.append(rect(sx - 2.5, by - 10, 5, 16, "#222", "#222", 0))
         o.append(rect(sx - 6, by + 6, 12, 3, "#222", "#222", 0))
-    o.append(t(ox + 205, by + 92, "2 Holzschrauben 4x16 von unten", 10, "middle", "#222"))
-    o.append(mass_h(ox + 12, ox + 362, by - 40, "Brett 350 mm tief (links), 300 mm (rechts)", size=11, tick=5))
-    o.append(line(ox + 366, by - 21, ox + 380, by - 21, 0.3))
-    o.append(line(ox + 366, by, ox + 380, by, 0.3))
-    o.append(line(ox + 376, by - 21, ox + 376, by, 0.35))
-    o.append(t(ox + 384, by - 6, "21", 11, "start"))
-    return svg(440, 400, "".join(o), "110mm")
+    o.append(t(ox + 205, by + 100, "2 Holzschrauben 4x16 von unten", 10, "middle", "#222"))
+    o.append(mass_h(ox + 12, ox + 382, by - 40, "Brett 370 mm tief (beide Seiten)", size=11, tick=5))
+    o.append(line(ox + 386, by - 21, ox + 400, by - 21, 0.3))
+    o.append(line(ox + 386, by, ox + 400, by, 0.3))
+    o.append(line(ox + 396, by - 21, ox + 396, by, 0.35))
+    o.append(t(ox + 403, by - 6, "21", 11, "start"))
+    return svg(460, 400, "".join(o), "110mm")
 
 
 CSS = """
@@ -293,11 +294,20 @@ def tabelle(kopf, zeilen):
 
 seiten = []
 abst = z(ABST)
+URL_SCHIENE = "https://www.hornbach.at/p/dolle-regale-wandschiene-2-reihig-weiss-1995-x-26-x-12-mm/7023195/"
+URL_TRAEGER = "https://www.hornbach.at/p/traeger-dolle-regale-2-reihig-370-mm-weiss/7023207/"
+URL_HOLZ = "https://www.hornbach.at/p/multiplexplatte-platte-unbehandelt-holz-2500-x-1220-x-21-mm/10578448/"
+URL_DUEBEL = "https://www.bauhaus.at/universalduebel/fischer-duopower-duebel-schraubenbox-duopower/p/24505064"
+
+
+def link(u, text):
+    return f'<a href="{u}">{html.escape(text)}</a>'
+
 
 seiten.append(f"""
 <div class="seite">
 <h1>Schienenregal Keller: Zeichnung und Bauplan</h1>
-<p class="klein">Stand 16.10.2026. Maße aus dem Programm Kistly (Keller innen 161 x 217 cm). Vor dem Kaufen im echten Keller nachmessen.</p>
+<p class="klein">Stand 17.10.2026. Maße aus dem Programm Kistly (Keller innen 161 x 217 cm). Vor dem Kaufen im echten Keller nachmessen.</p>
 <div class="zwei">
 <div>
 <h2>Bild 1: Draufsicht</h2>
@@ -306,20 +316,18 @@ seiten.append(f"""
 <div>
 <h2>So ist es aufgebaut</h2>
 <ul>
-<li>Regale nur an den <b>zwei Seitenwänden</b>, links und rechts. Die hintere Wand bleibt frei, die Ecken auch.</li>
-<li>Gerade Bretter mit <b>90-Grad-Enden</b>, keine Schrägen, keine Eckbretter.</li>
+<li>Regale nur an den <b>zwei Seitenwänden</b>. Die hintere Wand und die Ecken bleiben frei.</li>
+<li><b>Gleiche Bretter</b> links und rechts: 216 x 37 cm, gerade Enden. Die Tür geht nach außen auf, darum ist rechts genauso viel Platz.</li>
 <li>Je Wand <b>5 Schienen</b> in gleichem Abstand ({abst} cm), 10 cm von beiden Wandenden. Zusammen <b>10 Schienen</b>, je 2 m.</li>
-<li>Pro Ebene <b>2 Bretter</b>: links 216 x 35 cm, rechts 216 x 30 cm (rechts schmaler, weil die offene Tür dort liegt). 5 mm Luft an jedem Ende.</li>
-<li>Jedes Brett liegt auf <b>5 Trägern</b>. Brett und Träger bleiben verschraubt und werden zusammen in 5-cm-Schritten umgehängt.</li>
+<li>Jedes Brett liegt auf <b>5 geraden Trägern</b> (370 mm, ohne Dreieck darunter). Brett und Träger bleiben verschraubt und werden zusammen in 5-cm-Schritten umgehängt.</li>
 </ul>
 <h3>Die wichtigsten Zahlen</h3>
 {tabelle(["Teil","Maß"],[
- ["Brett links","216 x 35 cm, 21 mm Multiplex Birke, wasserfest"],
- ["Brett rechts","216 x 30 cm, 21 mm Multiplex Birke, wasserfest"],
- ["Schienen","10 Stück (5 je Wand), 2 m, verzinkt, Doppelschlitz"],
- ["Träger je Ebene","5 mit 35 cm (links), 5 mit 30 cm (rechts)"],
- ["Gang","96 cm"],
- ["Ziel","rund 1 Tonne je Wand, etwa 180 kg je Brett"],
+ ["Brett (2 je Ebene)","216 x 37 cm, 21 mm Multiplex Birke"],
+ ["Schienen","10 Stück (5 je Wand), 1995 mm, 2-reihig"],
+ ["Träger","10 je Ebene, 370 mm, 2-reihig, gerade"],
+ ["Gang","87 cm"],
+ ["Traglast","rund 1,25 Tonnen je Wand (Seite Traglast)"],
 ])}
 </div></div></div>
 """)
@@ -331,33 +339,39 @@ seiten.append(f"""
 <div>{ansicht("LINKE WAND (Ost)", T_L)}</div>
 <div>{ansicht("RECHTE WAND (West)", T_R)}</div>
 </div>
-<p class="klein">Dunkle Streifen: Schienen, Unterkante 5 cm über dem Boden, Oberkante 205 cm. Abstände der Schienenmitten von der Türwand: 10 / {abst} / {abst} / {abst} / {abst} / 10 cm. Gestrichelt: Beispielhöhen der Bretter (Unterkante) 45, 85, 125, 165 cm. Frei einstellbar in 5-cm-Schritten. Graue Stücke unter den Brettern: Träger.</p>
+<p class="klein">Dunkle Streifen: Schienen, Unterkante 5 cm über dem Boden, Oberkante etwa 205 cm. Abstände der Schienenmitten von der Türwand: 10 / {abst} / {abst} / {abst} / {abst} / 10 cm. Gestrichelt: Beispielhöhen der Bretter (Unterkante) 45, 85, 125, 165 cm, frei einstellbar in 5-cm-Schritten. Graue Stücke unter den Brettern: Träger.</p>
 </div>
 """)
 
 seiten.append(f"""
 <div class="seite">
-<h2>Einzelteile 1: die Bretter</h2>
-<div class="teil"><h3>Teil A: Brett links (Ost), 216 x 35 x 2,1 cm</h3>{teil_brett(BRETT_L, T_L, "Teil A: Brett links 216 x 35", "1 Stück")}</div>
-<div class="teil"><h3>Teil B: Brett rechts (West), 216 x 30 x 2,1 cm</h3>{teil_brett(BRETT_L, T_R, "Teil B: Brett rechts 216 x 30", "1 Stück")}</div>
-<p class="klein">Material: Multiplex Birke 21 mm, wasserfest verleimt (AW 100 oder WBP). Ecken rechtwinklig, Kanten leicht brechen (Schleifpapier 120), alle Kanten zweimal mit Hartwachsöl oder Lack versiegeln. Maße der Löcher gelten ab dem Brettende an der Türseite.</p>
+<h2>Einzelteile 1: das Brett</h2>
+<div class="teil"><h3>Teil A: Brett 216 x 37 x 2,1 cm (2 je Ebene, links und rechts gleich)</h3>{teil_brett(BRETT_L, T_L, "Teil A: Brett 216 x 37", "2 Stück (eins links, eins rechts)")}</div>
+<p class="klein">Material: Multiplex Birke 21 mm, wasserfest verleimt (AW 100 oder WBP). Ecken rechtwinklig, Kanten leicht brechen (Schleifpapier 120), alle Kanten zweimal mit Hartwachsöl oder Lack versiegeln. Die Löcher gelten ab dem Brettende an der Türseite. Rechts wird das Brett gedreht eingebaut, die Löcher passen trotzdem, weil die Schienen auf beiden Wänden gleich sitzen.</p>
+<h2>Einzelteile 2: Träger</h2>
+<div class="teil"><h3>Teil B: Träger 2-reihig 370 mm (gerader Arm)</h3>{teil_traeger(370, "10 je Ebene")}</div>
+<p class="klein">Der Träger ist ein gerader Arm: an der Wand etwa 5 cm hoch, nach vorn schmaler. Kein Dreieck darunter, darunter bleibt der Platz frei. Ein Träger hält etwa 55 kg (Herstellerangabe 110 kg je Paar). Rote Kreise: Löcher für die Holzschrauben.</p>
 </div>
 """)
 
 seiten.append(f"""
 <div class="seite">
-<h2>Einzelteile 2: Schiene, Träger, Befestigung</h2>
+<h2>Einzelteile 3: Schiene und Kleinteile</h2>
 <div class="zwei">
 <div>
-<div class="teil"><h3>Teil C: Wandschiene 2-reihig, verzinkt, 2000 mm</h3>{teil_schiene()}
+<div class="teil"><h3>Teil C: Wandschiene 2-reihig, 1995 mm</h3>{teil_schiene()}
 <p class="klein">10 Stück. Herstellerangabe: 55 kg je 200 mm Schiene. Schlitzabstand meist 25 mm, vor dem Kauf prüfen.</p></div>
-<div class="teil"><h3>Teil F: Kleinteile</h3>{teil_klein()}
-<p class="klein">Dübel und Schraube: Wand zu Schiene. Holzschraube: Träger zu Brett, 2 je Träger.</p></div>
 </div>
 <div>
-<div class="teil"><h3>Teil D: Träger 350 mm (für Brett links)</h3>{teil_traeger(350, "5 je Ebene")}</div>
-<div class="teil"><h3>Teil E: Träger 300 mm (für Brett rechts)</h3>{teil_traeger(300, "5 je Ebene")}</div>
-<p class="klein">Doppelhaken-Träger vom selben Hersteller wie die Schiene. Herstellerangabe bei Hornbach etwa 110 bis 130 kg je Paar. Rote Kreise: Löcher für die Holzschrauben.</p>
+<div class="teil"><h3>Teil D: Kleinteile</h3>{teil_klein()}
+<p class="klein">Dübel 8 x 40 und Schraube 6 x 60: Wand zu Schiene, 8 je Schiene. Holzschraube 4 x 16: Träger zu Brett, 2 je Träger.</p></div>
+<h3>Wie die Teile zusammenhalten</h3>
+<ol>
+<li><b>Wand zu Schiene (C):</b> Dübel 8 x 40 und Schraube 6 x 60, Bohrer 8 mm, mindestens 50 mm tief, alle 25 bis 30 cm.</li>
+<li><b>Schiene zu Träger (B):</b> Die Haken hängen in zwei Schlitzen, das Gewicht drückt sie fest.</li>
+<li><b>Träger zu Brett (A):</b> 2 Holzschrauben 4 x 16 von unten, 3 mm vorgebohrt.</li>
+<li><b>Höhe ändern:</b> Brett leer räumen, anheben, alle 5 Träger aus den Schlitzen lösen, jeden zweiten Schlitz weiter einhängen (5 cm).</li>
+</ol>
 </div></div>
 </div>
 """)
@@ -368,54 +382,65 @@ seiten.append(f"""
 <div class="zwei">
 <div>{bild_schnitt()}</div>
 <div>
-<h3>Wie die Teile zusammenhalten</h3>
-<ol>
-<li><b>Wand zu Schiene (C):</b> Schraube 6 x 60 mit Dübel 8 x 40, Bohrer 8 mm, mindestens 50 mm tief. Alle 25 bis 30 cm, die erste 5 cm vom Ende. 8 je Schiene.</li>
-<li><b>Schiene zu Träger (D, E):</b> Die zwei Haken hängen in zwei Schlitzen. Das Gewicht drückt den Träger fest nach unten.</li>
-<li><b>Träger zu Brett (A, B):</b> 2 Holzschrauben 4 x 16 von unten, vorgebohrt 3 mm. Nicht länger als 16 mm, das Brett ist 21 mm dick.</li>
-<li><b>Höhe ändern:</b> Brett leer räumen, anheben, alle 5 Träger aus den Schlitzen lösen, jeden zweiten Schlitz weiter wieder einhängen (5 cm). Zu zweit leichter.</li>
-</ol>
 <div class="ok"><b>Gleich hohe Schlitze:</b> Alle 5 Schienen einer Wand müssen genau gleich hoch sitzen, sonst hängt das Brett schief. Unterkante aller Schienen 5 cm über dem Boden, mit Lehrlatte und Wasserwaage.</div>
+<div class="warn"><b>Zum geraden Träger:</b> Er braucht unter dem Brett nur etwa 5 cm an der Wand und 1,5 cm vorn. Ein Träger mit Dreieck (Strebe) trägt etwas mehr, nimmt aber darunter Platz weg. Für 55 kg je Träger reicht der gerade Träger.</div>
+</div></div>
+</div>
+""")
+
+seiten.append(f"""
+<div class="seite">
+<h2>Traglast: wie viel hält jedes Teil</h2>
+<div class="zwei">
+<div>
+{tabelle(["Teil","hält etwa","Woher"],[
+ ["1 Träger (B)","55 kg","Herstellerangabe 110 kg je Paar"],
+ ["1 Brett mit 5 Trägern","275 kg, sinnvoll 180 kg","5 x 55 kg, mit Reserve"],
+ ["1 Schiene (C)","250 kg","sinnvoller Wert, begrenzt durch 8 Dübel in der Wand"],
+ ["1 Dübel in Beton","etwa 110 kg","Händlerangabe 1,1 kN"],
+ ["1 Dübel in Vollziegel","etwa 60 kg","Händlerangabe 0,6 kN"],
+])}
+<h3>So viele Schienen, so viel Last je Wand</h3>
+{tabelle(["Schienen je Wand","Last je Wand (250 kg je Schiene)"],[
+ ["3","750 kg"],
+ ["4","1000 kg (1 Tonne)"],
+ ["<b>5 (Plan)</b>","<b>1250 kg</b>"],
+ ["6","1500 kg"],
+])}
+<p>Also: <b>4 Schienen ergeben 1 Tonne je Wand</b>, mit 5 hast du ein Viertel Reserve. Jede Schiene mehr bringt etwa 250 kg.</p>
+</div>
+<div>
+<h3>Rechenbeispiel</h3>
+<p>6 Ebenen mit je 180 kg sind 1080 kg je Wand. Jede der 5 Schienen trägt dann etwa 216 kg, jeder Dübel (8 je Schiene) etwa 27 kg. Das liegt unter dem Wert für Vollziegel.</p>
+<div class="warn"><b>Wichtig:</b>
+<ul>
+<li>Alle Werte stammen aus Händlerangaben, nicht aus eigener Prüfung.</li>
+<li>Die Schwachstelle ist die Wand. In Lochziegel oder Hohlblock halten normale Dübel nur einen Bruchteil.</li>
+<li>Erst den Belastungstest machen, dann schwer beladen.</li>
+<li>Vor dem Bohren Leitungen suchen.</li>
+</ul></div>
 </div></div>
 </div>
 """)
 
 zeilen = []
-for e, platten in ((4, 3), (6, 4), (8, 5)):
-    zeilen.append([f"<b>{e}</b>", "10", str(e * 5), str(e * 5), str(platten), str(e * 20), "80", "80"])
+for e, platten in ((4, 3), (6, 4), (8, 6)):
+    zeilen.append([f"<b>{e}</b>", str(2 * e), "10", str(e * 10), str(platten), str(e * 20), "80", "80"])
 
 seiten.append(f"""
 <div class="seite">
-<h2>Materialliste</h2>
-{tabelle(["Ebenen","Schienen 2 m (C)","Träger 350 mm (D)","Träger 300 mm (E)","Platten Multiplex 21 mm 2500 x 1220","Holzschrauben 4 x 16","Dübel 8 x 40","Schrauben 6 x 60"], zeilen)}
-<p class="klein">Pro Ebene: Brett A + Brett B, 10 Träger, 20 Holzschrauben. Schienen und Wandbefestigung nur einmal. Aus einer Platte (122 cm breit) bekommst du drei Streifen: 35 + 35 + 30 cm oder vier Streifen à 30 cm, jeweils 216 cm lang. Darum 3 Platten für 4 Ebenen. Kauf ein paar Schrauben und Dübel als Reserve.</p>
-<div class="zwei">
-<div>
-<h3>Holz</h3>
-<ul>
-<li>Multiplex Birke 21 mm, wasserfest verleimt (AW 100 oder WBP). Hornbach Österreich, Preisstand August 2026: 177,50 € je Platte. Zuschnitt im Markt auf 216 x 35 und 216 x 30 cm.</li>
-<li>Hartwachsöl oder farbloser Lack, 1 Liter.</li>
-</ul>
-<h3>Metall</h3>
-<ul>
-<li>Wandschiene 2-reihig <b>verzinkt</b>, 2 m (Dolle bei Hornbach 1995 mm, OBI 200 cm).</li>
-<li>Doppelhaken-Träger 350 und 300 mm, derselbe Hersteller.</li>
-</ul>
-</div>
-<div>
-<h3>Wandbefestigung, je nach Wand</h3>
-{tabelle(["Wand","Was du nimmst"],[
- ["Beton","Betonschraube 6 mm (zum Beispiel Fischer FBS II 6 x 60) oder DuoPower 8 x 40 mit Schraube 6 x 60"],
- ["Vollziegel","Fischer DuoPower 8 x 40, Bohrer 8 mm, mindestens 50 mm tief"],
- ["Lochziegel oder Hohlblock","<b>Nicht</b> mit normalen Dübeln: Injektionsmörtel mit Siebhülsen, oder nur halb so schwer beladen"],
+<h2>Materialliste und Bezugsquellen</h2>
+{tabelle(["Ebenen","Bretter 216 x 37 (A)","Schienen 1995 mm (C)","Träger 370 mm (B)","Platten 2500 x 1220 x 21","Holzschrauben 4 x 16","Dübel 8 x 40","Schrauben 6 x 60"], zeilen)}
+<p class="klein">Aus einer Platte (122 cm breit) bekommst du drei Bretter 216 x 37 cm. Kauf ein paar Schrauben und Dübel als Reserve.</p>
+{tabelle(["Teil","Produkt","Preis (Stand Oktober 2026)","Link"],[
+ ["C Schiene","Dolle Regale Wandschiene 2-reihig weiß 1995 x 26 x 12 mm (Art. 7023195)","5,95 € je Stück, ab 10 Stück 5,35 €", link(URL_SCHIENE, "hornbach.at")],
+ ["B Träger","Träger Dolle Regale 2-reihig 370 mm weiß (Art. 7023207)","3,75 € je Stück, ab 10 Stück 3,35 €", link(URL_TRAEGER, "hornbach.at")],
+ ["A Holz","Multiplexplatte 2500 x 1220 x 21 mm (Art. 10578448), Zuschnitt im Markt","177,50 € je Platte", link(URL_HOLZ, "hornbach.at")],
+ ["D Dübel","Fischer DuoPower 8 x 40 mit Schrauben","je nach Packung", link(URL_DUEBEL, "bauhaus.at")],
+ ["D Holzschrauben","Spanplattenschrauben 4 x 16, verzinkt","Baumarkt, Packung 200 Stück",""],
+ ["Pflege","Hartwachsöl oder farbloser Lack, 1 Liter","Baumarkt",""],
 ])}
-<h3>Werkzeug</h3>
-<ul>
-<li>Schlagbohrmaschine, Betonbohrer 8 mm, Holzbohrer 3 mm, Akkuschrauber.</li>
-<li>Wasserwaage, Laser oder Lehrlatte, Zollstock, Malerkrepp, Leitungssucher.</li>
-<li>Schleifpapier 120 und 180, Pinsel, Hygrometer.</li>
-</ul>
-</div></div>
+<p class="klein">Für 4 Ebenen ungefähr: Schienen 54 €, Träger 134 €, Holz 533 €, dazu Schrauben, Dübel und Öl. Schiene und Träger <b>vom selben Hersteller</b> (Dolle) kaufen, andere Systeme passen nicht in diese Schlitze. Ist der Keller feucht, frag im Markt nach verzinkten Schienen.</p>
 </div>
 """)
 
@@ -425,62 +450,30 @@ seiten.append(f"""
 <div class="zwei">
 <div>
 <ol>
-<li><b>Nachmessen.</b> Keller innen: Wandlänge links und rechts, Höhe, Tür. Weicht etwas ab, Brettlänge = Wandlänge minus 1 cm.</li>
-<li><b>Wand prüfen.</b> Probebohrung 8 mm an unauffälliger Stelle: rotes Mehl = Ziegel, graues hartes = Beton, plötzlich hohl = Lochziegel. Mit Leitungssucher Leitungen suchen. Vermieter oder Hausverwaltung fragen, ob gebohrt werden darf.</li>
-<li><b>Einkaufen und zuschneiden lassen.</b> Materialliste. Bretter im Markt auf 216 x 35 und 216 x 30 cm.</li>
+<li><b>Nachmessen.</b> Wandlänge links und rechts, Höhe, Tür. Weicht etwas ab, Brettlänge = Wandlänge minus 1 cm.</li>
+<li><b>Wand prüfen.</b> Probebohrung 8 mm: rotes Mehl = Ziegel, graues hartes = Beton, plötzlich hohl = Lochziegel. Leitungen suchen. Vermieter fragen, ob gebohrt werden darf.</li>
+<li><b>Einkaufen und zuschneiden lassen.</b> Bretter im Markt auf 216 x 37 cm.</li>
 <li><b>Schienen anzeichnen.</b> An jeder Seitenwand 5 senkrechte Linien bei 10, {abst}, {z(10 + 2 * ABST)}, {z(10 + 3 * ABST)} und 207 cm von der Türwand. Unterkante 5 cm über dem Boden.</li>
 <li><b>Bohren und Schienen setzen.</b> Schiene lotrecht halten, Löcher anzeichnen, bohren, ausblasen, Dübel rein, Schiene mit 6 x 60 festschrauben. Oben und unten zuerst, nochmal lotrecht prüfen, dann alle.</li>
-<li><b>Bretter vorbereiten.</b> Kanten schleifen und zweimal versiegeln, trocknen lassen.</li>
+<li><b>Bretter vorbereiten.</b> Kanten schleifen, zweimal versiegeln, trocknen lassen.</li>
 </ol>
 </div>
 <div>
 <ol start="7">
-<li><b>Träger anschrauben.</b> Brett umdrehen, 5 Träger an die Lochpositionen aus Teil A oder B legen, Haken zur Wandseite. 3 mm vorbohren, je 2 Holzschrauben 4 x 16.</li>
-<li><b>Belastungstest.</b> Ein Brett einhängen, schrittweise 50, 100, 180 kg auflegen (Wasserflaschen, Säcke), je 10 Minuten. Auf Risse, Bewegung, Knarzen achten, nach 24 Stunden nochmal prüfen.</li>
+<li><b>Träger anschrauben.</b> Brett umdrehen, 5 Träger an die Lochpositionen aus Teil A, Haken zur Wandseite. 3 mm vorbohren, je 2 Holzschrauben 4 x 16.</li>
+<li><b>Belastungstest.</b> Ein Brett einhängen, schrittweise 50, 100, 180 kg auflegen, je 10 Minuten. Auf Risse, Bewegung, Knarzen achten, nach 24 Stunden nochmal prüfen.</li>
 <li><b>Alle Bretter einhängen.</b> Von unten nach oben, zu zweit, alle 5 Träger auf derselben Schlitzhöhe. Schlitze mit Malerkrepp nummerieren.</li>
 <li><b>Beladen.</b> Schwere Kisten nach unten, nahe an die Wand, gleichmäßig verteilen.</li>
 <li><b>Im Programm eintragen.</b> Im Zeichner die Böden auf die echten Höhen stellen.</li>
 </ol>
-<p><b>Zeit:</b> etwa ein Tag im Keller, wenn der Zuschnitt fertig ist.</p>
-</div></div>
-</div>
-""")
-
-seiten.append(f"""
-<div class="seite">
-<h2>Tragfähigkeit: eine Tonne je Wand</h2>
-<div class="zwei">
-<div>
-{tabelle(["Frage","Ergebnis"],[
- ["Träger je Brett","5, Herstellerangabe etwa 55 kg je Träger, zusammen etwa 275 kg je Brett"],
- ["Sinnvolle Last je Brett (rund 65 Prozent)","etwa 180 kg"],
- ["6 Ebenen je 180 kg","etwa 1,08 Tonnen je Wand"],
- ["Last je Schiene bei 1 Tonne je Wand","etwa 200 kg"],
- ["Je Dübel (8 je Schiene), senkrecht","etwa 25 kg"],
- ["Kippen durch 35 cm Tiefe, je Dübel","etwa 20 kg Zug"],
- ["Biegung Brett 21 mm, Schienen {0} cm auseinander, 180 kg".format(abst),"unter 0,5 mm, das Holz hält das leicht"],
-])}
-<p>Mit <b>5 Schienen je Wand</b> erreichst du etwa eine Tonne je Wand. Für mehr (etwa 1,3 Tonnen) nimm <b>6 Schienen</b> je Wand mit gleichem Abstand: 10, 49,4, 88,8, 128,2, 167,6, 207 cm. Mehr als 6 bringt wenig, dann ist die Wand die Grenze.</p>
-<p>Die Dübelwerte liegen deutlich unter den Herstellerangaben für Beton (etwa 1,1 kN je Dübel) und im sicheren Bereich bei Vollziegel (etwa 0,6 kN). <b>Die Schwachstelle ist die Wand.</b></p>
-</div>
-<div>
-<div class="warn"><b>Wichtig:</b>
-<ul>
-<li>Die Tragkraft der Schienen und Träger stammt aus Händlerangaben, nicht aus eigener Prüfung. Das Datenblatt des gekauften Systems gilt.</li>
-<li>Lochziegel oder Hohlblock: normale Dübel halten nur einen Bruchteil.</li>
-<li>Erst den Belastungstest machen, dann schwer beladen.</li>
-<li>Vor dem Bohren Leitungen suchen.</li>
-</ul></div>
 <h3>Checkliste vor dem Beladen</h3>
 <ul style="list-style:none;padding-left:0">
 <li><span class="box"></span>Wandmaterial geprüft, passende Dübel</li>
 <li><span class="box"></span>10 Schienen lotrecht und auf gleicher Höhe</li>
-<li><span class="box"></span>Alle Schrauben fest</li>
 <li><span class="box"></span>Belastungstest bestanden, 24 Stunden beobachtet</li>
-<li><span class="box"></span>Kanten versiegelt</li>
 <li><span class="box"></span>Alle Träger sitzen in den Schlitzen, Brett liegt eben</li>
-<li><span class="box"></span>Höhen in Kistly eingetragen</li>
 </ul>
+<p><b>Zeit:</b> etwa ein Tag im Keller, wenn der Zuschnitt fertig ist.</p>
 </div></div>
 </div>
 """)

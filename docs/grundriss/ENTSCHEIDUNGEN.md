@@ -1071,3 +1071,11 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   arabisch), sonst folgt sie wie bisher der Breite; die Schienen stehen
   gleichmäßig, 10 cm von den Enden. Bauplan als PDF mit allen Einzelteilen
   (Bretter mit Bohrbild, Schiene, Träger, Kleinteile) in docs/keller.
+- **E98 Kellertür nach außen, gleiche Bretter, gerade Träger:** Die
+  Kellertür geht nach außen auf (Daten Version 114, aufschlag 'aussen').
+  Damit fällt der Grund für das schmalere rechte Regal weg: beide Regale
+  sind 217 x 37, passend zum Dolle-Träger 2-reihig 370 mm. Der Träger ist
+  ein gerader Arm ohne Dreieck darunter. Traglast im Bauplan je Teil: ein
+  Träger etwa 55 kg, eine Schiene etwa 250 kg (begrenzt durch die Dübel),
+  4 Schienen je Wand ergeben 1 Tonne, 5 (geplant) 1,25 Tonnen. Bezugsquellen
+  mit Artikelnummern im PDF.
