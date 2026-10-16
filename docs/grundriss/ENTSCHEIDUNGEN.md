@@ -1079,3 +1079,16 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Träger etwa 55 kg, eine Schiene etwa 250 kg (begrenzt durch die Dübel),
   4 Schienen je Wand ergeben 1 Tonne, 5 (geplant) 1,25 Tonnen. Bezugsquellen
   mit Artikelnummern im PDF.
+- **E99 Bretter liegen lose, Anleitung für die Wandmontage:** Karam will
+  Brett und Träger als getrennte Teile: auflegen, hält von allein, abheben
+  geht jederzeit. Darum keine Holzschrauben mehr. Auf jedem Träger ein
+  Antirutsch-Pad 20 x 20 mm, unter jedem Brett zwei Stifte 4 x 20 mm
+  (eingeleimt, 5 mm überstehend) am ersten und letzten Träger, sie fallen ins
+  hintere Trägerloch. So rutscht das Brett weder nach vorn noch zur Seite.
+  Neue PDF-Seite "Schienen an der Wand befestigen": Höhenlinie bei etwa
+  100 cm statt vom Boden messen, gleicher Schlitz auf der Linie für alle
+  Schienen, acht Schritte je Schiene, Senkkopfschrauben, Reihenfolge.
+  Als zweiter Weg steht ein ganzes System eines anderen Baumarkts im PDF
+  (Träger dort im Markt passend wählen, nie Systeme mischen). Die
+  Einkaufsliste nennt Märkte am Wohnort und liegt darum nicht mehr im Repo,
+  sondern in `_privat.local` (Quelle des privaten Artifacts).
