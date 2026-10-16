@@ -383,6 +383,53 @@ def link(u, text):
 
 seiten.append(f"""
 <div class="seite">
+<h1>Schienenregal Keller: auf einen Blick</h1>
+<h2>1. Das kaufst du (4 Ebenen)</h2>
+{tabelle(["Menge","Was","Artikel","Hält"],[
+ ["<b>10</b>", "Dolle Wandschiene 2-reihig 1995 mm (5 je Wand)", link(URL_SCHIENE, "7023195"), "etwa 250 kg je Schiene"],
+ ["<b>40</b>", "Dolle Träger 2-reihig 370 mm (10 je Ebene)", link(URL_TRAEGER, "7023207"), "55 kg je Träger"],
+ ["<b>5 Packungen</b>", "Dolle WallFix: zusammen 100 Dübel 6 x 36 und 100 Senkkopfschrauben 4,5 x 50 (10 je Schiene)", link(URL_WALLFIX, "7023250"), ""],
+ ["<b>3 Platten</b>", "Multiplex 2500 x 1220 x 21 mm, im Markt in 8 Bretter 216 x 37 cm schneiden lassen", link(URL_HOLZ, "10578448"), "180 kg je Brett"],
+ ["<b>3</b>", "Vierkantleiste Kiefer 10 x 10 mm, 1 m (in 8-cm-Stücke, 4 je Brett)", "", ""],
+ ["<b>40</b>", "Antirutsch-Pads selbstklebend, etwa 20 x 20 mm (1 je Träger)", "", ""],
+ ["<b>1</b>", "Holzleim, dazu 1 Liter Hartwachsöl", "", ""],
+])}
+<p class="klein">Schiene, Träger und WallFix immer von Dolle, nie mit einem anderen System mischen. Werkzeug: Schlagbohrmaschine, Steinbohrer 6 mm, Akkuschrauber mit Bit TX 20, Wasserwaage, Leitungssucher.</p>
+<div class="zwei">
+<div>
+<h2>2. Maße</h2>
+{tabelle(["Was","Maß"],[
+ ["Schienen je Wand","<b>5</b>"],
+ ["Erste Schiene ab der Türwand","<b>10 cm</b> (zur Mitte)"],
+ ["Abstand Schiene zu Schiene", f"<b>{abst} cm</b> (Mitte zu Mitte)"],
+ ["Schienenmitten ab Türwand", f"{POS} cm"],
+ ["Schiene unten","<b>5 cm</b> über dem Boden"],
+ ["Schiene oben","204,5 cm"],
+ ["Schrauben","<b>10 je Schiene</b>, alle 20 cm, gesamt 100"],
+ ["Bretter (Unterkante)","45, 85, 125, 165 cm"],
+])}
+</div>
+<div>
+<h2>3. Was es hält</h2>
+{tabelle(["Teil","hält etwa"],[
+ ["1 Träger","55 kg"],
+ ["1 Brett auf 5 Trägern","180 kg"],
+ ["1 Schiene (10 Schrauben)","250 kg"],
+ ["1 Wand (5 Schienen)","<b>1,25 Tonnen</b>"],
+])}
+<p class="klein">Nach Herstellerangaben, nicht selbst geprüft. Gilt nur bei fester Wand. Erst ein Brett mit 50, 100, 180 kg testen.</p>
+</div></div>
+<h2>4. So baust du es</h2>
+<ol>
+<li>Rote Linie bei 100 cm auf beide Wände. Schiene anhalten, Mitte auf dem Maß, unten 5 cm Luft, immer derselbe Schlitz auf der Linie.</li>
+<li>Oberstes Loch: 6 mm bohren, Dübel, Schraube locker. Gerade stellen, 9 Löcher anzeichnen, bohren, Dübel, alle Schrauben fest.</li>
+<li>Träger einhängen (5 je Brett, gleicher Schlitz), Pad drauf, Brett drauflegen. Genaue Zeichnungen auf den nächsten Seiten.</li>
+</ol>
+</div>
+""")
+
+seiten.append(f"""
+<div class="seite">
 <h1>Schienenregal Keller: Zeichnung und Bauplan</h1>
 <p class="klein">Stand 18.10.2026. Maße aus dem Programm Kistly (Keller innen 161 x 217 cm). Vor dem Kaufen im echten Keller nachmessen.</p>
 <div class="zwei">
