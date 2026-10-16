@@ -616,6 +616,14 @@ const dreieckeVon = (name, art) => {
   const ohne = { links: false, rechts: false, ecke: false }
   for (const [B, n] of [[40, 2], [79, 2], [80, 3], [129, 3], [130, 4], [300, 4]]) wahr(`Schienenregal ${B} cm: ${n} Schienen`, schienenZahl(B, ohne) === n && schienenX(B, 40, ohne).length === n)
   wahr('Schienenregal Ecke: keine Schienen', schienenZahl(60, { ...ohne, ecke: true }) === 0)
+  // E97: Zahl der Schienen aus dem Namen, gleichmaessig verteilt.
+  const fuenf = schienenregal({ art: 'regal', name: 'Schienenregal links, 5 Schienen' })
+  wahr('Schienenregal: 5 Schienen aus dem Namen', fuenf.schienen === 5 && schienenZahl(217, fuenf) === 5)
+  const xs5 = schienenX(217, 35, fuenf)
+  wahr('Schienenregal: 5 Schienen gleichmaessig', xs5.length === 5 && xs5.slice(1).every((x, i) => Math.abs(x - xs5[i] - (xs5[1] - xs5[0])) < 1e-9))
+  wahr('Schienenregal: arabische Zahl', schienenregal({ art: 'regal', name: 'رف سكة ٥ سكك' }).schienen === 5)
+  wahr('Schienenregal: ohne Zahl wie bisher', schienenregal({ art: 'regal', name: 'Schienenregal hinten' }).schienen === undefined)
+  wahr('Schienenregal: 1 Schiene gilt nicht', schienenregal({ art: 'regal', name: 'Schienenregal 1 Schienen' }).schienen === undefined)
   const faelleS = [
     ['Schienenregal hinten', 300, 40, 200, [0, 40, 80, 120, 160, 197]],
     ['Schienenregal links, 45 links', 160, 40, 200, [0, 40, 80, 120, 160, 197]],

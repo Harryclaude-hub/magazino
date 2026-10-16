@@ -1,16 +1,25 @@
 # Erzeugt SCHIENENREGAL-BAUPLAN.html (Zeichnungen als SVG). PDF danach mit Chrome:
 #   chrome --headless=new --no-pdf-header-footer --print-to-pdf=SCHIENENREGAL-BAUPLAN.pdf SCHIENENREGAL-BAUPLAN.html
+# Stand E97: nur die zwei Seitenwaende, gerade Enden, 5 Schienen je Wand.
 import sys, html
 ziel = sys.argv[1]
 
-W, D = 161, 217          # Keller innen: Breite (x) und Tiefe (y), cm
-T_E, T_W, T_B = 35, 30, 35   # Tiefe Ost (links), West (rechts), Hinten
-RAIL_SIDE = [20, 79, 138, 197]
-RAIL_BACK = [20, 60, 100, 140]
+W, D = 161, 217            # Keller innen: Breite (x) und Tiefe (y), cm
+T_L, T_R = 35, 30          # Brett links (Ost) und rechts (West), Tiefe cm
+BRETT_L = 216              # Brettlaenge: 5 mm Luft an jedem Ende
+N = 5                      # Schienen je Wand
+RAND = 10                  # Schienenmitte ab Wand, cm
+SCH = [RAND + (D - 2 * RAND) * i / (N - 1) for i in range(N)]   # 10, 59.25, 108.5, 157.75, 207
+ABST = (D - 2 * RAND) / (N - 1)
 LEVELS = [45, 85, 125, 165]
 FONT = "font-family:Arial,Helvetica,sans-serif"
 HOLZ = "#e9cfa3"
 RAIL = "#3b4650"
+STAHL = "#6b7a88"
+
+
+def z(v):
+    return f"{v:.2f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
 def t(x, y, s, size=5, anchor="middle", fill="#111", rot=None, weight="normal"):
@@ -32,25 +41,30 @@ def rect(x, y, w, h, fill="none", stroke="#111", sw=0.5):
     return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"/>'
 
 
-def mass_h(x1, x2, y, text, off=0, size=5):
-    s = [line(x1, y, x2, y, 0.35), line(x1, y - 2, x1, y + 2, 0.35), line(x2, y - 2, x2, y + 2, 0.35)]
-    s.append(t((x1 + x2) / 2, y - 1.8 + off, text, size))
+def circ(x, y, r, fill="#fff", stroke="#111", sw=0.4):
+    return f'<circle cx="{x}" cy="{y}" r="{r}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"/>'
+
+
+def mass_h(x1, x2, y, text, size=5, tick=2, lw=0.35):
+    s = [line(x1, y, x2, y, lw), line(x1, y - tick, x1, y + tick, lw), line(x2, y - tick, x2, y + tick, lw)]
+    s.append(t((x1 + x2) / 2, y - tick * 0.9, text, size))
     return "".join(s)
 
 
-def mass_v(x, y1, y2, text, size=5, side=1):
-    s = [line(x, y1, x, y2, 0.35), line(x - 2, y1, x + 2, y1, 0.35), line(x - 2, y2, x + 2, y2, 0.35)]
-    s.append(t(x + side * 2.5, (y1 + y2) / 2 + 1.7, text, size, "start" if side > 0 else "end"))
+def mass_v(x, y1, y2, text, size=5, side=1, tick=2, lw=0.35):
+    s = [line(x, y1, x, y2, lw), line(x - tick, y1, x + tick, y1, lw), line(x - tick, y2, x + tick, y2, lw)]
+    s.append(t(x + side * tick * 1.3, (y1 + y2) / 2 + size * 0.35, text, size, "start" if side > 0 else "end"))
     return "".join(s)
 
 
-def board_poly(L, T):
-    return [(0, 0), (L, 0), (L - T, T), (T, T)]
+def svg(vw, vh, inner, maxh="150mm"):
+    return f'<svg viewBox="0 0 {vw} {vh}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:{maxh}">{inner}</svg>'
 
 
+# ------------------------------------------------ Bild 1: Draufsicht
 def bild_draufsicht():
     pad = 22
-    vw, vh = W + 2 * pad + 60, D + 2 * pad + 30
+    vw, vh = W + 2 * pad + 85, D + 2 * pad + 34
     o = []
     ox, oy = pad + 14, pad + 14
     o.append(rect(ox - 8, oy - 8, W + 16, D + 16, "#c9c9c9", "none", 0))
@@ -59,67 +73,160 @@ def bild_draufsicht():
     o.append(f'<path d="M {ox+35} {oy+80} A 80 80 0 0 1 {ox+115} {oy}" fill="none" stroke="#c24" stroke-width="0.5" stroke-dasharray="3 2"/>')
     o.append(line(ox + 35, oy, ox + 35, oy + 80, 1.6, "#c24"))
     o.append(t(ox + 75, oy - 11, "Tuer 80 cm (Angel links, offen nach innen)", 4.5, fill="#c24"))
-    east = [(ox + W, oy), (ox + W, oy + D), (ox + W - T_E, oy + D - T_E), (ox + W - T_E, oy + T_E)]
-    west = [(ox, oy), (ox, oy + D), (ox + T_W, oy + D - T_W), (ox + T_W, oy + T_W)]
-    back = [(ox, oy + D), (ox + W, oy + D), (ox + W - T_B, oy + D - T_B), (ox + T_B, oy + D - T_B)]
-    for p in (east, west, back):
-        o.append(poly(p, HOLZ, "#6b4a1e", 0.6))
-    for y in RAIL_SIDE:
+    # Bretter: 5 mm Luft an beiden Enden
+    o.append(rect(ox + W - T_L, oy + 0.5, T_L, BRETT_L, HOLZ, "#6b4a1e", 0.6))
+    o.append(rect(ox, oy + 0.5, T_R, BRETT_L, HOLZ, "#6b4a1e", 0.6))
+    for y in SCH:
         o.append(rect(ox + W - 3, oy + y - 1.3, 3, 2.6, RAIL, RAIL, 0))
         o.append(rect(ox, oy + y - 1.3, 3, 2.6, RAIL, RAIL, 0))
-    for x in RAIL_BACK:
-        o.append(rect(ox + x - 1.3, oy + D - 3, 2.6, 3, RAIL, RAIL, 0))
-    o.append(line(ox + W, oy + D, ox + W - T_E, oy + D - T_E, 1.1, "#c24"))
-    o.append(line(ox, oy + D, ox + T_B, oy + D - T_B, 1.1, "#c24"))
-    o.append(t(ox + W, oy + D + 14, "Gehrung 45 Grad", 4.5, "end", "#c24"))
-    o.append(t(ox, oy + D + 14, "Gehrung 45 Grad", 4.5, "start", "#c24"))
-    o.append(t(ox + W - T_E / 2 + 1.5, oy + D / 2, "OST (links) 35 cm tief", 4.5, rot=90))
-    o.append(t(ox + T_W / 2 + 1.5, oy + D / 2, "WEST (rechts) 30 cm tief", 4.5, rot=-90))
-    o.append(t(ox + W / 2, oy + D - T_B / 2 + 1.5, "HINTEN (Sued) 35 cm tief", 4.5))
+    o.append(t(ox + W - T_L / 2 + 1.5, oy + D / 2, "LINKS (Ost) 216 x 35", 4.5, rot=90))
+    o.append(t(ox + T_R / 2 + 1.5, oy + D / 2, "RECHTS (West) 216 x 30", 4.5, rot=-90))
     o.append(t(ox + W / 2, oy + D / 2 - 6, "Gang 96 cm", 6, fill="#555"))
-    o.append(t(ox + W / 2, oy + D / 2 + 2, "(zwischen den Brettern)", 4, fill="#555"))
+    o.append(t(ox + W / 2, oy + D - 12, "hintere Wand frei", 5, fill="#555"))
+    o.append(t(ox + W / 2, oy + D - 5, "(Ecken frei)", 4, fill="#777"))
     o.append(mass_h(ox, ox + W, oy + D + 24, "161 cm innen", size=5.5))
-    o.append(mass_v(ox + W + 14, oy, oy + D, "217 cm innen", size=5.5, side=1))
+    o.append(mass_v(ox + W + 14, oy, oy + D, "217 cm innen", size=5.5))
     o.append(t(ox + W + 26, oy - 2, "NORD = Tuer", 4.5, "start", "#555"))
-    o.append(t(ox + W + 26, oy + D + 8, "SUED = hintere Wand", 4.5, "start", "#555"))
+    o.append(t(ox + W + 26, oy + D + 8, "SUED", 4.5, "start", "#555"))
     o.append(rect(ox + W + 26, oy + 20, 4, 3, RAIL, RAIL, 0))
-    o.append(t(ox + W + 32, oy + 22.6, "Wandschiene", 4.5, "start"))
+    o.append(t(ox + W + 32, oy + 22.6, "Wandschiene (5 je Wand)", 4.5, "start"))
     o.append(rect(ox + W + 26, oy + 28, 4, 3, HOLZ, "#6b4a1e", 0.4))
     o.append(t(ox + W + 32, oy + 30.6, "Brett (Aufsicht)", 4.5, "start"))
-    return f'<svg viewBox="0 0 {vw} {vh}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:150mm">{"".join(o)}</svg>'
+    return svg(vw, vh, "".join(o))
 
 
-def ansicht(breite, schienen, titel):
+# ------------------------------------------------ Bild 2: Wandansicht
+def ansicht(titel, tiefe):
+    breite = D
     pad = 14
-    H = 215
-    vw, vh = breite + 2 * pad + 10, H + 2 * pad + 12
-    ox, oy = pad + 8, pad
+    vw, vh = breite + 2 * pad + 14, 205 + 2 * pad + 32
+    ox, oy = pad + 10, pad + 8
 
-    def Y(z):
-        return oy + 5 + (205 - z)
+    def Y(zz):
+        return oy + 5 + (205 - zz)
 
     o = []
-    o.append(rect(ox, Y(205) - 5, breite, 215, "#f5f1e8", "#111", 0.4))
+    o.append(rect(ox, Y(205) - 5, breite, 210, "#f5f1e8", "#111", 0.4))
     o.append(line(ox - 4, Y(0), ox + breite + 4, Y(0), 1.2, "#111"))
-    o.append(t(ox + breite / 2, Y(0) + 9, titel, 6, weight="bold"))
-    for x in schienen:
+    o.append(t(ox + breite / 2, Y(0) + 9, f"{titel}  (Brett {BRETT_L} x {tiefe} cm)", 6, weight="bold"))
+    for x in SCH:
         o.append(rect(ox + x - 1.3, Y(205), 2.6, 200, RAIL, RAIL, 0))
-        o.append(t(ox + x, Y(205) - 3, f"{x}", 4, fill="#555"))
-    for z in LEVELS:
-        o.append(line(ox - 2, Y(z), ox + breite, Y(z), 0.25, "#999", "2 2"))
-        o.append(t(ox - 3, Y(z) + 1.5, f"{z}", 4.5, "end"))
-    for z in LEVELS:
-        o.append(rect(ox, Y(z + 2.1), breite, 2.1, HOLZ, "#6b4a1e", 0.35))
-        for x in schienen:
-            o.append(f'<polygon points="{ox+x-1.5},{Y(z)} {ox+x+1.5},{Y(z)} {ox+x+1.5},{Y(z-9)} {ox+x-1.5},{Y(z-9)}" fill="#6b7a88" stroke="#222" stroke-width="0.25"/>')
-    txt = "20 / 59 / 59 / 59 / 20" if breite == 217 else "20 / 40 / 40 / 40 / 21"
-    o.append(t(ox + breite / 2, Y(205) - 11, f"Schienenabstand: {txt} cm", 4.5, fill="#333"))
+    for zz in LEVELS:
+        o.append(line(ox - 2, Y(zz), ox + breite, Y(zz), 0.25, "#999", "2 2"))
+        o.append(t(ox - 3, Y(zz) + 1.5, f"{zz}", 4.5, "end"))
+        o.append(rect(ox + 0.5, Y(zz + 2.1), BRETT_L, 2.1, HOLZ, "#6b4a1e", 0.35))
+        for x in SCH:
+            o.append(rect(ox + x - 1.5, Y(zz), 3, 9, STAHL, "#222", 0.25))
+    o.append(t(ox - 3, Y(205) + 2, "205", 4, "end", "#777"))
+    o.append(t(ox - 3, Y(5) + 1.5, "5", 4, "end", "#777"))
     prev = 0
-    yy = Y(0) + 17
-    for x in list(schienen) + [breite]:
-        o.append(mass_h(ox + prev, ox + x, yy, f"{x - prev}", size=4))
+    yy = Y(0) + 18
+    for x in SCH + [breite]:
+        o.append(mass_h(ox + prev, ox + x, yy, z(x - prev), size=4))
         prev = x
-    return f'<svg viewBox="0 0 {vw} {vh + 12}" xmlns="http://www.w3.org/2000/svg" style="width:100%">{"".join(o)}</svg>'
+    o.append(t(ox + breite / 2, Y(0) + 26, "Abstand der Schienenmitten in cm, von der Tuerwand aus", 4, fill="#555"))
+    return svg(vw, vh, "".join(o), "100%")
+
+
+# ------------------------------------------------ Einzelteile
+def teil_brett(L, T, name, menge):
+    # Draufsicht von oben (Wand oben), Vorderansicht (Dicke), Bohrbild
+    sx = 1.0
+    pad = 16
+    vw, vh = L + 2 * pad + 30, T + 70
+    ox, oy = pad + 6, 16
+    o = []
+    o.append(rect(ox, oy, L, T, HOLZ, "#6b4a1e", 0.6))
+    o.append(line(ox, oy, ox + L, oy, 1.4, "#555"))
+    o.append(t(ox + L / 2, oy - 3, "Wandseite", 4, fill="#555"))
+    o.append(t(ox + L / 2, oy + T / 2 + 1.5, name, 6, weight="bold", fill="#4a2f08"))
+    # Traeger-Lage und Schraubloecher (2 je Traeger)
+    for x in SCH:
+        bx = x - 0.5
+        o.append(line(ox + bx, oy, ox + bx, oy + T - 2, 0.3, "#888", "1.5 1.5"))
+        for d in (8, T - 7):
+            o.append(circ(ox + bx, oy + d, 0.9, "#fff", "#c24", 0.35))
+    o.append(mass_h(ox, ox + L, oy + T + 10, f"{L} cm", size=5))
+    o.append(mass_v(ox + L + 6, oy, oy + T, f"{T} cm", size=5))
+    prev = 0
+    for x in [s - 0.5 for s in SCH]:
+        o.append(mass_h(ox + prev, ox + x, oy + T + 20, z(x - prev), size=3.6, tick=1.4))
+        prev = x
+    o.append(t(ox, oy + T + 32, f"Menge je Ebene: {menge}. Rote Kreise: Schraubloecher fuer die Traeger (2 je Traeger, 8 cm von der Wandkante und 7 cm von vorn), vorbohren 3 mm.", 4, "start", "#333"))
+    # Dicke
+    o.append(rect(ox, oy + T + 40, 60, 2.1 * 3, HOLZ, "#6b4a1e", 0.5))
+    o.append(t(ox + 66, oy + T + 45, "Dicke 21 mm (hier 3-fach gross gezeichnet), Kanten leicht gebrochen", 4, "start", "#333"))
+    return svg(vw, vh, "".join(o), "62mm")
+
+
+def teil_schiene():
+    # Massstab mm: Gesamtansicht 2000 mm (verkleinert) und Ausschnitt 1:1
+    o = []
+    # Uebersicht: 2000 mm als 200 Einheiten
+    ox, oy = 62, 18
+    o.append(rect(ox, oy, 4, 200, RAIL, RAIL, 0.0))
+    for i in range(8):
+        yy = oy + 6 + i * 26.5
+        o.append(circ(ox + 2, yy, 0.9, "#fff", "#fff", 0))
+    o.append(mass_v(ox - 6, oy, oy + 200, "2000 mm", 11.0, -1))
+    o.append(t(ox + 2, oy + 210, "Schiene ganz", 9.9))
+    o.append(t(ox + 8, oy + 30, "Befestigungsloecher", 8.4, "start", "#555"))
+    o.append(t(ox + 8, oy + 41, "etwa alle 25 bis 30 cm", 8.4, "start", "#555"))
+    # Ausschnitt vergroessert: 26 x 120 mm, Schlitze 2-reihig
+    k = 1.0
+    ax, ay = 175, 30
+    o.append(rect(ax, ay, 26 * k, 150 * k, RAIL, "#111", 1.1))
+    for i in range(6):
+        yy = ay + 6 + i * 25 * k
+        o.append(rect(ax + 4 * k, yy, 6 * k, 14 * k, "#f5f1e8", "#111", 0.7))
+        o.append(rect(ax + 16 * k, yy, 6 * k, 14 * k, "#f5f1e8", "#111", 0.7))
+    o.append(mass_h(ax, ax + 26 * k, ay - 4, "26 mm", 9.9))
+    o.append(mass_v(ax + 34 * k, ay + 6, ay + 31, "25 mm Schlitzabstand", 9.2, 1))
+    o.append(t(ax + 13, ay + 162, "Ausschnitt vergroessert", 9.9))
+    # Querschnitt
+    qx, qy = 340, 60
+    o.append(poly([(qx, qy), (qx + 26, qy), (qx + 26, qy + 12), (qx + 22, qy + 12), (qx + 22, qy + 2), (qx + 4, qy + 2), (qx + 4, qy + 12), (qx, qy + 12)], RAIL, "#111", 0.4))
+    o.append(rect(qx - 4, qy - 8, 34, 8, "#d6d6d6", "#111", 0.7))
+    o.append(t(qx + 13, qy - 11, "Wand", 8.8, fill="#555"))
+    o.append(mass_h(qx, qx + 26, qy + 22, "26", 8.8))
+    o.append(mass_v(qx + 32, qy, qy + 12, "12 mm tief", 8.8, 1))
+    o.append(t(qx + 13, qy + 34, "Querschnitt (typisch)", 9.9))
+    return svg(430, 270, "".join(o), "85mm")
+
+
+def teil_traeger(L, menge_text):
+    # Seitenansicht in mm (L = Armlaenge in mm)
+    o = []
+    ox, oy = 60, 24
+    h = 120
+    o.append(poly([(ox, oy), (ox + 8, oy), (ox + 8, oy + h - 20), (ox + L * 0.35, oy + 8), (ox + L, oy + 8), (ox + L, oy), (ox + 8, oy)], STAHL, "#111", 0.5))
+    o.append(poly([(ox, oy), (ox + 8, oy), (ox + 8, oy + h), (ox, oy + h)], STAHL, "#111", 0.5))
+    for hy in (oy + 10, oy + 35):
+        o.append(poly([(ox, hy), (ox - 6, hy + 2), (ox - 6, hy + 10), (ox, hy + 10)], STAHL, "#111", 0.4))
+    for sx in (80, L - 70):
+        o.append(circ(ox + sx, oy + 4, 1.8, "#fff", "#c24", 0.4))
+    o.append(mass_h(ox, ox + L, oy - 6, f"{L} mm", 13.2))
+    o.append(mass_v(ox - 12, oy, oy + h, f"{h} mm", 11.0, -1))
+    o.append(t(ox + L / 2, oy + 28, "Arm, oben liegt das Brett", 11.0, fill="#333"))
+    o.append(t(ox + 10, oy + h + 12, "Doppelhaken greifen in die Schiene (typisch, je nach System)", 9.9, "start", "#333"))
+    o.append(t(ox + L * 0.55, oy + 46, menge_text, 11.0, weight="bold"))
+    return svg(L + 90, h + 56, "".join(o), "55mm")
+
+
+def teil_klein():
+    o = []
+    # Duebel 8x40
+    o.append(rect(10, 20, 40, 8, "#d0d0d0", "#111", 0.4))
+    o.append(t(30, 40, "Duebel 8 x 40", 5))
+    # Schraube 6x60
+    o.append(rect(70, 22, 60, 4, "#888", "#111", 0.4))
+    o.append(rect(66, 19, 4, 10, "#888", "#111", 0.4))
+    o.append(t(98, 40, "Schraube 6 x 60", 5))
+    # Holzschraube 4x16
+    o.append(rect(160, 23, 16, 2.6, "#888", "#111", 0.4))
+    o.append(rect(157, 20.5, 3, 7.6, "#888", "#111", 0.4))
+    o.append(t(168, 40, "Holzschraube 4 x 16", 5))
+    return svg(200, 48, "".join(o), "22mm")
 
 
 def bild_schnitt():
@@ -128,9 +235,8 @@ def bild_schnitt():
     o.append(rect(ox - 30, oy, 30, 330, "#d6d6d6", "#111", 0.6))
     for i in range(0, 330, 12):
         o.append(line(ox - 30, oy + i + 12, ox, oy + i, 0.3, "#888"))
-    o.append(t(ox - 15, oy + 350, "Wand (Beton oder Vollziegel)", 11, "start", "#333"))
+    o.append(t(ox - 25, oy + 350, "Wand (Beton oder Vollziegel)", 11, "start", "#333"))
     o.append(rect(ox, oy + 20, 12, 300, "#4a5560", "#111", 0.6))
-    o.append(t(ox + 6, oy + 14, "Schiene", 11, "start", "#111"))
     o.append(t(ox + 22, oy + 50, "Schiene 12 mm tief, 26 mm breit", 10, "start", "#111"))
     for yy in (oy + 70, oy + 270):
         o.append(rect(ox - 28, yy - 2, 40, 4, "#888", "#111", 0.3))
@@ -138,72 +244,26 @@ def bild_schnitt():
     by = oy + 160
     o.append(rect(ox + 12, by - 21, 350, 21, HOLZ, "#6b4a1e", 0.8))
     o.append(t(ox + 190, by - 7, "Brett Multiplex 21 mm", 12, "middle", "#4a2f08"))
-    o.append(poly([(ox + 12, by), (ox + 350, by), (ox + 350, by + 6), (ox + 12, by + 6)], "#6b7a88", "#111", 0.6))
-    o.append(poly([(ox + 12, by), (ox + 12, by + 110), (ox + 22, by + 110), (ox + 22, by + 6), (ox + 150, by + 6)], "#6b7a88", "#111", 0.6))
-    o.append(poly([(ox + 12, by + 100), (ox + 4, by + 100), (ox + 4, by + 108), (ox + 12, by + 108)], "#6b7a88", "#111", 0.6))
-    o.append(t(ox + 190, by + 30, "Doppelhaken-Traeger (Winkel)", 11, "middle", "#222"))
-    o.append(t(ox + 190, by + 44, "typisch, je nach System etwas anders", 9, "middle", "#555"))
-    o.append(t(ox + 30, by + 128, "Haken greifen in 2 Schlitze", 10, "start", "#222"))
-    for sx in (ox + 110, ox + 300):
-        o.append(poly([(sx - 2.5, by + 6), (sx + 2.5, by + 6), (sx + 2.5, by - 10), (sx - 2.5, by - 10)], "#222", "#222", 0.3))
+    o.append(poly([(ox + 12, by), (ox + 350, by), (ox + 350, by + 6), (ox + 12, by + 6)], STAHL, "#111", 0.6))
+    o.append(poly([(ox + 12, by), (ox + 12, by + 110), (ox + 22, by + 110), (ox + 22, by + 6), (ox + 150, by + 6)], STAHL, "#111", 0.6))
+    o.append(t(ox + 190, by + 30, "Doppelhaken-Traeger", 11, "middle", "#222"))
+    for sx in (ox + 90, ox + 300):
+        o.append(rect(sx - 2.5, by - 10, 5, 16, "#222", "#222", 0))
         o.append(rect(sx - 6, by + 6, 12, 3, "#222", "#222", 0))
     o.append(t(ox + 205, by + 92, "2 Holzschrauben 4x16 von unten", 10, "middle", "#222"))
-    o.append(line(ox + 205, by + 82, ox + 118, by + 11, 0.4, "#222"))
-    o.append(line(ox + 205, by + 82, ox + 292, by + 11, 0.4, "#222"))
-    o.append(mass_h(ox + 12, ox + 362, by - 40, "Brett 350 mm tief (35 cm)", size=11))
-    o.append(mass_h(ox + 12, ox + 350, by + 150, "Traeger 350 mm", size=11))
+    o.append(mass_h(ox + 12, ox + 362, by - 40, "Brett 350 mm tief (links), 300 mm (rechts)", size=11, tick=5))
     o.append(line(ox + 366, by - 21, ox + 380, by - 21, 0.3))
     o.append(line(ox + 366, by, ox + 380, by, 0.3))
     o.append(line(ox + 376, by - 21, ox + 376, by, 0.35))
     o.append(t(ox + 384, by - 6, "21", 11, "start"))
-    return f'<svg viewBox="0 0 440 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:120mm">{"".join(o)}</svg>'
-
-
-def bild_raster():
-    o = []
-    ox, oy = 60, 10
-    o.append(rect(ox, oy, 26, 300, "#4a5560", "#111", 0.6))
-    for i in range(12):
-        yy = oy + 8 + i * 25
-        o.append(rect(ox + 4, yy, 6, 14, "#f5f1e8", "#111", 0.3))
-        o.append(rect(ox + 16, yy, 6, 14, "#f5f1e8", "#111", 0.3))
-    for i in range(0, 12, 2):
-        yy = oy + 8 + i * 25 + 7
-        o.append(line(ox + 28, yy, ox + 70, yy, 0.8, "#c24"))
-        o.append(t(ox + 74, yy + 3.5, "Brett moeglich", 9, "start", "#c24"))
-    o.append(mass_v(ox - 8, oy + 8, oy + 33, "25", 9, -1))
-    o.append(mass_v(ox - 36, oy + 8, oy + 58, "50 mm", 9, -1))
-    o.append(t(ox - 30, oy + 322, "Schlitzabstand meist 25 mm (vor dem Kauf pruefen)", 10, "start", "#333"))
-    return f'<svg viewBox="0 0 330 340" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:100mm">{"".join(o)}</svg>'
-
-
-def bild_zuschnitt():
-    o = []
-
-    def brett(oy, L, T, name, ox=30):
-        pts = [(ox + x, oy + y) for x, y in board_poly(L, T)]
-        s = [poly(pts, HOLZ, "#6b4a1e", 0.8)]
-        s.append(t(ox + L / 2, oy + T / 2 + 1.8, name, 6, "middle", "#4a2f08", weight="bold"))
-        s.append(mass_h(ox, ox + L, oy - 4, f"{L} cm (lange Kante, an der Wand)", size=5.5))
-        s.append(mass_h(ox + T, ox + L - T, oy + T + 8, f"{L - 2 * T} cm (vordere Kante)", size=5.5))
-        s.append(mass_v(ox + L + 6, oy, oy + T, f"{T} cm", size=5.5))
-        s.append(t(ox + 3, oy + T - 2, "45", 4.5, "start", "#c24"))
-        s.append(t(ox + L - 3, oy + T - 2, "45", 4.5, "end", "#c24"))
-        return "".join(s)
-
-    o.append(brett(20, 217, 35, "LINKS (Ost): 217 x 35"))
-    o.append(brett(88, 217, 30, "RECHTS (West): 217 x 30"))
-    o.append(brett(150, 161, 35, "HINTEN (Sued): 161 x 35", ox=58))
-    o.append(t(30, 205, "Schnitt: beide Enden jedes Bretts an der vorderen Ecke im 45-Grad-Winkel (Schenkel = Brettbreite).", 5, "start", "#333"))
-    o.append(t(30, 213, "Die lange Kante liegt an der Wand und bleibt ganz.", 5, "start", "#333"))
-    return f'<svg viewBox="0 0 290 222" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:150mm">{"".join(o)}</svg>'
+    return svg(440, 400, "".join(o), "110mm")
 
 
 CSS = """
 @page { size: A4 landscape; margin: 11mm; }
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; color:#111; font-size: 10.5pt; line-height: 1.32; }
-.seite { page-break-after: always; min-height: 186mm; }
+.seite { page-break-after: always; }
 .seite:last-child { page-break-after: auto; }
 h1 { font-size: 21pt; margin: 0 0 3mm; }
 h2 { font-size: 14pt; margin: 0 0 3mm; border-bottom: 1.5px solid #111; padding-bottom: 1.5mm; }
@@ -216,6 +276,8 @@ th { background: #e6e6e6; }
 .warn { border: 1.5px solid #b00; background: #fff1f1; padding: 2mm 3mm; margin: 2mm 0; }
 .ok { border: 1.5px solid #070; background: #f1fff1; padding: 2mm 3mm; margin: 2mm 0; }
 .klein { font-size: 9pt; color: #444; }
+.teil { border: 1px solid #999; border-radius: 2mm; padding: 2mm 3mm; margin-bottom: 3mm; }
+.teil h3 { margin-top: 0; }
 ol, ul { margin: 1mm 0 2mm 5mm; padding-left: 4mm; }
 li { margin-bottom: 1mm; }
 .box { display:inline-block; width:3.5mm; height:3.5mm; border:1px solid #111; margin-right:1.5mm; vertical-align:-0.5mm; }
@@ -224,40 +286,40 @@ li { margin-bottom: 1mm; }
 
 def tabelle(kopf, zeilen):
     s = "<table><tr>" + "".join(f"<th>{html.escape(k)}</th>" for k in kopf) + "</tr>"
-    for z in zeilen:
-        s += "<tr>" + "".join(f"<td>{c}</td>" for c in z) + "</tr>"
+    for zl in zeilen:
+        s += "<tr>" + "".join(f"<td>{c}</td>" for c in zl) + "</tr>"
     return s + "</table>"
 
 
 seiten = []
+abst = z(ABST)
 
 seiten.append(f"""
 <div class="seite">
 <h1>Schienenregal Keller: Zeichnung und Bauplan</h1>
-<p class="klein">Stand 15.10.2026. Maße aus dem Programm Kistly (Keller innen 161 x 217 cm, Plan 3,49 m2). Vor dem Kaufen alles im echten Keller nachmessen.</p>
+<p class="klein">Stand 16.10.2026. Maße aus dem Programm Kistly (Keller innen 161 x 217 cm). Vor dem Kaufen im echten Keller nachmessen.</p>
 <div class="zwei">
 <div>
 <h2>Bild 1: Draufsicht</h2>
 {bild_draufsicht()}
 </div>
 <div>
-<h2>So funktioniert es</h2>
+<h2>So ist es aufgebaut</h2>
 <ul>
-<li>An 3 Wänden hängen senkrechte <b>Doppelschlitz-Schienen</b>: Ost 4, West 4, hinten 4, zusammen <b>12 Schienen</b>, je 2 m lang.</li>
-<li>In die Schlitze werden <b>Doppelhaken-Träger</b> eingehängt (je Brett 4).</li>
-<li>Auf den Trägern liegt <b>ein Brett</b>. Pro Höhe gibt es <b>3 Bretter</b>: links, rechts, hinten. Sie bilden ein U.</li>
-<li>An den zwei hinteren Ecken treffen sich die Bretter in einer <b>Gehrung von 45 Grad</b>. Es gibt keine Eckbretter.</li>
-<li>Brett und Träger sind verschraubt. Du hängst sie als <b>eine Einheit</b> höher oder tiefer, in <b>5-cm-Schritten</b> (jeder zweite Schlitz).</li>
+<li>Regale nur an den <b>zwei Seitenwänden</b>, links und rechts. Die hintere Wand bleibt frei, die Ecken auch.</li>
+<li>Gerade Bretter mit <b>90-Grad-Enden</b>, keine Schrägen, keine Eckbretter.</li>
+<li>Je Wand <b>5 Schienen</b> in gleichem Abstand ({abst} cm), 10 cm von beiden Wandenden. Zusammen <b>10 Schienen</b>, je 2 m.</li>
+<li>Pro Ebene <b>2 Bretter</b>: links 216 x 35 cm, rechts 216 x 30 cm (rechts schmaler, weil die offene Tür dort liegt). 5 mm Luft an jedem Ende.</li>
+<li>Jedes Brett liegt auf <b>5 Trägern</b>. Brett und Träger bleiben verschraubt und werden zusammen in 5-cm-Schritten umgehängt.</li>
 </ul>
-<div class="warn"><b>Die seitlichen Bretter sind nicht ganz gleich:</b> Links (Ost) ist 35 cm tief, rechts (West) nur 30 cm, weil die Tür nach innen aufgeht und dort an der Wand liegt. Wenn du beide gleich willst, nimm 30 cm.</div>
 <h3>Die wichtigsten Zahlen</h3>
 {tabelle(["Teil","Maß"],[
- ["Bretter je Höhe","3 (links 217 x 35, rechts 217 x 30, hinten 161 x 35 cm)"],
- ["Holz","Multiplex Birke 21 mm, wasserfest verleimt"],
- ["Schienen","12 Stück, 2 m, verzinkt, Doppelschlitz"],
- ["Träger","12 je Höhe: 8 mit 35 cm, 4 mit 30 cm"],
- ["Gang zwischen den Brettern","96 cm"],
- ["Ziel","150 kg je Brett, 4 Träger je Brett"],
+ ["Brett links","216 x 35 cm, 21 mm Multiplex Birke, wasserfest"],
+ ["Brett rechts","216 x 30 cm, 21 mm Multiplex Birke, wasserfest"],
+ ["Schienen","10 Stück (5 je Wand), 2 m, verzinkt, Doppelschlitz"],
+ ["Träger je Ebene","5 mit 35 cm (links), 5 mit 30 cm (rechts)"],
+ ["Gang","96 cm"],
+ ["Ziel","rund 1 Tonne je Wand, etwa 180 kg je Brett"],
 ])}
 </div></div></div>
 """)
@@ -265,95 +327,93 @@ seiten.append(f"""
 seiten.append(f"""
 <div class="seite">
 <h2>Bild 2: Wandansichten (von innen, mit Blick auf die Wand)</h2>
-<div style="display:flex;gap:4mm">
-<div style="flex:217">{ansicht(217, RAIL_SIDE, "OSTWAND (links) 217 cm")}</div>
-<div style="flex:161">{ansicht(161, RAIL_BACK, "SUEDWAND (hinten) 161 cm")}</div>
-<div style="flex:217">{ansicht(217, RAIL_SIDE, "WESTWAND (rechts) 217 cm")}</div>
+<div class="zwei">
+<div>{ansicht("LINKE WAND (Ost)", T_L)}</div>
+<div>{ansicht("RECHTE WAND (West)", T_R)}</div>
 </div>
-<p class="klein">Dunkle Streifen: Schienen (Unterkante 5 cm über dem Boden, Länge 200 cm). Zahlen über den Schienen: Abstand der Schienenmitte von der Ecke an der Tür (Ost und West) beziehungsweise von der Westecke (hinten). Gestrichelte Linien: Höhe der Brettunterkante in cm über dem Boden, hier als Beispiel 45, 85, 125, 165. Die Höhen sind frei einstellbar. Kleine graue Streifen unter den Brettern: Träger.</p>
-<p>Ost und West haben je 4 Schienen mit etwa 59 cm Abstand, die hintere Wand 4 Schienen mit 40 cm Abstand.</p>
+<p class="klein">Dunkle Streifen: Schienen, Unterkante 5 cm über dem Boden, Oberkante 205 cm. Abstände der Schienenmitten von der Türwand: 10 / {abst} / {abst} / {abst} / {abst} / 10 cm. Gestrichelt: Beispielhöhen der Bretter (Unterkante) 45, 85, 125, 165 cm. Frei einstellbar in 5-cm-Schritten. Graue Stücke unter den Brettern: Träger.</p>
 </div>
 """)
 
 seiten.append(f"""
 <div class="seite">
-<h2>Bild 3: Schnitt durch eine Wand (nicht maßstäblich außer den mm-Angaben)</h2>
+<h2>Einzelteile 1: die Bretter</h2>
+<div class="teil"><h3>Teil A: Brett links (Ost), 216 x 35 x 2,1 cm</h3>{teil_brett(BRETT_L, T_L, "Teil A: Brett links 216 x 35", "1 Stück")}</div>
+<div class="teil"><h3>Teil B: Brett rechts (West), 216 x 30 x 2,1 cm</h3>{teil_brett(BRETT_L, T_R, "Teil B: Brett rechts 216 x 30", "1 Stück")}</div>
+<p class="klein">Material: Multiplex Birke 21 mm, wasserfest verleimt (AW 100 oder WBP). Ecken rechtwinklig, Kanten leicht brechen (Schleifpapier 120), alle Kanten zweimal mit Hartwachsöl oder Lack versiegeln. Maße der Löcher gelten ab dem Brettende an der Türseite.</p>
+</div>
+""")
+
+seiten.append(f"""
+<div class="seite">
+<h2>Einzelteile 2: Schiene, Träger, Befestigung</h2>
+<div class="zwei">
+<div>
+<div class="teil"><h3>Teil C: Wandschiene 2-reihig, verzinkt, 2000 mm</h3>{teil_schiene()}
+<p class="klein">10 Stück. Herstellerangabe: 55 kg je 200 mm Schiene. Schlitzabstand meist 25 mm, vor dem Kauf prüfen.</p></div>
+<div class="teil"><h3>Teil F: Kleinteile</h3>{teil_klein()}
+<p class="klein">Dübel und Schraube: Wand zu Schiene. Holzschraube: Träger zu Brett, 2 je Träger.</p></div>
+</div>
+<div>
+<div class="teil"><h3>Teil D: Träger 350 mm (für Brett links)</h3>{teil_traeger(350, "5 je Ebene")}</div>
+<div class="teil"><h3>Teil E: Träger 300 mm (für Brett rechts)</h3>{teil_traeger(300, "5 je Ebene")}</div>
+<p class="klein">Doppelhaken-Träger vom selben Hersteller wie die Schiene. Herstellerangabe bei Hornbach etwa 110 bis 130 kg je Paar. Rote Kreise: Löcher für die Holzschrauben.</p>
+</div></div>
+</div>
+""")
+
+seiten.append(f"""
+<div class="seite">
+<h2>Bild 3: Schnitt durch eine Wand (Zusammenbau)</h2>
 <div class="zwei">
 <div>{bild_schnitt()}</div>
 <div>
 <h3>Wie die Teile zusammenhalten</h3>
 <ol>
-<li><b>Wand zu Schiene:</b> Schraube 6 x 60 mit Dübel 8 x 40 (Beton oder Vollziegel), Bohrer 8 mm, mindestens 50 mm tief. Alle 25 bis 30 cm eine Befestigung, die erste 5 cm vom Ende.</li>
-<li><b>Schiene zu Träger:</b> Die zwei Haken des Trägers hängen in zwei Schlitzen. Das Gewicht drückt den Träger nach unten fest in die Schlitze.</li>
-<li><b>Träger zu Brett:</b> 2 Holzschrauben 4 x 16 mm von unten. Nicht länger, sonst kommt die Spitze oben heraus. Vorbohren mit 3 mm.</li>
-<li><b>Höhe ändern:</b> Brett leer räumen, anheben, alle 4 Träger aus den Schlitzen lösen und eine Stufe höher oder tiefer wieder einhängen. Die Träger bleiben am Brett.</li>
+<li><b>Wand zu Schiene (C):</b> Schraube 6 x 60 mit Dübel 8 x 40, Bohrer 8 mm, mindestens 50 mm tief. Alle 25 bis 30 cm, die erste 5 cm vom Ende. 8 je Schiene.</li>
+<li><b>Schiene zu Träger (D, E):</b> Die zwei Haken hängen in zwei Schlitzen. Das Gewicht drückt den Träger fest nach unten.</li>
+<li><b>Träger zu Brett (A, B):</b> 2 Holzschrauben 4 x 16 von unten, vorgebohrt 3 mm. Nicht länger als 16 mm, das Brett ist 21 mm dick.</li>
+<li><b>Höhe ändern:</b> Brett leer räumen, anheben, alle 5 Träger aus den Schlitzen lösen, jeden zweiten Schlitz weiter wieder einhängen (5 cm). Zu zweit leichter.</li>
 </ol>
-<h3>Bild 4: Raster der Schlitze</h3>
-{bild_raster()}
-</div></div>
-</div>
-""")
-
-seiten.append(f"""
-<div class="seite">
-<h2>Bild 5: Zuschnitt der drei Bretter einer Höhe (Maße in cm)</h2>
-<div class="zwei">
-<div>{bild_zuschnitt()}</div>
-<div>
-{tabelle(["Brett","Lange Kante (Wand)","Tiefe","Vordere Kante","Ecken"],[
- ["Links (Ost)","217","35","147","beide Enden 45 Grad"],
- ["Rechts (West)","217","30","157","beide Enden 45 Grad"],
- ["Hinten (Süd)","161","35","91","beide Enden 45 Grad"],
-])}
-<div class="ok"><b>Wie die Gehrung passt:</b> Alle Schnitte laufen auf einer 45-Grad-Linie durch die Wandecke. Dadurch treffen sich die Bretter in der Ecke ohne Lücke. Auf der Westseite ist das Seitenbrett 30 cm, das hintere 35 cm tief: dort entsteht an der vorderen Kante eine kleine Stufe von 5 cm. Das ist normal.</div>
-<h3>Zuschnitt aus der Platte (2500 x 1220 mm)</h3>
-<ul>
-<li>Eine Höhe braucht etwa 1,95 m2 reine Fläche. Eine Platte hat rund 3,05 m2. Wegen der langen Bretter (217 cm) ergibt eine Platte <b>eine Höhe</b> plus Reststreifen. Plane <b>1 Platte je Höhe</b>.</li>
-<li>Zuerst die Rechtecke <b>3 mm kürzer</b> als gemessen zuschneiden. Die Gehrungen erst vor Ort anzeichnen: Schablone aus Pappe in der Ecke, dann auf das Brett übertragen. Das gleicht schiefe Wände aus.</li>
-<li>Schnitt am besten mit Tauchsäge und Führungsschiene. Schnittkante abschleifen und sofort versiegeln.</li>
-</ul>
+<div class="ok"><b>Gleich hohe Schlitze:</b> Alle 5 Schienen einer Wand müssen genau gleich hoch sitzen, sonst hängt das Brett schief. Unterkante aller Schienen 5 cm über dem Boden, mit Lehrlatte und Wasserwaage.</div>
 </div></div>
 </div>
 """)
 
 zeilen = []
-for e in (4, 6, 10):
-    zeilen.append([f"<b>{e}</b>", "12", str(e * 8), str(e * 4), str(e), str(e * 24), "96", "100"])
+for e, platten in ((4, 3), (6, 4), (8, 5)):
+    zeilen.append([f"<b>{e}</b>", "10", str(e * 5), str(e * 5), str(platten), str(e * 20), "80", "80"])
 
 seiten.append(f"""
 <div class="seite">
 <h2>Materialliste</h2>
-{tabelle(["Ebenen (Bretthöhen)","Schienen 2 m","Träger 35 cm","Träger 30 cm","Platten Multiplex 21 mm","Holzschrauben 4 x 16","Dübel 8 x 40","Schrauben 6 x 60"], zeilen)}
-<p class="klein">Pro Ebene: 3 Bretter, 12 Träger (8 mit 35 cm und 4 mit 30 cm), 24 Holzschrauben 4 x 16. Schienen und Wandbefestigung brauchst du nur einmal, egal wie viele Ebenen. Dübel: 12 Schienen x 8 Stück. Bei Betonschrauben statt Dübeln nur die Schrauben (6 x 60) kaufen.</p>
+{tabelle(["Ebenen","Schienen 2 m (C)","Träger 350 mm (D)","Träger 300 mm (E)","Platten Multiplex 21 mm 2500 x 1220","Holzschrauben 4 x 16","Dübel 8 x 40","Schrauben 6 x 60"], zeilen)}
+<p class="klein">Pro Ebene: Brett A + Brett B, 10 Träger, 20 Holzschrauben. Schienen und Wandbefestigung nur einmal. Aus einer Platte (122 cm breit) bekommst du drei Streifen: 35 + 35 + 30 cm oder vier Streifen à 30 cm, jeweils 216 cm lang. Darum 3 Platten für 4 Ebenen. Kauf ein paar Schrauben und Dübel als Reserve.</p>
 <div class="zwei">
 <div>
 <h3>Holz</h3>
 <ul>
-<li>Multiplex Birke, <b>21 mm</b>, <b>wasserfest verleimt (AW 100 oder WBP)</b>, Platte 2500 x 1220 mm. Hornbach Österreich führt sie, Preisstand August 2026: 177,50 € je Platte (rund 58 € je m2). Zuschnitt im Markt auf Maß.</li>
-<li>Hartwachsöl oder farbloser Lack, 1 Liter, für alle Kanten und Gehrungen.</li>
-<li>Sparvariante: Tischlerplatte Fichte 18 mm wasserfest. Trägt hier auch, ist aber an den Kanten empfindlicher.</li>
+<li>Multiplex Birke 21 mm, wasserfest verleimt (AW 100 oder WBP). Hornbach Österreich, Preisstand August 2026: 177,50 € je Platte. Zuschnitt im Markt auf 216 x 35 und 216 x 30 cm.</li>
+<li>Hartwachsöl oder farbloser Lack, 1 Liter.</li>
 </ul>
 <h3>Metall</h3>
 <ul>
-<li><b>Wandschiene</b> 2-reihig, <b>verzinkt</b> (der Keller ist feucht), 2 m. Beispiel: Dolle, 1995 mm bei Hornbach Österreich; OBI: 200 cm. Herstellerangabe: 55 kg je 200 mm Schiene.</li>
-<li><b>Doppelhaken-Träger</b> desselben Systems, 35 cm und 30 cm lang. Herstellerangabe bei Hornbach etwa 110 bis 130 kg je Paar.</li>
-<li>Schiene und Träger <b>vom selben Hersteller</b> kaufen. Im Markt nach dem Abstand der Schlitze und der Tragkraft bei 35 cm Tiefe fragen.</li>
+<li>Wandschiene 2-reihig <b>verzinkt</b>, 2 m (Dolle bei Hornbach 1995 mm, OBI 200 cm).</li>
+<li>Doppelhaken-Träger 350 und 300 mm, derselbe Hersteller.</li>
 </ul>
 </div>
 <div>
 <h3>Wandbefestigung, je nach Wand</h3>
 {tabelle(["Wand","Was du nimmst"],[
- ["Beton","Betonschraube 6 mm, zum Beispiel Fischer FBS II 6 x 60, oder DuoPower 8 x 40 mit Schraube 6 x 60"],
+ ["Beton","Betonschraube 6 mm (zum Beispiel Fischer FBS II 6 x 60) oder DuoPower 8 x 40 mit Schraube 6 x 60"],
  ["Vollziegel","Fischer DuoPower 8 x 40, Bohrer 8 mm, mindestens 50 mm tief"],
- ["Lochziegel oder Hohlblock","<b>Nicht</b> mit normalen Dübeln. Dann Injektionsmörtel mit Siebhülsen, oder nur halb so schwer beladen."],
+ ["Lochziegel oder Hohlblock","<b>Nicht</b> mit normalen Dübeln: Injektionsmörtel mit Siebhülsen, oder nur halb so schwer beladen"],
 ])}
 <h3>Werkzeug</h3>
 <ul>
-<li>Schlagbohrmaschine mit 8-mm-Betonbohrer, Staubsauger zum Ausblasen der Löcher.</li>
-<li>Wasserwaage 1 m, Laser oder Lehrlatte, Zollstock, Bleistift, Malerkrepp.</li>
-<li>Tauchsäge mit Führungsschiene (oder Zuschnitt im Markt), Schleifpapier 120 und 180.</li>
-<li>Akkuschrauber, Holzbohrer 3 mm, Leitungssucher.</li>
-<li>Hygrometer (Luftfeuchte im Keller).</li>
+<li>Schlagbohrmaschine, Betonbohrer 8 mm, Holzbohrer 3 mm, Akkuschrauber.</li>
+<li>Wasserwaage, Laser oder Lehrlatte, Zollstock, Malerkrepp, Leitungssucher.</li>
+<li>Schleifpapier 120 und 180, Pinsel, Hygrometer.</li>
 </ul>
 </div></div>
 </div>
@@ -361,71 +421,65 @@ seiten.append(f"""
 
 seiten.append(f"""
 <div class="seite">
-<h2>Bauanleitung Schritt für Schritt (1 von 2)</h2>
-<ol>
-<li><b>Nachmessen (1 Stunde).</b> Keller innen: Breite, Tiefe, Höhe, Tür. Mit der Wasserwaage prüfen, ob Wände lotrecht und Ecken rechtwinklig sind. Abweichungen notieren. Schick mir die Maße, dann passe ich sie im Programm an.</li>
-<li><b>Wand prüfen.</b> Mit dem 8-mm-Bohrer an unauffälliger Stelle bohren. Rotes Mehl, mittlerer Widerstand = Ziegel. Graues Mehl, hart = Beton. Plötzlich hohl = Lochziegel (dann die Warnung beachten). Mit Leitungssucher prüfen, ob Strom oder Wasser in der Wand liegt. Vermieter oder Hausverwaltung fragen, ob gebohrt werden darf.</li>
-<li><b>Einkaufen und zuschneiden lassen.</b> Materialliste. Platten auf Rechtecke schneiden lassen, 3 mm kürzer. Gehrungen später.</li>
-<li><b>Schienen anzeichnen.</b> Alle Schienen sitzen mit der Unterkante 5 cm über dem Boden. Zeichne an jeder Wand die Schienenmitten an (Bild 2). Mit einer Lehrlatte (Latte mit Markierungen) den Bodenabstand für alle gleich halten. <b>Wichtig:</b> Alle Schlitze müssen an allen Wänden auf gleicher Höhe liegen, sonst hängen die Bretter schief.</li>
-<li><b>Bohren und Dübel setzen.</b> Eine Schiene an die Wand halten, mit Wasserwaage lotrecht ausrichten, durch die Löcher der Schiene die Bohrlöcher anzeichnen (alle 25 bis 30 cm, erste und letzte 5 cm vom Ende). 8 mm bohren, mindestens 50 mm tief, Loch ausblasen, Dübel einsetzen.</li>
-<li><b>Schienen anschrauben.</b> Schrauben 6 x 60. Oberste und unterste zuerst leicht anziehen, nochmal lotrecht prüfen, dann alle fest. Die Schiene nicht verspannen.</li>
-</ol>
-<div class="warn"><b>Belastungstest, bevor du viel auflegst:</b> Hänge ein einzelnes Brett mit Trägern ein. Lege schrittweise 50, 100, 150 kg auf (Wasserflaschen, Säcke), je 10 Minuten warten. Achte auf Risse im Putz, Bewegung der Schienen und Knarzen. Nach 24 Stunden nochmal prüfen. Erst danach weitere Bretter einbauen.</div>
-</div>
-""")
-
-seiten.append(f"""
-<div class="seite">
-<h2>Bauanleitung Schritt für Schritt (2 von 2)</h2>
-<ol start="7">
-<li><b>Bretter vorbereiten.</b> Kanten ringsum leicht brechen und schleifen. Rechtecke in die Ecken halten: Gehrung mit Schablone aus Pappe anzeichnen. Zuschneiden, bis die Bretter in der Ecke ohne Lücke aufeinander treffen.</li>
-<li><b>Versiegeln.</b> Alle Kanten und die Gehrungen zweimal mit Hartwachsöl oder Lack streichen. Bei über 65 Prozent Luftfeuchte im Keller auch die Unterseite. Zwischen Brett und Wand bleibt 1 cm Luft.</li>
-<li><b>Träger am Brett befestigen.</b> Brett umdrehen. 4 Träger im Abstand der Schienen auflegen (Maße Bild 2), mit 3-mm-Bohrer vorbohren, mit je 2 Schrauben 4 x 16 festschrauben. Die Haken zeigen zur Wand.</li>
-<li><b>Einhängen.</b> Zu zweit: Brett mit Trägern in die Schlitze einhängen, von unten nach oben. Alle 4 Träger auf derselben Schlitzhöhe. Tipp: Schlitze mit Malerkrepp nummerieren und jede Höhe notieren.</li>
-<li><b>Gehrung prüfen.</b> In der Ecke darf die Lücke höchstens 1 mm sein. Bei Bedarf nachschleifen.</li>
-<li><b>Höhe ändern, später.</b> Brett leer räumen, alle 4 Träger aus den Schlitzen heben, eine Stufe höher oder tiefer einhängen. Das Brett wiegt leer etwa 10 kg. Du kannst ein Brett auch ganz herausnehmen und flach lagern oder ganz unten auf den Boden legen.</li>
-<li><b>Beladen.</b> Schwere Kisten nach unten und nahe an die Wand. Gleichmäßig verteilen. Nicht mehr als 150 kg je Brett.</li>
-<li><b>Im Programm eintragen.</b> Im Zeichner die Böden auf die echten Höhen stellen, damit die Kisten im Plan stimmen.</li>
-</ol>
-<h3>Zeit</h3>
-<p>Etwa 1,5 Tage im Keller, wenn der Zuschnitt fertig ist: Messen und Wand prüfen 1 Stunde, Schienen setzen halber Tag, Test 1 Stunde plus Beobachtung, Bretter fertigen halber Tag, Einhängen 1 Stunde je Höhe.</p>
-</div>
-""")
-
-seiten.append(f"""
-<div class="seite">
-<h2>Tragfähigkeit und Sicherheit</h2>
+<h2>Bauanleitung Schritt für Schritt</h2>
 <div class="zwei">
 <div>
-<h3>Rechnung für 150 kg je Brett</h3>
-{tabelle(["Frage","Ergebnis"],[
- ["Last je Träger bei 4 Trägern","150 : 4 = 37,5 kg, etwa 68 Prozent von 55 kg"],
- ["Mit nur 3 Trägern","50 kg, also 91 Prozent: zu knapp. Darum auch hinten 4 Schienen."],
- ["Biegung des Bretts 21 mm bei 59 cm Abstand","unter 0,5 mm und unter 1,5 MPa. Das Holz ist nicht die Schwachstelle."],
- ["10 Bretter je 100 kg auf einer Wand (1 Tonne)","250 kg je Schiene, etwa 30 kg je Dübel in der Scherung"],
- ["Kippmoment durch die 35 cm Tiefe","etwa 17 kg Zug je Dübel"],
-])}
-<p>Beides liegt unter den Herstellerwerten für Beton (etwa 1,1 kN je Dübel) und im knappen bis sicheren Bereich bei Vollziegel (etwa 0,6 kN). <b>Die Schwachstelle ist die Wand, nicht die Schiene.</b> Darum der Belastungstest.</p>
+<ol>
+<li><b>Nachmessen.</b> Keller innen: Wandlänge links und rechts, Höhe, Tür. Weicht etwas ab, Brettlänge = Wandlänge minus 1 cm.</li>
+<li><b>Wand prüfen.</b> Probebohrung 8 mm an unauffälliger Stelle: rotes Mehl = Ziegel, graues hartes = Beton, plötzlich hohl = Lochziegel. Mit Leitungssucher Leitungen suchen. Vermieter oder Hausverwaltung fragen, ob gebohrt werden darf.</li>
+<li><b>Einkaufen und zuschneiden lassen.</b> Materialliste. Bretter im Markt auf 216 x 35 und 216 x 30 cm.</li>
+<li><b>Schienen anzeichnen.</b> An jeder Seitenwand 5 senkrechte Linien bei 10, {abst}, {z(10 + 2 * ABST)}, {z(10 + 3 * ABST)} und 207 cm von der Türwand. Unterkante 5 cm über dem Boden.</li>
+<li><b>Bohren und Schienen setzen.</b> Schiene lotrecht halten, Löcher anzeichnen, bohren, ausblasen, Dübel rein, Schiene mit 6 x 60 festschrauben. Oben und unten zuerst, nochmal lotrecht prüfen, dann alle.</li>
+<li><b>Bretter vorbereiten.</b> Kanten schleifen und zweimal versiegeln, trocknen lassen.</li>
+</ol>
 </div>
 <div>
-<div class="warn">
-<b>Wichtig:</b>
+<ol start="7">
+<li><b>Träger anschrauben.</b> Brett umdrehen, 5 Träger an die Lochpositionen aus Teil A oder B legen, Haken zur Wandseite. 3 mm vorbohren, je 2 Holzschrauben 4 x 16.</li>
+<li><b>Belastungstest.</b> Ein Brett einhängen, schrittweise 50, 100, 180 kg auflegen (Wasserflaschen, Säcke), je 10 Minuten. Auf Risse, Bewegung, Knarzen achten, nach 24 Stunden nochmal prüfen.</li>
+<li><b>Alle Bretter einhängen.</b> Von unten nach oben, zu zweit, alle 5 Träger auf derselben Schlitzhöhe. Schlitze mit Malerkrepp nummerieren.</li>
+<li><b>Beladen.</b> Schwere Kisten nach unten, nahe an die Wand, gleichmäßig verteilen.</li>
+<li><b>Im Programm eintragen.</b> Im Zeichner die Böden auf die echten Höhen stellen.</li>
+</ol>
+<p><b>Zeit:</b> etwa ein Tag im Keller, wenn der Zuschnitt fertig ist.</p>
+</div></div>
+</div>
+""")
+
+seiten.append(f"""
+<div class="seite">
+<h2>Tragfähigkeit: eine Tonne je Wand</h2>
+<div class="zwei">
+<div>
+{tabelle(["Frage","Ergebnis"],[
+ ["Träger je Brett","5, Herstellerangabe etwa 55 kg je Träger, zusammen etwa 275 kg je Brett"],
+ ["Sinnvolle Last je Brett (rund 65 Prozent)","etwa 180 kg"],
+ ["6 Ebenen je 180 kg","etwa 1,08 Tonnen je Wand"],
+ ["Last je Schiene bei 1 Tonne je Wand","etwa 200 kg"],
+ ["Je Dübel (8 je Schiene), senkrecht","etwa 25 kg"],
+ ["Kippen durch 35 cm Tiefe, je Dübel","etwa 20 kg Zug"],
+ ["Biegung Brett 21 mm, Schienen {0} cm auseinander, 180 kg".format(abst),"unter 0,5 mm, das Holz hält das leicht"],
+])}
+<p>Mit <b>5 Schienen je Wand</b> erreichst du etwa eine Tonne je Wand. Für mehr (etwa 1,3 Tonnen) nimm <b>6 Schienen</b> je Wand mit gleichem Abstand: 10, 49,4, 88,8, 128,2, 167,6, 207 cm. Mehr als 6 bringt wenig, dann ist die Wand die Grenze.</p>
+<p>Die Dübelwerte liegen deutlich unter den Herstellerangaben für Beton (etwa 1,1 kN je Dübel) und im sicheren Bereich bei Vollziegel (etwa 0,6 kN). <b>Die Schwachstelle ist die Wand.</b></p>
+</div>
+<div>
+<div class="warn"><b>Wichtig:</b>
 <ul>
-<li>Die Tragfähigkeit von Schienen und Trägern stammt aus Händlerangaben, nicht aus eigener Prüfung. Das Datenblatt des gekauften Systems gilt.</li>
-<li>In Lochziegel oder Hohlblock halten normale Dübel nur einen Bruchteil.</li>
-<li>Nie unter schwer beladenen Brettern arbeiten, bevor der Test gemacht ist.</li>
+<li>Die Tragkraft der Schienen und Träger stammt aus Händlerangaben, nicht aus eigener Prüfung. Das Datenblatt des gekauften Systems gilt.</li>
+<li>Lochziegel oder Hohlblock: normale Dübel halten nur einen Bruchteil.</li>
+<li>Erst den Belastungstest machen, dann schwer beladen.</li>
 <li>Vor dem Bohren Leitungen suchen.</li>
-<li>Bei Zweifel: Ein Fachmann (Bauhandwerker) schaut sich die Wand an.</li>
 </ul></div>
 <h3>Checkliste vor dem Beladen</h3>
 <ul style="list-style:none;padding-left:0">
-<li><span class="box"></span>Wandmaterial geprüft, passende Dübel gekauft</li>
-<li><span class="box"></span>Alle 12 Schienen lotrecht und auf gleicher Höhe</li>
-<li><span class="box"></span>Alle Schrauben fest, alle Löcher genutzt</li>
-<li><span class="box"></span>Belastungstest mit 150 kg bestanden, 24 Stunden beobachtet</li>
-<li><span class="box"></span>Kanten und Gehrungen versiegelt</li>
-<li><span class="box"></span>Träger sitzen in allen Schlitzen, Brett liegt eben</li>
-<li><span class="box"></span>Höhen im Programm Kistly eingetragen</li>
+<li><span class="box"></span>Wandmaterial geprüft, passende Dübel</li>
+<li><span class="box"></span>10 Schienen lotrecht und auf gleicher Höhe</li>
+<li><span class="box"></span>Alle Schrauben fest</li>
+<li><span class="box"></span>Belastungstest bestanden, 24 Stunden beobachtet</li>
+<li><span class="box"></span>Kanten versiegelt</li>
+<li><span class="box"></span>Alle Träger sitzen in den Schlitzen, Brett liegt eben</li>
+<li><span class="box"></span>Höhen in Kistly eingetragen</li>
 </ul>
 </div></div>
 </div>
@@ -433,4 +487,4 @@ seiten.append(f"""
 
 doc = f"<!doctype html><html lang='de'><head><meta charset='utf-8'><title>Schienenregal Keller</title><style>{CSS}</style></head><body>{''.join(seiten)}</body></html>"
 open(ziel, "w", encoding="utf-8").write(doc)
-print("ok", len(doc))
+print("ok", len(doc), [round(s, 2) for s in SCH])

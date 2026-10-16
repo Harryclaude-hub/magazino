@@ -1062,3 +1062,12 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
     nie Umzug oder Person, auch ohne Anmeldung nicht.
   - 0049 laeuft auch ein zweites Mal ohne Fehler (create or replace
     trigger, ab Postgres 14).
+- **E97 Keller nur mit Seitenregalen:** Karam will statt des U nur noch die
+  zwei Seitenwände, gerade Bretter mit 90-Grad-Enden, hintere Wand und Ecken
+  frei, und genug Schienen für rund eine Tonne je Wand. Daten (Version 113):
+  "Schienenregal links, 5 Schienen" (217 x 35) und "Schienenregal rechts,
+  5 Schienen" (217 x 30), das hintere Regal ist entfernt. Die Zahl der
+  Schienen lässt sich jetzt im Namen angeben ("5 Schienen", 2 bis 12, auch
+  arabisch), sonst folgt sie wie bisher der Breite; die Schienen stehen
+  gleichmäßig, 10 cm von den Enden. Bauplan als PDF mit allen Einzelteilen
+  (Bretter mit Bohrbild, Schiene, Träger, Kleinteile) in docs/keller.

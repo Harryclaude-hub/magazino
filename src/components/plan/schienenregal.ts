@@ -51,6 +51,9 @@ export interface Schienenregal {
   rechts: boolean
   /** Eckbrett ohne eigene Schienen. */
   ecke: boolean
+  /** Zahl der Schienen aus dem Namen ("5 Schienen", 2 bis 12), sonst null
+   *  und die Zahl folgt der Breite (E97). */
+  schienen?: number | null
 }
 
 /** Staerke eines Massivholzbretts (Birke Multiplex), cm. */
@@ -64,6 +67,7 @@ export const ARM_HOCH_CM = 3.5
 
 const NAME = /schienen[- ]?regal|wandschiene|رف سكة|رف بسكك|سكة جدارية|سكك جدارية/
 const SCHRAEG = /(?:45|٤٥)\s*(?:°|grad|درجة)?\s*[,-]?\s*(links|rechts|beide|يسار|يمين|الجهتين|كلاهما|الطرفين)/g
+const ZAHL = /(?<![\d٠-٩])(\d{1,2}|[٠-٩]{1,2})\s*(?:schienen|سكك|سكة)/
 const ECKE = /(?<![a-zäöüß])(?:ecke|eckbrett|eckstück|eckstueck)(?![a-zäöüß])|زاوية/
 
 /** Ist das Objekt ein Schienenregal, und wie sind seine Enden? Sonst null. */
@@ -79,13 +83,18 @@ export function schienenregal(o: { art: string; name?: string | null }): Schiene
     else if (w === 'rechts' || w === 'يمين') rechts = true
     else links = rechts = true
   }
-  return { links, rechts, ecke: ECKE.test(n) }
+  const z = ZAHL.exec(n)
+  const zahl = z ? Number(z[1].replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x660))) : NaN
+  const aus: Schienenregal = { links, rechts, ecke: ECKE.test(n) }
+  if (zahl >= 2 && zahl <= 12) aus.schienen = zahl
+  return aus
 }
 
-/** Zahl der Schienen: unter 80 cm zwei, unter 130 drei, sonst vier; ein
- *  Eckbrett keine. */
+/** Zahl der Schienen: aus dem Namen ("5 Schienen"), sonst unter 80 cm
+ *  zwei, unter 130 drei, sonst vier; ein Eckbrett keine. */
 export function schienenZahl(B: number, s: Schienenregal): number {
   if (s.ecke || !(B > 0)) return 0
+  if (s.schienen) return s.schienen
   return B < 80 ? 2 : B < 130 ? 3 : 4
 }
 
