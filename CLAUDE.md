@@ -1,11 +1,11 @@
-# Kistly: Regeln fuer Claude
+# Fundkiste (bis 14.11.2026 Kistly): Regeln fuer Claude
 
 Diese Datei liest jede Claude-Sitzung in diesem Repo, auch in der Cloud.
 Das Repo ist OEFFENTLICH. Was hier steht, darf jeder lesen.
 
 ## Mit wem du arbeitest
 
-Karam, Eigentuemer von Kistly. Er spricht Deutsch, oft per Sprachnachricht
+Karam, Eigentuemer von Fundkiste. Das Programm hiess bis 14.11.2026 Kistly; Lagerly ist darin aufgegangen und gibt es nicht mehr. Er spricht Deutsch, oft per Sprachnachricht
 (Tippfehler und Woerter wie "TwoXX" sind Spracherkennung).
 
 - **Jede Antwort beginnt mit "Passt, Karam."** Bei einer reinen
@@ -28,7 +28,7 @@ Karam, Eigentuemer von Kistly. Er spricht Deutsch, oft per Sprachnachricht
   einem `do $$`-Block durchspielen, der am Ende mit `raise exception` den
   Bericht ausgibt und damit alles zurueckrollt, Bericht zeigen, dann
   anwenden.
-- **Kistly hat genau ein Supabase-Projekt: `vqpirkgvclfsduklnnzv`.** Jedes
+- **Fundkiste hat genau ein Supabase-Projekt: `vqpirkgvclfsduklnnzv`** (im Dashboard noch "kistly" genannt). Jedes
   andere Supabase-Projekt in Karams Konto gehoert zu anderen Programmen
   und ist tabu, weder lesend noch schreibend, auch nicht "nur kurz".
 - Claude tippt keine Passwoerter in Anmeldefelder.
@@ -82,3 +82,14 @@ Jeder Push auf `main` geht sofort live (GitHub Pages).
 - `docs/grundriss/BAUPLAN.md`: der Bauplan, sobald er geschrieben ist.
 - `docs/grundriss/STAND.md`: Stand nach der letzten fertigen Etappe.
 - `PLAN.md`: Fahrplan und Begruendungen der frueheren Bloecke.
+
+## Name und Adresse (seit 14.11.2026)
+
+- Das Programm heisst **Fundkiste**, Adresse https://harryclaude-hub.github.io/fundkiste/
+  (Repo `Harryclaude-hub/fundkiste`, vorher `kistly`).
+- Die alte Adresse /kistly/ leitet auf die neue um (kleines Repo `kistly` mit nur einer
+  Weiterleitungsseite), weil auf gedruckten Etiketten QR-Codes mit der alten Adresse stehen.
+  Dieses Repo nie loeschen, solange alte Etiketten benutzt werden.
+- Bewusst NICHT umbenannt, weil unsichtbar und mit Daten verknuepft: Ablehnungs-Kennungen
+  `kistly:...` in der Datenbank, localStorage-Schluessel `kistly.*`, CSS-Klassen, Ordner
+  `C:\Users\Home\kistly`.

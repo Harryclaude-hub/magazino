@@ -247,8 +247,8 @@ export const zeichnerWoerter: Woerterbuch = {
   'zeichner.assistent.teilen_hilfe': { de: 'Eine Linie von Wand zu Wand.', ar: 'خط من جدار إلى جدار.' },
   'zeichner.assistent.zimmer': { de: 'Zimmer zuordnen', ar: 'اربط الغرف' },
   'zeichner.assistent.zimmer_hilfe': {
-    de: 'Jedem Raum ein Kistly-Zimmer geben (oben aus der Leiste ziehen) oder einen Namen, etwa Flur.',
-    ar: 'أعط كل غرفة غرفة من Kistly (اسحبها من الشريط أعلاه) أو اسمًا مثل الممر.',
+    de: 'Jedem Raum ein Fundkiste-Zimmer geben (oben aus der Leiste ziehen) oder einen Namen, etwa Flur.',
+    ar: 'أعط كل غرفة غرفة من Fundkiste (اسحبها من الشريط أعلاه) أو اسمًا مثل الممر.',
   },
   'zeichner.assistent.oeffnungen': { de: 'Türen und Fenster', ar: 'الأبواب والنوافذ' },
   'zeichner.assistent.oeffnungen_hilfe': { de: 'Türen orange, Fenster blau.', ar: 'الأبواب برتقالية، النوافذ زرقاء.' },
@@ -260,7 +260,7 @@ export const zeichnerWoerter: Woerterbuch = {
 
   // Eigenschaften
   'zeichner.eig.raum': { de: 'Raum', ar: 'الغرفة' },
-  'zeichner.eig.zimmer': { de: 'Kistly-Zimmer', ar: 'غرفة Kistly' },
+  'zeichner.eig.zimmer': { de: 'Fundkiste-Zimmer', ar: 'غرفة Fundkiste' },
   'zeichner.eig.kein_zimmer': { de: 'Kein Zimmer (Flur, Balkon)', ar: 'بلا غرفة (ممر، شرفة)' },
   'zeichner.eig.neues_zimmer': { de: 'Neues Zimmer anlegen', ar: 'إنشاء غرفة جديدة' },
   'zeichner.eig.name': { de: 'Name', ar: 'الاسم' },

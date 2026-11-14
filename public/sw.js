@@ -1,9 +1,9 @@
-/* Kistly Service Worker
+/* Fundkiste Service Worker
  * Aufgaben: App-Huelle offline halten, Push-Benachrichtigungen anzeigen,
  * Anrufe so lange erneut melden, wie es klingelt.
  * Bewusst ohne Build-Schritt, damit hier nichts still auseinanderlaeuft.
  */
-const VERSION = 'kistly-v4'
+const VERSION = 'fundkiste-v5'
 const SHELL = `${VERSION}-shell`
 
 /* Die App kann unter einem Unterordner liegen (GitHub Pages liefert unter
@@ -78,11 +78,11 @@ self.addEventListener('fetch', (event) => {
 
 /* --------------------------------------------------------------- Push */
 function parsePush(event) {
-  if (!event.data) return { title: 'Kistly', body: '' }
+  if (!event.data) return { title: 'Fundkiste', body: '' }
   try {
     return event.data.json()
   } catch {
-    return { title: 'Kistly', body: event.data.text() }
+    return { title: 'Fundkiste', body: event.data.text() }
   }
 }
 
@@ -128,7 +128,7 @@ self.addEventListener('push', (event) => {
     return
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title || 'Kistly', {
+    self.registration.showNotification(payload.title || 'Fundkiste', {
       body: payload.body || '',
       tag: payload.tag,
       renotify: Boolean(payload.tag),

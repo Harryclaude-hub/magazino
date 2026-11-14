@@ -347,7 +347,7 @@ const GAST = '00000000-0000-4000-8000-000000000002'
   const ok = L.einladungMeldung({ status: 'ok', name: 'Clara Muster' }, t)
   wahr('Einladen ok: Satz mit Name', ok.art === 'ok' && ok.text.includes('Clara Muster') && ok.text.includes('dabei'))
   const faelle = {
-    nicht_gefunden: 'Kistly-Konto',
+    nicht_gefunden: 'Fundkiste-Konto',
     mehrdeutig: 'mehrere',
     schon_drin: 'schon dabei',
     selbst: 'selbst',

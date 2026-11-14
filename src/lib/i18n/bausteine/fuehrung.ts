@@ -158,8 +158,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.kisten.neu.titel': { de: 'Neue Kiste', ar: 'صندوق جديد' },
   'fuehrung.kisten.neu.text': {
-    de: 'Legt eine oder mehrere Kisten an. Du wählst Zimmer, Größe und Art; die Nummer vergibt Kistly selbst.',
-    ar: 'ينشئ صندوقاً أو أكثر. تختار الغرفة والحجم والنوع، وكيستلي يعطي الرقم بنفسه.',
+    de: 'Legt eine oder mehrere Kisten an. Du wählst Zimmer, Größe und Art; die Nummer vergibt Fundkiste selbst.',
+    ar: 'ينشئ صندوقاً أو أكثر. تختار الغرفة والحجم والنوع، وفوندكيستي يعطي الرقم بنفسه.',
   },
   'fuehrung.kisten.gegenstand.titel': { de: 'Gegenstand anlegen', ar: 'إضافة غرض' },
   'fuehrung.kisten.gegenstand.text': {
@@ -220,8 +220,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.kiste.loeschen.titel': { de: 'Löschen', ar: 'حذف' },
   'fuehrung.kiste.loeschen.text': {
-    de: 'Löscht die Kiste mit Inhalt und Fotos. Kistly fragt vorher noch einmal nach.',
-    ar: 'يحذف الصندوق مع محتواه وصوره. كيستلي يسأل مرة أخرى قبل ذلك.',
+    de: 'Löscht die Kiste mit Inhalt und Fotos. Fundkiste fragt vorher noch einmal nach.',
+    ar: 'يحذف الصندوق مع محتواه وصوره. فوندكيستي يسأل مرة أخرى قبل ذلك.',
   },
   'fuehrung.kiste.status.titel': { de: 'Status', ar: 'الحالة' },
   'fuehrung.kiste.status.text': {
@@ -245,8 +245,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.kiste.foto_lesen.titel': { de: 'Foto lesen', ar: 'قراءة الصورة' },
   'fuehrung.kiste.foto_lesen.text': {
-    de: 'Kistly schaut sich die Fotos an und schlägt vor, was darauf zu sehen ist. Du bestätigst, was stimmt.',
-    ar: 'كيستلي ينظر إلى الصور ويقترح ما يظهر فيها. أنت تؤكد ما هو صحيح.',
+    de: 'Fundkiste schaut sich die Fotos an und schlägt vor, was darauf zu sehen ist. Du bestätigst, was stimmt.',
+    ar: 'فوندكيستي ينظر إلى الصور ويقترح ما يظهر فيها. أنت تؤكد ما هو صحيح.',
   },
   'fuehrung.kiste.foto.titel': { de: 'Foto', ar: 'صورة' },
   'fuehrung.kiste.foto.text': {
@@ -297,8 +297,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.platz.speichern.titel': { de: 'Hier hinstellen', ar: 'ضعه هنا' },
   'fuehrung.platz.speichern.text': {
-    de: 'Speichert den Platz. Passt die Kiste dort nicht, sagt Kistly warum.',
-    ar: 'يحفظ المكان. إذا لم يناسب الصندوق هناك، يخبرك كيستلي بالسبب.',
+    de: 'Speichert den Platz. Passt die Kiste dort nicht, sagt Fundkiste warum.',
+    ar: 'يحفظ المكان. إذا لم يناسب الصندوق هناك، يخبرك فوندكيستي بالسبب.',
   },
 
   // Bereiche (Zimmer und Personen)
@@ -510,13 +510,13 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.zeichner.w_kiste.titel': { de: 'Kiste setzen (B)', ar: 'وضع صندوق (B)' },
   'fuehrung.zeichner.w_kiste.text': {
-    de: 'Rechts eine Kiste ohne Platz wählen, dann auf den Boden, auf eine andere Kiste oder in ein Fach klicken. Kistly prüft, ob sie passt.',
-    ar: 'اختر على الجانب صندوقاً بدون مكان، ثم انقر على الأرض أو على صندوق آخر أو في رف. كيستلي يتحقق هل يناسب.',
+    de: 'Rechts eine Kiste ohne Platz wählen, dann auf den Boden, auf eine andere Kiste oder in ein Fach klicken. Fundkiste prüft, ob sie passt.',
+    ar: 'اختر على الجانب صندوقاً بدون مكان، ثم انقر على الأرض أو على صندوق آخر أو في رف. فوندكيستي يتحقق هل يناسب.',
   },
   'fuehrung.zeichner.w_messen.titel': { de: 'Messen (A)', ar: 'قياس (A)' },
   'fuehrung.zeichner.w_messen.text': {
-    de: 'Zwei Punkte klicken: Kistly zeigt den Abstand in Zentimetern. Ecken, Türen und Fenster haben feste Messpunkte an der Innenseite der Wand, die Wanddicke zählt nicht mit. Es wird nichts verändert.',
-    ar: 'انقر على نقطتين: يعرض كيستلي المسافة بالسنتيمتر. للزوايا والأبواب والنوافذ نقاط قياس ثابتة عند الوجه الداخلي للجدار، ولا يُحسب سُمك الجدار. لا يتغير شيء.',
+    de: 'Zwei Punkte klicken: Fundkiste zeigt den Abstand in Zentimetern. Ecken, Türen und Fenster haben feste Messpunkte an der Innenseite der Wand, die Wanddicke zählt nicht mit. Es wird nichts verändert.',
+    ar: 'انقر على نقطتين: يعرض فوندكيستي المسافة بالسنتيمتر. للزوايا والأبواب والنوافذ نقاط قياس ثابتة عند الوجه الداخلي للجدار، ولا يُحسب سُمك الجدار. لا يتغير شيء.',
   },
   'fuehrung.zeichner.zimmer.titel': { de: 'Noch nicht gezeichnet', ar: 'لم تُرسم بعد' },
   'fuehrung.zeichner.zimmer.text': {
@@ -550,8 +550,8 @@ export const fuehrung: Woerterbuch = {
   },
   'fuehrung.zeichner.speichern.titel': { de: 'Speichern', ar: 'الحفظ' },
   'fuehrung.zeichner.speichern.text': {
-    de: 'Kistly speichert jede Änderung von selbst. Hier steht, ob alles gespeichert ist. Klappt es nicht, tippst du hier auf "nochmal".',
-    ar: 'كيستلي يحفظ كل تغيير تلقائياً. هنا يظهر هل تم حفظ كل شيء. إذا لم ينجح، اضغط هنا على "مرة أخرى".',
+    de: 'Fundkiste speichert jede Änderung von selbst. Hier steht, ob alles gespeichert ist. Klappt es nicht, tippst du hier auf "nochmal".',
+    ar: 'فوندكيستي يحفظ كل تغيير تلقائياً. هنا يظهر هل تم حفظ كل شيء. إذا لم ينجح، اضغط هنا على "مرة أخرى".',
   },
   'fuehrung.zeichner.zoom.titel': { de: 'Zoom', ar: 'التكبير' },
   'fuehrung.zeichner.zoom.text': {
@@ -650,8 +650,8 @@ export const fuehrung: Woerterbuch = {
   // Profil
   'fuehrung.profil.start.titel': { de: 'Dein Profil', ar: 'ملفك الشخصي' },
   'fuehrung.profil.start.text': {
-    de: 'Hier stellst du Kistly so ein, wie es dir gefällt.',
-    ar: 'هنا تضبط كيستلي كما يعجبك.',
+    de: 'Hier stellst du Fundkiste so ein, wie es dir gefällt.',
+    ar: 'هنا تضبط فوندكيستي كما يعجبك.',
   },
   'fuehrung.profil.sprache.titel': { de: 'Sprache', ar: 'اللغة' },
   'fuehrung.profil.sprache.text': {
@@ -674,10 +674,10 @@ export const fuehrung: Woerterbuch = {
     ar: 'يسجل خروجك من هذا الجهاز.',
   },
 
-  'fuehrung.allgemein.start.titel': { de: 'Kistly', ar: 'كيستلي' },
+  'fuehrung.allgemein.start.titel': { de: 'Fundkiste', ar: 'فوندكيستي' },
   'fuehrung.allgemein.start.text': {
-    de: 'Kistly hilft beim Umzug: jede Kiste hat eine Nummer und ein Etikett, du weißt immer, was drin ist und wo sie steht.',
-    ar: 'كيستلي يساعدك في الانتقال: لكل صندوق رقم وملصق، وتعرف دائماً ما بداخله وأين يوجد.',
+    de: 'Fundkiste hilft beim Umzug: jede Kiste hat eine Nummer und ein Etikett, du weißt immer, was drin ist und wo sie steht.',
+    ar: 'فوندكيستي يساعدك في الانتقال: لكل صندوق رقم وملصق، وتعرف دائماً ما بداخله وأين يوجد.',
   },
 
   'fuehrung.ende.titel': { de: 'Das war alles', ar: 'هذا كل شيء' },

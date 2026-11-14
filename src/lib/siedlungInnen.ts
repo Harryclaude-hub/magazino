@@ -3,7 +3,7 @@
  * (scripts/siedlung-innen-pruefen.mjs) dieselbe Rechnung benutzen.
  *
  * Form und Koordinaten stehen in src/lib/types.ts (SiedlungInnenHaus und
- * Verwandte): alles in cm des Geschosses wie ein Kistly-Plan (x nach
+ * Verwandte): alles in cm des Geschosses wie ein Fundkiste-Plan (x nach
  * rechts, y nach unten), Raeume im Uhrzeigersinn am Bildschirm, eine
  * Oeffnung liegt auf Kante kante (punkte[kante] nach punkte[kante + 1]),
  * abstand_cm ab dem Anfang der Kante, anschlag 'links' heisst: die Angel
@@ -160,7 +160,7 @@ function oeffnungUmkehren<T extends SiedlungInnenOeffnung>(o: T, punkte: Punkt[]
   }
 }
 
-/** Ein Moebel an seine Stelle legen. Die Lage wie bei Kistly-Objekten:
+/** Ein Moebel an seine Stelle legen. Die Lage wie bei Fundkiste-Objekten:
  *  (x, y) ist die Ecke, an der die Breite (lokal x) und die Tiefe (lokal y,
  *  0 = Rueckseite an der Wand) beginnen; drehung dreht beide Achsen.
  *  Gedreht wird die Ecke mitgenommen. Gespiegelt bleibt die Rueckseite

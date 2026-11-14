@@ -58,10 +58,10 @@ export const team: Woerterbuch = {
     ar: 'المشاركة لم تنجح. اكتب الرمز بنفسك من فضلك.',
   },
   // Nachricht an einen Menschen. Der Name des Umzugs bleibt, wie er ist.
-  'team.teilen_titel': { de: 'Kistly Einladung', ar: 'دعوة من Kistly' },
+  'team.teilen_titel': { de: 'Fundkiste Einladung', ar: 'دعوة من Fundkiste' },
   'team.teilen_text': {
-    de: 'Komm zu meinem Umzug "{name}" bei Kistly. Code: {code}',
-    ar: 'انضم إلى نقلتي "{name}" على Kistly. الرمز: {code}',
+    de: 'Komm zu meinem Umzug "{name}" bei Fundkiste. Code: {code}',
+    ar: 'انضم إلى نقلتي "{name}" على Fundkiste. الرمز: {code}',
   },
 
   // ---------------------------------------------------------------- Verlassen

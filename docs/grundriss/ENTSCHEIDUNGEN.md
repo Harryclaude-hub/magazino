@@ -1118,3 +1118,12 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Hersteller liegen Holzböden auf diesem Träger mit Aufsteckhaltern; Pads
   und Leisten übernehmen das hier. Die Kistly-Daten des Kellers stehen noch
   auf 37 cm Tiefe, Änderung erst auf Karams Wort.
+- **E101 Kistly und Lagerly werden Fundkiste:** Karam will nur noch ein Programm und
+  eine Datenbank. Name **Fundkiste** (Kiste aus Kistly, Fund = wiederfinden aus Lagerly).
+  Sichtbare Texte, Manifest, Titel, Benachrichtigungen umbenannt; unsichtbare Schluessel
+  bleiben (`kistly:` in der Datenbank, `kistly.*` im Browser), sonst gehen gespeicherte
+  Einstellungen und Fehlercodes verloren. Repo auf `fundkiste` umbenannt, die alte Adresse
+  /kistly/ leitet um, damit gedruckte QR-Etiketten weiter gehen. Die Datenbank von Lagerly
+  (Projekt "Lager") soll geloescht werden, behalten wird `vqpirkgvclfsduklnnzv`. Von Lagerly
+  geht Ausleihen mit Verlauf und rein/raus per QR vorerst verloren (Karams Wahl: nur die
+  Funktionen von Kistly); der Code liegt weiter im Repo `lagerly`.

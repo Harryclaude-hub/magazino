@@ -781,7 +781,7 @@ export interface Siedlung {
 }
 
 /* ------------------------------------------------- Siedlung innen (E84)
- * Die Wohnungen eines Hauses Geschoss fuer Geschoss, wie in Kistlys
+ * Die Wohnungen eines Hauses Geschoss fuer Geschoss, wie in Fundkistes
  * Grundriss: Raeume als Umrisse in cm, Oeffnungen auf ihren Kanten. Alles
  * in den Koordinaten des Geschosses (cm, x nach rechts, y nach unten wie
  * ein Plan); wo dieses Geschoss in der Siedlung liegt, sagt

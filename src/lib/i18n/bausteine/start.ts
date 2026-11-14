@@ -3,7 +3,7 @@ import type { Woerterbuch } from '../woerter'
 /* Startseite und 404. Alle Schluessel beginnen mit start., die der
  * Fehlerseite zusaetzlich mit start.nichtgefunden.
  *
- * Der Name Kistly bleibt in beiden Sprachen Kistly. Die Beispielcodes
+ * Der Name Fundkiste bleibt in beiden Sprachen Fundkiste. Die Beispielcodes
  * W-3-007, KZ-7-012 und S-1-003 bleiben ebenfalls unveraendert, sie stehen
  * genauso auf den gedruckten Etiketten.
  */
@@ -20,8 +20,8 @@ export const start: Woerterbuch = {
   /* Die dritte Zeile steht bei 375px allein auf einer Zeile, darum kurz. */
   'start.hero_3': { de: 'Und du weißt, wo sie ist.', ar: 'وتعرف مكانه.' },
   'start.hero_text': {
-    de: 'Kistly vergibt für jedes Zimmer und jede Person ein Kürzel, nummeriert jede Kiste automatisch, druckt die Etiketten mit QR-Code und zeigt dir beim Einzug in Sekunden, was schon da ist und was noch fehlt.',
-    ar: 'يمنح Kistly كل غرفة وكل شخص رمزًا، ويرقّم كل صندوق تلقائيًا، ويطبع الملصقات مع رمز QR، ويُظهر لك عند الوصول خلال ثوانٍ ما وصل وما ينقص.',
+    de: 'Fundkiste vergibt für jedes Zimmer und jede Person ein Kürzel, nummeriert jede Kiste automatisch, druckt die Etiketten mit QR-Code und zeigt dir beim Einzug in Sekunden, was schon da ist und was noch fehlt.',
+    ar: 'يمنح Fundkiste كل غرفة وكل شخص رمزًا، ويرقّم كل صندوق تلقائيًا، ويطبع الملصقات مع رمز QR، ويُظهر لك عند الوصول خلال ثوانٍ ما وصل وما ينقص.',
   },
   'start.kostenlos_starten': { de: 'Kostenlos starten', ar: 'ابدأ مجانًا' },
   'start.habe_konto': { de: 'Ich habe schon ein Konto', ar: 'لدي حساب بالفعل' },
@@ -67,8 +67,8 @@ export const start: Woerterbuch = {
   },
   'start.schritt2_titel': { de: 'Kisten nummerieren', ar: 'رقّم الصناديق' },
   'start.schritt2_text': {
-    de: 'Jede Kiste gehört zu einem Zimmer, einer Person oder beidem. Kistly vergibt den Code automatisch, fortlaufend und ohne Dopplung.',
-    ar: 'كل صندوق يخص غرفة أو شخصًا أو كليهما. يمنح Kistly الرمز تلقائيًا، متسلسلًا وبلا تكرار.',
+    de: 'Jede Kiste gehört zu einem Zimmer, einer Person oder beidem. Fundkiste vergibt den Code automatisch, fortlaufend und ohne Dopplung.',
+    ar: 'كل صندوق يخص غرفة أو شخصًا أو كليهما. يمنح Fundkiste الرمز تلقائيًا، متسلسلًا وبلا تكرار.',
   },
   'start.schritt3_titel': { de: 'Etiketten drucken', ar: 'اطبع الملصقات' },
   'start.schritt3_text': {

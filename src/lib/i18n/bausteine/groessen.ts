@@ -126,7 +126,7 @@ export const groessen: Woerterbuch = {
     ar: 'يجب أن يكون الجزء الناقص أصغر من الطول والعرض.',
   },
   'groessen.stufe_setzt_db': {
-    de: 'Die Größe in der Nummer berechnet Kistly aus Länge, Breite und Höhe.',
-    ar: 'يحسب Kistly رقم الحجم في الرقم من الطول والعرض والارتفاع.',
+    de: 'Die Größe in der Nummer berechnet Fundkiste aus Länge, Breite und Höhe.',
+    ar: 'يحسب Fundkiste رقم الحجم في الرقم من الطول والعرض والارتفاع.',
   },
 }

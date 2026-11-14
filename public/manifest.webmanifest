@@ -1,6 +1,6 @@
 {
-  "name": "Kistly",
-  "short_name": "Kistly",
+  "name": "Fundkiste",
+  "short_name": "Fundkiste",
   "start_url": "app",
   "scope": "./",
   "display": "standalone",
