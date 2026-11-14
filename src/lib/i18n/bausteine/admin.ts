@@ -66,8 +66,8 @@ export const admin: Woerterbuch = {
   // Warte-Seite nach der Anmeldung
   'freigabe.warten_titel': { de: 'Fast geschafft', ar: 'اقتربت' },
   'freigabe.warten_text': {
-    de: 'Dein Konto ist angelegt. Bevor du Fundkiste nutzen kannst, muss ein Admin es freischalten. Diese Seite öffnet sich von selbst, sobald das passiert ist.',
-    ar: 'تم إنشاء حسابك. قبل أن تتمكن من استخدام فوندكيستي، يجب أن يفعّله مسؤول. ستُفتح هذه الصفحة تلقائياً بمجرد حدوث ذلك.',
+    de: 'Dein Konto ist angelegt. Bevor du Magazino nutzen kannst, muss ein Admin es freischalten. Diese Seite öffnet sich von selbst, sobald das passiert ist.',
+    ar: 'تم إنشاء حسابك. قبل أن تتمكن من استخدام ماغازينو، يجب أن يفعّله مسؤول. ستُفتح هذه الصفحة تلقائياً بمجرد حدوث ذلك.',
   },
   'freigabe.gesperrt_titel': { de: 'Konto gesperrt', ar: 'الحساب محظور' },
   'freigabe.gesperrt_text': {
@@ -96,8 +96,8 @@ export const admin: Woerterbuch = {
   },
   'fuehrung.admin.knoepfe.titel': { de: 'Freischalten, sperren, löschen', ar: 'تفعيل، حظر، حذف' },
   'fuehrung.admin.knoepfe.text': {
-    de: 'Freischalten gibt ein Konto frei. Sperren nimmt ihm jeden Zugriff, Entsperren gibt ihn zurück. Löschen entfernt das Konto für immer; Fundkiste fragt vorher nach.',
-    ar: 'التفعيل يسمح للحساب بالاستخدام. الحظر يمنع عنه كل وصول، وإلغاء الحظر يعيده. الحذف يزيل الحساب إلى الأبد؛ فوندكيستي يسأل قبل ذلك.',
+    de: 'Freischalten gibt ein Konto frei. Sperren nimmt ihm jeden Zugriff, Entsperren gibt ihn zurück. Löschen entfernt das Konto für immer; Magazino fragt vorher nach.',
+    ar: 'التفعيل يسمح للحساب بالاستخدام. الحظر يمنع عنه كل وصول، وإلغاء الحظر يعيده. الحذف يزيل الحساب إلى الأبد؛ ماغازينو يسأل قبل ذلك.',
   },
   'fuehrung.admin.suche.titel': { de: 'Suchen', ar: 'البحث' },
   'fuehrung.admin.suche.text': {

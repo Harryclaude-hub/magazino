@@ -1,7 +1,7 @@
 import type { Woerterbuch } from '../woerter'
 
 /* Einstellungen, Installationshinweis und Darstellungsschalter.
- * Der Name Fundkiste bleibt in beiden Sprachen stehen, ebenso VAPID und
+ * Der Name Magazino bleibt in beiden Sprachen stehen, ebenso VAPID und
  * Safari. Zahlen bleiben in westlichen Ziffern, weil dieselben Ziffern
  * auf den Etiketten stehen.
  */
@@ -94,8 +94,8 @@ export const einstellungen: Woerterbuch = {
   'einstellungen.benachrichtigungen': { de: 'Benachrichtigungen', ar: 'الإشعارات' },
   'einstellungen.dieses_geraet': { de: 'Auf diesem Gerät', ar: 'على هذا الجهاز' },
   'einstellungen.push_unsupported': {
-    de: 'Dieser Browser kann keine Push-Benachrichtigungen. Auf dem iPhone geht es erst, wenn Fundkiste auf dem Startbildschirm liegt.',
-    ar: 'هذا المتصفح لا يدعم الإشعارات. على iPhone تعمل فقط بعد وضع Fundkiste على الشاشة الرئيسية.',
+    de: 'Dieser Browser kann keine Push-Benachrichtigungen. Auf dem iPhone geht es erst, wenn Magazino auf dem Startbildschirm liegt.',
+    ar: 'هذا المتصفح لا يدعم الإشعارات. على iPhone تعمل فقط بعد وضع Magazino على الشاشة الرئيسية.',
   },
   'einstellungen.push_no_key': {
     de: 'Auf dem Server ist kein VAPID-Schlüssel hinterlegt. Ohne den kann nichts verschickt werden.',
@@ -169,24 +169,24 @@ export const einstellungen: Woerterbuch = {
   'einstellungen.app': { de: 'App', ar: 'التطبيق' },
   'einstellungen.abmelden': { de: 'Abmelden', ar: 'تسجيل الخروج' },
   'einstellungen.fusszeile': {
-    de: 'Fundkiste . gebaut für den eigenen Umzug',
-    ar: 'Fundkiste . صُنع من أجل نقلة حقيقية',
+    de: 'Magazino . gebaut für den eigenen Umzug',
+    ar: 'Magazino . صُنع من أجل نقلة حقيقية',
   },
 
   // --------------------------------------------------- Auf den Startbildschirm
   'einstellungen.install_ausblenden': { de: 'Hinweis ausblenden', ar: 'إخفاء الملاحظة' },
   'einstellungen.install_titel': {
-    de: 'Fundkiste auf den Startbildschirm',
-    ar: 'Fundkiste على الشاشة الرئيسية',
+    de: 'Magazino auf den Startbildschirm',
+    ar: 'Magazino على الشاشة الرئيسية',
   },
   'einstellungen.install_ios_1': { de: 'In Safari unten auf', ar: 'في Safari اضغط بالأسفل على' },
   'einstellungen.install_ios_2': {
-    de: 'Teilen tippen, dann auf Zum Home-Bildschirm. Danach startet Fundkiste wie eine normale App, mit Logo.',
-    ar: 'مشاركة، ثم إضافة إلى الشاشة الرئيسية. بعدها يفتح Fundkiste مثل أي تطبيق، بشعاره الخاص.',
+    de: 'Teilen tippen, dann auf Zum Home-Bildschirm. Danach startet Magazino wie eine normale App, mit Logo.',
+    ar: 'مشاركة، ثم إضافة إلى الشاشة الرئيسية. بعدها يفتح Magazino مثل أي تطبيق، بشعاره الخاص.',
   },
   'einstellungen.install_text': {
-    de: 'Ein Tipp, und Fundkiste liegt mit Logo auf deinem Startbildschirm. Ohne Browserleiste, mit Benachrichtigungen.',
-    ar: 'ضغطة واحدة، ويصبح Fundkiste بشعاره على شاشتك الرئيسية. بلا شريط المتصفح، ومع الإشعارات.',
+    de: 'Ein Tipp, und Magazino liegt mit Logo auf deinem Startbildschirm. Ohne Browserleiste, mit Benachrichtigungen.',
+    ar: 'ضغطة واحدة، ويصبح Magazino بشعاره على شاشتك الرئيسية. بلا شريط المتصفح، ومع الإشعارات.',
   },
   'einstellungen.install_knopf': { de: 'Jetzt installieren', ar: 'التثبيت الآن' },
 }

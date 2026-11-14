@@ -45,8 +45,8 @@ export const kisten: Woerterbuch = {
   'kisten.laedt': { de: 'Kisten werden geladen', ar: 'جارٍ تحميل الصناديق' },
   'kisten.leer_titel': { de: 'Noch keine Kiste', ar: 'لا يوجد صندوق بعد' },
   'kisten.leer_hinweis': {
-    de: 'Lege die erste Kiste an. Die Nummer vergibt Fundkiste selbst.',
-    ar: 'أنشئ أول صندوق. Fundkiste يعطيه رقمه تلقائيًا.',
+    de: 'Lege die erste Kiste an. Die Nummer vergibt Magazino selbst.',
+    ar: 'أنشئ أول صندوق. Magazino يعطيه رقمه تلقائيًا.',
   },
   'kisten.leer_filter': {
     de: 'Zu diesem Filter passt gerade nichts. Setz den Filter zurück.',
@@ -84,8 +84,8 @@ export const kisten: Woerterbuch = {
   'kisten.anzahl_anlegen': { de: '{n} anlegen', ar: 'إنشاء {n}' },
   'kisten.nummer_wird': { de: 'Die Nummer wird', ar: 'الرقم سيكون' },
   'kisten.nummer_hinweis': {
-    de: 'Die letzten drei Ziffern vergibt Fundkiste selbst.',
-    ar: 'الأرقام الثلاثة الأخيرة يضعها Fundkiste تلقائيًا.',
+    de: 'Die letzten drei Ziffern vergibt Magazino selbst.',
+    ar: 'الأرقام الثلاثة الأخيرة يضعها Magazino تلقائيًا.',
   },
   'kisten.kein_zimmer': { de: 'kein Zimmer', ar: 'بدون غرفة' },
   'kisten.keine_person': { de: 'keine Person', ar: 'بدون شخص' },
@@ -257,8 +257,8 @@ export const kisten: Woerterbuch = {
 
   // --------------------------------------------------- Bearbeiten und Loeschen
   'kisten.code_hinweis': {
-    de: 'Änderst du Größe oder Kürzel, vergibt Fundkiste einen neuen Code. Der alte bleibt gespeichert, damit ein schon geklebtes Etikett weiter gefunden wird.',
-    ar: 'إذا غيّرت الحجم أو الرمز، يعطي Fundkiste رقمًا جديدًا. يبقى القديم محفوظًا حتى يظل الملصق الملصوق قابلاً للعثور عليه.',
+    de: 'Änderst du Größe oder Kürzel, vergibt Magazino einen neuen Code. Der alte bleibt gespeichert, damit ein schon geklebtes Etikett weiter gefunden wird.',
+    ar: 'إذا غيّرت الحجم أو الرمز، يعطي Magazino رقمًا جديدًا. يبقى القديم محفوظًا حتى يظل الملصق الملصوق قابلاً للعثور عليه.',
   },
   'kisten.kuerzel_im_code': { de: 'Kürzel im Code', ar: 'الرمز في رقم الصندوق' },
   'kisten.kuerzel_option_zimmer': { de: 'Zimmer ({kuerzel})', ar: 'الغرفة ({kuerzel})' },

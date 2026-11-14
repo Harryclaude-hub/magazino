@@ -1127,3 +1127,9 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   (Projekt "Lager") soll geloescht werden, behalten wird `vqpirkgvclfsduklnnzv`. Von Lagerly
   geht Ausleihen mit Verlauf und rein/raus per QR vorerst verloren (Karams Wahl: nur die
   Funktionen von Kistly); der Code liegt weiter im Repo `lagerly`.
+- **E102 Fundkiste wird Magazino:** Karam wollte einen Namen, der nach Lager klingt und nicht
+  nach Finden. Name **Magazino** (Magazin hiess frueher das Lager), neues Logo: blaues
+  Quadrat mit weissem M und einem hellblauen Regalboden darunter (`public/icons`), Theme-Farbe
+  #1D4ED8. Arabisch ماغازينو. Repo auf `magazino` umbenannt, die Weiterleitung /kistly/ zeigt
+  jetzt direkt auf /magazino/ (kein Umweg ueber /fundkiste/). Datenbank `vqpirkgvclfsduklnnzv`
+  bleibt, das Lager-Projekt ist laut Karam geloescht. Unsichtbare Schluessel bleiben wie in E101.

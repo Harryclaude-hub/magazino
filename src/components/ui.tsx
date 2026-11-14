@@ -33,7 +33,7 @@ export function Logo({ size = 32, className = '' }: { size?: number; className?:
       height={size}
       className={className}
       role="img"
-      aria-label="Fundkiste"
+      aria-label="Magazino"
     >
       <rect width="512" height="512" rx="116" className="fill-ink" />
       <g
@@ -57,7 +57,7 @@ export function Wordmark({ size = 28 }: { size?: number }) {
   return (
     <span className="inline-flex items-center gap-2">
       <Logo size={size} />
-      <span className="text-[1.35rem] font-black tracking-tight">Fundkiste</span>
+      <span className="text-[1.35rem] font-black tracking-tight">Magazino</span>
     </span>
   )
 }

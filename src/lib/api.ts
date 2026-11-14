@@ -1,4 +1,4 @@
-/* Alle Datenbankzugriffe von Fundkiste.
+/* Alle Datenbankzugriffe von Magazino.
  * Die Seiten rufen nur diese Funktionen auf. So gibt es genau eine Stelle,
  * an der eine Abfrage steht, und keine zweite Fassung, die spaeter
  * auseinanderlaeuft.

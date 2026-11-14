@@ -1,11 +1,11 @@
-# Fundkiste (bis 14.11.2026 Kistly): Regeln fuer Claude
+# Magazino (bis 14.11.2026 Kistly, danach kurz Fundkiste): Regeln fuer Claude
 
 Diese Datei liest jede Claude-Sitzung in diesem Repo, auch in der Cloud.
 Das Repo ist OEFFENTLICH. Was hier steht, darf jeder lesen.
 
 ## Mit wem du arbeitest
 
-Karam, Eigentuemer von Fundkiste. Das Programm hiess bis 14.11.2026 Kistly; Lagerly ist darin aufgegangen und gibt es nicht mehr. Er spricht Deutsch, oft per Sprachnachricht
+Karam, Eigentuemer von Magazino. Das Programm hiess bis 14.11.2026 Kistly, am 14.11. kurz Fundkiste; Lagerly ist darin aufgegangen und gibt es nicht mehr. Er spricht Deutsch, oft per Sprachnachricht
 (Tippfehler und Woerter wie "TwoXX" sind Spracherkennung).
 
 - **Jede Antwort beginnt mit "Passt, Karam."** Bei einer reinen
@@ -28,7 +28,7 @@ Karam, Eigentuemer von Fundkiste. Das Programm hiess bis 14.11.2026 Kistly; Lage
   einem `do $$`-Block durchspielen, der am Ende mit `raise exception` den
   Bericht ausgibt und damit alles zurueckrollt, Bericht zeigen, dann
   anwenden.
-- **Fundkiste hat genau ein Supabase-Projekt: `vqpirkgvclfsduklnnzv`** (im Dashboard noch "kistly" genannt). Jedes
+- **Magazino hat genau ein Supabase-Projekt: `vqpirkgvclfsduklnnzv`** (im Dashboard noch "kistly" genannt). Jedes
   andere Supabase-Projekt in Karams Konto gehoert zu anderen Programmen
   und ist tabu, weder lesend noch schreibend, auch nicht "nur kurz".
 - Claude tippt keine Passwoerter in Anmeldefelder.
@@ -85,11 +85,12 @@ Jeder Push auf `main` geht sofort live (GitHub Pages).
 
 ## Name und Adresse (seit 14.11.2026)
 
-- Das Programm heisst **Fundkiste**, Adresse https://harryclaude-hub.github.io/fundkiste/
-  (Repo `Harryclaude-hub/fundkiste`, vorher `kistly`).
-- Die alte Adresse /kistly/ leitet auf die neue um (kleines Repo `kistly` mit nur einer
-  Weiterleitungsseite), weil auf gedruckten Etiketten QR-Codes mit der alten Adresse stehen.
-  Dieses Repo nie loeschen, solange alte Etiketten benutzt werden.
+- Das Programm heisst **Magazino** (blaues Logo mit M), Adresse https://harryclaude-hub.github.io/magazino/
+  (Repo `Harryclaude-hub/magazino`, vorher `fundkiste`, davor `kistly`).
+- Die alte Adresse /kistly/ leitet ueber ein kleines privates Repo `kistly` (nur eine
+  Weiterleitungsseite, zeigt direkt auf /magazino/) weiter, weil auf gedruckten Etiketten
+  QR-Codes mit der alten Adresse stehen. Dieses Repo nie loeschen, solange alte Etiketten
+  benutzt werden. /fundkiste/ gibt es nicht mehr.
 - Bewusst NICHT umbenannt, weil unsichtbar und mit Daten verknuepft: Ablehnungs-Kennungen
   `kistly:...` in der Datenbank, localStorage-Schluessel `kistly.*`, CSS-Klassen, Ordner
   `C:\Users\Home\kistly`.

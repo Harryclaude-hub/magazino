@@ -28,7 +28,7 @@ export const ausgabe: Woerterbuch = {
   'ausgabe.spalte_status': { de: 'Status', ar: 'الحالة' },
   'ausgabe.spalte_inhalt': { de: 'Inhalt', ar: 'المحتوى' },
   'ausgabe.spalte_notiz': { de: 'Notiz', ar: 'ملاحظة' },
-  'ausgabe.fusszeile': { de: '{n} Zeilen. Erstellt mit Fundkiste.', ar: '{n} صفوف. أُنشئت بواسطة Fundkiste.' },
+  'ausgabe.fusszeile': { de: '{n} Zeilen. Erstellt mit Magazino.', ar: '{n} صفوف. أُنشئت بواسطة Magazino.' },
 
   'ausgabe.was_drauf': { de: 'Was aufs Blatt kommt', ar: 'ما الذي يظهر على الورقة' },
   'ausgabe.spalten': { de: 'Spalten', ar: 'الأعمدة' },

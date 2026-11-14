@@ -9,7 +9,7 @@ import { Avatar, Badge, Button, ErrorBox, Field, IconButton, Input, Loading, Mod
 /* Leute in der Siedlung (E86): einladen, sehen, wer dabei ist, entfernen
  * und verlassen.
  *
- * Der Besitzer laedt registrierte Fundkiste-Leute ein, per E-Mail oder per
+ * Der Besitzer laedt registrierte Magazino-Leute ein, per E-Mail oder per
  * Anzeigename (nur wenn genau eine Person so heisst; das prueft die
  * Datenbank). Jede Antwort steht als eigener Satz unter dem Feld. In der
  * Liste kann er Gaeste entfernen, nach einer Rueckfrage in der Zeile.

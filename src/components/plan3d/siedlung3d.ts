@@ -65,7 +65,7 @@
  * gemeinsame Kante nur einmal: 10 cm in der Wohnung, 20 cm zwischen
  * Wohnungen und zu Gang und Stiege, 30 cm aussen und zu Loggia, Balkon,
  * Laubengang), Tueren mit Zarge und offenem Blatt (80 Grad, an der Angel
- * wie in Fundkiste: links = am Anfang der Kante), Wohnungstueren mit breiter
+ * wie in Magazino: links = am Anfang der Kante), Wohnungstueren mit breiter
  * Zarge, Fenster mit Bruestung, Rahmen und Glas, Durchgaenge als Luecken,
  * Boeden je Raum (Eiche, Fliesen in Bad, WC und Vorraum, Holzdeck,
  * Beton, Pflaster, Rasen), Decken, Gelaender, Treppenlaeufe und Schaechte.
@@ -938,7 +938,7 @@ function hausPruefen(g: SiedlungGebaeude, i: number): Haus {
 /* ------------------------------------------------ Innen (E84): Zahlen */
 
 /** Aussenwand: die Innenseite liegt 6 cm innerhalb der Raumkante (so legt
- *  Fundkiste die Kante in die Wand), der Rest ragt nach aussen. */
+ *  Magazino die Kante in die Wand), der Rest ragt nach aussen. */
 const IW_AUSSEN = 0.3
 const IW_AUSSEN_IN = 0.06
 /** Wand zwischen zwei Wohnungen oder zu Gang und Stiege; Wand in einer Wohnung. */
@@ -1384,7 +1384,7 @@ function innenLesen(roh: SiedlungInnenHaus, h: Haus): IGeschoss[] {
         if (![0, 90, 180, 270].includes(m.drehung)) throw new Error(`${wm}: drehung muss 0, 90, 180 oder 270 sein`)
         const art = moebelArt(m.name)
         if (!art) return
-        // Wie Fundkiste (objektGlobal): (x, y) ist die Ecke, lokal x laengs, y nach vorn.
+        // Wie Magazino (objektGlobal): (x, y) ist die Ecke, lokal x laengs, y nach vorn.
         const [dc, ds] = DREH[m.drehung]
         const u = richtung(dc, ds)
         const v = richtung(-ds, dc)

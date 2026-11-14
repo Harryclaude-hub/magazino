@@ -4761,7 +4761,7 @@ export function wohnhausInnen(e: {
     (Array.isArray(liste) ? liste : []).filter((q) => Array.isArray(q) && q.length >= 3).map((q) => q.map((p) => [Number(p[0]) / 100, Number(p[1]) / 100] as P)).filter((q) => q.every((p) => zahlOk(p[0]) && zahlOk(p[1])))
   let kern = zuM(e.kern)
   let gang = zuM(e.gang)
-  // Raster wie die Stadt, aber mit 24 cm Wand (die Raumkante liegt in Fundkiste 6 cm in der Wand).
+  // Raster wie die Stadt, aber mit 24 cm Wand (die Raumkante liegt in Magazino 6 cm in der Wand).
   const saat = saatAus(String(e.gebaeudeId))
   const rnd = zufallMit(saat)
   let lang = -1

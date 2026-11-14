@@ -141,7 +141,7 @@ export function suggestShort(name: string, taken: string[]): string {
 }
 
 /** Vollstaendige Adresse innerhalb der App.
- *  Fundkiste kann unter einem Unterpfad liegen (GitHub Pages liefert unter
+ *  Magazino kann unter einem Unterpfad liegen (GitHub Pages liefert unter
  *  /kistly/ aus). Ohne diese Stelle wuerden QR-Codes auf /s/... zeigen,
  *  und das waere dort eine leere Seite. BASE_URL endet immer auf einem
  *  Schraegstrich. */

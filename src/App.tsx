@@ -112,7 +112,7 @@ export default function App() {
           <WiederherstellungsWache>
           <Routes>
             {/* Die Werbeseite (pages/Landing.tsx) ist abgeschaltet: nach aussen soll
-                nichts verraten, was Fundkiste ist. Wer kommt, landet bei der Anmeldung. */}
+                nichts verraten, was Magazino ist. Wer kommt, landet bei der Anmeldung. */}
             <Route path="/" element={<Wurzel />} />
             <Route path="/login" element={<Login />} />
             <Route path="/registrieren" element={<Register />} />

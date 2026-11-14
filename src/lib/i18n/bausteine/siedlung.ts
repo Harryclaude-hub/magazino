@@ -29,7 +29,7 @@ export const siedlungWoerter: Woerterbuch = {
   'siedlung.datei_fehler': { de: 'Die Datei passt nicht: {grund}', ar: 'الملف غير مناسب: {grund}' },
   'siedlung.datei_zu_gross': { de: 'zu groß', ar: 'كبير جدًا' },
   'siedlung.datei_kein_json': { de: 'keine JSON-Datei', ar: 'ليس ملف JSON' },
-  'siedlung.datei_falsche_art': { de: 'keine Siedlungs-Datei von Fundkiste', ar: 'ليس ملف مجمّع سكني من Fundkiste' },
+  'siedlung.datei_falsche_art': { de: 'keine Siedlungs-Datei von Magazino', ar: 'ليس ملف مجمّع سكني من Magazino' },
   'siedlung.zurueck_start': { de: 'Zur Startseite', ar: 'إلى الصفحة الرئيسية' },
   'siedlung.intro': {
     de: 'Die Häuser rund um dein Zuhause in 3D, mit deiner Wohnung darin. Du gehst durch das Haus, das Treppenhaus und mit dem Aufzug.',
@@ -219,8 +219,8 @@ export const siedlungWoerter: Woerterbuch = {
   'siedlung.einladen_titel': { de: 'Jemanden einladen', ar: 'دعوة شخص' },
   'siedlung.einladen_feld': { de: 'E-Mail oder Name', ar: 'البريد الإلكتروني أو الاسم' },
   'siedlung.einladen_hinweis': {
-    de: 'Die Person braucht ein Fundkiste-Konto. Ein Name geht nur, wenn ihn genau eine Person hat; sonst nimm die E-Mail.',
-    ar: 'يحتاج الشخص إلى حساب في Fundkiste. يصلح الاسم فقط إذا كان لشخص واحد بالضبط؛ وإلا فاستخدم البريد الإلكتروني.',
+    de: 'Die Person braucht ein Magazino-Konto. Ein Name geht nur, wenn ihn genau eine Person hat; sonst nimm die E-Mail.',
+    ar: 'يحتاج الشخص إلى حساب في Magazino. يصلح الاسم فقط إذا كان لشخص واحد بالضبط؛ وإلا فاستخدم البريد الإلكتروني.',
   },
   'siedlung.einladen': { de: 'Einladen', ar: 'دعوة' },
   'siedlung.einladen_leer': { de: 'Gib eine E-Mail oder einen Namen ein.', ar: 'أدخل بريدًا إلكترونيًا أو اسمًا.' },
@@ -230,8 +230,8 @@ export const siedlungWoerter: Woerterbuch = {
     ar: '{name} أصبح معك ويمكنه فتح المجمّع السكني.',
   },
   'siedlung.einladung_nicht_gefunden': {
-    de: 'Niemand mit dieser E-Mail oder diesem Namen gefunden. Die Person braucht ein Fundkiste-Konto.',
-    ar: 'لم يُعثر على أحد بهذا البريد الإلكتروني أو بهذا الاسم. يحتاج الشخص إلى حساب في Fundkiste.',
+    de: 'Niemand mit dieser E-Mail oder diesem Namen gefunden. Die Person braucht ein Magazino-Konto.',
+    ar: 'لم يُعثر على أحد بهذا البريد الإلكتروني أو بهذا الاسم. يحتاج الشخص إلى حساب في Magazino.',
   },
   'siedlung.einladung_mehrdeutig': {
     de: 'Diesen Namen haben mehrere Leute. Nimm bitte die E-Mail-Adresse.',

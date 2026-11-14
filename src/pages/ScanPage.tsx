@@ -94,7 +94,7 @@ export default function ScanPage() {
     [project.id, project.name, autoStatus, canEdit, toast, t],
   )
 
-  /** Ein Scan kann eine Fundkiste-Adresse sein oder ein getippter Code. */
+  /** Ein Scan kann eine Magazino-Adresse sein oder ein getippter Code. */
   const onScan = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
