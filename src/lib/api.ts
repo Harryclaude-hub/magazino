@@ -2041,3 +2041,199 @@ export async function grundrissDarf(grundrissId: string): Promise<{ projectId: s
   if (error) throw new Error(tg('fehler.grundriss_laden', { grund: errText(error) }))
   return data ? { projectId: (data as { project_id: string }).project_id } : null
 }
+
+/* ===================================================== Lager (0050, E103)
+ * Bestand, Ausleihen, Ein- und Austragen, Aktivitaet. Mengen aendert nur
+ * die Datenbankfunktion bestand_buchen; die Datenbank prueft Mitgliedschaft,
+ * Eintragung am Tuer-QR, Menge und Termin. Ablehnungen tragen eine Kennung
+ * (kistly:lager.*), den Satz macht errText. */
+
+import type {
+  AdminAktivitaetZeile,
+  AdminNutzerAktivitaet,
+  Ausleihe,
+  Bestand,
+  BuchungsArt,
+  LagerKategorie,
+  LagerZugang,
+} from './types'
+
+function lagerFehler(error: unknown): Error {
+  return new Error(tg('lager.fehler', { grund: errText(error) }))
+}
+
+export async function listKategorien(projectId: string): Promise<LagerKategorie[]> {
+  const { data, error } = await supabase.from('lager_kategorien').select('*').eq('project_id', projectId).order('sort').order('name')
+  if (error) throw lagerFehler(error)
+  return (data ?? []) as LagerKategorie[]
+}
+
+export async function kategorieSpeichern(
+  projectId: string,
+  k: { id?: string; name: string; zustaendig_id?: string | null },
+): Promise<void> {
+  const werte = { name: k.name.trim(), zustaendig_id: k.zustaendig_id ?? null }
+  const res = k.id
+    ? await supabase.from('lager_kategorien').update(werte).eq('id', k.id)
+    : await supabase.from('lager_kategorien').insert({ ...werte, project_id: projectId })
+  if (res.error) throw lagerFehler(res.error)
+}
+
+export async function listBestand(projectId: string): Promise<Bestand[]> {
+  const { data, error } = await supabase.from('bestand').select('*').eq('project_id', projectId).order('name')
+  if (error) throw lagerFehler(error)
+  return ((data ?? []) as Bestand[]).map((b) => ({ ...b, menge: Number(b.menge), mindestmenge: Number(b.mindestmenge) }))
+}
+
+export async function bestandAnlegen(
+  projectId: string,
+  b: { name: string; einheit: string; menge: number; mindestmenge: number; art: Bestand['art']; kategorie_id: string | null; ort?: string | null },
+): Promise<void> {
+  const { error } = await supabase.from('bestand').insert({
+    project_id: projectId,
+    name: b.name.trim(),
+    einheit: b.einheit.trim() || 'Stk',
+    menge: b.menge,
+    mindestmenge: b.mindestmenge,
+    art: b.art,
+    kategorie_id: b.kategorie_id,
+    ort: b.ort?.trim() || null,
+  })
+  if (error) throw lagerFehler(error)
+}
+
+/** Name, Einheit, Mindestmenge, Kategorie, Ort aendern. Die Menge geht nur ueber bestandBuchen. */
+export async function bestandAendern(
+  id: string,
+  patch: Partial<Pick<Bestand, 'name' | 'einheit' | 'mindestmenge' | 'kategorie_id' | 'ort' | 'art'>>,
+): Promise<void> {
+  const { error } = await supabase.from('bestand').update(patch).eq('id', id)
+  if (error) throw lagerFehler(error)
+}
+
+export async function bestandLoeschen(id: string): Promise<void> {
+  const { error } = await supabase.from('bestand').delete().eq('id', id)
+  if (error) throw lagerFehler(error)
+}
+
+/** Entnehmen (weg), ausleihen (mit Termin), zugeben oder zaehlen (korrektur). */
+export async function bestandBuchen(
+  bestandId: string,
+  art: BuchungsArt,
+  menge: number,
+  opts?: { notiz?: string; faellig?: Date },
+): Promise<Bestand> {
+  const { data, error } = await supabase.rpc('bestand_buchen', {
+    p_bestand: bestandId,
+    p_art: art,
+    p_menge: menge,
+    p_notiz: opts?.notiz?.trim() || null,
+    p_faellig: opts?.faellig ? opts.faellig.toISOString() : null,
+  })
+  if (error) throw lagerFehler(error)
+  return data as Bestand
+}
+
+export async function listAusleihen(projectId: string, nurOffen = true): Promise<Ausleihe[]> {
+  let q = supabase.from('ausleihen').select('*').eq('project_id', projectId)
+  if (nurOffen) q = q.is('zurueck_am', null)
+  const { data, error } = await q.order('faellig_am').limit(500)
+  if (error) throw lagerFehler(error)
+  return ((data ?? []) as Ausleihe[]).map((a) => ({ ...a, menge: Number(a.menge) }))
+}
+
+export async function ausleiheZurueck(id: string): Promise<void> {
+  const { error } = await supabase.rpc('ausleihe_zurueck', { p_ausleihe: id })
+  if (error) throw lagerFehler(error)
+}
+
+export async function listZugang(projectId: string, nurDrin: boolean, limit = 50): Promise<LagerZugang[]> {
+  let q = supabase.from('lager_zugang').select('*').eq('project_id', projectId)
+  if (nurDrin) q = q.is('raus_am', null)
+  const { data, error } = await q.order('rein_am', { ascending: false }).limit(limit)
+  if (error) throw lagerFehler(error)
+  return (data ?? []) as LagerZugang[]
+}
+
+export async function lagerBetreten(projectId: string): Promise<LagerZugang> {
+  const { data, error } = await supabase.rpc('lager_betreten', { p_project: projectId })
+  if (error) throw lagerFehler(error)
+  return data as LagerZugang
+}
+
+export async function lagerVerlassen(projectId: string): Promise<LagerZugang> {
+  const { data, error } = await supabase.rpc('lager_verlassen', { p_project: projectId })
+  if (error) throw lagerFehler(error)
+  return data as LagerZugang
+}
+
+/* ---- Admin: Konten anlegen, zuteilen, Aktivitaet ---------------------- */
+
+/** Legt ein Konto an (Server-Funktion konto-anlegen, nur Admin), schaltet es
+ *  frei und teilt es den Lagern zu. Gibt die Konto-Id zurueck. Schlaegt ein
+ *  Folgeschritt fehl, steht das Konto trotzdem da; der Fehler sagt es. */
+export async function adminKontoAnlegen(input: {
+  email: string
+  password: string
+  name: string
+  lager: { projectId: string; rolle: 'editor' | 'viewer' }[]
+}): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('konto-anlegen', {
+    body: { email: input.email, password: input.password, name: input.name },
+  })
+  let kennung = (data as { error?: string } | null)?.error
+  if (error && !kennung) {
+    try {
+      const body = await (error as { context?: Response }).context?.json?.()
+      kennung = (body as { error?: string } | undefined)?.error
+    } catch {
+      /* Antwort ohne Inhalt: unten allgemeiner Fehler */
+    }
+  }
+  const userId = (data as { user_id?: string } | null)?.user_id
+  if (!userId) throw new Error(tg(`lager.konto_fehler_${kennung ?? 'unbekannt'}`))
+  try {
+    await adminFreigabeSetzen(userId, 'frei')
+    for (const l of input.lager) {
+      const r = await supabase.rpc('admin_mitglied_setzen', { p_user: userId, p_project: l.projectId, p_rolle: l.rolle })
+      if (r.error) throw r.error
+    }
+  } catch (e) {
+    throw new Error(tg('lager.konto_halb', { grund: errText(e) }))
+  }
+  return userId
+}
+
+export async function adminMitgliedSetzen(userId: string, projectId: string, rolle: 'owner' | 'editor' | 'viewer' | 'keine'): Promise<void> {
+  const { error } = await supabase.rpc('admin_mitglied_setzen', { p_user: userId, p_project: projectId, p_rolle: rolle })
+  if (error) throw lagerFehler(error)
+}
+
+export async function adminAdminSetzen(userId: string, istAdmin: boolean): Promise<void> {
+  const { error } = await supabase.rpc('admin_admin_setzen', { p_user: userId, p_admin: istAdmin })
+  if (error) throw lagerFehler(error)
+}
+
+export async function adminNutzerAktivitaet(): Promise<AdminNutzerAktivitaet[]> {
+  const { data, error } = await supabase.rpc('admin_nutzer_aktivitaet')
+  if (error) throw lagerFehler(error)
+  return ((data ?? []) as AdminNutzerAktivitaet[]).map((n) => ({
+    ...n,
+    buchungen: Number(n.buchungen),
+    offene_ausleihen: Number(n.offene_ausleihen),
+    ueberfaellig: Number(n.ueberfaellig),
+  }))
+}
+
+export async function adminAktivitaet(limit = 100, userId?: string): Promise<AdminAktivitaetZeile[]> {
+  const { data, error } = await supabase.rpc('admin_aktivitaet', { p_limit: limit, p_user: userId ?? null })
+  if (error) throw lagerFehler(error)
+  return (data ?? []) as AdminAktivitaetZeile[]
+}
+
+/** Neues Lager (nur Admin), mit sechs Standardbereichen. */
+export async function lagerAnlegen(name: string, notiz?: string): Promise<Project> {
+  const { data, error } = await supabase.rpc('lager_anlegen', { p_name: name, p_notiz: notiz ?? null })
+  if (error) throw lagerFehler(error)
+  return data as Project
+}

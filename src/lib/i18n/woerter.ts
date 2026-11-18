@@ -34,6 +34,8 @@ import { chat } from './bausteine/chat'
 import { team } from './bausteine/team'
 import { einstellungen } from './bausteine/einstellungen'
 import { fehler } from './bausteine/fehler'
+import { lager } from './bausteine/lager'
+import { adminKonten } from './bausteine/adminKonten'
 
 export type Eintrag = { de: string; ar?: string }
 export type Woerterbuch = Record<string, Eintrag>
@@ -79,6 +81,8 @@ export const WOERTER: Woerterbuch = zusammenlegen(
   team,
   einstellungen,
   fehler,
+  lager,
+  adminKonten,
 )
 
 /** Bausteine, die mit einem eigenen Code-Teil nachgeladen werden (der

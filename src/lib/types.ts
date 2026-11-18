@@ -984,3 +984,73 @@ export interface StadtDaten {
   baeume: [number, number][]
   orte: StadtOrt[]
 }
+
+/* ===================================================== Lager (0050, E103) */
+
+export interface LagerKategorie {
+  id: string
+  project_id: string
+  name: string
+  zustaendig_id: string | null
+  sort: number
+}
+
+export type BestandArt = 'verbrauch' | 'ausleihe'
+
+export interface Bestand {
+  id: string
+  project_id: string
+  kategorie_id: string | null
+  name: string
+  einheit: string
+  menge: number
+  mindestmenge: number
+  art: BestandArt
+  item_id: string | null
+  ort: string | null
+  knapp_seit: string | null
+}
+
+export interface Ausleihe {
+  id: string
+  project_id: string
+  bestand_id: string
+  user_id: string
+  menge: number
+  faellig_am: string
+  zurueck_am: string | null
+  notiz: string | null
+  created_at: string
+}
+
+export interface LagerZugang {
+  id: string
+  project_id: string
+  user_id: string
+  rein_am: string
+  raus_am: string | null
+}
+
+export type BuchungsArt = 'entnahme' | 'ausleihe' | 'zugang' | 'korrektur'
+
+export interface AdminNutzerAktivitaet {
+  user_id: string
+  email: string
+  name: string
+  angelegt_am: string
+  zuletzt_aktiv: string | null
+  buchungen: number
+  offene_ausleihen: number
+  ueberfaellig: number
+  drin_in: string | null
+  ist_admin: boolean
+}
+
+export interface AdminAktivitaetZeile {
+  zeit: string
+  user_id: string | null
+  email: string | null
+  lager: string | null
+  art: string
+  text: string
+}
