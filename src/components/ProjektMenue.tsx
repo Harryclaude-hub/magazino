@@ -8,9 +8,12 @@ import {
   Cog,
   DoorOpen,
   FileDown,
+  HandHelping,
   Home,
+  KeyRound,
   LayoutDashboard,
   Menu,
+  Package,
   Plus,
   Printer,
   Users,
@@ -52,6 +55,9 @@ export function ProjektMenue() {
   const base = `/app/p/${pid}`
   const eintraege: { to: string; icon: ReactNode; label: string; aktiv: boolean; nurBearbeiter?: boolean }[] = [
     { to: base, icon: <Home size={20} />, label: t('nav.uebersicht'), aktiv: pathname === base },
+    { to: `${base}/tuer`, icon: <KeyRound size={20} />, label: t('lager.nav_tuer'), aktiv: pathname.startsWith(`${base}/tuer`) },
+    { to: `${base}/bestand`, icon: <Package size={20} />, label: t('lager.nav_bestand'), aktiv: pathname.startsWith(`${base}/bestand`) },
+    { to: `${base}/ausleihen`, icon: <HandHelping size={20} />, label: t('lager.nav_ausleihen'), aktiv: pathname.startsWith(`${base}/ausleihen`) },
     { to: `${base}/kisten?neu=1`, icon: <Plus size={20} />, label: t('umzuege.kiste_anlegen'), aktiv: false, nurBearbeiter: true },
     { to: `${base}/kisten`, icon: <Boxes size={20} />, label: t('umzuege.alle_kisten'), aktiv: pathname.startsWith(`${base}/kisten`) },
     { to: `${base}/bereiche`, icon: <DoorOpen size={20} />, label: t('begriff.bereiche'), aktiv: pathname.startsWith(`${base}/bereiche`) || pathname.includes('/zimmer/') || pathname.includes('/person/') },

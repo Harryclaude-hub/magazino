@@ -23,6 +23,7 @@ import { displayNameOf, useAuth } from '../lib/auth'
 import { getPrefs, istAdmin, setPrefs } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { passwortGenug } from '../lib/passwort'
+import { errText, supabase } from '../lib/supabase'
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 import type { NotificationPrefs } from '../lib/types'
 
@@ -148,6 +149,13 @@ export default function Settings() {
     setBusyPass(true)
     try {
       const r = await passwortAendern(altesPasswort, password)
+      /* Das Band "Bitte setze ein eigenes Passwort" (Lagerstart) hoert hier
+       * auf. Scheitert nur dieser Schritt, steht das neue Passwort trotzdem;
+       * der Fehler wird gemeldet, nicht verschluckt. */
+      if (user?.user_metadata?.passwort_aendern === true) {
+        const m = await supabase.auth.updateUser({ data: { passwort_aendern: false } })
+        if (m.error) toast(errText(m.error), 'error')
+      }
       setAltesPasswort('')
       setPassword('')
       setPasswordNochmal('')

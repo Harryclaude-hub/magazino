@@ -54,7 +54,7 @@ export const gemeinsam: Woerterbuch = {
   'zustand.unbekannter_fehler': { de: 'Unbekannter Fehler', ar: 'خطأ غير معروف' },
 
   // ---------------------------------------------------------------- Begriffe
-  'begriff.umzug': { de: 'Umzug', ar: 'نقلة' },
+  'begriff.umzug': { de: 'Lager', ar: 'مستودع' },
   'begriff.zimmer': { de: 'Zimmer', ar: 'غرفة' },
   'begriff.person': { de: 'Person', ar: 'شخص' },
   'begriff.personen': { de: 'Personen', ar: 'الأشخاص' },

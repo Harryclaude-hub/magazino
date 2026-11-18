@@ -12,12 +12,11 @@ import {
   Input,
   Loading,
   Modal,
-  Switch,
   Textarea,
   Wordmark,
   useToast,
 } from '../components/ui'
-import { createProject, joinProject, listProjects, type ProjectWithStats } from '../lib/api'
+import { istAdmin, joinProject, lagerAnlegen, listProjects, type ProjectWithStats } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 import { fmtDate, useAsync } from '../lib/util'
@@ -70,7 +69,7 @@ function ProjectCard({ row }: { row: ProjectWithStats }) {
           </span>
         </div>
 
-        <Progress done={stats.items_arrived} total={stats.items_total} />
+        {stats.items_total > 0 ? <Progress done={stats.items_arrived} total={stats.items_total} /> : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
           <span className="inline-flex items-center gap-2 text-base font-bold">
@@ -100,12 +99,14 @@ export default function Dashboard() {
   const nav = useNavigate()
   const toast = useToast()
   const list = useAsync(listProjects, [])
+  // Ein Lager legt nur ein Admin an. Bis das geklaert ist, gibt es den Knopf nicht.
+  const admin = useAsync(istAdmin, [])
+  const darfAnlegen = admin.data === true
 
   const [newOpen, setNewOpen] = useState(false)
   const [joinOpen, setJoinOpen] = useState(false)
   const [name, setName] = useState('')
   const [note, setNote] = useState('')
-  const [defaults, setDefaults] = useState(true)
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -128,7 +129,7 @@ export default function Dashboard() {
     setFormError(null)
     setBusy(true)
     try {
-      const p = await createProject(name, note, defaults)
+      const p = await lagerAnlegen(name, note)
       toast(t('umzuege.toast_angelegt'), 'ok')
       nav(`/app/p/${p.id}`)
     } catch (err) {
@@ -169,9 +170,11 @@ export default function Dashboard() {
           <p className="t-sub mt-1">{t('umzuege.blick')}</p>
 
           <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
-            <Button data-tour="umzuege-neu" size="lg" full className="sm:w-auto" onClick={() => openNew(true)}>
-              <Plus size={20} /> {t('umzuege.neu')}
-            </Button>
+            {darfAnlegen ? (
+              <Button data-tour="umzuege-neu" size="lg" full className="sm:w-auto" onClick={() => openNew(true)}>
+                <Plus size={20} /> {t('umzuege.neu')}
+              </Button>
+            ) : null}
             <Button data-tour="umzuege-beitreten"
               size="lg"
               variant="outline"
@@ -182,6 +185,9 @@ export default function Dashboard() {
               <LogIn size={20} /> {t('umzuege.code_einloesen')}
             </Button>
           </div>
+          {admin.error ? (
+            <p className="t-sub mt-2 text-danger">{t('lager.admin_pruefen_fehler', { grund: admin.error })}</p>
+          ) : null}
         </div>
 
         <div className="mb-5">
@@ -196,11 +202,13 @@ export default function Dashboard() {
           <Empty
             icon={<Boxes size={30} />}
             title={t('umzuege.leer_titel')}
-            hint={t('umzuege.leer_hinweis')}
+            hint={t(darfAnlegen ? 'umzuege.leer_hinweis' : 'lager.leer_zugeteilt')}
             action={
-              <Button size="lg" onClick={() => openNew(true)}>
-                <Plus size={20} /> {t('umzuege.leer_knopf')}
-              </Button>
+              darfAnlegen ? (
+                <Button size="lg" onClick={() => openNew(true)}>
+                  <Plus size={20} /> {t('umzuege.leer_knopf')}
+                </Button>
+              ) : undefined
             }
           />
         ) : (
@@ -243,12 +251,6 @@ export default function Dashboard() {
           <Field label={t('umzuege.vermerk')} hint={t('umzuege.vermerk_hinweis')}>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
           </Field>
-          <Switch
-            checked={defaults}
-            onChange={setDefaults}
-            label={t('umzuege.standardzimmer')}
-            hint={t('umzuege.standardzimmer_hinweis')}
-          />
           {formError ? <ErrorBox error={formError} /> : null}
         </form>
       </Modal>

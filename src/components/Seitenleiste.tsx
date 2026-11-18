@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Boxes,
   ChevronsLeft,
   ChevronsRight,
   DoorOpen,
+  HandHelping,
+  KeyRound,
   LayoutDashboard,
   MessageCircle,
+  Package,
   ScanLine,
   Search,
   User,
@@ -42,7 +45,7 @@ export interface LeistenEintrag {
 }
 
 export function Seitenleiste({
-  eintraege,
+  eintraege: eintraegeBasis,
   projektId,
 }: {
   eintraege: LeistenEintrag[]
@@ -50,6 +53,21 @@ export function Seitenleiste({
 }) {
   const t = useT()
   const nav = useNavigate()
+  const { pathname } = useLocation()
+  /* Tuer, Bestand und Ausleihen (E103) gehoeren zu einem Lager und stehen
+   * vor den Kisten. Ohne Lager gibt es sie nicht. */
+  const eintraege = useMemo(() => {
+    if (!projektId) return eintraegeBasis
+    const base = `/app/p/${projektId}`
+    const lager: LeistenEintrag[] = [
+      { to: `${base}/tuer`, icon: <KeyRound size={20} />, label: t('lager.nav_tuer'), active: pathname.startsWith(`${base}/tuer`), tour: 'nav-tuer' },
+      { to: `${base}/bestand`, icon: <Package size={20} />, label: t('lager.nav_bestand'), active: pathname.startsWith(`${base}/bestand`), tour: 'nav-bestand' },
+      { to: `${base}/ausleihen`, icon: <HandHelping size={20} />, label: t('lager.nav_ausleihen'), active: pathname.startsWith(`${base}/ausleihen`), tour: 'nav-ausleihen' },
+    ]
+    const i = eintraegeBasis.findIndex((e) => e.tour === 'nav-kisten')
+    const an = i < 0 ? Math.min(1, eintraegeBasis.length) : i
+    return [...eintraegeBasis.slice(0, an), ...lager, ...eintraegeBasis.slice(an)]
+  }, [eintraegeBasis, projektId, pathname, t])
   const [zu, setZu] = useState(gemerktEingeklappt)
   const [projekte, setProjekte] = useState<Project[] | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)

@@ -11,20 +11,20 @@ export const umzuege: Woerterbuch = {
   // ------------------------------------------------- Uebersicht, Begruessung
   'umzuege.hallo': { de: 'Hallo', ar: 'أهلاً' },
   'umzuege.hallo_name': { de: 'Hallo, {name}', ar: 'أهلاً {name}' },
-  'umzuege.blick': { de: 'Deine Umzüge auf einen Blick.', ar: 'كل نقلاتك في لمحة.' },
+  'umzuege.blick': { de: 'Deine Lager auf einen Blick.', ar: 'كل مستودعاتك في لمحة.' },
 
   // ---------------------------------------------------- Uebersicht, Knoepfe
-  'umzuege.neu': { de: 'Neuer Umzug', ar: 'نقلة جديدة' },
+  'umzuege.neu': { de: 'Neues Lager', ar: 'مستودع جديد' },
   'umzuege.code_einloesen': { de: 'Code einlösen', ar: 'استخدام رمز' },
 
   // ------------------------------------------------ Uebersicht, Liste leer
-  'umzuege.laden': { de: 'Umzüge werden geladen', ar: 'جارٍ تحميل النقلات' },
-  'umzuege.leer_titel': { de: 'Noch kein Umzug angelegt', ar: 'لا توجد نقلة بعد' },
+  'umzuege.laden': { de: 'Lager werden geladen', ar: 'جارٍ تحميل المستودعات' },
+  'umzuege.leer_titel': { de: 'Noch kein Lager', ar: 'لا يوجد مستودع بعد' },
   'umzuege.leer_hinweis': {
-    de: 'Ein Umzug ist die Klammer um alles: Zimmer, Personen, Kisten, Etiketten und den Chat.',
-    ar: 'النقلة تجمع كل شيء: الغرف والأشخاص والصناديق والملصقات والمحادثة.',
+    de: 'Ein Lager ist die Klammer um alles: Bestand, Kisten, Ausleihen, Team und den Chat.',
+    ar: 'المستودع يجمع كل شيء: المخزون والصناديق والإعارات والفريق والمحادثة.',
   },
-  'umzuege.leer_knopf': { de: 'Ersten Umzug anlegen', ar: 'أنشئ أول نقلة' },
+  'umzuege.leer_knopf': { de: 'Erstes Lager anlegen', ar: 'أنشئ أول مستودع' },
 
   // ------------------------------------------------------ Karte eines Umzugs
   'umzuege.kein_vermerk': { de: 'Kein Vermerk', ar: 'بدون ملاحظة' },
@@ -34,8 +34,8 @@ export const umzuege: Woerterbuch = {
   'umzuege.karte_unterwegs': { de: '{n} unterwegs', ar: '{n} في الطريق' },
 
   // ----------------------------------------------------- Dialog neuer Umzug
-  'umzuege.toast_angelegt': { de: 'Umzug angelegt', ar: 'تم إنشاء النقلة' },
-  'umzuege.name_platzhalter': { de: 'Umzug Salzburg 2026', ar: 'نقلة سالزبورغ 2026' },
+  'umzuege.toast_angelegt': { de: 'Lager angelegt', ar: 'تم إنشاء المستودع' },
+  'umzuege.name_platzhalter': { de: 'Lager Salzburg', ar: 'مستودع سالزبورغ' },
   'umzuege.vermerk': { de: 'Vermerk', ar: 'ملاحظة' },
   'umzuege.vermerk_hinweis': {
     de: 'Optional, zum Beispiel die neue Adresse.',

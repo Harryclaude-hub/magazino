@@ -1,4 +1,6 @@
-# Kistly: Uebergabe fuer eine neue (lokale) Claude-Sitzung
+# Magazino (frueher Kistly): Uebergabe fuer eine neue (lokale) Claude-Sitzung
+
+> **18.11.2026: Umbau zum Lagerprogramm (E103).** Lies zuerst `docs/ARCHITEKTUR.md` und `rework/01-lager-umbau/`. Stand: Startseite nur Anmeldung, Konten nur vom Admin (Funktion konto-anlegen), Bestand/Ausleihen/Tuer-QR/Erinnerungen gebaut, Migrationen bis 0053 eingespielt, zwei Demo-Lager. Offen: freie Anmeldung in Supabase abschalten (Karam), Auth-URL auf /magazino/, echter Durchlauf mit zwei Konten, Rework entscheidet was aus Siedlung/Anrufen bleibt. Der Rest dieser Datei beschreibt den Stand vom 15.10. (Umzugsprogramm).
 
 Stand: 15.10.2026. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 

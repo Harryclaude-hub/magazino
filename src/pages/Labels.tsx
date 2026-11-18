@@ -14,6 +14,7 @@ import {
   Select,
   Switch,
 } from '../components/ui'
+import { TuerEtikett } from '../components/TuerEtikett'
 import { useProject } from './ProjectLayout'
 import { listAllItems, listContentsForItems } from '../lib/api'
 import { useSprache } from '../lib/i18n'
@@ -692,6 +693,7 @@ export default function Labels() {
       />
 
       <Page wide className="no-print">
+        <TuerEtikett />
         <Card className="mb-4 p-4">
           <SectionTitle>{t('etiketten.welche_kisten')}</SectionTitle>
           {singleId ? (

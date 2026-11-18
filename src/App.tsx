@@ -16,7 +16,10 @@ import Settings from './pages/Settings'
 import ScanHub from './pages/ScanHub'
 import Suche from './pages/Suche'
 import ProjectLayout from './pages/ProjectLayout'
-import ProjectHome from './pages/ProjectHome'
+import LagerHome from './pages/LagerHome'
+import Tuer from './pages/Tuer'
+import Bestand from './pages/Bestand'
+import Ausleihen from './pages/Ausleihen'
 import Areas from './pages/Areas'
 import AreaDetail from './pages/AreaDetail'
 import Items from './pages/Items'
@@ -141,7 +144,10 @@ export default function App() {
               <Route path="scan" element={<ScanHub />} />
               <Route path="suche" element={<Suche />} />
               <Route path="p/:pid" element={<ProjectLayout />}>
-                <Route index element={<ProjectHome />} />
+                <Route index element={<LagerHome />} />
+                <Route path="tuer" element={<Tuer />} />
+                <Route path="bestand" element={<Bestand />} />
+                <Route path="ausleihen" element={<Ausleihen />} />
                 <Route path="bereiche" element={<Areas />} />
                 {/* Eigene Seiten. Zimmer und Person teilen sich eine Datei,
                     sie sind in der Datenbank dieselbe Tabelle. */}

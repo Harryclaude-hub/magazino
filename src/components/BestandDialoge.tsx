@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Chip, ConfirmDialog, ErrorBox, Field, Input, Modal, Select, Switch, useToast } from './ui'
 import { useProject } from '../pages/ProjectLayout'
@@ -11,22 +11,12 @@ import {
 } from '../lib/api'
 import { displayNameOf } from '../lib/auth'
 import { useT } from '../lib/i18n'
+import { mengeText, zahl } from '../lib/lager'
 import { fmtDateTime, useLocalState } from '../lib/util'
 import type { Bestand, BestandArt, BuchungsArt, LagerKategorie } from '../lib/types'
 
 /* Die Dialoge des Bestands (E103). Jeder wird nur eingehaengt, solange er
  * offen ist; damit beginnt er bei jedem Oeffnen mit frischem Zustand. */
-
-/** "1,5" und "1.5" sind beide gueltig. Alles andere gibt NaN. */
-export function zahl(s: string): number {
-  const v = s.trim().replace(',', '.')
-  return v === '' ? NaN : Number(v)
-}
-
-/** Menge ohne Rechenreste: 0.1 + 0.2 wird als 0.3 gezeigt. */
-export function mengeText(n: number): string {
-  return String(Number(n.toFixed(3)))
-}
 
 function fehlerText(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -74,16 +64,13 @@ function standardTermin(): string {
 
 export function EntnehmenDialog({
   b,
-  einheitVon,
   onClose,
   onFertig,
 }: {
   b: Bestand
-  einheitVon?: undefined
   onClose: () => void
   onFertig: () => void
 }) {
-  void einheitVon
   const t = useT()
   const toast = useToast()
   const [menge, setMenge] = useState('1')
@@ -594,7 +581,7 @@ export function BereicheDialog({
   kategorien: LagerKategorie[]
   onClose: () => void
   onGeaendert: () => void
-}): ReactNode {
+}) {
   const t = useT()
   return (
     <Modal
