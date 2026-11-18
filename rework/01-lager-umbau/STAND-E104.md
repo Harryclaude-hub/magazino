@@ -1,0 +1,7 @@
+# Stand E104 (19.11.2026): Vereinfachung, Bundeslandprojekte
+
+Fertig und eingespielt (Datenbank): 0054 (Bundeslandprojekte, Bereiche mit Kuerzel, Verlauf fuer alle Mitglieder, bestand_entfernen), 0055 (Grundriss nur Admin, per Trigger). Steyr Phase 2 gesichert (Super Claude, _Sicherungen) und aus der Datenbank genommen; Git-Marke `kistly-umzugsprogramm` = alter Gesamtstand; Demo-Moebel entfernt.
+Schnittstelle in api.ts fertig (Bundeslandprojekte, Bereiche, Verlauf). Admin-Portal (Admin.tsx, adminKonten.ts) umgestellt.
+
+NICHT gepusht, Arbeitsbaum ungeprueft: drei Helfer bauten parallel (1. Struktur: App.tsx, Dashboard, BlProjekt, Verlauf, Menues; 2. Bestand/Kisten/Suche: Bestand.tsx, Items.tsx, Suche.tsx, lager.ts; 3. Grundriss: Grundriss.tsx, src/zeichner, plan3d aussen3d mit Zaun). Beim Abbruch (Nutzungslimit) war tsc/build rot (Seitenleiste.tsx doppeltes `zu`, AppShell.tsx unbenutztes useLocation, zeichner/Eigenschaften.tsx und Zeichner.tsx Modul Seitenteile). Naechste Schritte: tsc, oxlint, build, woerter-pruefen, alle scripts/*-pruefen.mjs gruen machen, dann committen und pushen.
+Achtung: lager_anlegen hat jetzt die Signatur (bl, name, notiz); die LIVE stehende Seite (Stand 96d192e) ruft noch die alte und scheitert beim Anlegen eines Lagers, bis der neue Stand live ist. Fehlersatz fehler.db.grundriss.nur_admin fehlt noch im Woerterbuch. Siedlung/Anrufe/Zimmer/Moebel nur aus Menues zu nehmen, Code noch da.

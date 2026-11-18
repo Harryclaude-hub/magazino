@@ -1,7 +1,8 @@
-# Magazino: Architektur zum Erklaeren (Stand 18.11.2026, E103)
+# Magazino: Architektur zum Erklaeren (Stand 19.11.2026, E103 und E104)
 
-Ein Lagerprogramm fuer eine kleine Gemeinschaft: mehrere Lager, Leute mit
-Zugang, Bestand mit Mengen, Ausleihen mit Rueckgabetermin, Ein- und
+Ein Lagerprogramm fuer eine kleine Gemeinschaft. Ebenen: **Bundeslandprojekt**
+(z.B. Oberoesterreich) enthaelt mehrere **Lager**; der Admin entscheidet, wer welches
+Bundeslandprojekt sieht. Dazu: Leute mit Zugang, Bestand mit Mengen, Ausleihen mit Rueckgabetermin, Ein- und
 Austragen per QR an der Tuer, Erinnerungen per Push. Konten legt nur ein
 Admin an. Dieses Dokument erklaert, wie es gebaut ist und warum.
 
@@ -48,8 +49,9 @@ stoesst auf dieselben Regeln. Darum ist nichts "nur versteckt".
 
 | Tabelle | Zweck |
 |---|---|
-| `projects` | ein Lager. `project_members` sagt, wer drin ist und mit welcher Rolle (owner, editor, viewer) |
-| `lager_kategorien` | Bereiche eines Lagers (Basteln, Essen ...), je Bereich ein Zustaendiger |
+| `bl_projekte`, `bl_mitglieder` | Bundeslandprojekte und wer dazugehoert (die Wahrheit fuer den Zugang, nur der Admin aendert sie) |
+| `projects` | ein Lager, gehoert zu genau einem Bundeslandprojekt (`bl_projekt_id`). `project_members` ist die abgeleitete Folge: wer ein Bundeslandprojekt hat, ist Mitglied aller Lager darin (so bleiben alle bisherigen Zeilenregeln unveraendert) |
+| `lager_kategorien` | Bereiche eines Lagers (Basteln, Essen ...), je Bereich ein Zustaendiger; jeder Bereich hat automatisch ein Kuerzel (`tag_id`), damit Kisten ihre Nummer behalten. Zimmer und Personen gibt es nicht mehr |
 | `bestand` | Dinge mit Menge, Einheit, Mindestmenge; Art Verbrauch oder Ausleihe |
 | `bestand_buchungen` | jede Mengenaenderung: wer, wann, wie viel, Rest danach |
 | `ausleihen` | wer hat wie viel bis wann, wann zurueck, wann erinnert |
@@ -58,7 +60,7 @@ stoesst auf dieselben Regeln. Darum ist nichts "nur versteckt".
 | `items`, `grundrisse`, `raeume`, `objekte` | Kisten mit Nummer und QR, Plan in Zentimetern, Regale mit Faechern (aus dem frueheren Kistly) |
 | `app_admins`, `konto_freigaben` | wer Admin ist, ob ein Konto frei, wartend oder gesperrt ist |
 
-Migrationen 0001 bis 0053. Eine eingespielte Migration wird nie geaendert, ein
+Migrationen 0001 bis 0055. Eine eingespielte Migration wird nie geaendert, ein
 Fehler bekommt eine neue Nummer. Vor jedem Einspielen laeuft ein Probelauf
 (`supabase/probelauf/`), der am Ende immer mit einer Fehlermeldung abbricht
 und damit alles zurueckrollt; der Bericht steht in der Meldung.
@@ -78,6 +80,8 @@ und damit alles zurueckrollt; der Bericht steht in der Meldung.
 4. **Tuer-Pflicht**: Buchen geht nur, wenn die Person am Tuer-QR eingetragen
    ist (`lager_eingetragen`). Admins und Besitzer sind ausgenommen, damit sie
    jederzeit eingreifen koennen.
+4a. **Grundriss nur vom Admin** (0055): ein Trigger lehnt jede Aenderung an Grundriss, Raeumen, Tueren, Fenstern, Regalen und Schraenken ab, wenn das Konto kein Admin ist, auf jedem Weg. Kisten in ein Regal stellen bleibt allen Bearbeitern erlaubt.
+4b. **Verlauf fuer alle Mitglieder** (0054): wer kam, ging, nahm, brachte; sichtbar fuer jedes Mitglied des Lagers, nicht nur fuer Admins.
 5. **Admin-Rechte** stehen in `app_admins`; jede Admin-Funktion beginnt mit
    `ist_admin()`. Nur Admins legen Lager an (Migration 0052), ernennen
    Admins (der letzte bleibt immer) und teilen Leute zu.
@@ -147,5 +151,5 @@ Das ist ein Einmal-Import, keine laufende Synchronisation.
 - Schloss: noch nicht angebunden, das Eintragen ist Pflicht im Programm, aber
   die Tuer geht davon nicht auf. Eine Anbindung haengt von der Schlossmarke ab.
 - Masse der Demo-Lager sind erfunden.
-- Reste aus dem Umzugsprogramm (Siedlung, Anrufe) liegen im Code, sind aber
+- Das fruehere Umzugsprogramm (Zimmer, Personen, Moebel, Chat, Siedlung, Anrufe) ist aus Menues und Routen genommen, der Code liegt noch im Repo (Marke `kistly-umzugsprogramm` im Git zeigt den vollen alten Stand); es ist aufzuraeumen, wenn Karam es will. Seine Wohnung ist gesichert (Datei in Super Claude, Ordner _Sicherungen) und nicht mehr in der Datenbank. Rest-Hinweis: sind aber
   nicht Teil dieses Umbaus; ein spaeterer Rework entscheidet, was bleibt.
