@@ -35,20 +35,11 @@ export function Logo({ size = 32, className = '' }: { size?: number; className?:
       role="img"
       aria-label="Magazino"
     >
-      <rect width="512" height="512" rx="116" className="fill-ink" />
-      <g
-        fill="none"
-        className="stroke-paper"
-        strokeWidth="30"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      >
-        <rect x="118" y="148" width="276" height="244" rx="22" />
-        <path d="M118 226 H394" />
-        <path d="M256 148 V226" />
+      <rect width="512" height="512" rx="116" fill="#1D4ED8" />
+      <g fill="none" strokeLinejoin="round" strokeLinecap="round">
+        <path d="M132 386 V142 L256 288 L380 142 V386" stroke="#FFFFFF" strokeWidth="46" />
+        <path d="M132 430 H380" stroke="#93C5FD" strokeWidth="26" />
       </g>
-      <circle cx="378" cy="378" r="76" className="fill-ink" />
-      <circle cx="378" cy="378" r="54" fill="#EF4444" />
     </svg>
   )
 }

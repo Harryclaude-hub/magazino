@@ -44,30 +44,30 @@
    aendert diese Werte, sonst nichts. Geprueft gegen WCAG AA: jeder Text
    mindestens 4,5:1 auf seinem Grund, Linien deutlich sichtbar, Karten
    heben sich vom Grund ab.
-   Farbrollen: Orange (--accent) nur fuer die Hauptaktion, Rot (--danger)
+   Farbrollen: Blau (--accent) nur fuer die Hauptaktion, Rot (--danger)
    nur fuer Fehler und "hier ist es", Gruen (--ok) fuer erledigt. Tuer-
    Orange und Fenster-Blau gibt es nur im Plan. */
 :root {
   /* Warmer, heller Sand. Nachgerechnet (WCAG, relative Leuchtdichte):
      Text auf Grund 14,8:1, Nebentext auf Grund 6,5:1, auf Karte 7,1:1,
      auf erhabener Flaeche 5,8:1. */
-  --paper: #f4eee3;
-  --surface: #fcf9f3;
-  --raised: #e9e1d2;
-  --ink: #1f1b15;
-  --muted: #5b5448;
-  --line: #dcd2c0;
+  --paper: #f3f6fc;
+  --surface: #ffffff;
+  --raised: #e5ebf7;
+  --ink: #0e1a3a;
+  --muted: #4a5878;
+  --line: #d3dcee;
   /* Orange nur fuer die eine Hauptaktion einer Seite. Weiss darauf 5,1:1.
      Absichtlich dunkler und roeter als das Tuer-Orange im Plan
      (--plan-tuer), damit Knopf und Tuer nie verwechselt werden. */
-  --accent: #ad560c;
+  --accent: #1d4ed8;
   --accent-ink: #ffffff;
   --zebra: rgba(31, 27, 21, 0.045);
   /* Rot nur fuer Fehler und "hier ist es" (5,1:1), Gruen fuer erledigt
      (5,5:1), Gelbbraun fuer Warnungen (5,0:1). */
-  --danger: #b23a2e;
+  --danger: #b3261e;
   --warn: #8a5d10;
-  --ok: #2f6b4f;
+  --ok: #1d6b4a;
   /* Fuellstand (0033): gruen leer, gelb-orange halb, rot voll; dazwischen
      mischt color-mix (lib/fuellstand.ts). Gegen die Balkenrinne (--raised)
      mindestens 3:1; die Prozentzahl steht in Tinte daneben, nie auf der
@@ -169,16 +169,16 @@
 .dark {
   /* Tiefes Braungrau. Text auf Grund 14,9:1, Nebentext 7,6:1, auf Karte
      6,9:1, auf erhabener Flaeche 6,1:1. */
-  --paper: #1c1814;
-  --surface: #262119;
-  --raised: #302a21;
-  --ink: #f1ebe0;
-  --muted: #b3a996;
-  --line: #3d362b;
+  --paper: #0b1224;
+  --surface: #121b33;
+  --raised: #1a2542;
+  --ink: #e8eefc;
+  --muted: #9fb0d6;
+  --line: #27345a;
   /* Helles Aprikosen-Orange mit dunkler Schrift darauf (9,4:1). Heller als
      das Tuer-Orange im Plan. */
-  --accent: #f6a860;
-  --accent-ink: #1c1206;
+  --accent: #7aa7ff;
+  --accent-ink: #06122e;
   --zebra: rgba(255, 255, 255, 0.05);
   --danger: #e8776a;
   --warn: #e0b15c;

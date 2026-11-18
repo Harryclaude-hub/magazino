@@ -8,7 +8,6 @@ import { SpracheProvider } from './lib/i18n'
 import { LINK_BEIM_LADEN, useWiederherstellung } from './lib/linkstand'
 
 import Login from './pages/Login'
-import Register from './pages/Register'
 import ResetRequest from './pages/ResetRequest'
 import ResetConfirm from './pages/ResetConfirm'
 import AppLayout from './pages/AppLayout'
@@ -115,7 +114,6 @@ export default function App() {
                 nichts verraten, was Magazino ist. Wer kommt, landet bei der Anmeldung. */}
             <Route path="/" element={<Wurzel />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/registrieren" element={<Register />} />
             <Route path="/passwort-vergessen" element={<ResetRequest />} />
             <Route path="/passwort-neu" element={<ResetConfirm />} />
             <Route
