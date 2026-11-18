@@ -1133,3 +1133,8 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   #1D4ED8. Arabisch ماغازينو. Repo auf `magazino` umbenannt, die Weiterleitung /kistly/ zeigt
   jetzt direkt auf /magazino/ (kein Umweg ueber /fundkiste/). Datenbank `vqpirkgvclfsduklnnzv`
   bleibt, das Lager-Projekt ist laut Karam geloescht. Unsichtbare Schluessel bleiben wie in E101.
+- **E103 Umbau zum Lagerprogramm in Stufen:** Plan in `rework/01-lager-umbau/`. Stufe 1 live:
+  Startseite nur Logo und Anmeldung, Registrieren entfernt, Farben blau (Akzent #1D4ED8, Grund
+  kuehles Weiss, Navy-Text), Logo blaues M. Design-Anregung von mjoe.at nur als Stimmung (kuehles Blau,
+  dunkelblaue Schrift, klare Flaechen), keine Namen, Texte oder Bilder uebernommen; Systemschrift
+  statt eigener Schrift (kein externer Aufruf). Konten kuenftig nur vom Admin.
