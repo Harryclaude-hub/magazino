@@ -1,4 +1,140 @@
 import type { Woerterbuch } from '../woerter'
 
 /* Admin-Portal, Konten anlegen, Zuteilen, Aktivitaet (E103). Schluessel adminkonten.* */
-export const adminKonten: Woerterbuch = {}
+export const adminKonten: Woerterbuch = {
+  'adminkonten.untertitel': { de: 'Konten, Leute, Lager und Aktivität', ar: 'الحسابات والأشخاص والمستودعات والنشاط' },
+  'adminkonten.laedt': { de: 'Wird geladen', ar: 'جارٍ التحميل' },
+  'adminkonten.leer': { de: 'Hier ist noch nichts.', ar: 'لا يوجد شيء هنا بعد.' },
+  'adminkonten.system': { de: 'System', ar: 'النظام' },
+
+  // Reiter
+  'adminkonten.tab_konto': { de: 'Neues Konto', ar: 'حساب جديد' },
+  'adminkonten.tab_leute': { de: 'Leute', ar: 'الأشخاص' },
+  'adminkonten.tab_lager': { de: 'Lager', ar: 'المستودعات' },
+  'adminkonten.tab_aktivitaet': { de: 'Aktivität', ar: 'النشاط' },
+
+  // Neues Konto
+  'adminkonten.konto_titel': { de: 'Neues Konto anlegen', ar: 'إنشاء حساب جديد' },
+  'adminkonten.konto_hinweis': {
+    de: 'Konten gibt es nur von dir. Du legst E-Mail und Startpasswort fest und schickst beides der Person.',
+    ar: 'الحسابات تُنشأ منك فقط. تحدد البريد وكلمة المرور الأولية وترسلهما للشخص.',
+  },
+  'adminkonten.email': { de: 'E-Mail', ar: 'البريد الإلكتروني' },
+  'adminkonten.name': { de: 'Name', ar: 'الاسم' },
+  'adminkonten.name_hinweis': { de: 'Freiwillig, so sehen es die anderen.', ar: 'اختياري، هكذا يراه الآخرون.' },
+  'adminkonten.startpasswort': { de: 'Startpasswort', ar: 'كلمة المرور الأولية' },
+  'adminkonten.passwort_hinweis': {
+    de: 'Mindestens 10 Zeichen mit Buchstaben und Ziffern. Am einfachsten erzeugen lassen.',
+    ar: '10 أحرف على الأقل مع حروف وأرقام. الأسهل أن يُنشأ تلقائياً.',
+  },
+  'adminkonten.pw_erzeugen': { de: 'Zufälliges Passwort erzeugen', ar: 'إنشاء كلمة مرور عشوائية' },
+  'adminkonten.lager_wahl': { de: 'Zu welchen Lagern soll die Person Zugang haben?', ar: 'إلى أي مستودعات يكون للشخص وصول؟' },
+  'adminkonten.rolle_erklaerung': {
+    de: 'Bearbeiter dürfen buchen (entnehmen, ausleihen, zugeben). Nur lesen heißt: ansehen, nichts ändern.',
+    ar: 'المحرر يمكنه التسجيل (سحب، إعارة، إضافة). قراءة فقط تعني الاطلاع دون تغيير.',
+  },
+  'adminkonten.rolle_editor': { de: 'Bearbeiter (darf buchen)', ar: 'محرر (يسجّل الحركات)' },
+  'adminkonten.rolle_viewer': { de: 'Nur lesen', ar: 'قراءة فقط' },
+  'adminkonten.rolle_owner': { de: 'Besitzer', ar: 'مالك' },
+  'adminkonten.rolle_keine': { de: 'Kein Zugang', ar: 'بلا وصول' },
+  'adminkonten.rolle_fuer': { de: 'Zugang zu {lager}', ar: 'الوصول إلى {lager}' },
+  'adminkonten.email_ungueltig': { de: 'Diese E-Mail-Adresse sieht nicht richtig aus.', ar: 'عنوان البريد هذا لا يبدو صحيحاً.' },
+  'adminkonten.passwort_schwach': {
+    de: 'Das Passwort ist zu schwach: mindestens 10 Zeichen, mit Buchstaben und Ziffern.',
+    ar: 'كلمة المرور ضعيفة: 10 أحرف على الأقل مع حروف وأرقام.',
+  },
+  'adminkonten.anlegen': { de: 'Konto anlegen', ar: 'إنشاء الحساب' },
+  'adminkonten.erfolg_titel': { de: 'Zugangsdaten', ar: 'بيانات الدخول' },
+  'adminkonten.erfolg_text': { de: 'Das Konto ist angelegt und freigeschaltet.', ar: 'تم إنشاء الحساب وتفعيله.' },
+  'adminkonten.halb_titel': { de: 'Konto steht, Zuteilung fehlt', ar: 'الحساب موجود والتوزيع ناقص' },
+  'adminkonten.halb_text': {
+    de: 'Das Konto wurde angelegt, nur die Zuteilung zu den Lagern hat nicht ganz geklappt: {grund} Öffne die Person unter Leute und stelle den Zugang dort ein.',
+    ar: 'تم إنشاء الحساب، لكن توزيعه على المستودعات لم يكتمل: {grund} افتح الشخص في الأشخاص واضبط الوصول من هناك.',
+  },
+  'adminkonten.adresse': { de: 'Adresse der App', ar: 'عنوان التطبيق' },
+  'adminkonten.erfolg_hinweis': {
+    de: 'Das Startpasswort wird nur jetzt angezeigt. Nach dem Schließen siehst du es nie wieder. Die Person soll sich anmelden und danach ein eigenes Passwort setzen.',
+    ar: 'تظهر كلمة المرور الأولية الآن فقط ولن تراها بعد الإغلاق. على الشخص تسجيل الدخول ثم تعيين كلمة مرور خاصة به.',
+  },
+  'adminkonten.kopieren': { de: 'Kopieren', ar: 'نسخ' },
+  'adminkonten.kopiert': { de: 'Kopiert', ar: 'تم النسخ' },
+  'adminkonten.kopieren_fehler': { de: 'Kopieren hat nicht geklappt. Markiere den Text und kopiere ihn von Hand.', ar: 'فشل النسخ. حدّد النص وانسخه يدوياً.' },
+  'adminkonten.fertig': { de: 'Fertig', ar: 'تم' },
+  'adminkonten.kopier_text': {
+    de: 'Hallo {name},\nhier ist dein Zugang zu Magazino:\nAdresse: {adresse}\nE-Mail: {email}\nStartpasswort: {passwort}\nBitte melde dich an und setze danach dein eigenes Passwort.',
+    ar: 'مرحباً {name}،\nهذا هو دخولك إلى Magazino:\nالعنوان: {adresse}\nالبريد: {email}\nكلمة المرور الأولية: {passwort}\nيرجى تسجيل الدخول ثم تعيين كلمة مرور خاصة بك.',
+  },
+
+  // Leute
+  'adminkonten.leute_titel': { de: 'Leute', ar: 'الأشخاص' },
+  'adminkonten.suchen': { de: 'Name oder E-Mail', ar: 'الاسم أو البريد' },
+  'adminkonten.zuletzt_aktiv': { de: 'Zuletzt aktiv {wann}', ar: 'آخر نشاط {wann}' },
+  'adminkonten.nie_aktiv': { de: 'Noch nie aktiv', ar: 'لم يكن نشطاً بعد' },
+  'adminkonten.buchungen': { de: 'Buchungen: {n}', ar: 'الحركات: {n}' },
+  'adminkonten.offen': { de: 'Offene Ausleihen: {n}', ar: 'إعارات مفتوحة: {n}' },
+  'adminkonten.ueberfaellig': { de: 'Überfällig: {n}', ar: 'متأخرة: {n}' },
+  'adminkonten.drin_in': { de: 'Gerade drin in {lager}', ar: 'داخل {lager} الآن' },
+  'adminkonten.zugang_titel': { de: 'Zugang je Lager', ar: 'الوصول حسب المستودع' },
+  'adminkonten.zugang_admin': { de: 'Admins sind Besitzer aller Lager. Erst den Admin entziehen, dann den Zugang einzeln ändern.', ar: 'المسؤولون مالكون لكل المستودعات. اسحب صلاحية المسؤول أولاً ثم غيّر الوصول لكل مستودع.' },
+  'adminkonten.keine_lager': { de: 'Es gibt noch kein Lager.', ar: 'لا يوجد مستودع بعد.' },
+  'adminkonten.zugang_gesetzt': { de: 'Zugang von {name} zu {lager} geändert.', ar: 'تم تغيير وصول {name} إلى {lager}.' },
+  'adminkonten.konto_aktionen': { de: 'Konto', ar: 'الحساب' },
+  'adminkonten.admin_machen': { de: 'Zum Admin machen', ar: 'تعيين كمسؤول' },
+  'adminkonten.admin_entziehen': { de: 'Admin entziehen', ar: 'سحب صلاحية المسؤول' },
+  'adminkonten.admin_zuerst': { de: 'Ein Admin lässt sich weder sperren noch löschen. Entzieh ihm erst die Admin-Rechte.', ar: 'لا يمكن حظر المسؤول أو حذفه. اسحب صلاحياته أولاً.' },
+  'adminkonten.admin_gemacht': { de: '{name} ist jetzt Admin.', ar: 'أصبح {name} مسؤولاً.' },
+  'adminkonten.admin_entzogen': { de: '{name} ist kein Admin mehr.', ar: 'لم يعد {name} مسؤولاً.' },
+  'adminkonten.verlauf_titel': { de: 'Verlauf dieser Person', ar: 'سجل هذا الشخص' },
+  'adminkonten.frage_admin_machen_titel': { de: '{name} zum Admin machen?', ar: 'تعيين {name} مسؤولاً؟' },
+  'adminkonten.frage_admin_machen': {
+    de: 'Ein Admin sieht und verwaltet alle Lager und alle Konten, legt Konten an und kann Leute löschen. Gib das nur Menschen, denen du voll vertraust.',
+    ar: 'المسؤول يرى ويدير كل المستودعات والحسابات وينشئ الحسابات ويمكنه حذف الأشخاص. امنح ذلك لمن تثق به تماماً فقط.',
+  },
+  'adminkonten.frage_admin_machen_ja': { de: 'Zum Admin machen', ar: 'تعيين كمسؤول' },
+  'adminkonten.frage_admin_entziehen_titel': { de: '{name} die Admin-Rechte entziehen?', ar: 'سحب صلاحيات المسؤول من {name}؟' },
+  'adminkonten.frage_admin_entziehen': {
+    de: 'Die Person bleibt Besitzer ihrer Lager, verwaltet aber keine Konten mehr. Du kannst es jederzeit wieder ändern.',
+    ar: 'يبقى الشخص مالكاً لمستودعاته لكنه لا يدير الحسابات بعد الآن. يمكنك تغيير ذلك في أي وقت.',
+  },
+  'adminkonten.frage_admin_entziehen_ja': { de: 'Admin entziehen', ar: 'سحب الصلاحية' },
+  'adminkonten.frage_sperren_titel': { de: '{name} sperren?', ar: 'حظر {name}؟' },
+  'adminkonten.frage_sperren': {
+    de: 'Das Konto kann sich noch anmelden, sieht aber nur einen Hinweis und kommt an nichts mehr heran. Entsperren geht jederzeit.',
+    ar: 'يمكن للحساب تسجيل الدخول لكنه يرى تنبيهاً فقط ولا يصل إلى أي شيء. يمكن إلغاء الحظر في أي وقت.',
+  },
+  'adminkonten.frage_sperren_ja': { de: 'Sperren', ar: 'حظر' },
+  'adminkonten.frage_loeschen_titel': { de: '{name} endgültig löschen?', ar: 'حذف {name} نهائياً؟' },
+  'adminkonten.frage_loeschen': {
+    de: 'Das Konto und die Anmeldung verschwinden für immer. Alle Ausleihen dieser Person werden mit gelöscht (offen: {offen}). Buchungen und Verlauf bleiben, aber ohne Namen. Besitzt die Person ein Lager allein, wird es mit allem Bestand gelöscht (Lager: {n}). Das lässt sich nicht rückgängig machen.',
+    ar: 'يختفي الحساب وبيانات الدخول إلى الأبد. تُحذف كل إعارات هذا الشخص أيضاً (المفتوحة: {offen}). تبقى الحركات والسجل لكن بدون اسم. إذا كان الشخص يملك مستودعاً وحده يُحذف مع كل مخزونه (المستودعات: {n}). لا يمكن التراجع عن ذلك.',
+  },
+  'adminkonten.frage_loeschen_ja': { de: 'Endgültig löschen', ar: 'حذف نهائي' },
+  'adminkonten.geloescht': { de: '{name} ist gelöscht.', ar: 'تم حذف {name}.' },
+
+  // Lager
+  'adminkonten.lager_titel': { de: 'Alle Lager im Überblick', ar: 'نظرة عامة على كل المستودعات' },
+  'adminkonten.lager': { de: 'Lager', ar: 'المستودعات' },
+  'adminkonten.lager_zeile': { de: '{mitglieder} Mitglieder · {kisten} Kisten', ar: '{mitglieder} أعضاء · {kisten} صناديق' },
+  'adminkonten.lager_neu': { de: 'Neues Lager', ar: 'مستودع جديد' },
+  'adminkonten.lager_name': { de: 'Name des Lagers', ar: 'اسم المستودع' },
+  'adminkonten.lager_notiz': { de: 'Notiz (freiwillig)', ar: 'ملاحظة (اختيارية)' },
+  'adminkonten.lager_hinweis': { de: 'Das Lager startet mit sechs Standardbereichen. Du bist Besitzer, andere teilst du unter Leute zu.', ar: 'يبدأ المستودع بستة أقسام قياسية. أنت المالك، ووزّع الآخرين من الأشخاص.' },
+  'adminkonten.lager_name_fehlt': { de: 'Bitte einen Namen eintragen.', ar: 'يرجى إدخال اسم.' },
+  'adminkonten.lager_anlegen': { de: 'Lager anlegen', ar: 'إنشاء المستودع' },
+  'adminkonten.lager_angelegt': { de: 'Lager {name} ist angelegt.', ar: 'تم إنشاء المستودع {name}.' },
+
+  // Aktivitaet
+  'adminkonten.akt_titel': { de: 'Aktivität aller Leute', ar: 'نشاط جميع الأشخاص' },
+  'adminkonten.akt_person': { de: 'Person', ar: 'الشخص' },
+  'adminkonten.akt_alle': { de: 'Alle Leute', ar: 'كل الأشخاص' },
+  'adminkonten.akt_leer': { de: 'Noch keine Aktivität.', ar: 'لا يوجد نشاط بعد.' },
+  'adminkonten.aktualisieren': { de: 'Aktualisieren', ar: 'تحديث' },
+  'adminkonten.art_betreten': { de: 'Betreten', ar: 'دخول' },
+  'adminkonten.art_verlassen': { de: 'Verlassen', ar: 'خروج' },
+  'adminkonten.art_entnahme': { de: 'Entnommen', ar: 'سحب' },
+  'adminkonten.art_zugang': { de: 'Zugegeben', ar: 'إضافة' },
+  'adminkonten.art_ausleihe': { de: 'Ausgeliehen', ar: 'إعارة' },
+  'adminkonten.art_rueckgabe': { de: 'Zurückgegeben', ar: 'إرجاع' },
+  'adminkonten.art_korrektur': { de: 'Gezählt', ar: 'جرد' },
+  'adminkonten.art_admin': { de: 'Verwaltung', ar: 'إدارة' },
+}

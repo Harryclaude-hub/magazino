@@ -234,6 +234,17 @@ interface Erfolg {
   grund: string
 }
 
+function ErfolgZeile({ label, wert }: { label: string; wert: string }) {
+  return (
+    <div className="rounded-xl border border-line bg-raised px-3 py-2.5">
+      <div className="t-sub">{label}</div>
+      <div className="mt-0.5 select-all break-all font-mono text-base font-bold" dir="ltr">
+        {wert}
+      </div>
+    </div>
+  )
+}
+
 function ErfolgDialog({ e, onClose }: { e: Erfolg; onClose: () => void }) {
   const { t } = useSprache()
   const toast = useToast()
@@ -249,14 +260,6 @@ function ErfolgDialog({ e, onClose }: { e: Erfolg; onClose: () => void }) {
       toast(t('adminkonten.kopieren_fehler'), 'error')
     }
   }
-  const Zeile = ({ label, wert }: { label: string; wert: string }) => (
-    <div className="rounded-xl border border-line bg-raised px-3 py-2.5">
-      <div className="t-sub">{label}</div>
-      <div className="mt-0.5 select-all break-all font-mono text-base font-bold" dir="ltr">
-        {wert}
-      </div>
-    </div>
-  )
   return (
     <Modal
       open
@@ -277,9 +280,9 @@ function ErfolgDialog({ e, onClose }: { e: Erfolg; onClose: () => void }) {
         ) : (
           <p className="text-sm font-semibold text-ok">{t('adminkonten.erfolg_text')}</p>
         )}
-        <Zeile label={t('adminkonten.email')} wert={e.email} />
-        <Zeile label={t('adminkonten.startpasswort')} wert={e.passwort} />
-        <Zeile label={t('adminkonten.adresse')} wert={adresse} />
+        <ErfolgZeile label={t('adminkonten.email')} wert={e.email} />
+        <ErfolgZeile label={t('adminkonten.startpasswort')} wert={e.passwort} />
+        <ErfolgZeile label={t('adminkonten.adresse')} wert={adresse} />
         <p className="t-sub">{t('adminkonten.erfolg_hinweis')}</p>
       </div>
     </Modal>
