@@ -47,6 +47,7 @@ export interface Project {
   to_address: string | null
   move_date: string | null
   owner_id: string
+  bl_projekt_id: string
   archived: boolean
   created_at: string
   updated_at: string
@@ -993,6 +994,8 @@ export interface LagerKategorie {
   name: string
   zustaendig_id: string | null
   sort: number
+  /** Das Kuerzel dieses Bereichs (tags); Kisten setzen es als room_id. */
+  tag_id: string | null
 }
 
 export type BestandArt = 'verbrauch' | 'ausleihe'

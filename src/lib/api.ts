@@ -2068,14 +2068,14 @@ export async function listKategorien(projectId: string): Promise<LagerKategorie[
   return (data ?? []) as LagerKategorie[]
 }
 
+/** Bereich anlegen (Name) oder aendern (Name, Zustaendiger). Neue Bereiche bekommen ihr Kuerzel von der Datenbank. */
 export async function kategorieSpeichern(
   projectId: string,
   k: { id?: string; name: string; zustaendig_id?: string | null },
 ): Promise<void> {
-  const werte = { name: k.name.trim(), zustaendig_id: k.zustaendig_id ?? null }
-  const res = k.id
-    ? await supabase.from('lager_kategorien').update(werte).eq('id', k.id)
-    : await supabase.from('lager_kategorien').insert({ ...werte, project_id: projectId })
+  const id = k.id ?? (await bereichAnlegen(projectId, k.name))
+  if (k.id) await bereichUmbenennen(k.id, k.name.trim())
+  const res = await supabase.from('lager_kategorien').update({ zustaendig_id: k.zustaendig_id ?? null }).eq('id', id)
   if (res.error) throw lagerFehler(res.error)
 }
 
@@ -2170,13 +2170,13 @@ export async function lagerVerlassen(projectId: string): Promise<LagerZugang> {
 /* ---- Admin: Konten anlegen, zuteilen, Aktivitaet ---------------------- */
 
 /** Legt ein Konto an (Server-Funktion konto-anlegen, nur Admin), schaltet es
- *  frei und teilt es den Lagern zu. Gibt die Konto-Id zurueck. Schlaegt ein
+ *  frei und teilt es den Bundeslandprojekten zu. Gibt die Konto-Id zurueck. Schlaegt ein
  *  Folgeschritt fehl, steht das Konto trotzdem da; der Fehler sagt es. */
 export async function adminKontoAnlegen(input: {
   email: string
   password: string
   name: string
-  lager: { projectId: string; rolle: 'editor' | 'viewer' }[]
+  bundeslaender: { blId: string; rolle: 'editor' | 'viewer' }[]
 }): Promise<string> {
   const { data, error } = await supabase.functions.invoke('konto-anlegen', {
     body: { email: input.email, password: input.password, name: input.name },
@@ -2194,8 +2194,8 @@ export async function adminKontoAnlegen(input: {
   if (!userId) throw new Error(tg(`lager.konto_fehler_${kennung ?? 'unbekannt'}`))
   try {
     await adminFreigabeSetzen(userId, 'frei')
-    for (const l of input.lager) {
-      const r = await supabase.rpc('admin_mitglied_setzen', { p_user: userId, p_project: l.projectId, p_rolle: l.rolle })
+    for (const b of input.bundeslaender) {
+      const r = await supabase.rpc('bl_mitglied_setzen', { p_user: userId, p_bl: b.blId, p_rolle: b.rolle })
       if (r.error) throw r.error
     }
   } catch (e) {
@@ -2231,9 +2231,113 @@ export async function adminAktivitaet(limit = 100, userId?: string): Promise<Adm
   return (data ?? []) as AdminAktivitaetZeile[]
 }
 
-/** Neues Lager (nur Admin), mit sechs Standardbereichen. */
-export async function lagerAnlegen(name: string, notiz?: string): Promise<Project> {
-  const { data, error } = await supabase.rpc('lager_anlegen', { p_name: name, p_notiz: notiz ?? null })
+/** Neues Lager in einem Bundeslandprojekt (nur Admin), mit sechs Standardbereichen.
+ *  Alle Leute des Bundeslandprojekts bekommen Zugang. */
+export async function lagerAnlegen(blId: string, name: string, notiz?: string): Promise<Project> {
+  const { data, error } = await supabase.rpc('lager_anlegen', { p_bl: blId, p_name: name, p_notiz: notiz ?? null })
   if (error) throw lagerFehler(error)
   return data as Project
+}
+
+/* ---- Bundeslandprojekte (0054) ---------------------------------------- */
+
+export interface BlProjekt {
+  id: string
+  name: string
+  created_at: string
+}
+
+export interface BlMitglied {
+  bl_projekt_id: string
+  user_id: string
+  role: 'owner' | 'editor' | 'viewer'
+}
+
+/** Die Bundeslandprojekte, die ich sehen darf (Admin: alle). */
+export async function listBlProjekte(): Promise<BlProjekt[]> {
+  const { data, error } = await supabase.from('bl_projekte').select('*').order('name')
+  if (error) throw lagerFehler(error)
+  return (data ?? []) as BlProjekt[]
+}
+
+/** Die Lager in einem Bundeslandprojekt, die ich sehen darf. */
+export async function listLagerImBl(blId: string): Promise<Project[]> {
+  const { data, error } = await supabase.from('projects').select('*').eq('bl_projekt_id', blId).order('name')
+  if (error) throw lagerFehler(error)
+  return (data ?? []) as Project[]
+}
+
+/** Admin: wer gehoert zu welchem Bundeslandprojekt. */
+export async function adminBlMitglieder(): Promise<BlMitglied[]> {
+  const { data, error } = await supabase.from('bl_mitglieder').select('bl_projekt_id, user_id, role')
+  if (error) throw lagerFehler(error)
+  return (data ?? []) as BlMitglied[]
+}
+
+export async function blProjektAnlegen(name: string): Promise<BlProjekt> {
+  const { data, error } = await supabase.rpc('bl_projekt_anlegen', { p_name: name })
+  if (error) throw lagerFehler(error)
+  return data as BlProjekt
+}
+
+export async function blProjektUmbenennen(blId: string, name: string): Promise<void> {
+  const { error } = await supabase.rpc('bl_projekt_umbenennen', { p_bl: blId, p_name: name })
+  if (error) throw lagerFehler(error)
+}
+
+/** Nur ein Bundeslandprojekt ohne Lager laesst sich loeschen. */
+export async function blProjektLoeschen(blId: string): Promise<void> {
+  const { error } = await supabase.rpc('bl_projekt_loeschen', { p_bl: blId })
+  if (error) throw lagerFehler(error)
+}
+
+/** Admin: Zugang einer Person zu einem Bundeslandprojekt (wirkt auf alle Lager darin). */
+export async function blMitgliedSetzen(userId: string, blId: string, rolle: 'editor' | 'viewer' | 'keine'): Promise<void> {
+  const { error } = await supabase.rpc('bl_mitglied_setzen', { p_user: userId, p_bl: blId, p_rolle: rolle })
+  if (error) throw lagerFehler(error)
+}
+
+/* ---- Bereiche (statt Zimmer) und Verlauf (0054) ------------------------ */
+
+export async function bereichAnlegen(projectId: string, name: string): Promise<string> {
+  const { data, error } = await supabase.rpc('bereich_anlegen', { p_project: projectId, p_name: name })
+  if (error) throw lagerFehler(error)
+  return data as string
+}
+
+export async function bereichUmbenennen(bereichId: string, name: string): Promise<void> {
+  const { error } = await supabase.rpc('bereich_umbenennen', { p_bereich: bereichId, p_name: name })
+  if (error) throw lagerFehler(error)
+}
+
+/** Nur ein leerer Bereich (ohne Bestand und Kisten). */
+export async function bereichLoeschen(bereichId: string): Promise<void> {
+  const { error } = await supabase.rpc('bereich_loeschen', { p_bereich: bereichId })
+  if (error) throw lagerFehler(error)
+}
+
+/** Aufgebrauchtes (Menge 0) ganz entfernen; leer lassen = nichts tun. */
+export async function bestandEntfernen(bestandId: string): Promise<void> {
+  const { error } = await supabase.rpc('bestand_entfernen', { p_bestand: bestandId })
+  if (error) throw lagerFehler(error)
+}
+
+export interface VerlaufZeile {
+  id: number
+  user_id: string | null
+  art: string
+  text: string
+  zeit: string
+}
+
+/** Verlauf eines Lagers: wer kam, ging, nahm, brachte. Fuer alle Mitglieder lesbar. */
+export async function listVerlauf(projectId: string, limit = 100): Promise<VerlaufZeile[]> {
+  const { data, error } = await supabase
+    .from('aktivitaet')
+    .select('id, user_id, art, text, zeit')
+    .eq('project_id', projectId)
+    .order('zeit', { ascending: false })
+    .limit(limit)
+  if (error) throw lagerFehler(error)
+  return (data ?? []) as VerlaufZeile[]
 }

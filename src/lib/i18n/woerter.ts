@@ -36,6 +36,7 @@ import { einstellungen } from './bausteine/einstellungen'
 import { fehler } from './bausteine/fehler'
 import { lager } from './bausteine/lager'
 import { adminKonten } from './bausteine/adminKonten'
+import { struktur } from './bausteine/struktur'
 
 export type Eintrag = { de: string; ar?: string }
 export type Woerterbuch = Record<string, Eintrag>
@@ -83,6 +84,7 @@ export const WOERTER: Woerterbuch = zusammenlegen(
   fehler,
   lager,
   adminKonten,
+  struktur,
 )
 
 /** Bausteine, die mit einem eigenen Code-Teil nachgeladen werden (der
