@@ -95,3 +95,14 @@ ihre Ablaufplaene zum ersten Mal losliefen.
 - Die Hosting-Frage (GitHub Pages gegen Cloudflare Pages) entscheidet sich nicht an der Zahl der Programme, sondern an den
   Rechenminuten: je mehr Apps mit Bau bei jedem Commit, desto mehr Minuten. Ein Hoster, der selbst baut (Cloudflare) oder ein Bau auf
   dem eigenen Rechner, haelt GitHub aus der Rechnung.
+
+## 6. Das Repo ist oeffentlich (seit 20.11.2026, auf Karams Wunsch)
+
+- Bei oeffentlichen Repos laeuft GitHub Actions kostenlos und auch bei gesperrter Abrechnung. Erst dadurch ging die Seite am 20.11.
+  online (der Pages-Bau lief durch, ein Aufruf bei privatem Repo scheiterte mit "startup_failure").
+- **Wieder privat stellen schaltet die Seite ab:** GitHub meldet dann "Ihr Plan unterstuetzt GitHub Pages fuer dieses Repo nicht" und
+  entfernt die Seite (Pages fuer private Repos setzt einen zahlenden Plan mit geklaerter Abrechnung voraus). Darum bleibt das Repo
+  oeffentlich, bis die Abrechnung geklaert ist oder die Seite woanders liegt (Cloudflare Pages).
+- Vorher geprueft: keine Schluessel im aktuellen Stand und in den Staenden des Verlaufs (Mustersuche), zwei private Adressen aus der
+  Uebergabe entfernt. In aelteren Staenden des Verlaufs stehen sie noch.
+- Veroeffentlichen bleibt: `node scripts/veroeffentlichen.mjs` (Zweig gh-pages), danach baut GitHub die Seite kostenlos aus.
