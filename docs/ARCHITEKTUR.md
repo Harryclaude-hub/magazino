@@ -105,7 +105,7 @@ und damit alles zurueckrollt; der Bericht steht in der Meldung.
 
 - **Passwoerter kann niemand lesen.** Supabase speichert nur einen Hash (bcrypt). Kein Admin, kein Entwickler und keine Funktion
   kann ein bestehendes Passwort anzeigen; es gibt keine Stelle im Programm, die eines ausgibt. Man kann nur ein NEUES setzen.
-- **Eigenes Passwort aendern** geht nur eingeloggt und verlangt das aktuelle Passwort (wird gegen einen Probe-Login geprueft);
+- **Eigenes Passwort aendern** geht nur eingeloggt; das aktuelle Passwort wird weder gezeigt noch abgefragt (E110), es wird nur ein neues gesetzt;
   danach werden alle anderen Geraete abgemeldet.
 - **Admin setzt ein Startpasswort** (Konto anlegen oder "Neues Startpasswort setzen", Funktion `passwort-setzen`): nur fuer Konten,
   die kein Admin sind; das Startpasswort steht einmal im Dialog zum Weitergeben und danach nirgends; die offenen Sitzungen der Person

@@ -42,6 +42,8 @@ export const struktur: Woerterbuch = {
   'struktur.verlauf_leer': { de: 'Noch nichts passiert' },
   'struktur.verlauf_leer_filter': { de: 'Nichts in dieser Auswahl' },
   'struktur.verlauf_laedt': { de: 'Verlauf lädt' },
+  'struktur.ist_reingegangen': { de: 'ist reingegangen' },
+  'struktur.ist_rausgegangen': { de: 'ist rausgegangen' },
   'struktur.art.betreten': { de: 'Betreten' },
   'struktur.art.verlassen': { de: 'Verlassen' },
   'struktur.art.entnahme': { de: 'Mitgenommen' },

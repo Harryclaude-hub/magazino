@@ -69,22 +69,6 @@ export const startAusgewertet: Promise<{ fehlerCode: string | null }> = (async (
   return { fehlerCode }
 })()
 
-/** Ein Wegwerf-Client nur zum Pruefen des aktuellen Passworts (Einstellungen).
- *  Er speichert keine Sitzung, erneuert nichts, liest keine Adresse und hat
- *  einen eigenen Speicherschluessel. So beruehrt die Probe-Anmeldung die
- *  echte Sitzung nicht, auch nicht in anderen Tabs. Nach Gebrauch abmelden
- *  (scope local) und dispose() aufrufen. */
-export function pruefClientAnlegen(): SupabaseClient {
-  return createClient(url ?? 'https://placeholder.supabase.co', key ?? 'placeholder', {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      storageKey: `kistly-passwort-pruefen-${crypto.randomUUID()}`,
-    },
-  })
-}
-
 export const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? ''
 
 /** Die Platzhalter einer Ablehnung aus details lesen. Nur Zahlen und

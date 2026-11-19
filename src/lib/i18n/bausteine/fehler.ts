@@ -283,9 +283,6 @@ export const fehler: Woerterbuch = {
   'fehler.passwort_geleakt': {
     de: 'Dieses Passwort ist schon in Datenlecks aufgetaucht. Nimm bitte ein anderes.',
   },
-  'fehler.passwort_aktuell_falsch': {
-    de: 'Das aktuelle Passwort stimmt nicht.',
-  },
   'fehler.neu_anmelden_noetig': {
     de: 'Aus Sicherheitsgründen musst du dich dafür neu anmelden. Melde dich ab und wieder an und ändere das Passwort gleich danach.',
   },

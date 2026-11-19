@@ -90,7 +90,6 @@ export default function Settings() {
   }, [])
 
   const [name, setName] = useState(profile?.display_name ?? '')
-  const [altesPasswort, setAltesPasswort] = useState('')
   const [password, setPassword] = useState('')
   const [passwordNochmal, setPasswordNochmal] = useState('')
   const [passFehler, setPassFehler] = useState<string | null>(null)
@@ -134,8 +133,8 @@ export default function Settings() {
     loadPrefs()
   }, [loadPrefs])
 
-  /* Passwort aendern: erst das aktuelle (geprueft mit einem eigenen
-   * Wegwerf-Client in auth.tsx), dann das neue zweimal. Danach werden alle
+  /* Passwort aendern: nur das neue, zweimal (das aktuelle gibt es hier nicht
+   * mehr, E110). Danach werden alle
    * anderen Geraete abgemeldet; klappt das nicht, sagt der Hinweis das,
    * statt es zu behaupten (rot und laenger sichtbar). */
   async function passwortSpeichern(e: FormEvent) {
@@ -150,16 +149,11 @@ export default function Settings() {
       setPassFehler(t('konto.passwoerter_ungleich'))
       return
     }
-    if (password === altesPasswort) {
-      setPassFehler(t('fehler.passwort_gleich'))
-      return
-    }
     setBusyPass(true)
     try {
-      const r = await passwortAendern(altesPasswort, password)
+      const r = await passwortAendern(password)
       // Der Merker "Startpasswort" faellt in passwortAendern im selben Aufruf.
       if (zwang) setZwangErledigt(true)
-      setAltesPasswort('')
       setPassword('')
       setPasswordNochmal('')
       setVerbergen((n) => n + 1)
@@ -258,18 +252,6 @@ export default function Settings() {
               readOnly
               hidden
             />
-            {/* Kein Mindestmass beim aktuellen Passwort: aeltere Konten
-                duerfen kuerzere haben. */}
-            <Field label={t('einstellungen.aktuelles_passwort')}>
-              <PasswordInput
-                value={altesPasswort}
-                autoComplete="current-password"
-                required
-                onChange={(e) => setAltesPasswort(e.target.value)}
-                verbergen={verbergen}
-                anzeigbar={false}
-              />
-            </Field>
             <Field
               label={t('einstellungen.neues_passwort')}
               hint={t('einstellungen.passwort_hinweis')}

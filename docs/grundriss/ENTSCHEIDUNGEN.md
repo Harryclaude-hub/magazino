@@ -1138,3 +1138,9 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   kuehles Weiss, Navy-Text), Logo blaues M. Design-Anregung von mjoe.at nur als Stimmung (kuehles Blau,
   dunkelblaue Schrift, klare Flaechen), keine Namen, Texte oder Bilder uebernommen; Systemschrift
   statt eigener Schrift (kein externer Aufruf). Konten kuenftig nur vom Admin.
+
+- **E110 Passwort ohne "aktuelles Passwort", Verlauf mit Rein/Raus-Zeilen (20.11.2026):** Im Profil gibt es kein Feld fuer das
+  aktuelle Passwort mehr; wer angemeldet ist, setzt nur ein neues (zweimal). Der Probe-Login mit dem Wegwerf-Client ist entfernt.
+  Preis: wer ein offenes Geraet in die Finger bekommt, kann das Passwort aendern (Gegenmittel: Geraeteliste, Abmelden). Der
+  Startpasswort-Zwang bleibt unveraendert (die Datenbank vergleicht den Hash). Im Verlauf erscheinen "betreten" und "verlassen" als
+  kleine zentrierte Zeile "Name ist reingegangen / rausgegangen" mitten in der Liste, alles andere weiter als Karte.

@@ -138,12 +138,29 @@ export default function Verlauf() {
               title={t(filter === 'alle' ? 'struktur.verlauf_leer' : 'struktur.verlauf_leer_filter')}
             />
           ) : (
-            <ul className="divide-y divide-line overflow-hidden rounded-karte border border-line bg-surface">
+            <ul className="space-y-2">
               {sichtbar.map((z) => {
                 const art = BEKANNT.includes(z.art) ? z.art : 'sonst'
                 const wer = nameVon(z.user_id)
+                /* Rein und raus: nur eine kleine Zeile mitten im Verlauf,
+                 * wie "ist der Gruppe beigetreten" in einem Spiele-Chat. */
+                if ((art === 'betreten' || art === 'verlassen') && wer) {
+                  const rein = art === 'betreten'
+                  return (
+                    <li key={z.id} className="flex items-center justify-center gap-1.5 px-2 py-0.5 text-sm text-muted">
+                      {rein ? <LogIn size={14} aria-hidden="true" /> : <LogOut size={14} aria-hidden="true" />}
+                      <span className="min-w-0 break-words text-center">
+                        <b className="font-semibold text-ink/80">{wer}</b>{' '}
+                        {t(rein ? 'struktur.ist_reingegangen' : 'struktur.ist_rausgegangen')}
+                      </span>
+                      <time dateTime={z.zeit} title={genau(z.zeit, lang)} className="shrink-0 text-xs">
+                        {relativ(z.zeit, lang)}
+                      </time>
+                    </li>
+                  )
+                }
                 return (
-                  <li key={z.id} className="flex items-start gap-3 px-4 py-3">
+                  <li key={z.id} className="flex items-start gap-3 rounded-karte border border-line bg-surface px-4 py-3">
                     <span
                       className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-raised text-muted"
                       title={t(`struktur.art.${art}`)}

@@ -272,7 +272,7 @@ export default function ResetConfirm() {
     inhalt = hinweis(t('konto.link_anderes_geraet_titel'), t('fehler.link_anderer_browser'))
   } else if (session) {
     // Normal angemeldet, aber ohne gueltigen Link: das Passwort aendert
-    // man in den Einstellungen, mit dem aktuellen Passwort.
+    // man in den Einstellungen.
     inhalt = hinweis(
       t('konto.link_ungueltig'),
       t('konto.angemeldet_einstellungen'),

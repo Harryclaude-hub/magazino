@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase, errText, pruefClientAnlegen, startAusgewertet } from './supabase'
+import { supabase, errText, startAusgewertet } from './supabase'
 import { appUrl } from './util'
 import { loginZuEmail } from './konto'
 import { tg } from './i18n'
@@ -53,7 +53,7 @@ interface AuthValue {
   wiederherstellungBestaetigen: (tokenHash: string) => Promise<LinkBestaetigung>
   neuesPasswortSetzen: (password: string) => Promise<PasswortGesetzt>
   wiederherstellungAbbrechen: () => Promise<void>
-  passwortAendern: (aktuell: string, neu: string) => Promise<PasswortGesetzt>
+  passwortAendern: (neu: string) => Promise<PasswortGesetzt>
   updateProfile: (patch: Partial<Pick<Profile, 'display_name' | 'avatar_path'>>) => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -188,25 +188,6 @@ async function wiederherstellungAbbrechen(): Promise<void> {
   wiederherstellungBeenden()
 }
 
-/** Das aktuelle Passwort pruefen, ohne die echte Sitzung anzufassen: mit
- *  einem eigenen Wegwerf-Client anmelden und gleich wieder abmelden. */
-async function aktuellesPasswortPruefen(email: string, passwort: string): Promise<void> {
-  const probe = pruefClientAnlegen()
-  try {
-    const { error } = await probe.auth.signInWithPassword({ email, password: passwort })
-    if (error) {
-      if (error.code === 'invalid_credentials' || error.message === 'Invalid login credentials') {
-        throw new Error(tg('fehler.passwort_aktuell_falsch'))
-      }
-      throw new Error(errText(error))
-    }
-    const { error: abmelden } = await probe.auth.signOut({ scope: 'local' })
-    if (abmelden) console.warn('[passwort] Probe-Sitzung nicht beendet:', abmelden.code ?? abmelden.status)
-  } finally {
-    await probe.auth.dispose().catch(() => undefined)
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -294,20 +275,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       wiederherstellungBestaetigen,
       neuesPasswortSetzen,
       wiederherstellungAbbrechen,
-      async passwortAendern(aktuell, neu) {
-        const email = session?.user?.email
-        if (!email) throw new Error(tg('fehler.sitzung_weg'))
-        // Erst das aktuelle Passwort, sonst reicht ein offen liegendes Geraet.
-        await aktuellesPasswortPruefen(email, aktuell)
-        /* current_password kennt auth-js 2.116 (UserAttributes). Der Server
-         * prueft es zusaetzlich, wenn das im Projekt eingeschaltet ist. Die
-         * Pruefung, auf die sich die App verlaesst, ist die Probe darueber.
-         * War es ein Startpasswort vom Admin (passwort_aendern), faellt der
-         * Merker im selben Aufruf: entweder beides oder nichts. */
-        const zwang = session?.user?.user_metadata?.passwort_aendern === true
+      async passwortAendern(neu) {
+        /* Angemeldet reicht (E110): das aktuelle Passwort wird weder gezeigt
+         * noch abgefragt, nur ein neues gesetzt. War es ein Startpasswort vom
+         * Admin (passwort_aendern), faellt der Merker im selben Aufruf:
+         * entweder beides oder nichts. */
+        if (!session?.user) throw new Error(tg('fehler.sitzung_weg'))
+        const zwang = session.user.user_metadata?.passwort_aendern === true
         const { error } = await supabase.auth.updateUser({
           password: neu,
-          current_password: aktuell,
           ...(zwang ? { data: { passwort_aendern: false } } : {}),
         })
         if (error) throw new Error(errText(error))

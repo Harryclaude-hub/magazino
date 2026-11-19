@@ -95,7 +95,7 @@ export const konto: Woerterbuch = {
   },
   'konto.link_anderes_geraet_titel': { de: 'Anderer Browser?' },
   'konto.angemeldet_einstellungen': {
-    de: 'Du bist angemeldet. Dein Passwort änderst du in den Einstellungen, mit deinem aktuellen Passwort.',
+    de: 'Du bist angemeldet. Dein Passwort änderst du in den Einstellungen.',
   },
   'konto.zu_den_einstellungen': { de: 'Zu den Einstellungen' },
   'konto.neuen_link': { de: 'Neuen Link anfordern' },
