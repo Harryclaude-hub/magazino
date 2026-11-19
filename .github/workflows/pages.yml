@@ -4,9 +4,11 @@ name: Magazino veroeffentlichen
 # Die Adressen stehen als Repository-Variablen, nicht im Code, damit man
 # das Supabase-Projekt wechseln kann, ohne etwas umzuschreiben.
 
+# E108: Seit dem 20.11.2026 laeuft die Veroeffentlichung NICHT mehr bei jedem Push, weil der Bau ueber GitHub
+# Actions Rechenzeit kostet (private Repos) und bei aufgebrauchter Rechenzeit gar nicht startet. Normaler Weg:
+# `node scripts/veroeffentlichen.mjs` (baut auf dem eigenen Rechner, legt das Ergebnis auf den Zweig gh-pages,
+# kostenlos). Diese Datei bleibt nur als Notfallweg, von Hand startbar.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
