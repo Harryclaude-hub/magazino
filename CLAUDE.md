@@ -39,7 +39,7 @@ Karam, Eigentuemer von Magazino. Das Programm hiess bis 14.11.2026 Kistly, am 14
   die Bilderkennung). Keine zweite Abfrage in einer Seite.
 - `prefix`, `seq` und `code` einer Kiste vergibt nur die Datenbank.
 - Angewandte Migrationen werden nie geaendert, ein Fehler bekommt eine
-  neue Nummer. Angewandt sind 0001 bis 0053 (0050 bis 0053 sind der Lagerumbau).
+  neue Nummer. Angewandt sind 0001 bis 0055 (0050 bis 0055 sind der Lagerumbau).
 - Woerterbuecher in `src/lib/i18n/bausteine`: jeder Eintrag hat `de` UND
   `ar` mit denselben Platzhaltern. Arabisch laeuft von rechts nach links,
   Plaene und Karten werden nie gespiegelt, Seriennummern stehen immer

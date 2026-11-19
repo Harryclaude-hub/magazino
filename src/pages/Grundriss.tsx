@@ -27,6 +27,7 @@ import {
   aendereGrundriss,
   grundrissKistenZahl,
   grundrissSicherstellen,
+  istAdmin,
   ladeGrundriss,
   ladeGrundrisse,
   ladeKisteLage,
@@ -64,6 +65,13 @@ import { useProject } from './ProjectLayout'
  * Ein Tipp auf ein Moebel, Regal oder einen Schrank zeigt unter dem Plan
  * die Moebelkarte (PlanDetails.tsx), eine Kiste ihre Karte wie bisher.
  */
+
+/** Nur Admins zeichnen (Karam). Laden, Fehler, ja, nein: wer es nicht
+ *  sicher weiss, sieht den Grundriss nur (die Datenbank prueft zusaetzlich). */
+function useAdmin() {
+  const a = useAsync(() => istAdmin(), [])
+  return { laedt: a.loading, fehler: a.error, reload: a.reload, ja: a.data === true && !a.error }
+}
 
 const Zeichner = lazy(() => import('../zeichner/Zeichner'))
 
@@ -117,7 +125,11 @@ export function GrundrissWeiche() {
           raum = passend[0].id
         }
       }
-      if (!gid) gid = await grundrissSicherstellen(project.id, neuName)
+      if (!gid) {
+        // Nur ein Admin legt den ersten Grundriss an; alle anderen sehen den ersten vorhandenen.
+        const admin = await istAdmin().catch(() => false)
+        gid = admin ? await grundrissSicherstellen(project.id, neuName) : ((await ladeGrundrisse(project.id))[0]?.id ?? null)
+      }
       return { gid, raum }
     })()
       .then(({ gid, raum }) => {
@@ -324,6 +336,7 @@ export function Ansehen({
   begehen,
   onBegehen,
   onGespeichert,
+  admin,
 }: {
   daten: GrundrissDaten
   raumId: string | null
@@ -333,10 +346,11 @@ export function Ansehen({
   onBegehen: () => void
   /** E89: in 3D wurden Moebel gespeichert (beim Schliessen): neu laden. */
   onGespeichert: () => void
+  /** Nur Admins duerfen in 3D Moebel tragen und speichern. */
+  admin: boolean
 }) {
   const { project } = useProject()
   const { t } = useSprache()
-  const zeichnen = useZeichnen()
   const nav = useNavigate()
   const [params, setParams] = useSearchParams()
   const [tipp, setTipp] = useState<PlanTreffer | null>(null)
@@ -388,20 +402,13 @@ export function Ansehen({
   return (
     <Page wide>
       <div className="space-y-4">
-        {!zeichnen ? (
-          <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-3">
-            <Monitor size={22} className="mt-0.5 shrink-0 text-muted" />
-            <p className="t-sub">{t('grundriss.nur_computer')}</p>
-          </div>
-        ) : (
-          <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-3">
-            <Monitor size={22} className="mt-0.5 shrink-0 text-muted" />
-            <p className="t-sub">{t('grundriss.nur_ansehen')}</p>
-          </div>
-        )}
+        <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-3">
+          <Monitor size={22} className="mt-0.5 shrink-0 text-muted" />
+          <p className="t-sub">{t(admin ? 'grundriss.nur_computer' : 'grundriss.nur_ansehen')}</p>
+        </div>
 
         {daten.raeume.length === 0 ? (
-          <Empty title={t('grundriss.leer')} hint={t('grundriss.leer_hinweis')} />
+          <Empty title={t('grundriss.leer')} hint={t(admin ? 'grundriss.leer_hinweis' : 'grundriss.leer_betrachter')} />
         ) : (
           <>
             <div data-tour="grundriss-raeume" className="flex flex-wrap gap-2">
@@ -455,6 +462,7 @@ export function Ansehen({
                 begehen={begehen}
                 onBegehen={onBegehen}
                 onGespeichert={onGespeichert}
+                bearbeiten={admin}
               />
             </div>
             {/* Kiste: ihre Karte wie bisher; Moebel, Regal, Schrank: die
@@ -484,7 +492,8 @@ export function Ansehen({
 
 export default function Grundriss() {
   const { gid = '' } = useParams()
-  const { project, canEdit } = useProject()
+  const { project } = useProject()
+  const admin = useAdmin()
   const { profile, user } = useAuth()
   const { t } = useSprache()
   const toast = useToast()
@@ -506,7 +515,7 @@ export default function Grundriss() {
   const begehen = begehenFuer !== null && begehenFuer === gid
   const begehenAngenommen = useCallback(() => setBegehenFuer(null), [])
 
-  const mitZeichner = zeichnen && canEdit
+  const mitZeichner = zeichnen && admin.ja
   const liste = useAsync(() => ladeGrundrisse(project.id), [project.id])
   /* Wechselt die Ansicht (Fenster schmaler oder breiter), zeigt die andere
    * Ansicht nicht die Daten vom Anfang: der Zeichner hat seitdem
@@ -559,7 +568,7 @@ export default function Grundriss() {
           kompakt
           liste={liste.data}
           aktiv={gid}
-          canEdit={canEdit}
+          canEdit={admin.ja}
           onNeu={() => setDialog('neu')}
           onUmbenennen={() => setDialog('umbenennen')}
           onLoeschen={loeschenFragen}
@@ -585,6 +594,11 @@ export default function Grundriss() {
   const kopf = (
     <>
       <AppHeader title={t('grundriss.titel')} subtitle={project.name} back={`/app/p/${project.id}`} sticky={!mitZeichner} />
+      {admin.fehler && zeichnen ? (
+        <div className="px-3 py-2 sm:px-5">
+          <ErrorBox error={admin.fehler} onRetry={admin.reload} />
+        </div>
+      ) : null}
       {liste.error ? (
         <div className="px-3 py-2 sm:px-5">
           <ErrorBox error={liste.error} onRetry={liste.reload} />
@@ -593,7 +607,7 @@ export default function Grundriss() {
         <Reiter
           liste={liste.data}
           aktiv={gid}
-          canEdit={canEdit}
+          canEdit={admin.ja}
           onNeu={() => setDialog('neu')}
           onUmbenennen={() => setDialog('umbenennen')}
           onLoeschen={loeschenFragen}
@@ -612,7 +626,9 @@ export default function Grundriss() {
     (daten.data.fuer !== mitZeichner || (daten.data.d !== null && daten.data.d.grundriss.id !== gid))
   const passend = daten.data && !alt ? daten.data.d : null
   let inhalt
-  if (daten.error) {
+  if (admin.laedt) {
+    inhalt = <Skelett />
+  } else if (daten.error) {
     inhalt = (
       <Page>
         <ErrorBox error={daten.error} onRetry={daten.reload} />
@@ -650,7 +666,7 @@ export default function Grundriss() {
       </Suspense>
     )
   } else {
-    inhalt = <Ansehen daten={passend} raumId={raumId} kisteId={kisteId} begehen={begehen} onBegehen={begehenAngenommen} onGespeichert={daten.reload} />
+    inhalt = <Ansehen daten={passend} raumId={raumId} kisteId={kisteId} begehen={begehen} onBegehen={begehenAngenommen} onGespeichert={daten.reload} admin={admin.ja} />
   }
 
   // Der Zeichner bringt den Kopf in seiner eigenen Leiste mit.

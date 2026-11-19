@@ -6,22 +6,25 @@ import { Ausschnitt } from '../components/Ausschnitt'
 import { FuellBalken } from '../components/Fuellstand'
 import { PunktBild } from '../components/PunktBild'
 import { trefferOrt } from '../components/plan/lage'
-import { Badge, Button, CodeChip, Empty, ErrorBox, Input, Loading, Spinner, StatusPill } from '../components/ui'
-import { inhaltSuchen } from '../lib/api'
+import { Badge, Button, Card, CodeChip, Empty, ErrorBox, Input, Loading, SectionTitle, Spinner } from '../components/ui'
+import { ZustandPill } from '../components/BestandDialoge'
+import { inhaltSuchen, listBestand, listKategorien, listProjects } from '../lib/api'
+import { mengeText } from '../lib/lager'
 import { useIstDesktop } from '../lib/desktop'
 import { useSprache } from '../lib/i18n'
 import { signedUrls } from '../lib/media'
 import { rahmenVon } from '../lib/rahmen'
-import type { ItemContent, ItemPhoto, SuchTreffer } from '../lib/types'
+import type { Bestand, ItemContent, ItemPhoto, SuchTreffer } from '../lib/types'
 import { cx } from '../lib/util'
 
-/* Suchen ueber alle Umzuege.
+/* Suchen ueber alle Lager (E105): Kisten (Inhalt) und Produkte (Bestand).
  *
- * "Kleber" eintippen, und es kommt das Bild des Klebers, und darunter,
- * wo er ist: welcher Umzug, welches Zimmer, welche Kiste, welche Schicht,
- * und Platz und Hoehe im Grundriss ("Neue Wohnung, Wohnzimmer, Regal
- * Billy, Fach 2 (Ebene 2), 44 bis 78 cm ueber dem Boden"). Dinge in einem
- * Moebel haben den Platz des Moebels.
+ * "Kleber" eintippen, und es kommt zuerst, ob es ihn als Produkt gibt (im
+ * Lager, nur noch X, gibt es nicht mehr, mit Lager und Bereich), und dann
+ * das Bild des Klebers in einer Kiste, und darunter, wo sie ist: welches
+ * Lager, welcher Bereich, welche Kiste, und Platz und Hoehe im Grundriss.
+ * Produkte (Bestand) sucht die Seite im Browser ueber die Lager, in denen
+ * man Mitglied ist; Kisten sucht die Datenbank (inhalt_suchen).
  *
  * Am Handy fuehrt ein Tipp direkt in die Kiste bzw. das Moebel, mit
  * ?inhalt=<id>: oben das Band mit dem Bild, die Zeile gerahmt, unten der
@@ -39,6 +42,21 @@ import { cx } from '../lib/util'
 const Lageplan = lazy(() => import('../components/plan/Lageplan').then((m) => ({ default: m.Lageplan })))
 
 const WARTEN_MS = 300
+/** So viele Produkte zeigt die Seite. */
+const MAX_PRODUKTE = 20
+
+/** Ein Ding aus dem Bestand mit dem Lager und dem Bereich, in dem es liegt. */
+interface Produkt {
+  b: Bestand
+  lager: string
+  bereich: string | null
+}
+
+/** Alle Woerter der Anfrage muessen im Namen oder Ort stehen. */
+function passt(p: Produkt, woerter: string[]): boolean {
+  const heu = `${p.b.name} ${p.b.ort ?? ''}`.toLowerCase()
+  return woerter.every((w) => heu.includes(w))
+}
 /** So viele Treffer zeigt die Seite. Einer mehr wird geholt, um zu
  *  wissen, ob es noch weitere gibt. */
 const MAX_TREFFER = 60
@@ -98,6 +116,7 @@ export default function Suche() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const suchwort = q.trim()
+  const sucht = suchwort.length >= 2
   const gewaehltId = params.get('t')
 
   /* Das Feld hat seinen eigenen Text, die Adresse folgt ihm verzoegert.
@@ -127,6 +146,11 @@ export default function Suche() {
   const [laedt, setLaedt] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
   const [versuch, setVersuch] = useState(0)
+  /* Der Bestand aller Lager, einmal geladen, sobald gesucht wird. */
+  const [produkte, setProdukte] = useState<Produkt[] | null>(null)
+  const [produkteLaedt, setProdukteLaedt] = useState(false)
+  const [produkteFehler, setProdukteFehler] = useState<string | null>(null)
+  const [produkteVersuch, setProdukteVersuch] = useState(0)
   const [fotoUrls, setFotoUrls] = useState<Map<string, string>>(new Map())
   const [fotoOffen, setFotoOffen] = useState(false)
 
@@ -137,6 +161,47 @@ export default function Suche() {
     return () => window.clearTimeout(zeit)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, suchwort])
+
+  /* Bestand holen: ein Mal je Besuch (und bei "Nochmal"). Ein Fehler steht
+   * sichtbar da; die Kistensuche laeuft trotzdem weiter. */
+  useEffect(() => {
+    if (suchwort.length < 2 || produkte !== null) return
+    let alive = true
+    setProdukteLaedt(true)
+    setProdukteFehler(null)
+    ;(async () => {
+      const lager = await listProjects()
+      const teile = await Promise.all(
+        lager.map(async (l) => {
+          const [bestand, kat] = await Promise.all([listBestand(l.project.id), listKategorien(l.project.id)])
+          return bestand.map<Produkt>((b) => ({
+            b,
+            lager: l.project.name,
+            bereich: kat.find((k) => k.id === b.kategorie_id)?.name ?? null,
+          }))
+        }),
+      )
+      return teile.flat()
+    })()
+      .then((alle) => {
+        if (alive) setProdukte(alle)
+      })
+      .catch((err: unknown) => {
+        if (alive) setProdukteFehler(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (alive) setProdukteLaedt(false)
+      })
+    return () => {
+      alive = false
+    }
+    // produkte gehoert nicht in die Liste: einmal geladen, nie wieder.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sucht, produkteVersuch])
+
+  const woerter = suchwort.toLowerCase().split(/\s+/).filter(Boolean)
+  const produktTreffer =
+    suchwort.length >= 2 && produkte ? produkte.filter((p) => passt(p, woerter)).slice(0, MAX_PRODUKTE) : []
 
   /* Suchen. Eine alte Antwort, die nach einer neueren ankommt, wird
    * verworfen. Die alten Treffer bleiben stehen, bis die neuen da sind:
@@ -155,9 +220,11 @@ export default function Suche() {
     inhaltSuchen(suchwort, MAX_TREFFER + 1)
       .then(async (alle) => {
         if (!alive) return
-        const liste = alle.slice(0, MAX_TREFFER)
+        // Moebel gibt es in Magazino nicht mehr; alte Eintraege bleiben stumm.
+        const ohneMoebel = alle.filter((z) => z.item_kind !== 'furniture')
+        const liste = ohneMoebel.slice(0, MAX_TREFFER)
         setTreffer(liste)
-        setMehr(alle.length > MAX_TREFFER)
+        setMehr(ohneMoebel.length > MAX_TREFFER)
         /* Fuer Treffer ohne gespeicherten Ausschnitt wird der Rahmen live
          * aus dem Foto geschnitten. Dafuer braucht es die Adressen. */
         const pfade = [
@@ -191,8 +258,7 @@ export default function Suche() {
   }
 
   function zurKiste(z: SuchTreffer) {
-    if (z.item_kind === 'furniture') nav(`/app/p/${z.project_id}/moebel/${z.item_id}?inhalt=${z.content_id}`)
-    else nav(`/app/p/${z.project_id}/kisten/${z.item_id}?inhalt=${z.content_id}`)
+    nav(`/app/p/${z.project_id}/kisten/${z.item_id}?inhalt=${z.content_id}`)
   }
 
   function zumPlan(z: SuchTreffer) {
@@ -217,9 +283,29 @@ export default function Suche() {
   const zuKurz = text.trim().length === 1
   const offen = desktop && treffer && gewaehltId ? (treffer.find((z) => z.content_id === gewaehltId) ?? null) : null
 
+  const produktListe =
+    produktTreffer.length > 0 ? (
+      <section className="mb-5">
+        <SectionTitle>
+          {t('lager.suche_produkte')} ({produktTreffer.length})
+        </SectionTitle>
+        <ul className="space-y-2">
+          {produktTreffer.map((p) => (
+            <li key={p.b.id}>
+              <ProduktZeile
+                p={p}
+                onTipp={() => nav(`/app/p/${p.b.project_id}/bestand?q=${encodeURIComponent(p.b.name)}`)}
+              />
+            </li>
+          ))}
+        </ul>
+      </section>
+    ) : null
+
   const liste =
     treffer && treffer.length > 0 ? (
       <>
+        <SectionTitle>{t('lager.suche_kisten')}</SectionTitle>
         <p className="t-sub mb-2 flex items-center gap-2" aria-live="polite">
           {mehr
             ? t('suche.treffer.mehr', { n: MAX_TREFFER })
@@ -246,7 +332,7 @@ export default function Suche() {
 
   return (
     <>
-      <AppHeader title={t('suche.titel')} subtitle={t('suche.untertitel')} />
+      <AppHeader title={t('suche.titel')} subtitle={t('lager.suche_untertitel')} />
       <Page wide={desktop}>
         <form
           role="search"
@@ -269,7 +355,7 @@ export default function Suche() {
             autoFocus={!q}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={t('suche.platzhalter')}
+            placeholder={t('lager.suche_platzhalter')}
             aria-label={t('suche.feld')}
             className="h-14 ps-11 pe-12 text-lg [&::-webkit-search-cancel-button]:hidden"
           />
@@ -296,15 +382,34 @@ export default function Suche() {
           <Empty
             icon={<Search size={36} />}
             title={zuKurz ? t('suche.zu_kurz') : t('suche.feld')}
-            hint={t('suche.hinweis')}
+            hint={t('lager.suche_hinweis')}
           />
-        ) : fehler ? (
-          <ErrorBox error={fehler} onRetry={() => setVersuch((v) => v + 1)} />
-        ) : treffer === null || (treffer.length === 0 && laedt) ? (
-          <Loading />
-        ) : treffer.length === 0 ? (
-          <Empty icon={<Package size={36} />} title={t('suche.nichts')} />
-        ) : desktop ? (
+        ) : (
+          <>
+            {produkteFehler ? (
+              <div className="mb-4">
+                <ErrorBox
+                  error={produkteFehler}
+                  onRetry={() => {
+                    setProdukte(null)
+                    setProdukteVersuch((v) => v + 1)
+                  }}
+                />
+              </div>
+            ) : null}
+            {fehler ? (
+              <div className="mb-4">
+                <ErrorBox error={fehler} onRetry={() => setVersuch((v) => v + 1)} />
+              </div>
+            ) : null}
+            {produktListe}
+            {fehler ? null : treffer === null || (treffer.length === 0 && laedt) ? (
+              produktTreffer.length === 0 ? <Loading /> : null
+            ) : treffer.length === 0 ? (
+              produktTreffer.length === 0 && !produkteLaedt && !produkteFehler ? (
+                <Empty icon={<Package size={36} />} title={t('suche.nichts')} />
+              ) : null
+            ) : desktop ? (
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] items-start gap-6">
             <div className="min-w-0">{liste}</div>
             <div className="sticky top-16 min-w-0">
@@ -325,6 +430,8 @@ export default function Suche() {
           </div>
         ) : (
           liste
+        )}
+          </>
         )}
       </Page>
 
@@ -381,11 +488,8 @@ function TrefferZeile({
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <CodeChip code={z.item_code} size="sm" />
           <FuellBalken wert={z.item_fuellstand} groesse="klein" ohneWert="nichts" />
-          <Badge color={z.room_color ?? undefined}>{z.room_name ?? t('suche.ohne_zimmer')}</Badge>
+          <Badge color={z.room_color ?? undefined}>{z.room_name ?? t('lager.bestand_ohne_bereich')}</Badge>
           {z.schicht ? <Badge>{t('schichten.schicht_n', { n: z.schicht })}</Badge> : null}
-          {/* Der Platz im Grundriss ist das Ziel. Solange die Kiste nicht
-              da ist, steht sie noch woanders. */}
-          {z.item_status !== 'arrived' ? <StatusPill status={z.item_status} size="sm" /> : null}
           {z.bestaetigt === false ? (
             <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">
               {t('schichten.verneint')}
@@ -418,7 +522,6 @@ function TrefferDetail({
   onPlan: () => void
 }) {
   const { t } = useSprache()
-  const moebel = z.item_kind === 'furniture'
   const imPlan = z.raum_id !== null
   const hatFoto = z.photo_id !== null && z.foto_pfad !== null
 
@@ -441,27 +544,26 @@ function TrefferDetail({
             ) : null}
             {z.inhalt}
           </p>
-          <div className="flex flex-wrap gap-2">
-            <StatusPill status={z.item_status} size="sm" />
-            {z.bestaetigt === false ? (
+          {z.bestaetigt === false ? (
+            <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1 rounded-lg bg-danger/15 px-2 py-0.5 text-sm font-black text-danger">
                 {t('schichten.verneint')}
               </span>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-base">
-        <dt className="text-muted">{t('suche.umzug')}</dt>
+        <dt className="text-muted">{t('lager.suche_lager')}</dt>
         <dd className="t-name min-w-0 break-words">{z.project_name}</dd>
 
-        <dt className="text-muted">{t('suche.zimmer')}</dt>
+        <dt className="text-muted">{t('lager.bereich')}</dt>
         <dd className="min-w-0">
           {z.room_name ? (
             <Badge color={z.room_color ?? undefined}>{z.room_name}</Badge>
           ) : (
-            <span className="text-muted">{t('suche.ohne_zimmer')}</span>
+            <span className="text-muted">{t('lager.bestand_ohne_bereich')}</span>
           )}
         </dd>
 
@@ -504,13 +606,13 @@ function TrefferDetail({
             </div>
           }
         >
-          <Lageplan itemId={z.item_id} projectId={z.project_id} angekommen={moebel || z.item_status === 'arrived'} />
+          <Lageplan itemId={z.item_id} projectId={z.project_id} angekommen />
         </Suspense>
       ) : null}
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={onKiste}>
-          <Package size={18} /> {moebel ? t('suche.zum_moebel') : t('suche.zur_kiste')}
+          <Package size={18} /> {t('suche.zur_kiste')}
         </Button>
         {hatFoto ? (
           <Button variant="outline" onClick={onFoto}>
@@ -524,5 +626,31 @@ function TrefferDetail({
         ) : null}
       </div>
     </div>
+  )
+}
+
+/** Ein Produkt aus dem Bestand: Zustand, Menge, Lager und Bereich. Ein Tipp
+ *  fuehrt in den Bestand dieses Lagers, schon auf den Namen gesucht. */
+function ProduktZeile({ p, onTipp }: { p: Produkt; onTipp: () => void }) {
+  const ort = [p.lager, p.bereich, p.b.ort].filter(Boolean).join(' . ')
+  return (
+    <Card className="p-0">
+      <button
+        type="button"
+        onClick={onTipp}
+        className="flex w-full items-start gap-3 rounded-karte p-3 text-start transition hover:bg-raised active:scale-[0.99]"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="t-name block break-words">{p.b.name}</span>
+          <span className="t-sub mt-0.5 block break-words">{ort}</span>
+          <span className="mt-2 block">
+            <ZustandPill b={p.b} suche />
+          </span>
+        </span>
+        <span className="shrink-0 text-end text-xl font-black tabular-nums" dir="ltr">
+          {mengeText(p.b.menge)} <span className="text-sm font-bold text-muted">{p.b.einheit}</span>
+        </span>
+      </button>
+    </Card>
   )
 }

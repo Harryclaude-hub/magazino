@@ -1,11 +1,10 @@
 // Prueft die Welt draussen (src/components/plan3d/aussen3d.ts) ohne
-// Browser: unter 60 000 Dreiecke, kein Teil (ausser Wiese und Himmel) in
-// der Wohnung (rahmen, ab 2 cm unter ihrem Boden aufwaerts) oder in einem
-// freien Bereich (frei, jede Hoehe), Wiese unter 0, Himmel und Dunst wie
-// verlangt, Strasse und Nachbarhaeuser im richtigen Abstand, gleiche
-// Eingabe gibt Ecke fuer Ecke dieselbe Welt, dispose() gibt alles frei.
-// Jedes verschmolzene Teil bleibt als Gruppe im Mesh, darum wird je Teil
-// geprueft und nicht nur der Rahmen des ganzen Meshes.
+// Browser: nur Himmel, ebener Boden und ein Bretterzaun (kein Baum, keine
+// Strasse, kein Haus), unter 30 000 Dreiecke, kein Teil in der Wohnung oder
+// in einem freien Bereich, Zaun etwa 3 m weg und 1,5 m hoch, Himmel und
+// Dunst wie verlangt, gleiche Eingabe gibt Ecke fuer Ecke dieselbe Welt,
+// dispose() gibt alles frei. Jedes verschmolzene Teil bleibt als Gruppe im
+// Mesh, darum wird je Teil geprueft.
 // Aufruf im Projektordner: node scripts/aussen-pruefen.mjs
 // Ausgabe "ok" oder die abweichenden Faelle, Exit 1 bei Fehlern.
 import { BackSide, Color, PerspectiveCamera } from 'three'
@@ -98,14 +97,14 @@ function pruefen(name, optionen) {
   const nach = new Map(meshes.map((m) => [m.name, m]))
 
   // Welche Meshes es gibt: Fassade nur, wenn die Wohnung hoeher liegt.
-  for (const n of ['himmel', 'boden', 'wege', 'gruen', 'bauten']) wahr(`${name}: Mesh ${n} da`, nach.has(n))
-  wahr(`${name}: Fassade genau dann, wenn die Wohnung hoeher liegt`, nach.has('fassade') === h > 0.05)
-  wahr(`${name}: hoechstens 6 Zeichenaufrufe`, meshes.length <= 6)
-  wahr(`${name}: hoechstens 4 Materialien`, new Set(meshes.map((m) => m.material)).size <= 4)
+  for (const n of ['himmel', 'boden', 'zaun']) wahr(`${name}: Mesh ${n} da`, nach.has(n))
+  for (const n of ['wege', 'gruen', 'bauten', 'fassade']) wahr(`${name}: kein Mesh ${n}`, !nach.has(n))
+  wahr(`${name}: genau 3 Zeichenaufrufe`, meshes.length === 3)
+  wahr(`${name}: hoechstens 3 Materialien`, new Set(meshes.map((m) => m.material)).size <= 3)
 
   // Dreiecke.
   const summe = meshes.reduce((s, m) => s + dreiecke(m), 0)
-  wahr(`${name}: unter 60 000 Dreiecke (${summe})`, summe < 60000)
+  wahr(`${name}: unter 30 000 Dreiecke (${summe})`, summe < 30000)
 
   // Farben je Ecke, keine kaputten Zahlen.
   for (const m of meshes) {
@@ -196,63 +195,30 @@ function pruefen(name, optionen) {
     })
   }
 
-  // Plattenweg ums Haus: Teile innerhalb von 3 m um die Wohnung.
-  const wege = nach.get('wege')
-  if (wege) {
-    const ring = teilRahmen(wege).filter(
-      (b) => b.x0 >= r.x0 - 3 - EPS && b.x1 <= r.x1 + 3 + EPS && b.z0 >= r.z0 - 3 - EPS && b.z1 <= r.z1 + 3 + EPS,
-    )
-    wahr(`${name}: Plattenweg ums Haus`, ring.length >= 2)
-    // Strasse: das 6 m breite, lange Band, Mitte 12 bis 15 m vom Haus.
-    const fahrbahn = teilRahmen(wege).filter((b) => {
-      const lang = Math.max(b.x1 - b.x0, b.z1 - b.z0)
-      const breit = Math.min(b.x1 - b.x0, b.z1 - b.z0)
-      return lang > 300 && Math.abs(breit - 6) < 1e-3
-    })
-    wahr(`${name}: genau eine Fahrbahn (${fahrbahn.length})`, fahrbahn.length >= 1)
-    for (const b of fahrbahn) {
-      const laengsX = b.x1 - b.x0 > b.z1 - b.z0
-      const mitte = laengsX ? (b.z0 + b.z1) / 2 : (b.x0 + b.x1) / 2
-      const [a0, a1] = laengsX ? [r.z0, r.z1] : [r.x0, r.x1]
-      const d = mitte > a1 ? mitte - a1 : a0 - mitte
-      wahr(`${name}: Strasse 12 bis 15 m vom Haus (${d.toFixed(2)})`, d >= 12 - EPS && d <= 15 + EPS)
-      wahr(`${name}: Strasse an einer Laengsseite`, laengsX === r.x1 - r.x0 >= r.z1 - r.z0)
-    }
-  }
-
-  // Nachbarhaeuser: die hohen Koerper in bauten, 25 bis 45 m weg.
-  const bauten = nach.get('bauten')
-  if (bauten) {
-    const haeuser = teilRahmen(bauten).filter((b) => b.y1 - b.y0 > 5 && b.x1 - b.x0 > 5)
-    wahr(`${name}: 2 bis 4 Nachbarhaeuser (${haeuser.length})`, haeuser.length >= 2 && haeuser.length <= 4)
-    wahr(`${name}: Zaehler Haeuser stimmt`, haeuser.length === w.gruppe.userData.haeuser)
-    for (const b of haeuser) {
-      const d = abstand(b, r)
-      wahr(`${name}: Nachbarhaus 25 bis 45 m weg (${d.toFixed(1)})`, d >= 25 - EPS && d <= 45 + EPS)
-    }
-  }
-  const u = w.gruppe.userData
-  wahr(`${name}: 6 bis 10 Baeume (${u.baeume})`, u.baeume >= 6 && u.baeume <= 10)
-  wahr(`${name}: ein paar Hecken (${u.hecken})`, u.hecken >= 2)
-
-  // Fassade unter der Wohnung reicht bis zum Boden und endet 2 cm unter ihr.
-  const fassade = nach.get('fassade')
-  if (fassade) {
-    const teile = teilRahmen(fassade)
-    wahr(`${name}: Fassade endet bei -0,02`, Math.max(...teile.map((b) => b.y1)) <= -0.02 + 1e-6)
-    wahr(`${name}: Fassade steht auf dem Boden`, Math.min(...teile.map((b) => b.y0)) <= -h - 0.02)
-    // Duenne Stuecke (Fensterband, Sockel) muessen aus der Fassade ragen,
-    // sonst laege ihre Aussenseite in der Fassade und flimmerte.
-    const duenn = teile.filter((b) => Math.min(b.x1 - b.x0, b.z1 - b.z0) <= 0.1)
-    wahr(`${name}: Fassade hat Fensterbaender`, h < 2 || duenn.length > 0)
-    for (const b of duenn) {
-      const ragt = b.x0 < r.x0 - 0.01 || b.z0 < r.z0 - 0.01 || b.x1 > r.x1 + 0.01 || b.z1 > r.z1 + 0.01
-      if (!ragt) {
-        console.log('ABWEICHUNG', name, 'Fensterband oder Sockel liegt in der Fassade', JSON.stringify(b))
+  // Bretterzaun: 3 m um die Wohnung, 1,5 m hoch, nichts weiter weg als 3,2 m.
+  const zaun = nach.get('zaun')
+  if (zaun) {
+    const teile = teilRahmen(zaun)
+    wahr(`${name}: Zaun hat Teile (${teile.length})`, teile.length > 20)
+    const hoch = Math.max(...teile.map((b) => b.y1)) - (-h - 0.02)
+    wahr(`${name}: Zaun hoechstens 1,7 m hoch (${hoch.toFixed(2)})`, hoch <= 1.7 + EPS && hoch >= 1.45)
+    for (const b of teile) {
+      const dx = Math.max(r.x0 - b.x1, b.x0 - r.x1, 0)
+      const dz = Math.max(r.z0 - b.z1, b.z0 - r.z1, 0)
+      if (Math.max(dx, dz) > 3.2 || Math.max(dx, dz) < 2.7) {
+        console.log('ABWEICHUNG', name, 'Zaunteil nicht etwa 3 m von der Wohnung', JSON.stringify(b))
         fehler++
+        break
       }
     }
+    // Senkrechte Bretter: schmal, hoch.
+    const bretter = teile.filter((b) => b.y1 - b.y0 > 1.3 && Math.max(b.x1 - b.x0, b.z1 - b.z0) < 0.2)
+    wahr(`${name}: senkrechte Bretter da (${bretter.length})`, bretter.length > 20)
+    // Zwei waagerechte Latten je Seite (lang, niedrig).
+    const latten = teile.filter((b) => b.y1 - b.y0 < 0.2 && Math.max(b.x1 - b.x0, b.z1 - b.z0) > 1)
+    wahr(`${name}: waagerechte Latten da (${latten.length})`, latten.length >= 8 || frei.length > 0)
   }
+  wahr(`${name}: keine Baeume, Hecken, Haeuser`, w.gruppe.userData.baeume === undefined && w.gruppe.userData.haeuser === undefined)
 
   return { welt: w, summe }
 }
@@ -326,9 +292,9 @@ for (const [name, opt] of FAELLE) {
 {
   const a = baueUmgebung({ farben: F, rahmen: [0, 0, 10.2, 7.4], frei: [] })
   const b = baueUmgebung({ farben: F, rahmen: [0, 0, 10.4, 7.4], frei: [] })
-  const ga = meshesVon(a.gruppe).find((m) => m.name === 'gruen').geometry.attributes.position.array
-  const gb = meshesVon(b.gruppe).find((m) => m.name === 'gruen').geometry.attributes.position.array
-  wahr('andere Wohnung, andere Baeume', ga.length !== gb.length || ga.some((v, i) => v !== gb[i]))
+  const ga = meshesVon(a.gruppe).find((m) => m.name === 'zaun').geometry.attributes.position.array
+  const gb = meshesVon(b.gruppe).find((m) => m.name === 'zaun').geometry.attributes.position.array
+  wahr('andere Wohnung, anderer Zaun', ga.length !== gb.length || ga.some((v, i) => v !== gb[i]))
   a.dispose()
   b.dispose()
 }

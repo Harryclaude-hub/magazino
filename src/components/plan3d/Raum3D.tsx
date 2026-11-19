@@ -1211,7 +1211,8 @@ export default function Raum3D({
   // lassen sich nicht tragen; jedes Moebel dreht um die Mitte seines
   // Grundrisses (Meter, Welt x und z), damit Speichern genau das trifft,
   // was man in 3D sieht.
-  const tragenAn = gehen && geht === 'ja' && !eigeneWelt && daten.raeume.length > 0
+  // Nur wer auch speichern darf (Admin): sonst bleibt alles ansehen.
+  const tragenAn = gehen && geht === 'ja' && !eigeneWelt && daten.raeume.length > 0 && Boolean(onMoebelSpeichern)
   const [trag, setTrag] = useState<MoebelTragZustand>(TRAG_START)
   const traegt = tragenAn ? trag.traegt : null
   const gesperrt = useMemo(() => new Set(daten.objekte.filter((o) => moebelArt(o.name ?? '') === 'mauer').map((o) => o.id)), [daten.objekte])

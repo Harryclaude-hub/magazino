@@ -301,8 +301,8 @@ wahr('woerter.ts laedt siedlung.ts nicht beim Start', !/bausteine\/siedlung/.tes
 
 {
   const app = lesen('src/App.tsx')
-  wahr('App.tsx: Siedlungen nur per lazy()', /lazy\(\(\) => import\('\.\/pages\/Siedlungen'\)\)/.test(app))
-  wahr('App.tsx: SiedlungAnsicht nur per lazy()', /lazy\(\(\) => import\('\.\/pages\/SiedlungAnsicht'\)\)/.test(app))
+  // E104: die Siedlung ist aus dem Programm genommen, App.tsx laedt sie gar nicht mehr (nicht beim Start, nicht per lazy).
+  wahr('App.tsx: Siedlung wird nicht mehr geladen (E104)', !/pages\/Siedlungen'|pages\/SiedlungAnsicht'/.test(app))
   wahr('App.tsx: kein fester Import der Siedlung', !/^import .* from '\.\/pages\/Siedlung/m.test(app))
   for (const datei of ['src/App.tsx', 'src/components/AppShell.tsx', 'src/pages/Settings.tsx', 'src/pages/AppLayout.tsx']) {
     const txt = lesen(datei)
@@ -345,7 +345,8 @@ wahr('woerter.ts laedt siedlung.ts nicht beim Start', !/bausteine\/siedlung/.tes
     }
     wahr('Knopf und Schalter sind beim Start da', start.some(([, txt]) => txt.includes('kistly.siedlung.knopf')) && start.some(([, txt]) => txt.includes('nav.siedlung')))
     const alle = fs.readdirSync(path.join(ordner, 'assets')).filter((f) => f.endsWith('.js'))
-    wahr('die Seiten der Siedlung liegen in eigenen Teilen', alle.some((f) => lesen(path.join(ordner, 'assets', f)).includes('siedlung.leer_titel')))
+    // E104: Siedlung ist nicht mehr im Bauergebnis, kein eigener Teil mehr.
+    wahr('die Siedlung ist aus dem Bauergebnis genommen (E104)', !alle.some((f) => lesen(path.join(ordner, 'assets', f)).includes('siedlung.leer_titel')))
   }
 }
 

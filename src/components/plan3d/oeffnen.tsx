@@ -99,6 +99,7 @@ export function Knopf3D({
   begehen = false,
   onBegehen,
   onGespeichert,
+  bearbeiten = false,
 }: {
   daten: GrundrissDaten
   raumId?: string | null
@@ -112,6 +113,9 @@ export function Knopf3D({
   onBegehen?: () => void
   /** E89: im Fenster wurde gespeichert; kommt beim Schliessen einmal. */
   onGespeichert?: () => void
+  /** Nur Admins (Karam): Moebel beim Begehen tragen und speichern. Sonst
+   *  nur ansehen. */
+  bearbeiten?: boolean
 }) {
   const { t } = useSprache()
   const [offen, setOffen] = useState(begehen)
@@ -148,7 +152,7 @@ export function Knopf3D({
       </Button>
       {offen ? (
         <Fenster3D titel={t('plan3d.titel')} onClose={zu}>
-          <Ansicht3D daten={aktuell} raumId={raumId} hervor={hervor} onSchliessen={zu} startGehen={startGehen} onMoebelSpeichern={moebelSpeichern} />
+          <Ansicht3D daten={aktuell} raumId={raumId} hervor={hervor} onSchliessen={zu} startGehen={startGehen} onMoebelSpeichern={bearbeiten ? moebelSpeichern : undefined} />
         </Fenster3D>
       ) : null}
     </>

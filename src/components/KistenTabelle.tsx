@@ -1,14 +1,14 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, Crosshair, DoorOpen, ExternalLink, User, X } from 'lucide-react'
-import { Button, Card, CodeChip, IconButton, StatusPill } from './ui'
+import { ArrowDown, ArrowUp, ArrowUpDown, Crosshair, DoorOpen, ExternalLink, X } from 'lucide-react'
+import { Button, Card, CodeChip, IconButton } from './ui'
 import { FuellBalken } from './Fuellstand'
 import { MarkIcon } from './Mark'
 import { TagTile, zielFuerItem } from './ItemRow'
 import { useSprache } from '../lib/i18n'
 import { groesseSatz, useKistenGroessen } from '../lib/groessen'
 import { markFlaeche } from '../lib/marken'
-import type { Item, ItemStatus, Tag } from '../lib/types'
+import type { Item, Tag } from '../lib/types'
 import { cx } from '../lib/util'
 
 /* Kistenliste am Computer: Tabelle mit sortierbaren Spalten und daneben
@@ -20,8 +20,7 @@ import { cx } from '../lib/util'
  * Handy zeigt weiter die Zeilen aus ItemRow.
  */
 
-type Spalte = 'nummer' | 'zimmer' | 'groesse' | 'status' | 'fuellstand' | 'platz'
-const STATUS_RANG: Record<ItemStatus, number> = { open: 0, transit: 1, arrived: 2 }
+type Spalte = 'nummer' | 'bereich' | 'groesse' | 'fuellstand' | 'platz'
 
 type TagVon = (id: string | null | undefined) => Tag | undefined
 
@@ -42,21 +41,17 @@ function platzWort(item: Item, t: (k: string) => string): string | null {
 export function KistenTabelle({
   rows,
   tagById,
-  canEdit,
-  onStatus,
+  bereichName,
   gewaehltId,
   onWaehlen,
-  auswahl,
   unvollstaendig,
 }: {
   rows: Item[]
   tagById: TagVon
-  canEdit: boolean
-  onStatus: (item: Item) => void
+  /** Name des Bereichs zu einem Kuerzel (room_id). */
+  bereichName: (tagId: string | null) => string
   gewaehltId: string | null
   onWaehlen: (id: string) => void
-  /** Auswahlmodus wie in ItemRow: Klick hakt an statt zu zeigen. */
-  auswahl: { an: boolean; ids: Set<string>; umschalten: (id: string) => void }
   /** Es gibt mehr Eintraege, als geladen sind. */
   unvollstaendig: boolean
 }) {
@@ -69,12 +64,10 @@ export function KistenTabelle({
       switch (sort.spalte) {
         case 'nummer':
           return `${i.prefix}\u0000${String(i.seq).padStart(6, '0')}`
-        case 'zimmer':
-          return tagById(i.room_id)?.name.toLocaleLowerCase() ?? '￿'
+        case 'bereich':
+          return i.room_id ? bereichName(i.room_id).toLocaleLowerCase() : '￿'
         case 'groesse':
           return i.size
-        case 'status':
-          return STATUS_RANG[i.status]
         case 'fuellstand':
           // Ohne Angabe ans Ende (aufsteigend), wie leere Zimmer.
           return i.fuellstand ?? 1000
@@ -88,7 +81,7 @@ export function KistenTabelle({
       const v = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))
       return v * sort.richtung
     })
-  }, [rows, sort, tagById])
+  }, [rows, sort, bereichName])
 
   function umschalten(spalte: Spalte) {
     setSort((s) =>
@@ -127,11 +120,9 @@ export function KistenTabelle({
         <table className="kisten-tabelle w-full border-collapse text-start">
           <thead className="border-b-2 border-line bg-surface">
             <tr>
-              {auswahl.an ? <th scope="col" className="w-12" aria-label={t('auswahl.zeile_waehlen')} /> : null}
               {kopf('nummer', t('kisten.spalte_nummer'), 'ps-3')}
-              {kopf('zimmer', t('begriff.zimmer'))}
+              {kopf('bereich', t('begriff.bereich'))}
               {kopf('groesse', t('begriff.groesse'))}
-              {kopf('status', t('begriff.status'))}
               {kopf('fuellstand', t('fuellstand.spalte'))}
               {kopf('platz', t('kisten.spalte_platz'), 'pe-3')}
             </tr>
@@ -139,11 +130,10 @@ export function KistenTabelle({
           <tbody className="zebra">
             {sortiert.map((item) => {
               const room = tagById(item.room_id)
-              const person = tagById(item.person_id)
-              const streifen = item.mark_color ?? room?.color ?? person?.color ?? '#94a3b8'
-              const gewaehlt = auswahl.an ? auswahl.ids.has(item.id) : gewaehltId === item.id
+              const streifen = item.mark_color ?? room?.color ?? '#94a3b8'
+              const gewaehlt = gewaehltId === item.id
               const platz = platzWort(item, t)
-              const klick = () => (auswahl.an ? auswahl.umschalten(item.id) : onWaehlen(item.id))
+              const klick = () => onWaehlen(item.id)
               return (
                 <tr
                   key={item.id}
@@ -153,19 +143,6 @@ export function KistenTabelle({
                   style={{ '--mark': markFlaeche(item.mark_color) } as CSSProperties}
                   className="tabelle-zeile cursor-pointer border-b border-line last:border-b-0 data-gewaehlt:*:bg-ink/[0.08]"
                 >
-                  {auswahl.an ? (
-                    <td className="ps-3 align-middle">
-                      <span
-                        aria-hidden="true"
-                        className={cx(
-                          'flex h-7 w-7 items-center justify-center rounded-lg border-2',
-                          gewaehlt ? 'border-ink bg-ink text-paper' : 'border-line bg-surface',
-                        )}
-                      >
-                        {gewaehlt ? <Check size={17} /> : null}
-                      </span>
-                    </td>
-                  ) : null}
                   <td className="py-2.5 ps-3 pe-2 align-middle">
                     <span className="flex items-center gap-3">
                       <span aria-hidden="true" className="h-10 w-1.5 shrink-0 rounded-full" style={{ background: streifen }} />
@@ -194,28 +171,15 @@ export function KistenTabelle({
                     </span>
                   </td>
                   <td className="px-1.5 align-middle">
-                    <span className="flex flex-col items-start gap-1">
-                      {room ? <TagTile tag={room} icon={<DoorOpen size={14} />} /> : null}
-                      {person ? <TagTile tag={person} icon={<User size={14} />} /> : null}
-                      {!room && !person ? <span className="t-sub">{t('kisten.ohne_zimmer')}</span> : null}
-                    </span>
+                    {room ? (
+                      <TagTile tag={{ ...room, name: bereichName(item.room_id) }} icon={<DoorOpen size={14} />} />
+                    ) : (
+                      <span className="t-sub">{t('lager.bestand_ohne_bereich')}</span>
+                    )}
                   </td>
                   <td className="px-1.5 align-middle">
                     <span className="t-serial block text-xl leading-none">{item.size}</span>
                     <span className="t-sub mt-1 hidden whitespace-nowrap text-sm 2xl:block">{t(`groesse.${item.size}`)}</span>
-                  </td>
-                  <td className="px-1.5 align-middle">
-                    <StatusPill
-                      status={item.status}
-                      size="sm"
-                      onClick={
-                        canEdit && !auswahl.an
-                          ? () => {
-                              onStatus(item)
-                            }
-                          : undefined
-                      }
-                    />
                   </td>
                   <td className="px-1.5 align-middle">
                     {item.fuellstand != null ? (
@@ -256,15 +220,15 @@ export function KistenVorschau({
   item,
   projectId,
   tagById,
+  bereichName,
   canEdit,
-  onStatus,
   onSchliessen,
 }: {
   item: Item | null
   projectId: string
   tagById: TagVon
+  bereichName: (tagId: string | null) => string
   canEdit: boolean
-  onStatus: (item: Item) => void
   onSchliessen: () => void
 }) {
   const { t, lang } = useSprache()
@@ -280,8 +244,7 @@ export function KistenVorschau({
   }
 
   const room = tagById(item.room_id)
-  const person = tagById(item.person_id)
-  const farbe = item.mark_color ?? room?.color ?? person?.color ?? '#94a3b8'
+  const farbe = item.mark_color ?? room?.color ?? '#94a3b8'
   const platz = platzWort(item, t)
 
   return (
@@ -303,18 +266,10 @@ export function KistenVorschau({
         <p className="t-name-lg mt-3 break-words">{item.title || t(`art.${item.kind}`)}</p>
         <p className="t-sub mt-1">{groesseSatz(t, lang, item.size, item.kind, groessen)}</p>
 
-        <div className="mt-4">
-          <StatusPill
-            status={item.status}
-            onClick={canEdit ? () => onStatus(item) : undefined}
-          />
-        </div>
-
         <div className="mt-5 grid gap-3 border-t border-line pt-4">
-          {room || person ? (
+          {room ? (
             <div className="flex flex-wrap gap-1.5">
-              {room ? <TagTile tag={room} icon={<DoorOpen size={14} />} /> : null}
-              {person ? <TagTile tag={person} icon={<User size={14} />} /> : null}
+              <TagTile tag={{ ...room, name: bereichName(item.room_id) }} icon={<DoorOpen size={14} />} />
             </div>
           ) : null}
           <div>
@@ -325,12 +280,6 @@ export function KistenVorschau({
             <div>
               <p className="text-sm font-black uppercase tracking-wider text-muted">{t('fuellstand.titel')}</p>
               <FuellBalken wert={item.fuellstand} className="mt-1" />
-            </div>
-          ) : null}
-          {item.target_room ? (
-            <div>
-              <p className="text-sm font-black uppercase tracking-wider text-muted">{t('begriff.ziel')}</p>
-              <p className="mt-0.5 break-words text-base">{item.target_room}</p>
             </div>
           ) : null}
           {item.fragile ? (

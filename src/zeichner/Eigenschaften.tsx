@@ -1,17 +1,14 @@
 import { SYMBOL_ARTEN } from './werkzeuge/strom'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, ExternalLink, Hand, Plus, RotateCcw, RotateCw, Trash2 } from 'lucide-react'
+import { Plus, RotateCcw, RotateCw, Trash2 } from 'lucide-react'
 import { Button, Chip, CodeChip, Input, Select } from '../components/ui'
 import { flaecheQm, raumTitel } from '../components/plan/hilfe'
 import { objektName } from '../components/plan/lage'
-import { listItems, produktLesen } from '../lib/api'
-import { farbeAusBild, istProduktLink, nachProdukt } from '../lib/produkt'
 import { BODEN_STANDARD, BODENFARBEN, kontrast, OBJEKTFARBEN, WANDFARBEN, type DatenFarbe } from '../lib/farben'
 import { cmText, laengeLesen } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
-import { MATERIALIEN, type Item, type Objekt, type Oeffnung, type PlanKiste, type PlanLinie, type PlanSymbol, type Raum, type Tag } from '../lib/types'
-import { centLesen, euroText } from '../lib/preis'
+import { MATERIALIEN, type Objekt, type Oeffnung, type PlanKiste, type PlanLinie, type PlanSymbol, type Raum, type Tag } from '../lib/types'
 import { cx } from '../lib/util'
 import {
   eckeEinfuegen,
@@ -50,7 +47,6 @@ export interface EigenschaftenProps {
   hinweis: (text: string) => void
   loeschenFragen: (raumId: string, codes: string[]) => void
   neuesZimmer: (raumId: string) => void
-  kisteInHand: (k: PlanKiste) => void
   vomPlatz: (k: PlanKiste) => void
 }
 
@@ -478,22 +474,6 @@ function OeffnungTeil({ p, o }: { p: EigenschaftenProps; o: Oeffnung }) {
 
 function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
   const { t } = useSprache()
-  const [eintraege, setEintraege] = useState<Item[] | null>(null)
-  const [produktLaedt, setProduktLaedt] = useState(false)
-  const [eintragFehler, setEintragFehler] = useState<string | null>(null)
-  const [versuch, setVersuch] = useState(0)
-  useEffect(() => {
-    let alive = true
-    setEintraege(null)
-    setEintragFehler(null)
-    listItems(p.projectId, { kind: 'furniture', limit: 300 })
-      .then((r) => alive && setEintraege(r.rows))
-      .catch((e: unknown) => alive && setEintragFehler(e instanceof Error ? e.message : String(e)))
-    return () => {
-      alive = false
-    }
-  }, [p.projectId, versuch])
-
   const raum = raumVon(p.dok, o.raum_id)
   const setze = (neu: Objekt) => {
     if (raum && !objektPasst(neu, raum)) {
@@ -502,7 +482,6 @@ function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
     }
     p.aendern(objektSetzen(p.dok, neu), p.auswahl)
   }
-  const verknuepft = new Set(p.dok.objekte.filter((x) => x.id !== o.id && x.item_id).map((x) => x.item_id))
   // L-Form in verstaendlichen Massen: ragt = wie weit der Schenkel ueber den
   // langen Teil heraussteht, schenkel = seine Breite, lang = Tiefe des langen Teils.
   const l =
@@ -635,116 +614,8 @@ function ObjektTeil({ p, o }: { p: EigenschaftenProps; o: Objekt }) {
             ))}
           </div>
         </Zeile>
-        {/* Wo man es kauft und was es kostet (0040). */}
-        <TextFeld
-          label={t('zeichner.eig.link')}
-          wert={o.link ?? ''}
-          laenge={2000}
-          dir="ltr"
-          platzhalter="https://www.ikea.com/at/de/..."
-          onSetzen={(text) => {
-            if (text && !/^https?:\/\//.test(text)) {
-              p.hinweis(t('zeichner.eig.link_falsch'))
-              return
-            }
-            p.aendern(objektSetzen(p.dok, { ...o, link: text || null }), p.auswahl)
-          }}
-        />
-        {o.link ? (
-          <div className="flex flex-wrap gap-2">
-            <a href={o.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border-2 border-ink px-2.5 py-1 text-sm font-bold text-ink hover:bg-raised">
-              <ExternalLink size={14} /> {t('zeichner.eig.zum_produkt')}
-            </a>
-            {/* E77: anderes Produkt gewaehlt? Link einsetzen, hier tippen:
-                Name, Masse, Preis und Farbe kommen von der Seite. */}
-            {istProduktLink(o.link) ? (
-              <Button
-                size="sm"
-                variant="outline"
-                loading={produktLaedt}
-                title={t('zeichner.eig.vom_link_hilfe')}
-                onClick={() => {
-                  const link = o.link as string
-                  setProduktLaedt(true)
-                  void (async () => {
-                    try {
-                      const d = await produktLesen(link)
-                      const farbe = d.bild ? await farbeAusBild(d.bild) : null
-                      const raum = p.dok.raeume.find((r) => r.id === o.raum_id)
-                      const neu = nachProdukt(o, d, farbe, raum?.hoehe_cm ?? 250)
-                      p.aendern(objektSetzen(p.dok, neu), p.auswahl)
-                      p.hinweis(t('zeichner.eig.vom_link_fertig', { masse: `${neu.breite_cm} x ${neu.tiefe_cm} x ${neu.hoehe_cm} cm` }))
-                    } catch (err) {
-                      p.hinweis(err instanceof Error ? err.message : String(err))
-                    } finally {
-                      setProduktLaedt(false)
-                    }
-                  })()
-                }}
-              >
-                <Download size={14} /> {t('zeichner.eig.vom_link')}
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-        <TextFeld
-          label={t('zeichner.eig.preis')}
-          wert={o.preis_cent == null ? '' : euroText(o.preis_cent)}
-          laenge={14}
-          dir="ltr"
-          platzhalter="0,00"
-          onSetzen={(text) => {
-            if (!text) {
-              p.aendern(objektSetzen(p.dok, { ...o, preis_cent: null }), p.auswahl)
-              return
-            }
-            const cent = centLesen(text)
-            if (cent === null) {
-              p.hinweis(t('zeichner.eig.preis_falsch'))
-              return
-            }
-            p.aendern(objektSetzen(p.dok, { ...o, preis_cent: cent }), p.auswahl)
-          }}
-        />
         <Zeile label={t('zeichner.eig.farbe')}>
           <Farbwahl farben={OBJEKTFARBEN} wert={o.farbe} standard={t('zeichner.eig.standard')} onWahl={(hex) => p.aendern(objektSetzen(p.dok, { ...o, farbe: hex }), p.auswahl)} />
-        </Zeile>
-        <Zeile label={t('zeichner.eig.moebel_eintrag')}>
-          {eintragFehler ? (
-            <div className="space-y-1">
-              <p className="text-sm text-danger">{eintragFehler}</p>
-              <Button size="sm" variant="outline" onClick={() => setVersuch((v) => v + 1)}>
-                {t('aktion.nochmal')}
-              </Button>
-            </div>
-          ) : eintraege === null ? (
-            <div className="h-10 animate-pulse rounded-xl bg-raised" />
-          ) : eintraege.length === 0 ? (
-            <p className="t-sub">{t('zeichner.eig.keine_moebel_eintraege')}</p>
-          ) : (
-            <Select
-              value={o.item_id ?? ''}
-              onChange={(e) => {
-                const it = eintraege.find((x) => x.id === e.target.value) ?? null
-                p.aendern(
-                  objektSetzen(p.dok, { ...o, item_id: it?.id ?? null, item_code: it?.code ?? null, item_title: it?.title ?? null }),
-                  p.auswahl,
-                )
-              }}
-              className="py-2"
-            >
-              <option value="">{t('zeichner.eig.nicht_verknuepft')}</option>
-              {eintraege
-                .filter((it) => !verknuepft.has(it.id))
-                .map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.code}
-                    {it.title ? ` ${it.title}` : ''}
-                  </option>
-                ))}
-            </Select>
-          )}
-          <span className="t-sub mt-1 block">{t('zeichner.eig.moebel_eintrag_hilfe')}</span>
         </Zeile>
       </Abschnitt>
 
@@ -795,9 +666,6 @@ function KisteTeil({ p, k }: { p: EigenschaftenProps; k: PlanKiste }) {
       </p>
       {auf.length ? <p className="t-sub">{t('zeichner.eig.darauf', { codes: auf.join(', ') })}</p> : null}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="soft" onClick={() => p.kisteInHand(k)}>
-          <Hand size={16} /> {t('zeichner.eig.versetzen')}
-        </Button>
         <Link to={`/app/p/${p.projectId}/kisten/${k.id}`}>
           <Button size="sm" variant="outline">
             {t('suche.zur_kiste')}

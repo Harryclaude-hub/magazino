@@ -60,6 +60,7 @@ import {
   deletePhoto,
   getItem,
   listContents,
+  listKategorien,
   listItemEvents,
   listPhotos,
   setCoverPhoto,
@@ -81,17 +82,7 @@ import {
   type Rahmen,
 } from '../lib/media'
 import { rahmenVon } from '../lib/rahmen'
-import { notifyItemStatus } from '../lib/push'
-import {
-  STATUS_COLOR,
-  type Item,
-  type ItemContent,
-  type ItemKind,
-  type ItemPhoto,
-  type ItemStatus,
-  type Tag,
-  type TagKind,
-} from '../lib/types'
+import type { Item, ItemContent, ItemKind, ItemPhoto, Tag } from '../lib/types'
 import { appUrl, contrastOn, cx, fmtDate, fmtDateTime, relTime, rollenArt, uid, useAsync } from '../lib/util'
 import { alterText } from '../lib/alter'
 import { displayNameOf, useAuth } from '../lib/auth'
@@ -104,14 +95,6 @@ function labelUrl(itemId: string): string {
   return appUrl(`s/${itemId}`)
 }
 
-const STATI: ItemStatus[] = ['open', 'transit', 'arrived']
-
-/** Ein Verlaufseintrag kann einen Status tragen, den diese Fassung noch
- *  nicht kennt. Dann steht der rohe Wert da, nie ein nackter Schluessel. */
-function istStatus(wert: string): wert is ItemStatus {
-  return (STATI as string[]).includes(wert)
-}
-
 /** Die Nummer ist das groesste Element der Seite, muss aber auf ein schmales
  *  Handy passen. Darum waechst die Schrift mit der Breite und schrumpft bei
  *  langen Codes, statt aus dem Bild zu laufen. Der Faktor 1.7 kommt aus der
@@ -120,7 +103,7 @@ function serialSize(chars: number): string {
   return `clamp(2.5rem, calc((100vw - 5rem) / ${Math.max(chars, 1)} * 1.7), 4.5rem)`
 }
 
-/** Zimmer und Person als grosse Kachel: Kuerzel und voller Name, beide gross
+/** Der Bereich als grosse Kachel: Kuerzel und voller Name, beide gross
  *  genug, um sie beim Tragen einer Kiste zu lesen. */
 function TagTile({ role, tag }: { role: string; tag: Tag }) {
   const fg = contrastOn(tag.color)
@@ -150,7 +133,7 @@ export default function ItemDetail() {
   const [params, setParams] = useSearchParams()
   const gesuchtInhalt = params.get('inhalt')
   const gesuchtGezeigt = useRef<string | null>(null)
-  const { project, rooms, people, tagById, canEdit, members } = useProject()
+  const { project, tagById, canEdit, members } = useProject()
   const { user } = useAuth()
   const { t, tn, lang } = useSprache()
   const groessen = useKistenGroessen()
@@ -200,6 +183,9 @@ export default function ItemDetail() {
   const dragDepth = useRef(0)
 
   const events = useAsync(() => listItemEvents(iid, 25), [iid])
+  /* Die Bereiche des Lagers; die Kiste haengt am Kuerzel (tag_id) ihres Bereichs. */
+  const bereiche = useAsync(() => listKategorien(project.id), [project.id])
+  const waehlbar = (bereiche.data ?? []).filter((k) => k.tag_id !== null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -247,13 +233,6 @@ export default function ItemDetail() {
       const next = await updateItem(item.id, p)
       setItem(next)
       events.reload()
-      if (p.status === 'arrived' && before.status !== 'arrived') {
-        void notifyItemStatus(
-          project.id,
-          project.name,
-          t('kisten.ist_angekommen', { code: next.code }),
-        )
-      }
       return true
     } catch (err) {
       setItem(before)
@@ -479,8 +458,10 @@ export default function ItemDetail() {
     )
 
   const room = tagById(item.room_id)
-  const person = tagById(item.person_id)
-  const color = room?.color ?? person?.color ?? '#94a3b8'
+  const bereichTag: Tag | undefined = room
+    ? { ...room, name: waehlbar.find((k) => k.tag_id === room.id)?.name ?? room.name }
+    : undefined
+  const color = room?.color ?? '#94a3b8'
   const seq = String(item.seq).padStart(3, '0')
   const serial = `${item.prefix}-${item.size}-${seq}`
   const nameOf = (id: string | null) =>
@@ -562,6 +543,31 @@ export default function ItemDetail() {
                 {contents.length > 0 ? ` (${contents.length})` : ''}
               </SectionTitle>
               <Card className="overflow-hidden">
+                {/* Das Feld steht oben: neue Dinge tippen, Enter, naechstes. */}
+                {canEdit ? (
+                  <div className="flex gap-2 border-b border-line p-3">
+                    <Input data-tour="kiste-eintrag"
+                      className="min-w-0"
+                      value={newEntry}
+                      onChange={(e) => setNewEntry(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void onAddEntry()
+                        }
+                      }}
+                      placeholder={t('kisten.inhalt_platzhalter')}
+                    />
+                    <IconButton
+                      label={t('kisten.eintrag_hinzufuegen')}
+                      disabled={!newEntry.trim()}
+                      onClick={() => void onAddEntry()}
+                    >
+                      <Plus size={20} />
+                    </IconButton>
+                  </div>
+                ) : null}
+
                 {contents.length === 0 ? (
                   <p className="px-4 py-6 text-center text-base text-muted">{t('kisten.inhalt_leer')}</p>
                 ) : (
@@ -747,29 +753,6 @@ export default function ItemDetail() {
                   </ul>
                 )}
 
-                {canEdit ? (
-                  <div className="flex gap-2 border-t border-line p-3">
-                    <Input data-tour="kiste-eintrag"
-                      className="min-w-0"
-                      value={newEntry}
-                      onChange={(e) => setNewEntry(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          void onAddEntry()
-                        }
-                      }}
-                      placeholder={t('kisten.inhalt_platzhalter')}
-                    />
-                    <IconButton
-                      label={t('kisten.eintrag_hinzufuegen')}
-                      disabled={!newEntry.trim()}
-                      onClick={() => void onAddEntry()}
-                    >
-                      <Plus size={20} />
-                    </IconButton>
-                  </div>
-                ) : null}
               </Card>
             </section>
 
@@ -1082,7 +1065,7 @@ export default function ItemDetail() {
                   projectId={project.id}
                   code={item.code}
                   moebel={item.kind === 'furniture'}
-                  angekommen={item.status === 'arrived'}
+                  angekommen
                   canEdit={canEdit}
                 />
               </NahLaden>
@@ -1125,35 +1108,6 @@ export default function ItemDetail() {
                 </p>
               </div>
 
-              {/* Status */}
-              <div className="border-t border-line p-4">
-                <p className="mb-2.5 text-sm font-black uppercase tracking-wider text-muted">
-                  {t('begriff.status')}
-                </p>
-                <div data-tour="kiste-status" className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
-                  {STATI.map((s) => (
-                    <Button
-                      key={s}
-                      full
-                      disabled={!canEdit}
-                      variant={item.status === s ? 'aktiv' : 'soft'}
-                      onClick={() => void patch({ status: s })}
-                    >
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ background: STATUS_COLOR[s] }}
-                      />
-                      <span className="truncate">{t(`status.${s}`)}</span>
-                    </Button>
-                  ))}
-                </div>
-                {item.arrived_at ? (
-                  <p className="t-sub mt-2.5">
-                    {t('kisten.angekommen_am', { wann: fmtDateTime(item.arrived_at) })}
-                  </p>
-                ) : null}
-              </div>
-
               {/* Wie voll (0033): Tipp-Knoepfe und feiner Regler, sofort gespeichert. */}
               <div data-tour="kiste-fuellstand" className="border-t border-line p-4">
                 <FuellstandFeld
@@ -1168,7 +1122,7 @@ export default function ItemDetail() {
             <Card className="order-4 overflow-hidden lg:order-none">
               <div className="grid gap-4 p-4 sm:p-5">
                 <div className="grid gap-2">
-                  {room ? <TagTile role={t('begriff.zimmer')} tag={room} /> : null}
+                  {bereichTag ? <TagTile role={t('lager.bereich')} tag={bereichTag} /> : null}
                   {/* Der Weg von der Kiste zum Zimmer: zeig mir, wo sie steht.
                       Auf der Seite selbst und fuer jede Rolle, nicht versteckt
                       im Bearbeiten: suchen muss auch, wer nur schauen darf.
@@ -1178,11 +1132,9 @@ export default function ItemDetail() {
                       <MapPin size={18} /> {t('lage.wo_steht_sie')}
                     </Button>
                   ) : null}
-                  {person ? <TagTile role={t('begriff.person')} tag={person} /> : null}
-                  {!room && !person ? (
+                  {!room ? (
                     <div className="rounded-2xl border border-dashed border-line px-3 py-3">
-                      <p className="t-name">{t('kisten.ohne_zuordnung')}</p>
-                      <p className="t-sub">{t('kisten.ohne_zuordnung_hinweis')}</p>
+                      <p className="t-name">{t('lager.k_ohne_bereich')}</p>
                     </div>
                   ) : null}
                   {item.fragile ? (
@@ -1205,19 +1157,9 @@ export default function ItemDetail() {
                   </div>
                 </div>
               </div>
-              {item.note || item.target_room ? (
+              {item.note ? (
                 <div className="border-t border-line p-4">
-                  {item.target_room ? (
-                    <p className="break-words text-base">
-                      <span className="font-bold">{t('begriff.ziel')}: </span>
-                      {item.target_room}
-                    </p>
-                  ) : null}
-                  {item.note ? (
-                    <p className="mt-1.5 whitespace-pre-wrap break-words text-base text-muted">
-                      {item.note}
-                    </p>
-                  ) : null}
+                  <p className="whitespace-pre-wrap break-words text-base text-muted">{item.note}</p>
                 </div>
               ) : null}
             </Card>
@@ -1232,11 +1174,11 @@ export default function ItemDetail() {
                   <div className="p-3">
                     <ErrorBox error={events.error} onRetry={events.reload} />
                   </div>
-                ) : (events.data ?? []).length === 0 ? (
+                ) : (events.data ?? []).filter((ev) => ev.type !== 'status').length === 0 ? (
                   <p className="px-4 py-6 text-center text-base text-muted">{t('kisten.verlauf_leer')}</p>
                 ) : (
                   <ul className="zebra divide-y divide-line">
-                    {(events.data ?? []).map((ev) => {
+                    {(events.data ?? []).filter((ev) => ev.type !== 'status').map((ev) => {
                       const d = ev.data as Record<string, string>
                       return (
                         <li key={ev.id} className="flex items-center gap-3 px-3 py-2.5">
@@ -1246,10 +1188,6 @@ export default function ItemDetail() {
                             <span className="text-muted">
                               {ev.type === 'created' ? (
                                 t('kisten.ev_created')
-                              ) : ev.type === 'status' ? (
-                                t('kisten.ev_status', {
-                                  status: istStatus(d.to) ? t(`status.${d.to}`) : d.to,
-                                })
                               ) : ev.type === 'scan' ? (
                                 t('kisten.ev_scan')
                               ) : ev.type === 'inhalt_menge' ? (
@@ -1315,55 +1253,28 @@ export default function ItemDetail() {
             />
           </Field>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('begriff.zimmer')} hint={t('kisten.zimmer_regel')}>
-              <Select
-                value={item.room_id ?? ''}
-                onChange={(e) => void patch({ room_id: e.target.value || null })}
-              >
-                {/* Ohne Zimmer geht nur, wenn eine Person dransteht. */}
-                <option value="" disabled={!item.person_id}>
-                  {t('kisten.kein_zimmer')}
-                </option>
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.short} . {r.name}
-                  </option>
+          {/* Bereich: ein Tipp wechselt. Die Datenbank vergibt dann die
+              neue Nummer; der alte Code bleibt gespeichert. */}
+          <div>
+            <span className="mb-2 block text-[0.9375rem] font-bold">{t('lager.bereich')}</span>
+            {bereiche.error ? (
+              <ErrorBox error={bereiche.error} onRetry={bereiche.reload} />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {waehlbar.map((k) => (
+                  <Chip
+                    key={k.id}
+                    active={item.room_id === k.tag_id}
+                    onClick={() => {
+                      if (k.tag_id && item.room_id !== k.tag_id) void patch({ room_id: k.tag_id })
+                    }}
+                  >
+                    {k.name}
+                  </Chip>
                 ))}
-              </Select>
-            </Field>
-            <Field label={t('begriff.person')} hint={t('begriff.optional')}>
-              <Select
-                value={item.person_id ?? ''}
-                onChange={(e) => void patch({ person_id: e.target.value || null })}
-              >
-                <option value="" disabled={!item.room_id}>
-                  {t('kisten.keine_person')}
-                </option>
-                {people.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.short} . {p.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+              </div>
+            )}
           </div>
-
-          {item.room_id && item.person_id ? (
-            <Field label={t('kisten.kuerzel_im_code')}>
-              <Select
-                value={item.code_source}
-                onChange={(e) => void patch({ code_source: e.target.value as TagKind })}
-              >
-                <option value="room">
-                  {t('kisten.kuerzel_option_zimmer', { kuerzel: room?.short ?? '' })}
-                </option>
-                <option value="person">
-                  {t('kisten.kuerzel_option_person', { kuerzel: person?.short ?? '' })}
-                </option>
-              </Select>
-            </Field>
-          ) : null}
 
           <Field label={t('begriff.groesse')}>
             {/* Eine Stufe waehlt die eigene Groesse ab. Eine eigene Groesse
@@ -1440,19 +1351,12 @@ export default function ItemDetail() {
               value={item.kind}
               onChange={(e) => void patch({ kind: e.target.value as ItemKind })}
             >
-              {ARTEN.map((k) => (
+              {ARTEN.filter((k) => k !== 'furniture').map((k) => (
                 <option key={k} value={k}>
                   {t(`art.${k}`)}
                 </option>
               ))}
             </Select>
-          </Field>
-
-          <Field label={t('kisten.ziel')}>
-            <Input
-              defaultValue={item.target_room ?? ''}
-              onBlur={(e) => void patch({ target_room: e.target.value.trim() || null })}
-            />
           </Field>
 
           <Field label={t('begriff.notiz')}>

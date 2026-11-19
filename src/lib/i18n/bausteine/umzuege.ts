@@ -28,7 +28,7 @@ export const umzuege: Woerterbuch = {
 
   // ------------------------------------------------------ Karte eines Umzugs
   'umzuege.kein_vermerk': { de: 'Kein Vermerk', ar: 'بدون ملاحظة' },
-  'umzuege.umzug_am': { de: 'Umzug am {datum}', ar: 'النقلة في {datum}' },
+  'umzuege.umzug_am': { de: 'Am {datum}', ar: 'في {datum}' },
   'umzuege.karte_kisten': { de: 'Kisten', ar: 'صناديق' },
   'umzuege.karte_dabei': { de: 'dabei', ar: 'مشاركين' },
   'umzuege.karte_unterwegs': { de: '{n} unterwegs', ar: '{n} في الطريق' },
@@ -48,7 +48,7 @@ export const umzuege: Woerterbuch = {
   },
 
   // -------------------------------------------------------- Dialog beitreten
-  'umzuege.beitreten_titel': { de: 'Einem Umzug beitreten', ar: 'الانضمام إلى نقلة' },
+  'umzuege.beitreten_titel': { de: 'Einem Lager beitreten', ar: 'الانضمام إلى مستودع' },
   'umzuege.beitreten': { de: 'Beitreten', ar: 'انضمام' },
   'umzuege.toast_beigetreten': {
     de: 'Du bist jetzt bei {name} dabei',
@@ -56,12 +56,12 @@ export const umzuege: Woerterbuch = {
   },
   'umzuege.einladungscode': { de: 'Einladungscode', ar: 'رمز الدعوة' },
   'umzuege.einladungscode_hinweis': {
-    de: 'Den Code bekommst du von der Person, die den Umzug angelegt hat.',
-    ar: 'تحصل على الرمز ممن أنشأ النقلة.',
+    de: 'Den Code bekommst du von der Person, die das Lager angelegt hat.',
+    ar: 'تحصل على الرمز ممن أنشأ المستودع.',
   },
 
   // ------------------------------------------- Startseite, Kopf und Zahlen
-  'umzuege.einstellen': { de: 'Umzug einstellen', ar: 'إعدادات النقلة' },
+  'umzuege.einstellen': { de: 'Lager einstellen', ar: 'إعدادات المستودع' },
   'umzuege.zaehlwerte_laden': { de: 'Zählwerte werden geladen', ar: 'جارٍ تحميل الأرقام' },
   'umzuege.a_von_b': { de: '{a} von {b}', ar: '{a} من {b}' },
 
@@ -88,8 +88,8 @@ export const umzuege: Woerterbuch = {
   'umzuege.verlauf_verbergen': { de: 'Verlauf einklappen', ar: 'طي السجل' },
   'umzuege.verlauf_loeschen': { de: 'Verlauf löschen', ar: 'حذف السجل' },
   'umzuege.verlauf_loeschen_frage': {
-    de: 'Der ganze Verlauf dieses Umzugs wird gelöscht, auch der Verlauf jeder einzelnen Kiste. Kisten und Inhalte bleiben. Das lässt sich nicht rückgängig machen.',
-    ar: 'سيُحذف سجل هذه النقلة بالكامل، بما في ذلك سجل كل صندوق. الصناديق ومحتوياتها تبقى. لا يمكن التراجع عن ذلك.',
+    de: 'Der ganze Verlauf dieses Lagers wird gelöscht, auch der Verlauf jeder einzelnen Kiste. Kisten und Inhalte bleiben. Das lässt sich nicht rückgängig machen.',
+    ar: 'سيُحذف سجل هذا المستودع بالكامل، بما في ذلك سجل كل صندوق. الصناديق ومحتوياتها تبقى. لا يمكن التراجع عن ذلك.',
   },
   'umzuege.verlauf_geloescht': { de: 'Verlauf gelöscht', ar: 'تم حذف السجل' },
   'umzuege.verlauf_laden': { de: 'Verlauf wird geladen', ar: 'جارٍ تحميل السجل' },
@@ -113,10 +113,10 @@ export const umzuege: Woerterbuch = {
   'umzuege.alle_kisten': { de: 'Alle Kisten', ar: 'كل الصناديق' },
   'umzuege.etiketten_liste': { de: 'Etiketten und Liste', ar: 'الملصقات والقائمة' },
   'umzuege.team': { de: 'Team', ar: 'الفريق' },
-  'umzuege.andere': { de: 'Andere Umzüge', ar: 'نقلات أخرى' },
+  'umzuege.andere': { de: 'Andere Lager', ar: 'مستودعات أخرى' },
 
   // ------------------------------------------------------------- Der Rahmen
-  'umzuege.umzug_laden': { de: 'Umzug wird geladen', ar: 'جارٍ تحميل النقلة' },
+  'umzuege.umzug_laden': { de: 'Lager wird geladen', ar: 'جارٍ تحميل المستودع' },
   'umzuege.zur_uebersicht': { de: 'Zur Übersicht', ar: 'إلى القائمة' },
 
   // ---------------------------------------------- Siedlung, schon beim Start

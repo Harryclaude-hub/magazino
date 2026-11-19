@@ -4,25 +4,25 @@ import {
   Boxes,
   ChevronsLeft,
   ChevronsRight,
-  DoorOpen,
   HandHelping,
+  History,
   KeyRound,
   LayoutDashboard,
-  MessageCircle,
   Package,
+  Printer,
   ScanLine,
   Search,
+  ShieldCheck,
   User,
   Warehouse,
 } from 'lucide-react'
 import { cx } from '../lib/util'
 import { useT } from '../lib/i18n'
-import { listProjects } from '../lib/api'
-import type { Project } from '../lib/types'
+import { listProjects, type ProjectWithStats } from '../lib/api'
 
 /* Linke Leiste am Computer (ab 1024 px). Sie ersetzt dort die untere
  * Leiste. Eingeklappt zeigt sie nur Symbole; der Zustand bleibt im Browser
- * gemerkt. Oben steht der aktuelle Umzug mit Wechsler. */
+ * gemerkt. Oben steht das aktuelle Lager mit Wechsler. */
 
 const MERKEN = 'kistly.leiste'
 
@@ -45,37 +45,62 @@ export interface LeistenEintrag {
 }
 
 export function Seitenleiste({
-  eintraege: eintraegeBasis,
   projektId,
+  admin,
+  wartende,
 }: {
-  eintraege: LeistenEintrag[]
   projektId: string | null
+  admin: boolean
+  /** Konten, die auf Freischaltung warten (Zahl am Admin-Punkt). */
+  wartende: number
 }) {
   const t = useT()
   const nav = useNavigate()
   const { pathname } = useLocation()
-  /* Tuer, Bestand und Ausleihen (E103) gehoeren zu einem Lager und stehen
-   * vor den Kisten. Ohne Lager gibt es sie nicht. */
-  const eintraege = useMemo(() => {
-    if (!projektId) return eintraegeBasis
-    const base = `/app/p/${projektId}`
-    const lager: LeistenEintrag[] = [
-      { to: `${base}/tuer`, icon: <KeyRound size={20} />, label: t('lager.nav_tuer'), active: pathname.startsWith(`${base}/tuer`), tour: 'nav-tuer' },
-      { to: `${base}/bestand`, icon: <Package size={20} />, label: t('lager.nav_bestand'), active: pathname.startsWith(`${base}/bestand`), tour: 'nav-bestand' },
-      { to: `${base}/ausleihen`, icon: <HandHelping size={20} />, label: t('lager.nav_ausleihen'), active: pathname.startsWith(`${base}/ausleihen`), tour: 'nav-ausleihen' },
-    ]
-    const i = eintraegeBasis.findIndex((e) => e.tour === 'nav-kisten')
-    const an = i < 0 ? Math.min(1, eintraegeBasis.length) : i
-    return [...eintraegeBasis.slice(0, an), ...lager, ...eintraegeBasis.slice(an)]
-  }, [eintraegeBasis, projektId, pathname, t])
   const [zu, setZu] = useState(gemerktEingeklappt)
-  const [projekte, setProjekte] = useState<Project[] | null>(null)
+  const [zeilen, setZeilen] = useState<ProjectWithStats[] | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
+  const projekte = useMemo(() => (zeilen ? zeilen.map((x) => x.project) : null), [zeilen])
+  const darfBearbeiten = useMemo(() => {
+    const r = zeilen?.find((x) => x.project.id === projektId)?.role
+    return r === 'owner' || r === 'editor'
+  }, [zeilen, projektId])
+
+  /* Start, dann alles eines Lagers, dann Scannen, Profil, Admin. Mehr gibt
+   * es nicht (E104). */
+  const eintraege = useMemo<LeistenEintrag[]>(() => {
+    const out: LeistenEintrag[] = [
+      { to: '/app', icon: <Warehouse size={20} />, label: t('struktur.start'), active: pathname === '/app' || pathname.startsWith('/app/bl/'), tour: 'nav-umzuege' },
+    ]
+    if (projektId) {
+      const base = `/app/p/${projektId}`
+      const hier = (p: string) => pathname.startsWith(`${base}/${p}`)
+      out.push(
+        { to: `${base}/tuer`, icon: <KeyRound size={20} />, label: t('lager.nav_tuer'), active: hier('tuer'), tour: 'nav-tuer' },
+        { to: `${base}/bestand`, icon: <Package size={20} />, label: t('lager.nav_bestand'), active: hier('bestand'), tour: 'nav-bestand' },
+        { to: `${base}/ausleihen`, icon: <HandHelping size={20} />, label: t('lager.nav_ausleihen'), active: hier('ausleihen'), tour: 'nav-ausleihen' },
+        { to: `${base}/kisten`, icon: <Boxes size={20} />, label: t('nav.kisten'), active: hier('kisten'), tour: 'nav-kisten' },
+        { to: `${base}/grundriss`, icon: <LayoutDashboard size={20} />, label: t('leiste.grundriss'), active: hier('grundriss'), tour: 'nav-grundriss' },
+        { to: `${base}/verlauf`, icon: <History size={20} />, label: t('struktur.verlauf'), active: hier('verlauf'), tour: 'nav-verlauf' },
+      )
+      if (darfBearbeiten) {
+        out.push({ to: `${base}/etiketten`, icon: <Printer size={20} />, label: t('umzuege.etiketten'), active: hier('etiketten'), tour: 'nav-etiketten' })
+      }
+    }
+    out.push(
+      { to: '/app/scan', icon: <ScanLine size={20} />, label: t('nav.scannen'), active: pathname === '/app/scan' || pathname.endsWith('/scan'), tour: 'nav-scannen' },
+      { to: '/app/einstellungen', icon: <User size={20} />, label: t('nav.profil'), active: pathname === '/app/einstellungen', tour: 'nav-profil' },
+    )
+    if (admin) {
+      out.push({ to: '/app/admin', icon: <ShieldCheck size={20} />, label: t('admin.nav'), active: pathname === '/app/admin', badge: wartende, tour: 'nav-admin' })
+    }
+    return out
+  }, [t, pathname, projektId, darfBearbeiten, admin, wartende])
 
   useEffect(() => {
     let alive = true
     listProjects()
-      .then((l) => alive && setProjekte(l.map((x) => x.project)))
+      .then((l) => alive && setZeilen(l))
       .catch((e: unknown) => alive && setFehler(e instanceof Error ? e.message : String(e)))
     return () => {
       alive = false
@@ -225,15 +250,4 @@ export function SuchKopf() {
       </form>
     </div>
   )
-}
-
-export const LeistenSymbole = {
-  umzuege: <Warehouse size={20} />,
-  kisten: <Boxes size={20} />,
-  zimmer: <DoorOpen size={20} />,
-  grundriss: <LayoutDashboard size={20} />,
-  suchen: <Search size={20} />,
-  scannen: <ScanLine size={20} />,
-  chat: <MessageCircle size={20} />,
-  profil: <User size={20} />,
 }

@@ -5,22 +5,22 @@ import type { Woerterbuch } from '../woerter'
  * Baustein, nicht hierher. */
 export const gemeinsam: Woerterbuch = {
   // ------------------------------------------------------------ Navigation
-  'nav.umzuege': { de: 'Umzüge', ar: 'النقلات' },
+  'nav.umzuege': { de: 'Start', ar: 'الرئيسية' },
   'nav.kisten': { de: 'Kisten', ar: 'الصناديق' },
   'nav.scannen': { de: 'Scannen', ar: 'مسح' },
   'nav.chat': { de: 'Chat', ar: 'المحادثة' },
   'nav.profil': { de: 'Profil', ar: 'حسابي' },
   'nav.uebersicht': { de: 'Übersicht', ar: 'نظرة عامة' },
-  'menue.umzug': { de: 'Menü des Umzugs', ar: 'قائمة النقلة' },
+  'menue.umzug': { de: 'Menü', ar: 'القائمة' },
   'leiste.zimmer': { de: 'Zimmer', ar: 'الغرف' },
   'leiste.grundriss': { de: 'Grundriss', ar: 'المخطط' },
-  'leiste.umzug': { de: 'Umzug', ar: 'النقلة' },
-  'leiste.umzug_waehlen': { de: 'Umzug wählen', ar: 'اختر النقلة' },
-  'leiste.keine_umzuege': { de: 'Noch kein Umzug', ar: 'لا توجد نقلة بعد' },
-  'leiste.umzuege_fehler': { de: 'Umzüge nicht geladen', ar: 'تعذّر تحميل النقلات' },
+  'leiste.umzug': { de: 'Lager', ar: 'المستودع' },
+  'leiste.umzug_waehlen': { de: 'Lager wählen', ar: 'اختر المستودع' },
+  'leiste.keine_umzuege': { de: 'Noch kein Lager', ar: 'لا يوجد مستودع بعد' },
+  'leiste.umzuege_fehler': { de: 'Lager nicht geladen', ar: 'تعذّر تحميل المستودعات' },
   'leiste.einklappen': { de: 'Leiste einklappen', ar: 'طيّ الشريط' },
   'leiste.aufklappen': { de: 'Leiste aufklappen', ar: 'فتح الشريط' },
-  'leiste.suche_platzhalter': { de: 'In allen Umzügen suchen', ar: 'ابحث في كل النقلات' },
+  'leiste.suche_platzhalter': { de: 'In allen Lagern suchen', ar: 'ابحث في كل المستودعات' },
 
   // --------------------------------------------------------------- Aktionen
   'aktion.speichern': { de: 'Speichern', ar: 'حفظ' },

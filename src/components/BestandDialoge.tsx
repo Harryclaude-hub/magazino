@@ -1,22 +1,25 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Button, Chip, ConfirmDialog, ErrorBox, Field, Input, Modal, Select, Switch, useToast } from './ui'
+import { Trash2 } from 'lucide-react'
+import { Button, Chip, ConfirmDialog, ErrorBox, Field, IconButton, Input, Modal, Select, Switch, useToast } from './ui'
 import { useProject } from '../pages/ProjectLayout'
 import {
+  bereichLoeschen,
   bestandAendern,
   bestandAnlegen,
   bestandBuchen,
+  bestandEntfernen,
   bestandLoeschen,
   kategorieSpeichern,
 } from '../lib/api'
 import { displayNameOf } from '../lib/auth'
 import { useT } from '../lib/i18n'
-import { mengeText, zahl } from '../lib/lager'
-import { fmtDateTime, useLocalState } from '../lib/util'
+import { mengeText, zahl, zustandVon } from '../lib/lager'
+import { cx, fmtDateTime, useLocalState } from '../lib/util'
 import type { Bestand, BestandArt, BuchungsArt, LagerKategorie } from '../lib/types'
 
-/* Die Dialoge des Bestands (E103). Jeder wird nur eingehaengt, solange er
- * offen ist; damit beginnt er bei jedem Oeffnen mit frischem Zustand. */
+/* Die Dialoge des Bestands (E103, E105). Jeder wird nur eingehaengt, solange
+ * er offen ist; damit beginnt er bei jedem Oeffnen mit frischem Zustand. */
 
 function fehlerText(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -38,6 +41,31 @@ function FehlerAnzeige({ fehler }: { fehler: string | null }) {
         </Link>
       ) : null}
     </div>
+  )
+}
+
+/* -------------------------------------------------------- Zustand */
+
+/** Der Zustand eines Dings in einem Wort: im Lager, nur noch X, leer.
+ *  In der Suche heisst leer "gibt es nicht mehr". */
+export function ZustandPill({ b, suche = false }: { b: Bestand; suche?: boolean }) {
+  const t = useT()
+  const z = zustandVon(b)
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center rounded-full px-3 py-1 text-[0.9375rem] font-black leading-5',
+        z === 'da' && 'bg-ok/15 text-ok',
+        z === 'knapp' && 'bg-warn text-paper',
+        z === 'leer' && 'bg-raised text-muted',
+      )}
+    >
+      {z === 'da'
+        ? t('lager.z_da')
+        : z === 'knapp'
+          ? t('lager.z_knapp', { menge: mengeText(b.menge), einheit: b.einheit })
+          : t(suche ? 'lager.z_weg' : 'lager.z_leer')}
+    </span>
   )
 }
 
@@ -136,7 +164,7 @@ export function EntnehmenDialog({
             className="text-2xl font-black"
           />
         </Field>
-        <Switch checked={zurueck} onChange={setZurueck} label={t('lager.kommt_zurueck')} hint={t('lager.kommt_zurueck_hinweis')} />
+        <Switch checked={zurueck} onChange={setZurueck} label={t('lager.kommt_zurueck')} />
         {zurueck ? (
           <div className="space-y-2">
             <Field label={t('lager.zurueck_bis')}>
@@ -159,14 +187,18 @@ export function EntnehmenDialog({
 
 /* ------------------------------------------------- Zugang und Zaehlen */
 
+/** Dazulegen (auch "Auffuellen" bei leeren Dingen) oder zaehlen. */
 export function ZugangDialog({
   b,
   art,
+  auffuellen = false,
   onClose,
   onFertig,
 }: {
   b: Bestand
   art: Extract<BuchungsArt, 'zugang' | 'korrektur'>
+  /** Titel "Auffuellen" statt "Zugang". */
+  auffuellen?: boolean
   onClose: () => void
   onFertig: () => void
 }) {
@@ -174,7 +206,6 @@ export function ZugangDialog({
   const toast = useToast()
   const zaehlen = art === 'korrektur'
   const [menge, setMenge] = useState(zaehlen ? mengeText(b.menge) : '1')
-  const [notiz, setNotiz] = useState('')
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
 
@@ -185,7 +216,7 @@ export function ZugangDialog({
     if (zaehlen ? !(m >= 0) : !(m > 0)) return setFehler(t(zaehlen ? 'lager.menge_ungueltig_null' : 'lager.menge_ungueltig'))
     setBusy(true)
     try {
-      await bestandBuchen(b.id, art, m, { notiz })
+      await bestandBuchen(b.id, art, m)
       toast(
         zaehlen
           ? t('lager.toast_gezaehlt', { name: b.name, menge: mengeText(m), einheit: b.einheit })
@@ -204,7 +235,7 @@ export function ZugangDialog({
     <Modal
       open
       onClose={onClose}
-      title={t(zaehlen ? 'lager.zaehlen_titel' : 'lager.zugang_titel', { name: b.name })}
+      title={t(zaehlen ? 'lager.zaehlen_titel' : auffuellen ? 'lager.auffuellen_titel' : 'lager.zugang_titel', { name: b.name })}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -217,7 +248,7 @@ export function ZugangDialog({
       }
     >
       <form id="bestand-zugang" onSubmit={senden} className="space-y-4">
-        <p className="t-sub">{t(zaehlen ? 'lager.zaehlen_hinweis' : 'lager.zugang_hinweis')}</p>
+        {zaehlen ? <p className="t-sub">{t('lager.zaehlen_hinweis')}</p> : null}
         <Field label={`${t('lager.menge')} (${b.einheit})`}>
           <Input
             autoFocus
@@ -228,11 +259,64 @@ export function ZugangDialog({
             className="text-2xl font-black"
           />
         </Field>
-        <Field label={t('lager.notiz')}>
-          <Input value={notiz} onChange={(e) => setNotiz(e.target.value)} />
-        </Field>
         <FehlerAnzeige fehler={fehler} />
       </form>
+    </Modal>
+  )
+}
+
+/* ---------------------------------------------------------- Entfernen */
+
+/** Aufgebrauchtes ganz entfernen. Die Datenbank lehnt ab, solange noch
+ *  etwas ausgeliehen ist; der Satz bleibt im Dialog stehen. */
+export function EntfernenDialog({
+  b,
+  onClose,
+  onFertig,
+}: {
+  b: Bestand
+  onClose: () => void
+  onFertig: () => void
+}) {
+  const t = useT()
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  const [fehler, setFehler] = useState<string | null>(null)
+
+  async function entfernen() {
+    setFehler(null)
+    setBusy(true)
+    try {
+      await bestandEntfernen(b.id)
+      toast(t('lager.toast_entfernt', { name: b.name }), 'ok')
+      onFertig()
+    } catch (err) {
+      setFehler(fehlerText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={t('lager.entfernen_titel', { name: b.name })}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t('aktion.abbrechen')}
+          </Button>
+          <Button variant="danger" loading={busy} onClick={() => void entfernen()}>
+            {t('aktion.entfernen')}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-base">{t('lager.entfernen_text')}</p>
+        <FehlerAnzeige fehler={fehler} />
+      </div>
     </Modal>
   )
 }
@@ -252,12 +336,12 @@ function ArtWahl({ art, onChange }: { art: BestandArt; onChange: (a: BestandArt)
           {t('lager.art_ausleihe')}
         </Chip>
       </div>
-      <span className="mt-1.5 block text-sm text-muted">{t('lager.art_hinweis')}</span>
     </div>
   )
 }
 
-function BereichWahl({
+/** Bereiche als Tippflaechen (schneller als ein Aufklappmenue). */
+function BereichChips({
   kategorien,
   value,
   onChange,
@@ -268,16 +352,16 @@ function BereichWahl({
 }) {
   const t = useT()
   return (
-    <Field label={t('lager.bereich')}>
-      <Select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{t('lager.kein_bereich')}</option>
+    <div>
+      <span className="mb-2 block text-[0.9375rem] font-bold">{t('lager.bereich')}</span>
+      <div className="flex flex-wrap gap-2">
         {kategorien.map((k) => (
-          <option key={k.id} value={k.id}>
+          <Chip key={k.id} active={value === k.id} onClick={() => onChange(value === k.id ? '' : k.id)}>
             {k.name}
-          </option>
+          </Chip>
         ))}
-      </Select>
-    </Field>
+      </div>
+    </div>
   )
 }
 
@@ -289,6 +373,9 @@ interface NeuMerker {
   art: BestandArt
 }
 
+/** Flott mehrere Dinge nacheinander anlegen: Name, Bereich, Menge, Einheit,
+ *  Mindestmenge, Art. Das Formular bleibt offen; Bereich, Einheit und Art
+ *  merkt es sich. */
 export function NeuDialog({
   kategorien,
   vorbelegtKategorie,
@@ -314,9 +401,9 @@ export function NeuDialog({
   const [einheit, setEinheit] = useState(merker.einheit)
   const [mindest, setMindest] = useState('0')
   const [art, setArt] = useState<BestandArt>(merker.art)
-  const [ort, setOrt] = useState('')
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
+  const [angelegt, setAngelegt] = useState(0)
   // Mit neuem Schluessel faengt das Namensfeld frisch an und hat den Fokus.
   const [runde, setRunde] = useState(0)
 
@@ -335,7 +422,6 @@ export function NeuDialog({
         mindestmenge: min,
         art,
         kategorie_id: kat || null,
-        ort,
       })
       setMerker({ kat, einheit: einheit.trim() || 'Stk', art })
       toast(t('lager.toast_angelegt', { name: name.trim() }), 'ok')
@@ -344,7 +430,7 @@ export function NeuDialog({
         setName('')
         setMenge('1')
         setMindest('0')
-        setOrt('')
+        setAngelegt((n) => n + 1)
         setRunde((n) => n + 1)
       } else {
         onClose()
@@ -362,8 +448,9 @@ export function NeuDialog({
       onClose={onClose}
       title={t('lager.neu_titel')}
       footer={
-        <Button variant="ghost" onClick={onClose}>
+        <Button variant="ghost" disabled={busy} onClick={() => (name.trim() ? void speichern(false) : onClose())}>
           {t('aktion.fertig')}
+          {angelegt > 0 ? ` (${angelegt})` : ''}
         </Button>
       }
     >
@@ -374,34 +461,26 @@ export function NeuDialog({
         }}
         className="space-y-4"
       >
-        <Field label={t('begriff.name')} required>
+        <Field label={t('lager.produkt')} required>
           <Input key={runde} autoFocus value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <BereichWahl kategorien={kategorien} value={kat} onChange={setKat} />
-        <div className="grid grid-cols-2 gap-3">
+        <BereichChips kategorien={kategorien} value={kat} onChange={setKat} />
+        <div className="grid grid-cols-3 gap-3">
           <Field label={t('lager.menge')}>
             <Input inputMode="decimal" dir="ltr" value={menge} onChange={(e) => setMenge(e.target.value)} />
           </Field>
           <Field label={t('lager.einheit')}>
             <Input value={einheit} onChange={(e) => setEinheit(e.target.value)} placeholder={t('lager.einheit_beispiel')} />
           </Field>
+          <Field label={t('lager.mindestmenge_kurz')}>
+            <Input inputMode="decimal" dir="ltr" value={mindest} onChange={(e) => setMindest(e.target.value)} />
+          </Field>
         </div>
-        <Field label={t('lager.mindestmenge')} hint={t('lager.mindestmenge_hinweis')}>
-          <Input inputMode="decimal" dir="ltr" value={mindest} onChange={(e) => setMindest(e.target.value)} />
-        </Field>
         <ArtWahl art={art} onChange={setArt} />
-        <Field label={t('lager.ort')}>
-          <Input value={ort} onChange={(e) => setOrt(e.target.value)} />
-        </Field>
         <FehlerAnzeige fehler={fehler} />
-        <div className="space-y-2">
-          <Button type="submit" size="lg" full loading={busy}>
-            {t('lager.speichern_naechstes')}
-          </Button>
-          <Button type="button" variant="outline" full disabled={busy} onClick={() => void speichern(false)}>
-            {t('aktion.speichern')}
-          </Button>
-        </div>
+        <Button type="submit" size="lg" full loading={busy}>
+          {t('lager.speichern_naechstes')}
+        </Button>
       </form>
     </Modal>
   )
@@ -427,7 +506,6 @@ export function AendernDialog({
   const [einheit, setEinheit] = useState(b.einheit)
   const [mindest, setMindest] = useState(mengeText(b.mindestmenge))
   const [art, setArt] = useState<BestandArt>(b.art)
-  const [ort, setOrt] = useState(b.ort ?? '')
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
   const [loeschen, setLoeschen] = useState(false)
@@ -446,7 +524,6 @@ export function AendernDialog({
         einheit: einheit.trim() || 'Stk',
         mindestmenge: min,
         art,
-        ort: ort.trim() || null,
       })
       toast(t('lager.toast_geaendert', { name: name.trim() }), 'ok')
       onFertig()
@@ -474,23 +551,19 @@ export function AendernDialog({
       }
     >
       <form id="bestand-aendern" onSubmit={senden} className="space-y-4">
-        <p className="t-sub">{t('lager.aendern_hinweis')}</p>
-        <Field label={t('begriff.name')} required>
+        <Field label={t('lager.produkt')} required>
           <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <BereichWahl kategorien={kategorien} value={kat} onChange={setKat} />
+        <BereichChips kategorien={kategorien} value={kat} onChange={setKat} />
         <div className="grid grid-cols-2 gap-3">
           <Field label={t('lager.einheit')}>
             <Input value={einheit} onChange={(e) => setEinheit(e.target.value)} />
           </Field>
-          <Field label={t('lager.mindestmenge')}>
+          <Field label={t('lager.mindestmenge_kurz')}>
             <Input inputMode="decimal" dir="ltr" value={mindest} onChange={(e) => setMindest(e.target.value)} />
           </Field>
         </div>
         <ArtWahl art={art} onChange={setArt} />
-        <Field label={t('lager.ort')}>
-          <Input value={ort} onChange={(e) => setOrt(e.target.value)} />
-        </Field>
         <FehlerAnzeige fehler={fehler} />
         <Button type="button" variant="danger" full onClick={() => setLoeschen(true)}>
           {t('aktion.loeschen')}
@@ -518,6 +591,8 @@ export function AendernDialog({
 
 /* -------------------------------------------------------- Bereiche */
 
+/** Eine Zeile: Name, Zustaendiger, Speichern; bei vorhandenen Bereichen
+ *  dazu Loeschen (nur leere, sonst steht der Satz der Datenbank da). */
 function BereichZeile({
   k,
   onGespeichert,
@@ -532,6 +607,7 @@ function BereichZeile({
   const [zust, setZust] = useState(k?.zustaendig_id ?? '')
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
+  const [weg, setWeg] = useState(false)
   const geaendert = !k || name.trim() !== k.name || (zust || null) !== k.zustaendig_id
 
   async function speichern(e: FormEvent) {
@@ -556,7 +632,12 @@ function BereichZeile({
 
   return (
     <form onSubmit={speichern} className="space-y-2 rounded-karte border border-line p-3">
-      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t(k ? 'lager.bereich_name' : 'lager.bereich_neu')} aria-label={t('lager.bereich_name')} />
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder={t(k ? 'lager.bereich_name' : 'lager.bereich_neu')}
+        aria-label={t('lager.bereich_name')}
+      />
       <Select value={zust} onChange={(e) => setZust(e.target.value)} aria-label={t('lager.zustaendig')}>
         <option value="">{`${t('lager.zustaendig')}: ${t('lager.niemand')}`}</option>
         {members.map((m) => (
@@ -566,9 +647,34 @@ function BereichZeile({
         ))}
       </Select>
       {fehler ? <ErrorBox error={fehler} /> : null}
-      <Button type="submit" size="sm" variant={k ? 'outline' : 'primary'} loading={busy} disabled={!geaendert}>
-        {t(k ? 'aktion.speichern' : 'aktion.anlegen')}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button type="submit" size="sm" variant={k ? 'outline' : 'primary'} loading={busy} disabled={!geaendert}>
+          {t(k ? 'aktion.speichern' : 'aktion.anlegen')}
+        </Button>
+        {k ? (
+          <IconButton label={t('aktion.loeschen')} tone="danger" size="sm" className="ms-auto" onClick={() => setWeg(true)}>
+            <Trash2 size={18} />
+          </IconButton>
+        ) : null}
+      </div>
+      {k ? (
+        <ConfirmDialog
+          open={weg}
+          title={t('lager.bereich_loeschen_titel', { name: k.name })}
+          body={t('lager.bereich_loeschen_text')}
+          onClose={() => setWeg(false)}
+          onConfirm={async () => {
+            try {
+              await bereichLoeschen(k.id)
+              toast(t('lager.toast_bereich_weg', { name: k.name }), 'ok')
+              onGespeichert()
+            } catch (err) {
+              setFehler(fehlerText(err))
+              setWeg(false)
+            }
+          }}
+        />
+      ) : null}
     </form>
   )
 }
@@ -591,7 +697,6 @@ export function BereicheDialog({
       footer={<Button onClick={onClose}>{t('aktion.fertig')}</Button>}
     >
       <div className="space-y-3">
-        <p className="t-sub">{t('lager.bereiche_hinweis')}</p>
         {kategorien.length === 0 ? <p className="t-sub">{t('lager.bereiche_leer')}</p> : null}
         {kategorien.map((k) => (
           <BereichZeile key={k.id} k={k} onGespeichert={onGeaendert} />

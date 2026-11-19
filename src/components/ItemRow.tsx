@@ -65,7 +65,8 @@ export function ItemRow({
   projectId: string
   tagById: (id: string | null | undefined) => Tag | undefined
   canEdit: boolean
-  /** Antippen des Statuspunkts. Ohne Funktion ist er nur Anzeige. */
+  /** Zeigt den Statuspunkt und macht ihn antippbar. Ohne diese Funktion
+   *  steht kein Status in der Zeile (Kistenliste, E105). */
   onStatus?: (item: Item) => void
   /** Auswaehlen wie in einer Tabelle. Ohne dieses Feld gibt es keinen
    *  Auswahlmodus, und die Zeile fuehrt wie immer auf ihre Seite. */
@@ -116,15 +117,10 @@ export function ItemRow({
         <FuellBalken wert={item.fuellstand} groesse="klein" ohneWert="nichts" />
       </span>
       <span className="t-name block truncate">{item.title || t(`art.${item.kind}`)}</span>
-      {zimmer || perso || item.target_room ? (
+      {zimmer || perso ? (
         <span className="flex flex-wrap items-center gap-1.5">
           {zimmer ? <TagTile tag={zimmer} icon={<DoorOpen size={14} />} /> : null}
           {perso ? <TagTile tag={perso} icon={<User size={14} />} /> : null}
-          {item.target_room ? (
-            <span className="t-sub min-w-0 truncate">
-              {t('kisten.nach_ziel', { ziel: item.target_room })}
-            </span>
-          ) : null}
         </span>
       ) : null}
     </>
@@ -173,12 +169,16 @@ export function ItemRow({
         </Link>
       )}
 
-      <span className="flex shrink-0 items-center py-3 pe-3">
-        <StatusPill
-          status={item.status}
-          onClick={canEdit && onStatus && !waehlen ? () => onStatus(item) : undefined}
-        />
-      </span>
+      {/* Den Status zeigen nur Seiten, die ihn noch fuehren (sie reichen
+          onStatus). Eine Kiste im Lager ist einfach da. */}
+      {onStatus ? (
+        <span className="flex shrink-0 items-center py-3 pe-3">
+          <StatusPill
+            status={item.status}
+            onClick={canEdit && !waehlen ? () => onStatus(item) : undefined}
+          />
+        </span>
+      ) : null}
     </div>
   )
 }

@@ -58,7 +58,7 @@ import { Eigenschaften } from './Eigenschaften'
 import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
 import { einpassen, radArt, radFaktor, verschieben, zoomAm } from '../components/plan/ansicht'
-import { Assistent, KistenListe, MoebelKatalog, PlanSuche, RegalVorlage, StromWahl, UnterlagenWahl } from './Seitenteile'
+import { Assistent, KistenListe, PlanSuche, RegalVorlage, UnterlagenWahl } from './Seitenteile'
 import { REIHENFOLGE, TASTEN, tastenZeichen, WERKZEUGE } from './werkzeuge'
 import { sperrSchluessel, zielAn } from './werkzeuge/auswahl'
 import { KontextMenue, UmbenennenDialog, type MenueAktion } from './Menue'
@@ -179,10 +179,9 @@ export default function Zeichner({
   const [groesse, setGroesse] = useState<[number, number]>([0, 0])
   const [raster, setRaster] = useState<1 | 5 | 10>(5)
   const [winkel, setWinkel] = useState(true)
-  // Teppiche ein- und ausblenden (E74), nur die Ansicht.
-  const [teppiche, setTeppiche] = useState(true)
-  // Deko und Spielzeug ein- und ausblenden (E82), nur die Ansicht.
-  const [deko, setDeko] = useState(true)
+  // Alte Daten (Teppiche, Deko) werden weiter gezeigt, neue entstehen nicht.
+  const teppiche = true
+  const deko = true
   /** Umschalter 2D/3D: 3D liegt ueber der Zeichenflaeche und zeigt z.dok live. */
   const [drei, setDrei] = useState(begehen)
   // E87: begehen gilt nur fuer das erste 3D; zurueck auf 2D vergisst es.
@@ -203,7 +202,7 @@ export default function Zeichner({
   const [unterlageFehler, setUnterlageFehler] = useState<string | null>(null)
   const [inHand, setInHand] = useState<KisteInHand | null>(null)
   const [letztePlatzierung, setLetztePlatzierung] = useState<{ id: string; code: string; vorher: PlanKiste | null } | null>(null)
-  const [symbolArt, setSymbolArt] = useState<SymbolArt>('steckdose')
+  const [symbolArt] = useState<SymbolArt>('steckdose')
   /* Ziehen nur nach Freigabe (Rechtsklick > Verschieben / Groesse aendern):
    * sonst verschiebt man Raeume und Moebel zu leicht aus Versehen. */
   const [entsperrt, setEntsperrt] = useState<string | null>(null)
@@ -346,7 +345,9 @@ export default function Zeichner({
 
   /* -------------------------------------------------------- Werkzeuge */
 
-  const wechseln = useCallback((name: WerkzeugName, rechteck?: boolean) => {
+  const wechseln = useCallback((wunsch: WerkzeugName, rechteck?: boolean) => {
+    // Nur die Werkzeuge der Leiste (Moebel, Strom, Kiste gibt es hier nicht mehr).
+    const name: WerkzeugName = REIHENFOLGE.includes(wunsch) ? wunsch : 'auswahl'
     setWerkzeug({ name, s: name === 'raum' ? raumStart(rechteck ? 'rechteck' : 'punkte') : WERKZEUGE[name].start() })
     setMassEingabe(null)
     if (name !== 'kiste') setUnterlage(null)
@@ -498,7 +499,7 @@ export default function Zeichner({
 
   /* Klick in 3D (auch beim Begehen): wie ein Klick an derselben Stelle
    * im Plan, fuer die Werkzeuge, die etwas hinstellen (E66). */
-  const stelltHin = werkzeug.name === 'kiste' || werkzeug.name === 'moebel' || werkzeug.name === 'regal' || werkzeug.name === 'schrank'
+  const stelltHin = werkzeug.name === 'regal' || werkzeug.name === 'schrank'
   function planTippen(x: number, y: number, treffer: Treffer3D | null) {
     if (werkzeug.name === 'auswahl') {
       // Auswaehlen in 3D: Moebel oder Kiste waehlen, rechts erscheinen ihre Eigenschaften.
@@ -1042,22 +1043,6 @@ export default function Zeichner({
         />
       )
     }
-    if (werkzeug.name === 'moebel') {
-      return (
-        <MoebelKatalog
-          wahl={vorlagen.moebel}
-          onWahl={(v) => setVorlagen((x) => ({ ...x, moebel: v }))}
-          eigene={eigene.liste}
-          eigeneFehler={eigene.fehler}
-          eigeneNochmal={eigene.nochmal}
-          objekte={z.dok.objekte}
-          onZeigen={objektZeigen}
-        />
-      )
-    }
-    if (werkzeug.name === 'strom') {
-      return <StromWahl wahl={symbolArt} onWahl={setSymbolArt} />
-    }
     if (werkzeug.name === 'regal' || werkzeug.name === 'schrank') {
       const art = werkzeug.name
       return <RegalVorlage wert={vorlagen[art]} onAendern={(v) => setVorlagen((x) => ({ ...x, [art]: v }))} />
@@ -1078,10 +1063,6 @@ export default function Zeichner({
           neuesZimmer={(rid) => {
             const r = z.dok.raeume.find((x) => x.id === rid)
             setBereich({ entwurf: neuerBereich('room', tags.length, r ? raumTitel(r) : ''), raumId: rid })
-          }}
-          kisteInHand={(k) => {
-            setInHand({ id: k.id, code: k.code, laenge_cm: k.laenge_cm, breite_cm: k.breite_cm, hoehe_cm: k.hoehe_cm })
-            wechseln('kiste')
           }}
           vomPlatz={(k) => void vomPlatz(k)}
         />
@@ -1404,33 +1385,6 @@ export default function Zeichner({
           className="w-80 shrink-0 space-y-4 overflow-y-auto border-s border-line bg-surface p-4 scrollbar-thin"
         >
           <PlanSuche objekte={z.dok.objekte} kisten={z.dok.kisten} onObjekt={objektZeigen} onKiste={kisteZeigen} />
-          {drei ? (
-            <div className="space-y-1.5">
-              <div className="grid grid-cols-3 gap-1 rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('zeichner.drei.titel')}>
-                {(
-                  [
-                    ['kiste', 'zeichner.drei.kisten'],
-                    ['moebel', 'zeichner.drei.moebel'],
-                    ['auswahl', 'zeichner.drei.auswahl'],
-                  ] as const
-                ).map(([name, schluessel]) => (
-                  <button
-                    key={name}
-                    type="button"
-                    aria-pressed={werkzeug.name === name}
-                    onClick={() => wechseln(name)}
-                    className={cx(
-                      'rounded-lg px-1.5 py-1.5 text-sm font-bold',
-                      werkzeug.name === name ? 'bg-ink text-paper' : 'text-ink hover:bg-raised',
-                    )}
-                  >
-                    {t(schluessel)}
-                  </button>
-                ))}
-              </div>
-              <p className="t-sub text-sm">{t('zeichner.drei.hilfe')}</p>
-            </div>
-          ) : null}
           {letztePlatzierung ? (
             <div className="flex items-center gap-2 rounded-xl border border-line bg-paper p-2">
               <CodeChip code={letztePlatzierung.code} size="sm" />
@@ -1471,30 +1425,6 @@ export default function Zeichner({
           className={cx('rounded-md px-2 py-0.5 font-bold', winkel ? 'bg-ink text-paper' : 'hover:bg-raised')}
         >
           {t('zeichner.winkel')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTeppiche((v) => !v)}
-          aria-pressed={teppiche}
-          className={cx('rounded-md px-2 py-0.5 font-bold', teppiche ? 'bg-ink text-paper' : 'hover:bg-raised')}
-        >
-          {t('zeichner.teppiche')}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            // Beim Ausblenden eine gewaehlte Deko (oder was auf ihr steht)
-            // abwaehlen, sonst loeschte Entf sie unsichtbar.
-            const gewaehlt = z.auswahl
-            if (deko && gewaehlt?.art === 'objekt' && dekoEbene(z.dok.objekte).has(gewaehlt.id)) {
-              dispatch({ typ: 'waehlen', auswahl: null })
-            }
-            setDeko((v) => !v)
-          }}
-          aria-pressed={deko}
-          className={cx('rounded-md px-2 py-0.5 font-bold', deko ? 'bg-ink text-paper' : 'hover:bg-raised')}
-        >
-          {t('zeichner.deko')}
         </button>
         <span className="t-serial text-muted">{ansicht ? `${Math.round(ansicht.s * 100)} %` : ''}</span>
         <span data-tour="z-tasten" className="t-sub ms-auto">{t('zeichner.tasten_hilfe')}</span>

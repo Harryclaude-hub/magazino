@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Boxes, Cog, DoorClosed, HandHelping, LayoutDashboard, MessageCircle, Package, Users } from 'lucide-react'
+import { Boxes, Cog, DoorClosed, HandHelping, History, LayoutDashboard, Package } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { IconButton } from '../components/ui'
 import { useProject } from './ProjectLayout'
@@ -19,7 +19,6 @@ function Kachel({
   status,
   ton = 'normal',
   gross,
-  badge,
 }: {
   to: string
   icon: ReactNode
@@ -27,7 +26,6 @@ function Kachel({
   status?: ReactNode
   ton?: 'normal' | 'warn' | 'danger' | 'ok'
   gross?: boolean
-  badge?: number
 }) {
   return (
     <Link
@@ -54,11 +52,6 @@ function Kachel({
           </span>
         ) : null}
       </span>
-      {badge && badge > 0 ? (
-        <span className="absolute end-3 top-3 min-w-6 rounded-full bg-danger px-1.5 text-center text-sm font-black leading-6 text-paper">
-          {badge > 99 ? '99+' : badge}
-        </span>
-      ) : null}
     </Link>
   )
 }
@@ -70,11 +63,11 @@ function Wert<T>({ z, kurz, fehler, zeige }: { z: AsyncState<T>; kurz: string; f
   return <>{zeige(z.data)}</>
 }
 
-/* Startseite eines Lagers (E103). */
+/* Startseite eines Lagers (E103, E104): grosse Kacheln, kaum Text. */
 export default function LagerHome() {
-  const { project, members, unread } = useProject()
+  const { project } = useProject()
   const { user } = useAuth()
-  const { t, tn } = useSprache()
+  const { t } = useSprache()
   const nav = useNavigate()
   const pid = project.id
   const base = `/app/p/${pid}`
@@ -92,10 +85,9 @@ export default function LagerHome() {
     <>
       <AppHeader
         title={project.name}
-        subtitle={project.note ?? tn('begriff.mitglieder_anzahl', members.length)}
-        back="/app"
+        back={`/app/bl/${project.bl_projekt_id}`}
         actions={
-          <IconButton label={t('umzuege.einstellen')} onClick={() => nav(`${base}/einstellungen`)}>
+          <IconButton label={t('struktur.einstellungen')} onClick={() => nav(`${base}/einstellungen`)}>
             <Cog size={20} />
           </IconButton>
         }
@@ -179,8 +171,7 @@ export default function LagerHome() {
           />
           <Kachel to={`${base}/kisten`} icon={<Boxes size={26} />} titel={t('nav.kisten')} />
           <Kachel to={`${base}/grundriss`} icon={<LayoutDashboard size={26} />} titel={t('grundriss.titel')} />
-          <Kachel to={`${base}/chat`} icon={<MessageCircle size={26} />} titel={t('nav.chat')} badge={unread} />
-          <Kachel to={`${base}/team`} icon={<Users size={26} />} titel={t('umzuege.team')} />
+          <Kachel to={`${base}/verlauf`} icon={<History size={26} />} titel={t('struktur.verlauf')} />
         </div>
         <div className="h-6" />
       </Page>

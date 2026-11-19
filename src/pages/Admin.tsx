@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Check, ChevronRight, Copy, KeyRound, Plus, RefreshCw, Search, ShieldCheck, ShieldX, Trash2, Undo2, Users } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Copy, KeyRound, Pencil, Plus, RefreshCw, Search, ShieldCheck, ShieldX, Trash2, Undo2, Users } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { Badge, Button, Card, Chip, ConfirmDialog, Empty, ErrorBox, Field, Input, Loading, Modal, SectionTitle, Select, useToast } from '../components/ui'
 import {
@@ -7,12 +7,20 @@ import {
   adminAktivitaet,
   adminFreigabeSetzen,
   adminKontoAnlegen,
+  adminBlMitglieder,
   adminKontoLoeschen,
-  adminMitgliedSetzen,
   adminNutzerAktivitaet,
+  blMitgliedSetzen,
+  blProjektAnlegen,
+  blProjektLoeschen,
+  blProjektUmbenennen,
   lagerAnlegen,
   ladeAdminUebersicht,
+  listBlProjekte,
+  listLagerImBl,
   listProjects,
+  type BlMitglied,
+  type BlProjekt,
   type Freigabe,
   type ProjectWithStats,
 } from '../lib/api'
@@ -22,13 +30,13 @@ import { passwortGenug } from '../lib/passwort'
 import type { AdminAktivitaetZeile, AdminNutzer, AdminNutzerAktivitaet, AdminUebersicht } from '../lib/types'
 import { appUrl, useAsync, type AsyncState } from '../lib/util'
 
-/* Verwaltungsportal (0035, E103): Konten anlegen, Leute und ihr Zugang,
- * Lager, Aktivitaet. Nur Admins; die Datenbank lehnt alle anderen ab, die
- * Ablehnung steht hier als Fehler. */
+/* Verwaltungsportal (0035, E103, 0054): Konten anlegen, Leute und ihr Zugang
+ * je Bundeslandprojekt, Projekte mit ihren Lagern, Aktivitaet. Nur Admins; die
+ * Datenbank lehnt alle anderen ab, die Ablehnung steht hier als Fehler. */
 
-type Tab = 'konto' | 'leute' | 'lager' | 'aktivitaet'
+type Tab = 'konto' | 'leute' | 'projekte' | 'aktivitaet'
 type Rolle = 'editor' | 'viewer'
-type Zugang = 'owner' | 'editor' | 'viewer' | 'keine'
+type Zugang = Rolle | 'keine'
 
 /* ------------------------------------------------------------- Helfer */
 
@@ -131,14 +139,13 @@ const STATUS_FARBE: Record<Freigabe, string> = {
   gesperrt: 'var(--danger)',
 }
 
-function ZugangWahl({ wert, onChange, disabled, label, mitBesitzer }: { wert: Zugang; onChange: (z: Zugang) => void; disabled?: boolean; label: string; mitBesitzer?: boolean }) {
+function ZugangWahl({ wert, onChange, disabled, label, mitKeine }: { wert: Zugang; onChange: (z: Zugang) => void; disabled?: boolean; label: string; mitKeine?: boolean }) {
   const { t } = useSprache()
   return (
     <Select value={wert} onChange={(e) => onChange(e.target.value as Zugang)} disabled={disabled} aria-label={label} className="min-h-12 sm:w-56">
       <option value="editor">{t('adminkonten.rolle_editor')}</option>
       <option value="viewer">{t('adminkonten.rolle_viewer')}</option>
-      {mitBesitzer ? <option value="owner">{t('adminkonten.rolle_owner')}</option> : null}
-      {mitBesitzer ? <option value="keine">{t('adminkonten.rolle_keine')}</option> : null}
+      {mitKeine ? <option value="keine">{t('adminkonten.rolle_keine')}</option> : null}
     </Select>
   )
 }
@@ -289,7 +296,7 @@ function ErfolgDialog({ e, onClose }: { e: Erfolg; onClose: () => void }) {
   )
 }
 
-function NeuesKonto({ lager, onAngelegt }: { lager: AsyncState<ProjectWithStats[]>; onAngelegt: () => void }) {
+function NeuesKonto({ bl, onAngelegt }: { bl: AsyncState<BlProjekt[]>; onAngelegt: () => void }) {
   const { t } = useSprache()
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -323,7 +330,7 @@ function NeuesKonto({ lager, onAngelegt }: { lager: AsyncState<ProjectWithStats[
           email: mail,
           password: pw,
           name: name.trim(),
-          lager: Object.entries(wahl).map(([projectId, rolle]) => ({ projectId, rolle })),
+          bundeslaender: Object.entries(wahl).map(([blId, rolle]) => ({ blId, rolle })),
         })
       } catch (err) {
         const grund = err instanceof Error ? err.message : String(err)
@@ -378,25 +385,24 @@ function NeuesKonto({ lager, onAngelegt }: { lager: AsyncState<ProjectWithStats[
         </Button>
 
         <div>
-          <p className="mb-2 text-[0.9375rem] font-bold">{t('adminkonten.lager_wahl')}</p>
-          <Zustand a={lager} leer={(d) => d.length === 0}>
+          <p className="mb-2 text-[0.9375rem] font-bold">{t('adminkonten.projekt_wahl')}</p>
+          <Zustand a={bl} leer={(d) => d.length === 0}>
             {(d) => (
               <Card className="overflow-hidden">
                 <ul className="divide-y divide-line">
                   {d.map((p) => {
-                    const id = p.project.id
-                    const an = id in wahl
+                    const an = p.id in wahl
                     return (
-                      <li key={id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+                      <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
                         <label className="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3">
-                          <input type="checkbox" className="h-6 w-6 shrink-0 accent-[var(--accent)]" checked={an} onChange={(e) => umschalten(id, e.target.checked)} />
-                          <span className="t-name min-w-0 break-words">{p.project.name}</span>
+                          <input type="checkbox" className="h-6 w-6 shrink-0 accent-[var(--accent)]" checked={an} onChange={(e) => umschalten(p.id, e.target.checked)} />
+                          <span className="t-name min-w-0 break-words">{p.name}</span>
                         </label>
                         {an ? (
                           <ZugangWahl
-                            wert={wahl[id]}
-                            label={t('adminkonten.rolle_fuer', { lager: p.project.name })}
-                            onChange={(z) => setWahl((w) => ({ ...w, [id]: z === 'viewer' ? 'viewer' : 'editor' }))}
+                            wert={wahl[p.id]}
+                            label={t('adminkonten.rolle_fuer', { projekt: p.name })}
+                            onChange={(z) => setWahl((w) => ({ ...w, [p.id]: z === 'viewer' ? 'viewer' : 'editor' }))}
                           />
                         ) : null}
                       </li>
@@ -426,13 +432,15 @@ type Frage = 'admin_machen' | 'admin_entziehen' | 'sperren' | 'loeschen' | null
 function PersonDialog({
   n,
   u,
-  lager,
+  bl,
+  blMit,
   onClose,
   onGeaendert,
 }: {
   n: AdminNutzerAktivitaet
   u: AdminNutzer | undefined
-  lager: ProjectWithStats[]
+  bl: AsyncState<BlProjekt[]>
+  blMit: AsyncState<BlMitglied[]>
   onClose: () => void
   onGeaendert: () => void
 }) {
@@ -448,11 +456,10 @@ function PersonDialog({
   const freigabe = u?.freigabe
   const alleinige = u ? u.umzuege.filter((x) => x.eigentuemer && x.mitglieder <= 1).length : 0
 
-  function aktuell(projectId: string): Zugang {
-    if (lokal[projectId]) return lokal[projectId]
-    const m = u?.umzuege.find((x) => x.id === projectId)
-    if (!m) return 'keine'
-    return m.eigentuemer || m.rolle === 'owner' ? 'owner' : m.rolle === 'viewer' ? 'viewer' : 'editor'
+  function aktuell(blId: string): Zugang {
+    if (lokal[blId]) return lokal[blId]
+    const m = (blMit.data ?? []).find((x) => x.bl_projekt_id === blId && x.user_id === n.user_id)
+    return !m ? 'keine' : m.role === 'viewer' ? 'viewer' : 'editor'
   }
 
   async function ausfuehren(fn: () => Promise<void>, ok: string): Promise<boolean> {
@@ -470,9 +477,9 @@ function PersonDialog({
     }
   }
 
-  async function zugangSetzen(p: ProjectWithStats, z: Zugang) {
-    const ok = await ausfuehren(() => adminMitgliedSetzen(n.user_id, p.project.id, z), t('adminkonten.zugang_gesetzt', { name, lager: p.project.name }))
-    if (ok) setLokal((l) => ({ ...l, [p.project.id]: z }))
+  async function zugangSetzen(p: BlProjekt, z: Zugang) {
+    const ok = await ausfuehren(() => blMitgliedSetzen(n.user_id, p.id, z), t('adminkonten.zugang_gesetzt', { name, projekt: p.name }))
+    if (ok) setLokal((l) => ({ ...l, [p.id]: z }))
   }
 
   return (
@@ -508,21 +515,26 @@ function PersonDialog({
 
           <section>
             <SectionTitle>{t('adminkonten.zugang_titel')}</SectionTitle>
-            {n.ist_admin ? <p className="t-sub mb-2">{t('adminkonten.zugang_admin')}</p> : null}
-            {lager.length === 0 ? (
-              <p className="t-sub">{t('adminkonten.keine_lager')}</p>
-            ) : !u ? (
+            {n.ist_admin ? (
+              <p className="t-sub">{t('adminkonten.zugang_admin')}</p>
+            ) : bl.error && !bl.data ? (
+              <ErrorBox error={bl.error} onRetry={bl.reload} />
+            ) : blMit.error && !blMit.data ? (
+              <ErrorBox error={blMit.error} onRetry={blMit.reload} />
+            ) : !bl.data || !blMit.data ? (
               <Loading label={t('adminkonten.laedt')} />
+            ) : bl.data.length === 0 ? (
+              <p className="t-sub">{t('adminkonten.keine_projekte')}</p>
             ) : (
               <ul className="space-y-2">
-                {lager.map((p) => (
-                  <li key={p.project.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-2">
-                    <span className="t-name min-w-0 flex-1 break-words">{p.project.name}</span>
+                {bl.data.map((p) => (
+                  <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-2">
+                    <span className="t-name min-w-0 flex-1 break-words">{p.name}</span>
                     <ZugangWahl
-                      mitBesitzer
-                      wert={aktuell(p.project.id)}
-                      disabled={busy || n.ist_admin}
-                      label={t('adminkonten.rolle_fuer', { lager: p.project.name })}
+                      mitKeine
+                      wert={aktuell(p.id)}
+                      disabled={busy}
+                      label={t('adminkonten.rolle_fuer', { projekt: p.name })}
                       onChange={(z) => void zugangSetzen(p, z)}
                     />
                   </li>
@@ -602,12 +614,14 @@ function PersonDialog({
 function LeuteTab({
   leute,
   uebersicht,
-  lager,
+  bl,
+  blMit,
   onGeaendert,
 }: {
   leute: AsyncState<AdminNutzerAktivitaet[]>
   uebersicht: AsyncState<AdminUebersicht>
-  lager: AsyncState<ProjectWithStats[]>
+  bl: AsyncState<BlProjekt[]>
+  blMit: AsyncState<BlMitglied[]>
   onGeaendert: () => void
 }) {
   const { t, lang } = useSprache()
@@ -687,7 +701,8 @@ function LeuteTab({
           key={gewaehlt.user_id}
           n={gewaehlt}
           u={nutzerMap.get(gewaehlt.user_id)}
-          lager={lager.data ?? []}
+          bl={bl}
+          blMit={blMit}
           onClose={() => setOffen(null)}
           onGeaendert={onGeaendert}
         />
@@ -696,23 +711,36 @@ function LeuteTab({
   )
 }
 
-/* ----------------------------------------------------------------- Lager */
+/* --------------------------------------------------------------- Projekte */
 
-function NeuesLagerDialog({ onClose, onAngelegt }: { onClose: () => void; onAngelegt: () => void }) {
+/** Ein Name, ein Knopf: neues Bundeslandprojekt, Umbenennen, neues Lager.
+ *  Der Dialog wird nur beim Oeffnen eingehaengt, der Zustand beginnt also immer neu. */
+function NameDialog({
+  titel,
+  label,
+  start,
+  ja,
+  onClose,
+  onSpeichern,
+}: {
+  titel: string
+  label: string
+  start: string
+  ja: string
+  onClose: () => void
+  onSpeichern: (name: string) => Promise<void>
+}) {
   const { t } = useSprache()
-  const toast = useToast()
-  const [name, setName] = useState('')
-  const [notiz, setNotiz] = useState('')
+  const [name, setName] = useState(start)
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
   async function speichern() {
-    if (!name.trim()) return setFehler(t('adminkonten.lager_name_fehlt'))
+    const n = name.trim()
+    if (!n) return setFehler(t('adminkonten.name_fehlt'))
     setFehler(null)
     setBusy(true)
     try {
-      await lagerAnlegen(name.trim(), notiz.trim() || undefined)
-      toast(t('adminkonten.lager_angelegt', { name: name.trim() }), 'ok')
-      onAngelegt()
+      await onSpeichern(n)
       onClose()
     } catch (err) {
       setFehler(err instanceof Error ? err.message : String(err))
@@ -724,14 +752,14 @@ function NeuesLagerDialog({ onClose, onAngelegt }: { onClose: () => void; onAnge
     <Modal
       open
       onClose={onClose}
-      title={t('adminkonten.lager_neu')}
+      title={titel}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             {t('aktion.abbrechen')}
           </Button>
           <Button loading={busy} onClick={() => void speichern()}>
-            {t('adminkonten.lager_anlegen')}
+            {ja}
           </Button>
         </>
       }
@@ -743,37 +771,161 @@ function NeuesLagerDialog({ onClose, onAngelegt }: { onClose: () => void; onAnge
           void speichern()
         }}
       >
-        <Field label={t('adminkonten.lager_name')} required>
+        <Field label={label} required>
           <Input value={name} maxLength={60} autoFocus onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label={t('adminkonten.lager_notiz')}>
-          <Input value={notiz} maxLength={200} onChange={(e) => setNotiz(e.target.value)} />
-        </Field>
-        <p className="t-sub">{t('adminkonten.lager_hinweis')}</p>
         {fehler ? <FehlerSatz text={fehler} /> : null}
       </form>
     </Modal>
   )
 }
 
-function LagerTab({ lager, uebersicht, onAngelegt }: { lager: AsyncState<ProjectWithStats[]>; uebersicht: AsyncState<AdminUebersicht>; onAngelegt: () => void }) {
+function ProjektKarte({
+  p,
+  lagerZahl,
+  leuteZahl,
+  mitglieder,
+  kisten,
+  stand,
+  onUmbenennen,
+  onLoeschen,
+  onNeuesLager,
+}: {
+  p: BlProjekt
+  lagerZahl: number
+  leuteZahl: number
+  mitglieder: Map<string, number>
+  kisten: Map<string, number>
+  stand: number
+  onUmbenennen: () => void
+  onLoeschen: () => void
+  onNeuesLager: () => void
+}) {
   const { t } = useSprache()
+  const [offen, setOffen] = useState(false)
+  return (
+    <li>
+      <div className="flex items-center gap-1 px-2 py-1">
+        <button
+          type="button"
+          aria-expanded={offen}
+          onClick={() => setOffen((o) => !o)}
+          className="flex min-h-16 min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-start transition hover:bg-raised"
+        >
+          {offen ? <ChevronDown size={18} className="shrink-0 text-muted" /> : <ChevronRight size={18} className="spiegeln shrink-0 text-muted" />}
+          <span className="min-w-0 flex-1">
+            <span className="t-name block break-words">{p.name}</span>
+            <span className="t-sub block">{t('adminkonten.projekt_zeile', { lager: lagerZahl, leute: leuteZahl })}</span>
+          </span>
+        </button>
+        <Button size="sm" variant="ghost" aria-label={t('adminkonten.umbenennen')} onClick={onUmbenennen}>
+          <Pencil size={16} />
+        </Button>
+        <Button size="sm" variant="ghost" aria-label={t('adminkonten.projekt_loeschen')} className="text-danger" onClick={onLoeschen}>
+          <Trash2 size={16} />
+        </Button>
+      </div>
+      {offen ? <ProjektLager p={p} mitglieder={mitglieder} kisten={kisten} stand={stand} onNeuesLager={onNeuesLager} /> : null}
+    </li>
+  )
+}
+
+function ProjektLager({
+  p,
+  mitglieder,
+  kisten,
+  stand,
+  onNeuesLager,
+}: {
+  p: BlProjekt
+  mitglieder: Map<string, number>
+  kisten: Map<string, number>
+  stand: number
+  onNeuesLager: () => void
+}) {
+  const { t } = useSprache()
+  const a = useAsync(() => listLagerImBl(p.id), [p.id, stand])
+  return (
+    <div className="space-y-2 px-4 pb-4">
+      {a.error && !a.data ? (
+        <ErrorBox error={a.error} onRetry={a.reload} />
+      ) : a.loading && !a.data ? (
+        <Loading label={t('adminkonten.laedt')} />
+      ) : (
+        <>
+          {a.error ? <FehlerSatz text={a.error} /> : null}
+          {(a.data ?? []).length === 0 ? (
+            <p className="t-sub">{t('adminkonten.projekt_leer')}</p>
+          ) : (
+            <ul className="space-y-2">
+              {(a.data ?? []).map((l) => (
+                <li key={l.id} className="rounded-2xl border border-line bg-surface px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="t-name min-w-0 break-words">{l.name}</span>
+                    {l.archived ? <Badge>{t('admin.archiviert')}</Badge> : null}
+                  </div>
+                  <p className="t-sub mt-0.5">{t('adminkonten.lager_zeile', { mitglieder: mitglieder.get(l.id) ?? 0, kisten: kisten.get(l.id) ?? 0 })}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      <Button size="sm" variant="outline" onClick={onNeuesLager}>
+        <Plus size={16} /> {t('adminkonten.lager_neu')}
+      </Button>
+    </div>
+  )
+}
+
+function ProjekteTab({
+  bl,
+  lager,
+  blMit,
+  uebersicht,
+  stand,
+  onGeaendert,
+}: {
+  bl: AsyncState<BlProjekt[]>
+  lager: AsyncState<ProjectWithStats[]>
+  blMit: AsyncState<BlMitglied[]>
+  uebersicht: AsyncState<AdminUebersicht>
+  stand: number
+  onGeaendert: () => void
+}) {
+  const { t } = useSprache()
+  const toast = useToast()
   const [neu, setNeu] = useState(false)
+  const [umb, setUmb] = useState<BlProjekt | null>(null)
+  const [weg, setWeg] = useState<BlProjekt | null>(null)
+  const [lagerIn, setLagerIn] = useState<BlProjekt | null>(null)
   const kisten = useMemo(() => {
     const m = new Map<string, number>()
     for (const n of uebersicht.data?.nutzer ?? []) for (const x of n.umzuege) m.set(x.id, x.kisten)
     return m
   }, [uebersicht.data])
+  const mitglieder = useMemo(() => new Map((lager.data ?? []).map((x) => [x.project.id, x.members])), [lager.data])
+  const lagerJe = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const x of lager.data ?? []) m.set(x.project.bl_projekt_id, (m.get(x.project.bl_projekt_id) ?? 0) + 1)
+    return m
+  }, [lager.data])
+  const leuteJe = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const x of blMit.data ?? []) m.set(x.bl_projekt_id, (m.get(x.bl_projekt_id) ?? 0) + 1)
+    return m
+  }, [blMit.data])
+
   return (
     <section>
       <SectionTitle
         action={
           <Button size="sm" onClick={() => setNeu(true)}>
-            <Plus size={16} /> {t('adminkonten.lager_neu')}
+            <Plus size={16} /> {t('adminkonten.projekt_neu')}
           </Button>
         }
       >
-        {t('adminkonten.lager_titel')}
+        {t('adminkonten.projekte_titel')}
       </SectionTitle>
       {uebersicht.data ? (
         <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -787,27 +939,91 @@ function LagerTab({ lager, uebersicht, onAngelegt }: { lager: AsyncState<Project
           <ErrorBox error={uebersicht.error} onRetry={uebersicht.reload} />
         </div>
       ) : null}
-      <Zustand a={lager} leer={(d) => d.length === 0}>
+      <Zustand a={bl} leer={(d) => d.length === 0}>
         {(d) => (
           <Card className="overflow-hidden">
             <ul className="zebra divide-y divide-line">
               {d.map((p) => (
-                <li key={p.project.id} className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="t-name min-w-0 break-words">{p.project.name}</span>
-                    {p.project.archived ? <Badge>{t('admin.archiviert')}</Badge> : null}
-                  </div>
-                  {p.project.note ? <p className="t-sub mt-0.5 break-words">{p.project.note}</p> : null}
-                  <p className="t-sub mt-1">
-                    {t('adminkonten.lager_zeile', { mitglieder: p.members, kisten: kisten.get(p.project.id) ?? 0 })}
-                  </p>
-                </li>
+                <ProjektKarte
+                  key={p.id}
+                  p={p}
+                  lagerZahl={lagerJe.get(p.id) ?? 0}
+                  leuteZahl={leuteJe.get(p.id) ?? 0}
+                  mitglieder={mitglieder}
+                  kisten={kisten}
+                  stand={stand}
+                  onUmbenennen={() => setUmb(p)}
+                  onLoeschen={() => setWeg(p)}
+                  onNeuesLager={() => setLagerIn(p)}
+                />
               ))}
             </ul>
           </Card>
         )}
       </Zustand>
-      {neu ? <NeuesLagerDialog onClose={() => setNeu(false)} onAngelegt={onAngelegt} /> : null}
+
+      {neu ? (
+        <NameDialog
+          titel={t('adminkonten.projekt_neu')}
+          label={t('adminkonten.projekt_name')}
+          start=""
+          ja={t('adminkonten.projekt_anlegen')}
+          onClose={() => setNeu(false)}
+          onSpeichern={async (name) => {
+            await blProjektAnlegen(name)
+            toast(t('adminkonten.projekt_angelegt', { name }), 'ok')
+            onGeaendert()
+          }}
+        />
+      ) : null}
+      {umb ? (
+        <NameDialog
+          titel={t('adminkonten.umbenennen')}
+          label={t('adminkonten.projekt_name')}
+          start={umb.name}
+          ja={t('aktion.speichern')}
+          onClose={() => setUmb(null)}
+          onSpeichern={async (name) => {
+            await blProjektUmbenennen(umb.id, name)
+            toast(t('adminkonten.projekt_umbenannt', { name }), 'ok')
+            onGeaendert()
+          }}
+        />
+      ) : null}
+      {lagerIn ? (
+        <NameDialog
+          titel={t('adminkonten.lager_neu_in', { projekt: lagerIn.name })}
+          label={t('adminkonten.lager_name')}
+          start=""
+          ja={t('adminkonten.lager_anlegen')}
+          onClose={() => setLagerIn(null)}
+          onSpeichern={async (name) => {
+            await lagerAnlegen(lagerIn.id, name)
+            toast(t('adminkonten.lager_angelegt', { name }), 'ok')
+            onGeaendert()
+          }}
+        />
+      ) : null}
+      <ConfirmDialog
+        open={weg !== null}
+        danger
+        title={weg ? t('adminkonten.frage_projekt_loeschen_titel', { name: weg.name }) : ''}
+        body={t('adminkonten.frage_projekt_loeschen')}
+        confirmLabel={t('adminkonten.frage_projekt_loeschen_ja')}
+        onClose={() => setWeg(null)}
+        onConfirm={async () => {
+          const p = weg
+          setWeg(null)
+          if (!p) return
+          try {
+            await blProjektLoeschen(p.id)
+            toast(t('adminkonten.projekt_geloescht', { name: p.name }), 'ok')
+            onGeaendert()
+          } catch (err) {
+            toast(err instanceof Error ? err.message : String(err), 'error')
+          }
+        }}
+      />
     </section>
   )
 }
@@ -817,18 +1033,24 @@ function LagerTab({ lager, uebersicht, onAngelegt }: { lager: AsyncState<Project
 export default function Admin() {
   const { t } = useSprache()
   const [tab, setTab] = useState<Tab>('leute')
+  const [stand, setStand] = useState(0)
   const leute = useAsync(() => adminNutzerAktivitaet(), [])
   const uebersicht = useAsync(() => ladeAdminUebersicht(), [])
   const lager = useAsync(() => listProjects(), [])
+  const bl = useAsync(() => listBlProjekte(), [])
+  const blMit = useAsync(() => adminBlMitglieder(), [])
   const alleNeu = () => {
     leute.reload()
     uebersicht.reload()
     lager.reload()
+    bl.reload()
+    blMit.reload()
+    setStand((x) => x + 1)
   }
   const reiter: { id: Tab; wort: string }[] = [
     { id: 'konto', wort: t('adminkonten.tab_konto') },
     { id: 'leute', wort: t('adminkonten.tab_leute') },
-    { id: 'lager', wort: t('adminkonten.tab_lager') },
+    { id: 'projekte', wort: t('adminkonten.tab_projekte') },
     { id: 'aktivitaet', wort: t('adminkonten.tab_aktivitaet') },
   ]
   return (
@@ -842,9 +1064,9 @@ export default function Admin() {
             </Chip>
           ))}
         </div>
-        {tab === 'konto' ? <NeuesKonto lager={lager} onAngelegt={alleNeu} /> : null}
-        {tab === 'leute' ? <LeuteTab leute={leute} uebersicht={uebersicht} lager={lager} onGeaendert={alleNeu} /> : null}
-        {tab === 'lager' ? <LagerTab lager={lager} uebersicht={uebersicht} onAngelegt={alleNeu} /> : null}
+        {tab === 'konto' ? <NeuesKonto bl={bl} onAngelegt={alleNeu} /> : null}
+        {tab === 'leute' ? <LeuteTab leute={leute} uebersicht={uebersicht} bl={bl} blMit={blMit} onGeaendert={alleNeu} /> : null}
+        {tab === 'projekte' ? <ProjekteTab bl={bl} lager={lager} blMit={blMit} uebersicht={uebersicht} stand={stand} onGeaendert={alleNeu} /> : null}
         {tab === 'aktivitaet' ? <AktivitaetTab leute={leute} /> : null}
       </Page>
     </>

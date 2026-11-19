@@ -1,5 +1,5 @@
 import { FreigabeTor } from './components/Freigabe'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { lazy, Suspense, type ReactNode } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ToastProvider, Loading, Wordmark } from './components/ui'
@@ -12,6 +12,8 @@ import ResetRequest from './pages/ResetRequest'
 import ResetConfirm from './pages/ResetConfirm'
 import AppLayout from './pages/AppLayout'
 import Dashboard from './pages/Dashboard'
+import BlProjekt from './pages/BlProjekt'
+import Verlauf from './pages/Verlauf'
 import Settings from './pages/Settings'
 import ScanHub from './pages/ScanHub'
 import Suche from './pages/Suche'
@@ -20,18 +22,11 @@ import LagerHome from './pages/LagerHome'
 import Tuer from './pages/Tuer'
 import Bestand from './pages/Bestand'
 import Ausleihen from './pages/Ausleihen'
-import Areas from './pages/Areas'
-import AreaDetail from './pages/AreaDetail'
 import Items from './pages/Items'
 import ItemDetail from './pages/ItemDetail'
-import Furniture from './pages/Furniture'
-import FurnitureDetail from './pages/FurnitureDetail'
 import Labels from './pages/Labels'
-import Export from './pages/Export'
 import Groessen from './pages/Groessen'
 import ScanPage from './pages/ScanPage'
-import Chat from './pages/Chat'
-import Team from './pages/Team'
 import ProjectSettings from './pages/ProjectSettings'
 import ScanResolve from './pages/ScanResolve'
 import NotFound from './pages/NotFound'
@@ -44,11 +39,13 @@ const AlterPlanLink = lazy(() => import('./pages/Grundriss').then((m) => ({ defa
 /* Kiste platzieren am Handy: eigener Teil, erst beim Oeffnen geladen. */
 const PlatzWahl = lazy(() => import('./pages/PlatzWahl'))
 const Admin = lazy(() => import('./pages/Admin'))
-/* Die Siedlung (E83): eigener Bereich neben den Umzuegen. Beim Start der
- * App laedt davon nichts, weder Seite noch Daten noch three; erst der
- * Knopf oben rechts oeffnet sie. */
-const Siedlungen = lazy(() => import('./pages/Siedlungen'))
-const SiedlungAnsicht = lazy(() => import('./pages/SiedlungAnsicht'))
+/* Alte Adressen (Chat, Bereiche, Zimmer, Personen, Moebel, Export, Team,
+ * Siedlung) gibt es nicht mehr. Alte QR-Codes und Links landen auf der
+ * Startseite des Lagers statt im Leeren (E104). */
+function ZumLager() {
+  const { pid = '' } = useParams()
+  return <Navigate to={`/app/p/${pid}`} replace />
+}
 
 function Nachladen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<Loading />}>{children}</Suspense>
@@ -139,8 +136,9 @@ export default function App() {
               <Route index element={<Dashboard />} />
               <Route path="einstellungen" element={<Settings />} />
               <Route path="admin" element={<Nachladen><Admin /></Nachladen>} />
-              <Route path="siedlung" element={<Nachladen><Siedlungen /></Nachladen>} />
-              <Route path="siedlung/:sid" element={<Nachladen><SiedlungAnsicht /></Nachladen>} />
+              <Route path="siedlung" element={<Navigate to="/app" replace />} />
+              <Route path="siedlung/*" element={<Navigate to="/app" replace />} />
+              <Route path="bl/:blId" element={<BlProjekt />} />
               <Route path="scan" element={<ScanHub />} />
               <Route path="suche" element={<Suche />} />
               <Route path="p/:pid" element={<ProjectLayout />}>
@@ -148,27 +146,28 @@ export default function App() {
                 <Route path="tuer" element={<Tuer />} />
                 <Route path="bestand" element={<Bestand />} />
                 <Route path="ausleihen" element={<Ausleihen />} />
-                <Route path="bereiche" element={<Areas />} />
-                {/* Eigene Seiten. Zimmer und Person teilen sich eine Datei,
-                    sie sind in der Datenbank dieselbe Tabelle. */}
-                <Route path="zimmer/:tagId" element={<AreaDetail kind="room" />} />
+                <Route path="bereiche" element={<ZumLager />} />
+                <Route path="zimmer/:tagId" element={<ZumLager />} />
                 {/* Alte Links auf den Raumplan fuehren in den Grundriss. */}
                 <Route path="zimmer/:tagId/plan" element={<Nachladen><AlterPlanLink /></Nachladen>} />
                 <Route path="grundriss" element={<Nachladen><GrundrissWeiche /></Nachladen>} />
                 <Route path="grundriss/:gid" element={<Nachladen><Grundriss /></Nachladen>} />
-                <Route path="person/:tagId" element={<AreaDetail kind="person" />} />
-                <Route path="moebel" element={<Furniture />} />
-                <Route path="moebel/:id" element={<FurnitureDetail />} />
+                <Route path="person/:tagId" element={<ZumLager />} />
+                <Route path="moebel" element={<ZumLager />} />
+                <Route path="moebel/:id" element={<ZumLager />} />
                 <Route path="kisten" element={<Items />} />
                 <Route path="kisten/:iid" element={<ItemDetail />} />
                 <Route path="kisten/:iid/platz" element={<Nachladen><PlatzWahl /></Nachladen>} />
                 <Route path="etiketten" element={<Labels />} />
-                <Route path="export" element={<Export />} />
+                <Route path="export" element={<ZumLager />} />
                 <Route path="groessen" element={<Groessen />} />
                 <Route path="scan" element={<ScanPage />} />
-                <Route path="chat" element={<Chat />} />
-                <Route path="team" element={<Team />} />
+                <Route path="verlauf" element={<Verlauf />} />
+                {/* Alte Adressen: Chat, Team, Siedlung und was es sonst nicht mehr gibt. */}
+                <Route path="chat" element={<ZumLager />} />
+                <Route path="team" element={<ZumLager />} />
                 <Route path="einstellungen" element={<ProjectSettings />} />
+                <Route path="*" element={<ZumLager />} />
               </Route>
             </Route>
 

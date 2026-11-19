@@ -2,7 +2,7 @@ import type { Woerterbuch } from '../woerter'
 
 /* Admin-Portal, Konten anlegen, Zuteilen, Aktivitaet (E103). Schluessel adminkonten.* */
 export const adminKonten: Woerterbuch = {
-  'adminkonten.untertitel': { de: 'Konten, Leute, Lager und Aktivität', ar: 'الحسابات والأشخاص والمستودعات والنشاط' },
+  'adminkonten.untertitel': { de: 'Konten, Leute, Projekte und Aktivität', ar: 'الحسابات والأشخاص والمشاريع والنشاط' },
   'adminkonten.laedt': { de: 'Wird geladen', ar: 'جارٍ التحميل' },
   'adminkonten.leer': { de: 'Hier ist noch nichts.', ar: 'لا يوجد شيء هنا بعد.' },
   'adminkonten.system': { de: 'System', ar: 'النظام' },
@@ -10,7 +10,7 @@ export const adminKonten: Woerterbuch = {
   // Reiter
   'adminkonten.tab_konto': { de: 'Neues Konto', ar: 'حساب جديد' },
   'adminkonten.tab_leute': { de: 'Leute', ar: 'الأشخاص' },
-  'adminkonten.tab_lager': { de: 'Lager', ar: 'المستودعات' },
+  'adminkonten.tab_projekte': { de: 'Projekte', ar: 'المشاريع' },
   'adminkonten.tab_aktivitaet': { de: 'Aktivität', ar: 'النشاط' },
 
   // Neues Konto
@@ -28,16 +28,15 @@ export const adminKonten: Woerterbuch = {
     ar: '10 أحرف على الأقل مع حروف وأرقام. الأسهل أن يُنشأ تلقائياً.',
   },
   'adminkonten.pw_erzeugen': { de: 'Zufälliges Passwort erzeugen', ar: 'إنشاء كلمة مرور عشوائية' },
-  'adminkonten.lager_wahl': { de: 'Zu welchen Lagern soll die Person Zugang haben?', ar: 'إلى أي مستودعات يكون للشخص وصول؟' },
+  'adminkonten.projekt_wahl': { de: 'Zugang zu Bundeslandprojekten', ar: 'الوصول إلى مشاريع الولايات' },
   'adminkonten.rolle_erklaerung': {
-    de: 'Bearbeiter dürfen buchen (entnehmen, ausleihen, zugeben). Nur lesen heißt: ansehen, nichts ändern.',
-    ar: 'المحرر يمكنه التسجيل (سحب، إعارة، إضافة). قراءة فقط تعني الاطلاع دون تغيير.',
+    de: 'Bearbeiter dürfen buchen. Nur lesen heißt: ansehen. Wer zu einem Projekt gehört, sieht alle seine Lager.',
+    ar: 'المحرر يسجّل الحركات. قراءة فقط تعني الاطلاع. من ينتمي إلى مشروع يرى كل مستودعاته.',
   },
   'adminkonten.rolle_editor': { de: 'Bearbeiter (darf buchen)', ar: 'محرر (يسجّل الحركات)' },
   'adminkonten.rolle_viewer': { de: 'Nur lesen', ar: 'قراءة فقط' },
-  'adminkonten.rolle_owner': { de: 'Besitzer', ar: 'مالك' },
   'adminkonten.rolle_keine': { de: 'Kein Zugang', ar: 'بلا وصول' },
-  'adminkonten.rolle_fuer': { de: 'Zugang zu {lager}', ar: 'الوصول إلى {lager}' },
+  'adminkonten.rolle_fuer': { de: 'Zugang zu {projekt}', ar: 'الوصول إلى {projekt}' },
   'adminkonten.email_ungueltig': { de: 'Diese E-Mail-Adresse sieht nicht richtig aus.', ar: 'عنوان البريد هذا لا يبدو صحيحاً.' },
   'adminkonten.passwort_schwach': {
     de: 'Das Passwort ist zu schwach: mindestens 10 Zeichen, mit Buchstaben und Ziffern.',
@@ -48,8 +47,8 @@ export const adminKonten: Woerterbuch = {
   'adminkonten.erfolg_text': { de: 'Das Konto ist angelegt und freigeschaltet.', ar: 'تم إنشاء الحساب وتفعيله.' },
   'adminkonten.halb_titel': { de: 'Konto steht, Zuteilung fehlt', ar: 'الحساب موجود والتوزيع ناقص' },
   'adminkonten.halb_text': {
-    de: 'Das Konto wurde angelegt, nur die Zuteilung zu den Lagern hat nicht ganz geklappt: {grund} Öffne die Person unter Leute und stelle den Zugang dort ein.',
-    ar: 'تم إنشاء الحساب، لكن توزيعه على المستودعات لم يكتمل: {grund} افتح الشخص في الأشخاص واضبط الوصول من هناك.',
+    de: 'Das Konto wurde angelegt, nur die Zuteilung zu den Projekten hat nicht ganz geklappt: {grund} Öffne die Person unter Leute und stelle den Zugang dort ein.',
+    ar: 'تم إنشاء الحساب، لكن توزيعه على المشاريع لم يكتمل: {grund} افتح الشخص في الأشخاص واضبط الوصول من هناك.',
   },
   'adminkonten.adresse': { de: 'Adresse der App', ar: 'عنوان التطبيق' },
   'adminkonten.erfolg_hinweis': {
@@ -74,10 +73,10 @@ export const adminKonten: Woerterbuch = {
   'adminkonten.offen': { de: 'Offene Ausleihen: {n}', ar: 'إعارات مفتوحة: {n}' },
   'adminkonten.ueberfaellig': { de: 'Überfällig: {n}', ar: 'متأخرة: {n}' },
   'adminkonten.drin_in': { de: 'Gerade drin in {lager}', ar: 'داخل {lager} الآن' },
-  'adminkonten.zugang_titel': { de: 'Zugang je Lager', ar: 'الوصول حسب المستودع' },
-  'adminkonten.zugang_admin': { de: 'Admins sind Besitzer aller Lager. Erst den Admin entziehen, dann den Zugang einzeln ändern.', ar: 'المسؤولون مالكون لكل المستودعات. اسحب صلاحية المسؤول أولاً ثم غيّر الوصول لكل مستودع.' },
-  'adminkonten.keine_lager': { de: 'Es gibt noch kein Lager.', ar: 'لا يوجد مستودع بعد.' },
-  'adminkonten.zugang_gesetzt': { de: 'Zugang von {name} zu {lager} geändert.', ar: 'تم تغيير وصول {name} إلى {lager}.' },
+  'adminkonten.zugang_titel': { de: 'Zugang je Bundeslandprojekt', ar: 'الوصول حسب مشروع الولاية' },
+  'adminkonten.zugang_admin': { de: 'Admins sehen alles.', ar: 'المسؤولون يرون كل شيء.' },
+  'adminkonten.keine_projekte': { de: 'Es gibt noch kein Bundeslandprojekt.', ar: 'لا يوجد مشروع ولاية بعد.' },
+  'adminkonten.zugang_gesetzt': { de: 'Zugang von {name} zu {projekt} geändert.', ar: 'تم تغيير وصول {name} إلى {projekt}.' },
   'adminkonten.konto_aktionen': { de: 'Konto', ar: 'الحساب' },
   'adminkonten.admin_machen': { de: 'Zum Admin machen', ar: 'تعيين كمسؤول' },
   'adminkonten.admin_entziehen': { de: 'Admin entziehen', ar: 'سحب صلاحية المسؤول' },
@@ -87,14 +86,14 @@ export const adminKonten: Woerterbuch = {
   'adminkonten.verlauf_titel': { de: 'Verlauf dieser Person', ar: 'سجل هذا الشخص' },
   'adminkonten.frage_admin_machen_titel': { de: '{name} zum Admin machen?', ar: 'تعيين {name} مسؤولاً؟' },
   'adminkonten.frage_admin_machen': {
-    de: 'Ein Admin sieht und verwaltet alle Lager und alle Konten, legt Konten an und kann Leute löschen. Gib das nur Menschen, denen du voll vertraust.',
-    ar: 'المسؤول يرى ويدير كل المستودعات والحسابات وينشئ الحسابات ويمكنه حذف الأشخاص. امنح ذلك لمن تثق به تماماً فقط.',
+    de: 'Ein Admin sieht und verwaltet alle Projekte, Lager und Konten, legt Konten an und kann Leute löschen. Gib das nur Menschen, denen du voll vertraust.',
+    ar: 'المسؤول يرى ويدير كل المشاريع والمستودعات والحسابات وينشئ الحسابات ويمكنه حذف الأشخاص. امنح ذلك لمن تثق به تماماً فقط.',
   },
   'adminkonten.frage_admin_machen_ja': { de: 'Zum Admin machen', ar: 'تعيين كمسؤول' },
   'adminkonten.frage_admin_entziehen_titel': { de: '{name} die Admin-Rechte entziehen?', ar: 'سحب صلاحيات المسؤول من {name}؟' },
   'adminkonten.frage_admin_entziehen': {
-    de: 'Die Person bleibt Besitzer ihrer Lager, verwaltet aber keine Konten mehr. Du kannst es jederzeit wieder ändern.',
-    ar: 'يبقى الشخص مالكاً لمستودعاته لكنه لا يدير الحسابات بعد الآن. يمكنك تغيير ذلك في أي وقت.',
+    de: 'Die Person verwaltet keine Konten mehr und sieht nur noch ihre Projekte. Du kannst es jederzeit wieder ändern.',
+    ar: 'لا يدير الشخص الحسابات بعد الآن ويرى مشاريعه فقط. يمكنك تغيير ذلك في أي وقت.',
   },
   'adminkonten.frage_admin_entziehen_ja': { de: 'Admin entziehen', ar: 'سحب الصلاحية' },
   'adminkonten.frage_sperren_titel': { de: '{name} sperren?', ar: 'حظر {name}؟' },
@@ -111,18 +110,32 @@ export const adminKonten: Woerterbuch = {
   'adminkonten.frage_loeschen_ja': { de: 'Endgültig löschen', ar: 'حذف نهائي' },
   'adminkonten.geloescht': { de: '{name} ist gelöscht.', ar: 'تم حذف {name}.' },
 
-  // Lager
-  'adminkonten.lager_titel': { de: 'Alle Lager im Überblick', ar: 'نظرة عامة على كل المستودعات' },
+  // Projekte
+  'adminkonten.projekte_titel': { de: 'Bundeslandprojekte', ar: 'مشاريع الولايات' },
   'adminkonten.lager': { de: 'Lager', ar: 'المستودعات' },
+  'adminkonten.projekt_zeile': { de: '{lager} Lager · {leute} Leute', ar: '{lager} مستودعات · {leute} أشخاص' },
   'adminkonten.lager_zeile': { de: '{mitglieder} Mitglieder · {kisten} Kisten', ar: '{mitglieder} أعضاء · {kisten} صناديق' },
+  'adminkonten.projekt_leer': { de: 'Noch kein Lager.', ar: 'لا يوجد مستودع بعد.' },
+  'adminkonten.projekt_neu': { de: 'Neues Bundeslandprojekt', ar: 'مشروع ولاية جديد' },
+  'adminkonten.projekt_name': { de: 'Name', ar: 'الاسم' },
+  'adminkonten.name_fehlt': { de: 'Bitte einen Namen eintragen.', ar: 'يرجى إدخال اسم.' },
+  'adminkonten.projekt_anlegen': { de: 'Anlegen', ar: 'إنشاء' },
+  'adminkonten.projekt_angelegt': { de: 'Projekt {name} ist angelegt.', ar: 'تم إنشاء المشروع {name}.' },
+  'adminkonten.umbenennen': { de: 'Umbenennen', ar: 'إعادة تسمية' },
+  'adminkonten.projekt_umbenannt': { de: 'Projekt heißt jetzt {name}.', ar: 'أصبح اسم المشروع {name}.' },
+  'adminkonten.projekt_loeschen': { de: 'Projekt löschen', ar: 'حذف المشروع' },
+  'adminkonten.frage_projekt_loeschen_titel': { de: '{name} löschen?', ar: 'حذف {name}؟' },
+  'adminkonten.frage_projekt_loeschen': {
+    de: 'Nur ein Projekt ohne Lager lässt sich löschen. Der Zugang der Leute zu diesem Projekt fällt weg.',
+    ar: 'يمكن حذف مشروع بلا مستودعات فقط. ويسقط وصول الأشخاص إلى هذا المشروع.',
+  },
+  'adminkonten.frage_projekt_loeschen_ja': { de: 'Projekt löschen', ar: 'حذف المشروع' },
+  'adminkonten.projekt_geloescht': { de: 'Projekt {name} ist gelöscht.', ar: 'تم حذف المشروع {name}.' },
   'adminkonten.lager_neu': { de: 'Neues Lager', ar: 'مستودع جديد' },
+  'adminkonten.lager_neu_in': { de: 'Neues Lager in {projekt}', ar: 'مستودع جديد في {projekt}' },
   'adminkonten.lager_name': { de: 'Name des Lagers', ar: 'اسم المستودع' },
-  'adminkonten.lager_notiz': { de: 'Notiz (freiwillig)', ar: 'ملاحظة (اختيارية)' },
-  'adminkonten.lager_hinweis': { de: 'Das Lager startet mit sechs Standardbereichen. Du bist Besitzer, andere teilst du unter Leute zu.', ar: 'يبدأ المستودع بستة أقسام قياسية. أنت المالك، ووزّع الآخرين من الأشخاص.' },
-  'adminkonten.lager_name_fehlt': { de: 'Bitte einen Namen eintragen.', ar: 'يرجى إدخال اسم.' },
   'adminkonten.lager_anlegen': { de: 'Lager anlegen', ar: 'إنشاء المستودع' },
   'adminkonten.lager_angelegt': { de: 'Lager {name} ist angelegt.', ar: 'تم إنشاء المستودع {name}.' },
-
   // Aktivitaet
   'adminkonten.akt_titel': { de: 'Aktivität aller Leute', ar: 'نشاط جميع الأشخاص' },
   'adminkonten.akt_person': { de: 'Person', ar: 'الشخص' },

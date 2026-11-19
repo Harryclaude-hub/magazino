@@ -1,11 +1,11 @@
-import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react'
-import { Check, ChevronDown, Circle, CircleHelp, ExternalLink, Package, Plus, Search, Sofa, X } from 'lucide-react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { Check, Circle, CircleHelp, Package, Plus, Search, Sofa, X } from 'lucide-react'
 import { FachAnsicht } from '../components/plan/FachAnsicht'
 import { objektName } from '../components/plan/lage'
 import { Button, CodeChip, ErrorBox, Input, Spinner } from '../components/ui'
 import { UEBERSTAND_MAX_CM, type Unterlage } from '../lib/geometrie'
 import { useSprache } from '../lib/i18n'
-import type { EigeneGroesse, Item, Objekt, PlanKiste, SymbolArt } from '../lib/types'
+import type { Item, Objekt, PlanKiste } from '../lib/types'
 import { euroText } from '../lib/preis'
 import { createItem } from '../lib/api'
 import { groesseSatz, useKistenGroessen } from '../lib/groessen'
@@ -13,13 +13,7 @@ import { useProject } from '../pages/ProjectLayout'
 import { cx } from '../lib/util'
 import { MassFeld } from './Eigenschaften'
 import { FaecherEditor } from './FaecherEditor'
-import { ausEigenerGroesse, gehoertZu, KATALOG, KATALOG_BAD, KATALOG_KUECHE, KATALOG_SCHLAFEN, KATALOG_SONST } from './katalog'
-import { MoebelVorschau } from '../components/plan/moebelSymbol'
-import { SYMBOL_ARTEN } from './werkzeuge/strom'
-import { neuesObjekt, type Dok, type Vorlage } from './dok'
-
-/** Kleines 3D-Modell im Katalog, eigener Code-Teil samt three. */
-const Vorschau3D = lazy(() => import('../components/plan3d/Vorschau3D'))
+import type { Dok, Vorlage } from './dok'
 import type { KisteInHand, WerkzeugName } from './werkzeuge/typen'
 
 /* Die rechte Spalte des Zeichners, je nach Werkzeug: Assistent, Katalog
@@ -212,171 +206,6 @@ export function PlanSuche({
 }
 
 /* -------------------------------------------------------------- Vorlagen */
-
-/** Summe der bekannten Preise in Cent. */
-function preisSumme(liste: Objekt[]): number {
-  return liste.reduce((s, o) => s + (o.preis_cent ?? 0), 0)
-}
-
-export function MoebelKatalog({
-  wahl,
-  onWahl,
-  eigene,
-  eigeneFehler,
-  eigeneNochmal,
-  objekte = [],
-  onZeigen,
-}: {
-  wahl: Vorlage | null
-  onWahl: (v: Vorlage) => void
-  eigene: EigeneGroesse[] | null
-  eigeneFehler: string | null
-  eigeneNochmal: () => void
-  /** Moebel im Plan: Stueckzahl je Eintrag, Liste mit Link und Preis. */
-  objekte?: Objekt[]
-  onZeigen?: (id: string) => void
-}) {
-  const { t } = useSprache()
-  const [offen, setOffen] = useState<string | null>(null)
-  const knopf = (v: Vorlage, name: string) => {
-    const da = objekte.filter((o) => gehoertZu(o, v, name))
-    const summe = preisSumme(da)
-    return (
-      <div key={v.schluessel}>
-        <div className="flex items-stretch gap-1">
-          <button
-            type="button"
-            onClick={() => onWahl({ ...v, name })}
-            aria-pressed={wahl?.schluessel === v.schluessel}
-            className={cx(
-              'flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border-2 px-3 py-2 text-start transition',
-              wahl?.schluessel === v.schluessel ? 'border-ink bg-ink text-paper' : 'border-line bg-surface hover:border-ink/35',
-            )}
-          >
-            <MoebelVorschau v={v} name={name} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-bold">{name}</span>
-              <span className="block text-xs opacity-75">
-                {t('zeichner.katalog.anzahl', { n: da.length })}
-                {summe ? ` · ${euroText(summe)} €` : ''}
-              </span>
-            </span>
-            <span className="t-serial shrink-0 text-sm opacity-80">
-              {v.breite_cm} x {v.tiefe_cm}
-            </span>
-          </button>
-          {da.length ? (
-            <button
-              type="button"
-              onClick={() => setOffen((x) => (x === v.schluessel ? null : v.schluessel))}
-              aria-expanded={offen === v.schluessel}
-              aria-label={t('zeichner.katalog.liste')}
-              className="flex w-9 items-center justify-center rounded-xl border-2 border-line bg-surface hover:border-ink/35"
-            >
-              <ChevronDown size={16} className={cx('transition', offen === v.schluessel && 'rotate-180')} />
-            </button>
-          ) : null}
-        </div>
-        {offen === v.schluessel && da.length ? (
-          <ul className="mt-1 space-y-1 ps-2">
-            {da.map((o) => (
-              <li key={o.id} className="flex items-center gap-1.5 rounded-lg bg-raised px-2 py-1.5 text-sm">
-                <button type="button" onClick={() => onZeigen?.(o.id)} className="min-w-0 flex-1 truncate text-start font-bold hover:underline">
-                  {o.name}
-                </button>
-                {o.preis_cent != null ? <span className="t-serial shrink-0">{euroText(o.preis_cent)} €</span> : null}
-                {o.link ? (
-                  <a href={o.link} target="_blank" rel="noopener noreferrer" aria-label={t('zeichner.eig.zum_produkt')} className="shrink-0 rounded p-1 hover:bg-surface">
-                    <ExternalLink size={14} />
-                  </a>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    )
-  }
-  const alleMoebel = objekte.length
-  const gesamt = preisSumme(objekte)
-  const moebel = (eigene ?? []).filter((g) => g.art === 'moebel')
-  const vorschau = useMemo(() => (wahl ? neuesObjekt(wahl, 'vorschau', 'vorschau', { x: 0, y: 0 }, 0) : null), [wahl])
-  const lForm = wahl?.form === 'l'
-  return (
-    <div className="space-y-4">
-      {alleMoebel ? (
-        <p className="rounded-xl bg-raised px-3 py-2 text-sm font-bold">
-          {t('zeichner.katalog.im_plan', { n: alleMoebel })}
-          {gesamt ? ` · ${t('zeichner.katalog.summe', { betrag: euroText(gesamt) })}` : ''}
-        </p>
-      ) : null}
-      {wahl && vorschau ? (
-        // Gewaehlt: so sieht es aus, Groesse vor dem Hinstellen einstellen (E66).
-        <div className="space-y-2 rounded-xl border-2 border-ink p-2.5">
-          <p className="font-bold">{wahl.name}</p>
-          <Suspense fallback={<div className="h-44 animate-pulse rounded-xl bg-raised" />}>
-            <Vorschau3D objekt={vorschau} />
-          </Suspense>
-          <MassFeld
-            label={t('zeichner.eig.breite')}
-            wert={wahl.breite_cm}
-            min={lForm ? (wahl.ausschnitt_breite_cm ?? 0) + 1 : 5}
-            max={2000}
-            onSetzen={(v) => onWahl({ ...wahl, breite_cm: v })}
-          />
-          <MassFeld
-            label={t('zeichner.eig.tiefe')}
-            wert={wahl.tiefe_cm}
-            min={lForm ? (wahl.ausschnitt_tiefe_cm ?? 0) + 1 : 5}
-            max={2000}
-            onSetzen={(v) => onWahl({ ...wahl, tiefe_cm: v })}
-          />
-          {wahl.art === 'moebel' ? (
-            <MassFeld label={t('zeichner.eig.hoehe')} wert={wahl.hoehe_cm} min={1} max={600} onSetzen={(v) => onWahl({ ...wahl, hoehe_cm: v })} />
-          ) : null}
-          <MassFeld label={t('zeichner.eig.boden')} wert={wahl.boden_cm ?? 0} min={0} max={600} onSetzen={(v) => onWahl({ ...wahl, boden_cm: v })} />
-          <p className="t-sub text-sm">{t('zeichner.katalog.dann_klicken')}</p>
-        </div>
-      ) : null}
-      <div>
-        <Kopf titel={t('zeichner.katalog.titel')} hilfe={t('zeichner.katalog.hilfe')} />
-        <div className="space-y-1.5">{KATALOG.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
-      </div>
-      <div>
-        <Kopf titel={t('zeichner.katalog.schlafen_titel')} />
-        <div className="space-y-1.5">{KATALOG_SCHLAFEN.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
-      </div>
-      <div>
-        <Kopf titel={t('zeichner.katalog.bad_titel')} />
-        <div className="space-y-1.5">{KATALOG_BAD.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
-      </div>
-      <div>
-        <Kopf titel={t('zeichner.katalog.kueche_titel')} hilfe={t('zeichner.katalog.kueche_hilfe')} />
-        <div className="space-y-1.5">{KATALOG_KUECHE.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
-      </div>
-      <div>
-        <Kopf titel={t('zeichner.katalog.sonst_titel')} />
-        <div className="space-y-1.5">{KATALOG_SONST.map((v) => knopf(v, t(`zeichner.katalog.${v.schluessel}`)))}</div>
-      </div>
-      <div>
-        <Kopf titel={t('zeichner.katalog.eigene')} />
-        {eigeneFehler ? (
-          <ErrorBox error={eigeneFehler} onRetry={eigeneNochmal} />
-        ) : eigene === null ? (
-          <div className="space-y-1.5">
-            {[0, 1].map((i) => (
-              <div key={i} className="h-10 animate-pulse rounded-xl bg-raised" />
-            ))}
-          </div>
-        ) : moebel.length === 0 ? (
-          <p className="t-sub">{t('zeichner.katalog.eigene_leer')}</p>
-        ) : (
-          <div className="space-y-1.5">{moebel.map((g) => knopf(ausEigenerGroesse(g), g.name))}</div>
-        )}
-      </div>
-    </div>
-  )
-}
 
 export function RegalVorlage({ wert, onAendern }: { wert: Vorlage; onAendern: (v: Vorlage) => void }) {
   const { t } = useSprache()
@@ -676,33 +505,6 @@ export function UnterlagenWahl({
         <Button size="sm" loading={busy} disabled={!gewaehlt?.passt} onClick={onSetzen}>
           {t('zeichner.unterlage.hinstellen')}
         </Button>
-      </div>
-    </div>
-  )
-}
-
-/* ---------------------------------------------------------------- Strom */
-
-export function StromWahl({ wahl, onWahl }: { wahl: SymbolArt; onWahl: (a: SymbolArt) => void }) {
-  const { t } = useSprache()
-  return (
-    <div>
-      <Kopf titel={t('zeichner.strom.titel')} hilfe={t('zeichner.strom.hilfe')} />
-      <div className="space-y-1.5">
-        {SYMBOL_ARTEN.map((a) => (
-          <button
-            key={a}
-            type="button"
-            onClick={() => onWahl(a)}
-            aria-pressed={wahl === a}
-            className={cx(
-              'flex w-full items-center rounded-xl border-2 px-3 py-2 text-start font-bold transition',
-              wahl === a ? 'border-ink bg-ink text-paper' : 'border-line bg-surface hover:border-ink/35',
-            )}
-          >
-            {t(`zeichner.strom.${a}`)}
-          </button>
-        ))}
       </div>
     </div>
   )

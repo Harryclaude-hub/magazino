@@ -1,28 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { Boxes, MessageCircle, ScanLine, Search, ShieldCheck, Warehouse } from 'lucide-react'
+import { Boxes, History, ScanLine, Search, Warehouse } from 'lucide-react'
 import { BottomNav, NavTab } from '../components/AppShell'
-import { LeistenSymbole, Seitenleiste, SuchKopf } from '../components/Seitenleiste'
+import { Seitenleiste, SuchKopf } from '../components/Seitenleiste'
 import { useT } from '../lib/i18n'
-import { adminWartende, countUnread, istAdmin, listMembers } from '../lib/api'
-import { supabase } from '../lib/supabase'
+import { adminWartende, istAdmin } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { getLastProject, setLastProject } from '../lib/lastProject'
 
-/* Rahmen um alles, was hinter der Anmeldung liegt.
- * Die untere Leiste ist immer da, wie bei WhatsApp, mit genau fuenf
- * Knoepfen (E78): Umzuege, Kisten, Scannen, Suchen, Chat. Das Profil steht
- * oben rechts in jeder Kopfzeile, alles Weitere eines Umzugs im
- * Drei-Striche-Menue (ProjektMenue). Sie kennt den zuletzt geoeffneten
- * Umzug und springt direkt dorthin.
+/* Rahmen um alles, was hinter der Anmeldung liegt (E104).
+ * Die untere Leiste ist immer da, mit genau fuenf Knoepfen: Start, Kisten,
+ * Scannen, Suchen, Verlauf. Das Profil steht oben rechts in jeder
+ * Kopfzeile, alles Weitere eines Lagers im Drei-Striche-Menue
+ * (ProjektMenue). Sie kennt das zuletzt geoeffnete Lager und springt
+ * direkt dorthin. Einen Chat gibt es nicht mehr, also auch keinen
+ * Ungelesen-Punkt.
  */
 
 interface AppShellValue {
   lastProject: string | null
   rememberProject: (id: string) => void
-  unread: number
-  refreshUnread: () => void
-  clearUnread: () => void
 }
 
 const Ctx = createContext<AppShellValue | null>(null)
@@ -38,7 +35,6 @@ export default function AppLayout() {
   const t = useT()
   const loc = useLocation()
   const [lastProject, setLast] = useState<string | null>(() => getLastProject())
-  const [unread, setUnread] = useState(0)
   /* Admin-Portal (0035): der Menuepunkt nur fuer Admins. Die Datenbank
    * prueft beim Laden selbst noch einmal. */
   const [admin, setAdmin] = useState(false)
@@ -77,143 +73,21 @@ export default function AppLayout() {
     })
   }, [])
 
-  /* Ungelesene Nachrichten des zuletzt geoeffneten Umzugs. Genau eine
-   * Stelle, an der gezaehlt wird, damit die Zahl nicht an zwei Orten
-   * auseinanderlaeuft. */
-  const refreshUnread = useCallback(() => {
-    if (!user?.id || !lastProject) {
-      setUnread(0)
-      return
-    }
-    void (async () => {
-      try {
-        const members = await listMembers(lastProject)
-        const me = members.find((m) => m.user_id === user.id)
-        if (!me) {
-          setUnread(0)
-          return
-        }
-        setUnread(await countUnread(lastProject, me.last_read_at))
-      } catch (err) {
-        // Ein Zaehler ist kein Grund, die App anzuhalten. Sichtbar bleibt es
-        // trotzdem in der Konsole.
-        console.warn('[shell] Ungelesene nicht ermittelt:', err)
-      }
-    })()
-  }, [user?.id, lastProject])
-
-  useEffect(() => {
-    refreshUnread()
-  }, [refreshUnread])
-
-  const inChat = loc.pathname.endsWith('/chat')
-
-  useEffect(() => {
-    if (!lastProject || !user?.id) return
-    const ch = supabase
-      .channel(`shell-unread-${lastProject}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `project_id=eq.${lastProject}`,
-        },
-        (payload) => {
-          const m = payload.new as { sender_id: string | null }
-          if (m.sender_id === user.id) return
-          if (inChat) return
-          setUnread((n) => n + 1)
-        },
-      )
-      .subscribe()
-    return () => {
-      void supabase.removeChannel(ch)
-    }
-  }, [lastProject, user?.id, inChat])
-
-  const value = useMemo<AppShellValue>(
-    () => ({
-      lastProject,
-      rememberProject,
-      unread,
-      refreshUnread,
-      clearUnread: () => setUnread(0),
-    }),
-    [lastProject, rememberProject, unread, refreshUnread],
-  )
+  const value = useMemo<AppShellValue>(() => ({ lastProject, rememberProject }), [lastProject, rememberProject])
 
   const path = loc.pathname
   const inProject = path.startsWith('/app/p/')
-  /* Ohne bekannten Umzug fuehren Kisten und Chat zur Uebersicht. Vorher
-   * zeigten sie auf /app/kisten und /app/chat, und die gibt es nicht. */
+  /* Ohne bekanntes Lager fuehren Kisten und Verlauf zur Startseite. */
   const itemsTo = lastProject ? `/app/p/${lastProject}/kisten` : '/app'
-  const chatTo = lastProject ? `/app/p/${lastProject}/chat` : '/app'
+  const verlaufTo = lastProject ? `/app/p/${lastProject}/verlauf` : '/app'
 
-  /* Umzug aus der Adresse, sonst der zuletzt geoeffnete. */
+  /* Lager aus der Adresse, sonst das zuletzt geoeffnete. */
   const projektId = /^\/app\/p\/([^/]+)/.exec(path)?.[1] ?? lastProject
-  const zimmerTo = projektId ? `/app/p/${projektId}/bereiche` : '/app'
-  const grundrissTo = projektId ? `/app/p/${projektId}/grundriss` : '/app'
 
   return (
     <Ctx.Provider value={value}>
       <div className="flex min-h-screen bg-paper">
-        <Seitenleiste
-          projektId={projektId}
-          eintraege={[
-            { to: '/app', icon: LeistenSymbole.umzuege, label: t('nav.umzuege'), active: path === '/app', tour: 'nav-umzuege' },
-            {
-              to: itemsTo,
-              icon: LeistenSymbole.kisten,
-              label: t('nav.kisten'),
-              active: inProject && path.includes('/kisten'),
-              tour: 'nav-kisten',
-            },
-            {
-              to: zimmerTo,
-              icon: LeistenSymbole.zimmer,
-              label: t('leiste.zimmer'),
-              active: inProject && (path.includes('/bereiche') || path.includes('/zimmer/')),
-              tour: 'nav-zimmer',
-            },
-            {
-              to: grundrissTo,
-              icon: LeistenSymbole.grundriss,
-              label: t('leiste.grundriss'),
-              active: inProject && path.includes('/grundriss'),
-              tour: 'nav-grundriss',
-            },
-            { to: '/app/suche', icon: LeistenSymbole.suchen, label: t('nav.suchen'), active: path === '/app/suche', tour: 'nav-suchen' },
-            {
-              to: '/app/scan',
-              icon: LeistenSymbole.scannen,
-              label: t('nav.scannen'),
-              active: path === '/app/scan' || path.endsWith('/scan'),
-              tour: 'nav-scannen',
-            },
-            { to: chatTo, icon: LeistenSymbole.chat, label: t('nav.chat'), active: inChat, badge: unread, tour: 'nav-chat' },
-            {
-              to: '/app/einstellungen',
-              icon: LeistenSymbole.profil,
-              label: t('nav.profil'),
-              active: path === '/app/einstellungen',
-              tour: 'nav-profil',
-            },
-            ...(admin
-              ? [
-                  {
-                    to: '/app/admin',
-                    icon: <ShieldCheck size={20} />,
-                    label: t('admin.nav'),
-                    active: path === '/app/admin',
-                    badge: wartende,
-                    tour: 'nav-admin',
-                  },
-                ]
-              : []),
-          ]}
-        />
+        <Seitenleiste projektId={projektId} admin={admin} wartende={wartende} />
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Im Grundriss zaehlt jede Zeile Platz: dort keine Suchleiste. */}
         {/\/grundriss(\/|$)/.test(path) ? null : <SuchKopf />}
@@ -229,9 +103,9 @@ export default function AppLayout() {
           <NavTab
             to="/app"
             icon={<Warehouse size={21} />}
-            label={t('nav.umzuege')}
+            label={t('struktur.start')}
             tour="nav-umzuege"
-            active={path === '/app'}
+            active={path === '/app' || path.startsWith('/app/bl/')}
           />
           <NavTab
             to={itemsTo}
@@ -256,12 +130,11 @@ export default function AppLayout() {
             active={path === '/app/suche'}
           />
           <NavTab
-            to={chatTo}
-            icon={<MessageCircle size={21} />}
-            label={t('nav.chat')}
-            tour="nav-chat"
-            active={inChat}
-            badge={unread}
+            to={verlaufTo}
+            icon={<History size={21} />}
+            label={t('struktur.verlauf')}
+            tour="nav-verlauf"
+            active={inProject && path.endsWith('/verlauf')}
           />
         </BottomNav>
         </div>

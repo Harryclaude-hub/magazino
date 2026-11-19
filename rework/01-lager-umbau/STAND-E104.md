@@ -1,7 +1,11 @@
-# Stand E104 (19.11.2026): Vereinfachung, Bundeslandprojekte
+# Stand E104 (19.11.2026)
 
-Fertig und eingespielt (Datenbank): 0054 (Bundeslandprojekte, Bereiche mit Kuerzel, Verlauf fuer alle Mitglieder, bestand_entfernen), 0055 (Grundriss nur Admin, per Trigger). Steyr Phase 2 gesichert (Super Claude, _Sicherungen) und aus der Datenbank genommen; Git-Marke `kistly-umzugsprogramm` = alter Gesamtstand; Demo-Moebel entfernt.
-Schnittstelle in api.ts fertig (Bundeslandprojekte, Bereiche, Verlauf). Admin-Portal (Admin.tsx, adminKonten.ts) umgestellt.
+Fertig, geprueft und live: Bundeslandprojekte (0054), Grundriss nur Admin (0055, Trigger), Bereiche statt Zimmer, Verlauf statt Chat,
+Bestand mit Zustand (im Lager, nur noch X, leer, Auffuellen oder Entfernen), Kisten pro Bereich, Suche mit Produkten und Kisten,
+Dashboard mit Bundeslandprojekten, Admin-Portal pro Bundeslandprojekt, Grundriss nur ansehen (ausser Admin), Zeichner nur Raum, Tuer,
+Fenster, Regal, Schrank, 3D draussen nur Bretterzaun. Steyr Phase 2 gesichert (Super Claude, _Sicherungen) und aus der Datenbank genommen;
+Git-Marke `kistly-umzugsprogramm` = alter Gesamtstand.
 
-NICHT gepusht, Arbeitsbaum ungeprueft: drei Helfer bauten parallel (1. Struktur: App.tsx, Dashboard, BlProjekt, Verlauf, Menues; 2. Bestand/Kisten/Suche: Bestand.tsx, Items.tsx, Suche.tsx, lager.ts; 3. Grundriss: Grundriss.tsx, src/zeichner, plan3d aussen3d mit Zaun). Beim Abbruch (Nutzungslimit) war tsc/build rot (Seitenleiste.tsx doppeltes `zu`, AppShell.tsx unbenutztes useLocation, zeichner/Eigenschaften.tsx und Zeichner.tsx Modul Seitenteile). Naechste Schritte: tsc, oxlint, build, woerter-pruefen, alle scripts/*-pruefen.mjs gruen machen, dann committen und pushen.
-Achtung: lager_anlegen hat jetzt die Signatur (bl, name, notiz); die LIVE stehende Seite (Stand 96d192e) ruft noch die alte und scheitert beim Anlegen eines Lagers, bis der neue Stand live ist. Fehlersatz fehler.db.grundriss.nur_admin fehlt noch im Woerterbuch. Siedlung/Anrufe/Zimmer/Moebel nur aus Menues zu nehmen, Code noch da.
+Aus Menues und Routen genommen, Code liegt noch im Repo (Ballast zum spaeteren Aufraeumen): Chat, Areas, AreaDetail, Furniture, FurnitureDetail,
+Export, Team, Siedlung, Moebel-Werkzeuge im Zeichner, Anrufe. Tour (fuehrung.ts) und manche Woerter nennen noch Zimmer/Umzug.
+Offen: echter Durchlauf mit zwei Konten im Browser; Einstellungen haben noch einen wirkungslosen Siedlung-Schalter.

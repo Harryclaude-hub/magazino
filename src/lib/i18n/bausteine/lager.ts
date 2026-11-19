@@ -256,6 +256,47 @@ export const lager: Woerterbuch = {
     ar: 'حدث خطأ أثناء إنشاء الحساب.',
   },
 
+  // ---------------------------------- Zustand, Auffüllen, Entfernen (E105)
+  'lager.z_da': { de: 'Im Lager', ar: 'متوفر' },
+  'lager.z_knapp': { de: 'Nur noch {menge} {einheit}', ar: 'بقي فقط {menge} {einheit}' },
+  'lager.z_leer': { de: 'Leer', ar: 'فارغ' },
+  'lager.z_weg': { de: 'Gibt es nicht mehr', ar: 'لم يعد موجوداً' },
+  'lager.auffuellen': { de: 'Auffüllen', ar: 'تعبئة' },
+  'lager.auffuellen_titel': { de: '{name} auffüllen', ar: 'تعبئة {name}' },
+  'lager.entfernen_titel': { de: '{name} entfernen?', ar: 'إزالة {name}؟' },
+  'lager.entfernen_text': {
+    de: 'Es ist aufgebraucht. Entfernen nimmt es aus der Liste.',
+    ar: 'لقد نفد. الإزالة تحذفه من القائمة.',
+  },
+  'lager.toast_entfernt': { de: '{name} entfernt', ar: 'تمت إزالة {name}' },
+  'lager.produkt': { de: 'Produkt', ar: 'المنتج' },
+  'lager.mindestmenge_kurz': { de: 'Warnen ab', ar: 'تنبيه عند' },
+  'lager.bereich_loeschen_titel': { de: 'Bereich {name} löschen?', ar: 'حذف القسم {name}؟' },
+  'lager.bereich_loeschen_text': {
+    de: 'Das geht nur, wenn nichts mehr darin liegt.',
+    ar: 'ممكن فقط إذا لم يعد فيه شيء.',
+  },
+  'lager.toast_bereich_weg': { de: 'Bereich {name} gelöscht', ar: 'تم حذف القسم {name}' },
+
+  // ------------------------------------------------- Kisten (E105)
+  'lager.k_bereich_waehlen': { de: 'Bitte einen Bereich wählen.', ar: 'يرجى اختيار قسم.' },
+  'lager.k_name': { de: 'Name (optional)', ar: 'الاسم (اختياري)' },
+  'lager.k_name_beispiel': { de: 'zum Beispiel Bastelfarben', ar: 'مثلاً ألوان الأشغال' },
+  'lager.k_mehr': { de: 'Mehr', ar: 'المزيد' },
+  'lager.k_ohne_bereich': { de: 'Ohne Bereich', ar: 'بدون قسم' },
+  'lager.k_platz_waehlen': { de: 'Platz wählen', ar: 'اختر المكان' },
+
+  // ------------------------------------------------- Suche (E105)
+  'lager.suche_untertitel': { de: 'In allen Lagern', ar: 'في كل المستودعات' },
+  'lager.suche_platzhalter': { de: 'Kleber, Kiste, Produkt', ar: 'صمغ، صندوق، منتج' },
+  'lager.suche_hinweis': {
+    de: 'Sucht in Produkten und im Inhalt der Kisten.',
+    ar: 'يبحث في المنتجات وفي محتوى الصناديق.',
+  },
+  'lager.suche_produkte': { de: 'Produkte', ar: 'المنتجات' },
+  'lager.suche_kisten': { de: 'Kisten', ar: 'الصناديق' },
+  'lager.suche_lager': { de: 'Lager', ar: 'المستودع' },
+
   // ---------------------------- Ablehnungen der Datenbank (0050)
   'fehler.db.lager.nur_buchung': {
     de: 'Die Menge lässt sich nur über eine Buchung ändern: Entnehmen, Zugang oder Zählen.',
@@ -308,6 +349,22 @@ export const lager: Woerterbuch = {
   'fehler.db.lager.rolle': {
     de: 'Diese Rolle gibt es nicht.',
     ar: 'هذا الدور غير موجود.',
+  },
+  'fehler.db.lager.bereich_nicht_leer': {
+    de: 'Dieser Bereich ist nicht leer. Räum erst die Produkte und Kisten daraus weg.',
+    ar: 'هذا القسم ليس فارغاً. انقل منه المنتجات والصناديق أولاً.',
+  },
+  'fehler.db.lager.noch_ausgeliehen': {
+    de: 'Das ist noch ausgeliehen. Erst wenn es zurück ist, lässt es sich entfernen.',
+    ar: 'ما زال هذا معاراً. لا يمكن إزالته إلا بعد إعادته.',
+  },
+  'fehler.db.lager.name': {
+    de: 'Bitte einen gültigen Namen eingeben.',
+    ar: 'يرجى إدخال اسم صالح.',
+  },
+  'fehler.db.lager.bl_nicht_leer': {
+    de: 'In diesem Bundeslandprojekt gibt es noch Lager. Entferne zuerst die Lager.',
+    ar: 'ما زالت هناك مستودعات في هذا المشروع. أزل المستودعات أولاً.',
   },
   'fehler.db.admin.letzter': {
     de: 'Der letzte Admin bleibt. Ernenne zuerst einen anderen.',

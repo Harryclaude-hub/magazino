@@ -22,6 +22,7 @@ interface ProjectCtxValue {
   isOwner: boolean
   reloadTags: () => Promise<void>
   reloadMembers: () => Promise<void>
+  /** Chat gibt es nicht mehr (E104). Bleibt nur, damit die alte Chat-Seite uebersetzbar bleibt. */
   unread: number
   clearUnread: () => void
 }
@@ -34,7 +35,7 @@ export function useProject(): ProjectCtxValue {
   return v
 }
 
-/** Wie useProject, aber null ausserhalb eines Umzugs (Kopfzeile, E78). */
+/** Wie useProject, aber null ausserhalb eines Lagers (Kopfzeile, E78). */
 export function useProjektOptional(): ProjectCtxValue | null {
   return useContext(Ctx)
 }
@@ -71,7 +72,7 @@ export default function ProjectLayout() {
         setTags(t)
         setMembers(m)
         setLoading(false)
-        // Damit die untere Leiste weiss, wohin Kisten und Chat fuehren.
+        // Damit die untere Leiste weiss, wohin Kisten und Verlauf fuehren.
         remember(p.id)
       })
       .catch((err: unknown) => {
@@ -85,9 +86,6 @@ export default function ProjectLayout() {
   }, [pid, remember])
 
   const me = members.find((m) => m.user_id === user?.id)
-  // Absichtlich nur rememberProject in den Abhaengigkeiten. Das ganze
-  // shell-Objekt wechselt bei jeder ungelesenen Nachricht, dann wuerde der
-  // Umzug immer wieder neu geladen.
 
   const value = useMemo<ProjectCtxValue | null>(() => {
     if (!project) return null
@@ -105,10 +103,10 @@ export default function ProjectLayout() {
       isOwner: role === 'owner',
       reloadTags,
       reloadMembers,
-      unread: shell.unread,
-      clearUnread: shell.clearUnread,
+      unread: 0,
+      clearUnread: () => undefined,
     }
-  }, [project, tags, members, me, reloadTags, reloadMembers, shell.unread, shell.clearUnread])
+  }, [project, tags, members, me, reloadTags, reloadMembers])
 
   /* Laden und Fehler behalten den Kopf mit Zurueck zur Uebersicht. */
   if (loading)

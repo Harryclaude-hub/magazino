@@ -27,6 +27,9 @@ export const WERKZEUGE: Record<WerkzeugName, Werkzeug<unknown>> = {
   strom: stromWerkzeug as Werkzeug<unknown>,
 }
 
+/* Die Leiste des Zeichners: Karam zeichnet nur Raeume, Tueren, Fenster,
+ * Regale und Schraenke. Moebel, Strom und Kiste setzen bleiben als Code
+ * (die Pruefskripte und alte Daten brauchen sie), stehen aber nicht in der Leiste. */
 export const REIHENFOLGE: WerkzeugName[] = [
   'auswahl',
   'raum',
@@ -34,13 +37,10 @@ export const REIHENFOLGE: WerkzeugName[] = [
   'nische',
   'tuer',
   'fenster',
-  'moebel',
   'regal',
   'schrank',
-  'kiste',
   'messen',
   'linie',
-  'strom',
 ]
 
 export const TASTEN: Record<WerkzeugName, string> = {

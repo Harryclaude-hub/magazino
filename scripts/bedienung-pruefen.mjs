@@ -1268,7 +1268,8 @@ function falscheUhr() {
   wahr('Raum3D: Moebelseite nur mit Eintrag und genau diesem Umzug, Weg ueber zielFuerItem', /karteObjekt\?\.item_id && projekt && projekt\.project\.id === projectId\s*\? zielFuerItem\(projectId, \{ id: karteObjekt\.item_id, kind: 'furniture' \} as Item\)\s*: null/.test(raum))
   const appTxt = lesen('src/App.tsx')
   const itemRow = lesen('src/components/ItemRow.tsx')
-  wahr('Weg: moebel/:id ist FurnitureDetail, mit der Item-Id', appTxt.includes('<Route path="moebel/:id" element={<FurnitureDetail />} />') && itemRow.includes('`/app/p/${projectId}/moebel/${item.id}`'))
+  // E104: Moebel sind aus dem Programm genommen, die alte Adresse leitet auf das Lager um.
+  wahr('Weg: moebel/:id leitet auf das Lager um (E104)', appTxt.includes('moebel/:id') && appTxt.includes('Navigate'))
   for (const d of ['src/components/plan3d/MoebelKarte.tsx', 'src/components/plan3d/MoebelMenue.tsx']) wahr(`${d}: ohne Portal (Vollbild)`, !lesen(d).includes('createPortal'))
 }
 
