@@ -16,16 +16,15 @@ name: Magazino veroeffentlichen
 # Kosten: bei oeffentlichen Repos kostenlos. Notweg ohne Actions:
 # `node scripts/veroeffentlichen.mjs` (siehe docs/GITHUB-KOSTEN-2026-11-20.md).
 
+# STAND 20.11.2026: Solange GitHub das Konto wegen eines Abrechnungsproblems fuer Actions sperrt ("The job was not
+# started because your account is locked due to a billing issue", gilt auch fuer oeffentliche Repos), laeuft dieser
+# Ablauf nicht. Darum nur von Hand startbar; die Seite kommt ueber `node scripts/veroeffentlichen.mjs` (Zweig gh-pages,
+# GitHubs eigener Pages-Schritt laeuft trotzdem). Ist die Abrechnung geklaert: den Block unten auf "push" erweitern und in
+# den Pages-Einstellungen die Quelle wieder auf "GitHub Actions" stellen.
+#   push:
+#     branches: [main]
+#     paths-ignore: ['docs/**', 'rework/**', 'supabase/**', 'scripts/**', '*.md']
 on:
-  push:
-    branches: [main]
-    # Reine Dokumentation, Datenbank-Dateien und Pruefskripte aendern die Seite nicht.
-    paths-ignore:
-      - 'docs/**'
-      - 'rework/**'
-      - 'supabase/**'
-      - 'scripts/**'
-      - '*.md'
   workflow_dispatch:
 
 permissions: {}
