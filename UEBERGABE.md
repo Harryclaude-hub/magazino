@@ -4,8 +4,8 @@ Stand: 23.09.2026, abends
 ## GEPLANT: UMZUG IN DIE ORGANISATION "K7" AB 19.10.2026 (Nachtrag 06.10.2026)
 
 Das Supabase-Projekt `vqpirkgvclfsduklnnzv` ist pausiert. Karam will es zusammen mit Kombi
-Exchange in der zweiten Organisation **K7** (`sykvuuskknubbicyjgng`, Owner karamsaifo67@gmail.com,
-saifokaram1@gmail.com dort Developer) aktiv haben.
+Exchange in der zweiten Organisation **K7** (`sykvuuskknubbicyjgng`, Owner dem Besitzer-Konto,
+dem Admin-Konto dort Developer) aktiv haben.
 - Am 06.10.2026 lehnte Supabase die Übertragung ab: Die Quell-Organisation liegt über dem
   Kontingent (Log Ingestion 2,13 GB von 1 GB, Zeitraum bis 19.10.2026).
 - Plan: ab dem 19./20.10.2026 übertragen (Projekt-Einstellungen, General, "Transfer project",
