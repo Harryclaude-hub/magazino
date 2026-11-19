@@ -9,6 +9,7 @@ import { oeffnungWerkzeug } from './oeffnung.ts'
 import { raumWerkzeug } from './raum.ts'
 import { stromWerkzeug } from './strom.ts'
 import { teilenWerkzeug } from './teilen.ts'
+import { ZEICHNER_VOLL } from '../schalter.ts'
 import type { Werkzeug, WerkzeugName } from './typen.ts'
 
 export const WERKZEUGE: Record<WerkzeugName, Werkzeug<unknown>> = {
@@ -27,21 +28,14 @@ export const WERKZEUGE: Record<WerkzeugName, Werkzeug<unknown>> = {
   strom: stromWerkzeug as Werkzeug<unknown>,
 }
 
-/* Die Leiste des Zeichners: Karam zeichnet nur Raeume, Tueren, Fenster,
- * Regale und Schraenke. Moebel, Strom und Kiste setzen bleiben als Code
- * (die Pruefskripte und alte Daten brauchen sie), stehen aber nicht in der Leiste. */
-export const REIHENFOLGE: WerkzeugName[] = [
-  'auswahl',
-  'raum',
-  'teilen',
-  'nische',
-  'tuer',
-  'fenster',
-  'regal',
-  'schrank',
-  'messen',
-  'linie',
-]
+/* Die Leiste des Zeichners. Solange ZEICHNER_VOLL (../schalter.ts) false ist,
+ * nur Auswahl, Regal, Schrank und Messen; Raum, Teilen, Nische, Tuer, Fenster
+ * und Linie bleiben als Code (Pruefskripte, spaeteres Einschalten), stehen
+ * aber nicht in der Leiste, und ihre Tasten tun nichts. Moebel, Strom und
+ * Kiste setzen stehen schon laenger nicht in der Leiste. */
+export const REIHENFOLGE: WerkzeugName[] = ZEICHNER_VOLL
+  ? ['auswahl', 'raum', 'teilen', 'nische', 'tuer', 'fenster', 'regal', 'schrank', 'messen', 'linie']
+  : ['auswahl', 'regal', 'schrank', 'messen']
 
 export const TASTEN: Record<WerkzeugName, string> = {
   auswahl: 'KeyV',

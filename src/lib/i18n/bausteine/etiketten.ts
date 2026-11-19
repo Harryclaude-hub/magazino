@@ -1,107 +1,76 @@
 import type { Woerterbuch } from '../woerter'
 
-/* Texte der Druckansicht.
+/* Texte der Etikettenseite (pages/Labels.tsx, components/etikett).
  *
- * Auf dem Etikett selbst wird nur uebersetzt, was zum Programm gehoert:
- * die Groessenangabe, das Wort Zerbrechlich, das Ziel, der Status und die
- * Spaltenkoepfe der Inhaltstabelle. Zimmername, Personenname, Kistentitel
- * und die Inhaltszeilen hat der Nutzer eingetippt und bleiben stehen. Die
- * Seriennummer bleibt in jeder Sprache gleich.
- */
+ * Auf dem Etikett selbst steht fast nur, was der Nutzer eingetippt hat:
+ * Bereich, Titel, Inhalt, Lagername. Uebersetzt ist nur "+ n weitere" und
+ * der Platz im Regal. Die Nummer steht, wie die Datenbank sie vergibt. */
 export const etiketten: Woerterbuch = {
-  // ------------------------------------------------------------- Kopfzeile
   'etiketten.titel': { de: 'Etiketten' },
-  'etiketten.pro_seite': { de: '{n} pro Seite' },
+  'etiketten.vorschau': { de: 'Vorschau' },
 
-  // --------------------------------------------------- Papier und Raster
-  'etiketten.papier_mass': { de: '{name} . {b} x {h} mm' },
-  'etiketten.pro_seite_mass': {
-    de: '{n} pro Seite . {b} x {h} mm',
-  },
+  // ------------------------------------------------- Kisten oder Tür
+  'etiketten.ansicht': { de: 'Was drucken' },
+  'etiketten.ansicht_kisten': { de: 'Kisten' },
+  'etiketten.ansicht_tuer': { de: 'Tür-Etikett' },
 
-  // ---------------------------------------- Was auf dem Etikett steht
-  'etiketten.modus.nummer': {
-    de: 'Nur die Seriennummer, sehr groß',
-  },
-  'etiketten.modus.qr': { de: 'Seriennummer und QR-Code' },
-  'etiketten.modus.tabelle': {
-    de: 'Seriennummer, QR-Code und Inhaltstabelle',
-  },
+  // ------------------------------------------------- Format
+  'etiketten.format': { de: 'Format' },
+  'etiketten.gruppe_einzel': { de: 'Ein Etikett pro Blatt' },
+  'etiketten.gruppe_raster': { de: 'Bogen auf A4' },
+  'etiketten.format_einzel': { de: '{name} . {b} x {h} mm' },
+  'etiketten.format_raster': { de: '{s} x {z} Etiketten . je {b} x {h} mm' },
+  'etiketten.format_mini': { de: '{s} x {z} Mini . nur Nummer und QR . {b} x {h} mm' },
+  'etiketten.ausrichtung': { de: 'Ausrichtung' },
+  'etiketten.hoch': { de: 'Hochformat' },
+  'etiketten.quer': { de: 'Querformat' },
+  'etiketten.raster_hoch': { de: 'Der Bogen liegt immer im Hochformat.' },
 
-  // ------------------------------------------------------------- Auswahl
-  'etiketten.welche_kisten': { de: 'Welche Kisten' },
-  'etiketten.nur_auswahl': {
-    de: 'Nur die {n} ausgewählten Kisten.',
-  },
-  'etiketten.nur_eine_kiste': {
-    de: 'Es wird nur diese eine Kiste gedruckt. Ohne den Link oben kommst du zur vollständigen Auswahl.',
-  },
-  'etiketten.alle_zimmer': { de: 'Alle Zimmer' },
-  'etiketten.alle_personen': { de: 'Alle Personen' },
+  // ------------------------------------------------- Auswahl
+  'etiketten.welche': { de: 'Welche Kisten' },
+  'etiketten.sel_alle': { de: 'Alle' },
+  'etiketten.sel_bereich': { de: 'Bereich' },
+  'etiketten.sel_einzeln': { de: 'Auswahl' },
+  'etiketten.bereich_waehlen': { de: 'Bereich wählen' },
+  'etiketten.ohne_bereich': { de: 'Ohne Bereich' },
+  'etiketten.suche': { de: 'Kiste suchen' },
+  'etiketten.suche_leer': { de: 'Keine Kiste gefunden.' },
+  'etiketten.alle_anhaken': { de: 'Alle' },
+  'etiketten.keine_anhaken': { de: 'Keine' },
+  'etiketten.n_angehakt': { de: '{n} angehakt' },
 
-  // --------------------------------------------------- Papier und Inhalt
-  'etiketten.papier_und_inhalt': { de: 'Papier und Inhalt' },
-  'etiketten.papierformat': { de: 'Papierformat' },
-  'etiketten.papierformat_hinweis': {
-    de: 'Dieses Format wird auch wirklich gedruckt.',
-  },
-  'etiketten.was_steht_drauf': { de: 'Was steht auf dem Etikett' },
-  'etiketten.pro_seite_label': { de: 'Etiketten pro Seite' },
-  'etiketten.pro_seite_hinweis': {
-    de: 'Dahinter steht die Kachelgröße.',
-  },
+  // ------------------------------------------------- Schalter
+  'etiketten.schalter_inhalt': { de: 'Inhalt zeigen' },
+  'etiketten.schalter_platz': { de: 'Platz zeigen' },
+  'etiketten.schalter_lager': { de: 'Lager zeigen' },
+  'etiketten.schalter_rahmen': { de: 'Rahmen' },
 
-  // ---------------------------------------------------------- Feinheiten
-  'etiketten.feinheiten': { de: 'Feinheiten' },
-  'etiketten.standard': { de: 'Standard' },
-  'etiketten.exemplare': { de: 'Exemplare je Kiste' },
-  'etiketten.exemplare_hinweis': {
-    de: 'Zwei Etiketten kleben auf zwei Seiten.',
-  },
-  'etiketten.zeilen_inhalt': { de: 'Zeilen Inhalt' },
-  'etiketten.alles_anzeigen': { de: 'Alles anzeigen' },
-  'etiketten.zeilen_n': { de: '{n} Zeilen' },
-
-  // ------------------------------------------------------------ Schalter
-  'etiketten.schalter_zimmername': { de: 'Zimmername' },
-  'etiketten.schalter_farbbalken': { de: 'Farbbalken' },
-  'etiketten.schalter_groesse': { de: 'Größe als Text' },
-  'etiketten.schalter_umzugsname': { de: 'Name des Umzugs' },
-  'etiketten.schalter_schnittlinien': { de: 'Schnittlinien' },
-
-  // ---------------------------------------------------------- Zustaende
-  'etiketten.kisten_laden': { de: 'Kisten werden geladen' },
-  'etiketten.nichts_zu_drucken': { de: 'Nichts zu drucken' },
-  'etiketten.leer_einzeln': {
-    de: 'Diese Kiste gibt es nicht mehr. Öffne die Etiketten über den Umzug, dann siehst du alle Kisten.',
-  },
-  'etiketten.leer_filter': {
-    de: 'Zu dieser Auswahl gibt es keine Kisten. Ändere den Filter oder lege zuerst Kisten an.',
-  },
-
-  // ------------------------------------------------- Satz ueber der Vorschau
+  // ------------------------------------------------- Vorschau und Druck
+  'etiketten.zoom_fit': { de: 'Einpassen' },
+  'etiketten.zoom_halb': { de: '50 %' },
+  'etiketten.zoom_voll': { de: '100 %' },
   'etiketten.keine_auswahl': { de: 'Noch keine Etiketten ausgewählt.' },
   'etiketten.anzahl.eins': { de: '{n} Etikett' },
   'etiketten.anzahl.viele': { de: '{n} Etiketten' },
   'etiketten.seiten.eins': { de: '{n} Seite' },
   'etiketten.seiten.viele': { de: '{n} Seiten' },
-  'etiketten.vorschau_satz': {
-    de: '{etiketten} auf {seiten} {format}, jedes Etikett {b} x {h} mm.',
-  },
+  'etiketten.zusammen': { de: '{etiketten} auf {seiten}' },
   'etiketten.druck_hinweis': {
-    de: 'Im Druckfenster ist {format} schon vorgegeben. Hintergrundgrafiken einschalten, damit Farbbalken und rote Ziffer mitkommen.',
+    de: 'Das Format {format} ist im Druckdialog schon eingestellt. Für eine PDF-Datei dort "Als PDF speichern" wählen.',
   },
 
-  // ----------------------------------------------- Auf dem Etikett selbst
-  'etiketten.groesse_von_zehn': { de: 'Größe {n} von 10' },
-  'etiketten.groesse_liter': { de: 'Größe {n} · {liter} l' },
-  'etiketten.zerbrechlich': { de: 'ZERBRECHLICH' },
-  'etiketten.nach_ziel': { de: 'nach {ziel}' },
-  'etiketten.kein_inhalt': { de: 'Kein Inhalt eingetragen' },
-  'etiketten.menge': { de: 'Menge' },
-  'etiketten.bezeichnung': { de: 'Bezeichnung' },
-  'etiketten.weitere_nicht_gedruckt': {
-    de: 'weitere, hier nicht gedruckt',
-  },
-  'etiketten.groesse_eigene': { de: 'Größe: {name}' },
+  // ------------------------------------------------- Zustände
+  'etiketten.laden': { de: 'Kisten werden geladen' },
+  'etiketten.nichts': { de: 'Nichts zu drucken' },
+  'etiketten.nichts_keine_kisten': { de: 'Es gibt noch keine Kisten. Lege zuerst eine an.' },
+  'etiketten.nichts_auswahl': { de: 'Zu dieser Auswahl gibt es keine Kisten. Ändere die Auswahl links.' },
+  'etiketten.platz_laedt': { de: 'Plätze werden geladen' },
+  'etiketten.platz_fehler': { de: 'Die Plätze konnten nicht geladen werden: {grund}' },
+
+  // ------------------------------------------------- Auf dem Etikett
+  'etiketten.weitere': { de: '+ {n} weitere' },
+  'etiketten.platz_fach': { de: '{name}, Fach {ebene}/{spalte}' },
+  'etiketten.platz_fach_eine': { de: '{name}, Fach {ebene}' },
+  'etiketten.platz_auf_kiste': { de: 'auf {code}' },
+  'etiketten.platz_boden': { de: '{raum}, Boden' },
 }

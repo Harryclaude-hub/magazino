@@ -150,6 +150,28 @@ function Zustand<T>({ a, leer, children }: { a: AsyncState<T>; leer?: (d: T) => 
   )
 }
 
+/* Wo das Konto einer Person steht (0059): erstellt, eingeloggt aber Passwort noch offen, aktiv. */
+const KONTO_STATUS_FARBE: Record<AdminNutzerAktivitaet['konto_status'], string> = {
+  erstellt: 'var(--muted)',
+  passwort_offen: 'var(--warn)',
+  aktiv: 'var(--ok)',
+  wartet: 'var(--warn)',
+  gesperrt: 'var(--danger)',
+}
+
+function KontoStatus({ status }: { status: AdminNutzerAktivitaet['konto_status'] }) {
+  const { t } = useSprache()
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-sm font-bold"
+      style={{ color: KONTO_STATUS_FARBE[status] }}
+    >
+      <span className="h-2 w-2 rounded-full" style={{ background: KONTO_STATUS_FARBE[status] }} />
+      {t(`adminkonten.ks_${status}`)}
+    </span>
+  )
+}
+
 const STATUS_FARBE: Record<Freigabe, string> = {
   wartet: 'var(--warn)',
   frei: 'var(--ok)',
@@ -700,6 +722,7 @@ function PersonDialog({
                   <ShieldCheck size={14} /> {t('admin.ist_admin')}
                 </Badge>
               ) : null}
+              {n.ist_admin ? null : <KontoStatus status={n.konto_status} />}
               {freigabe ? (
                 <span
                   className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-sm font-bold"
@@ -876,7 +899,6 @@ function LeuteTab({
               <Card className="overflow-hidden">
                 <ul className="divide-y divide-line">
                   {liste.map((n) => {
-                    const fg = nutzerMap.get(n.user_id)?.freigabe
                     return (
                       <li key={n.user_id}>
                         <button type="button" onClick={() => setOffen(n.user_id)} className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-start transition hover:bg-raised">
@@ -889,11 +911,7 @@ function LeuteTab({
                                   <ShieldCheck size={14} /> {t('admin.ist_admin')}
                                 </Badge>
                               ) : null}
-                              {fg && fg !== 'frei' && !n.ist_admin ? (
-                                <span className="text-sm font-bold" style={{ color: STATUS_FARBE[fg] }}>
-                                  {t(`admin.status_${fg}`)}
-                                </span>
-                              ) : null}
+                              {n.ist_admin ? null : <KontoStatus status={n.konto_status} />}
                             </span>
                             {n.name?.trim() ? (
                               <span className="t-sub block break-all" dir="ltr">

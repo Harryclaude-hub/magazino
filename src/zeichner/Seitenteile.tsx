@@ -149,6 +149,25 @@ export function Assistent({
   )
 }
 
+/** Rechte Spalte ohne Auswahl, solange nur Regale und Schraenke zu zeichnen
+ *  sind (ZEICHNER_VOLL false, schalter.ts): der Assistent bleibt als Code. */
+export function RegalHinweis({ onWerkzeug }: { onWerkzeug: (name: WerkzeugName) => void }) {
+  const { t } = useSprache()
+  return (
+    <div>
+      <Kopf titel={t('zeichner.nur_regale.titel')} hilfe={t('zeichner.nur_regale.hilfe')} />
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="soft" onClick={() => onWerkzeug('regal')}>
+          {t('zeichner.werkzeug.regal')}
+        </Button>
+        <Button size="sm" variant="soft" onClick={() => onWerkzeug('schrank')}>
+          {t('zeichner.werkzeug.schrank')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /* ---------------------------------------------------------------- Suche */
 
 /** Suche oben rechts (E67): Moebel nach Name, Kisten nach Nummer oder

@@ -58,7 +58,8 @@ import { Eigenschaften } from './Eigenschaften'
 import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
 import { einpassen, radArt, radFaktor, verschieben, zoomAm } from '../components/plan/ansicht'
-import { Assistent, KistenListe, PlanSuche, RegalVorlage, UnterlagenWahl } from './Seitenteile'
+import { Assistent, KistenListe, PlanSuche, RegalHinweis, RegalVorlage, UnterlagenWahl } from './Seitenteile'
+import { bearbeitbar, ZEICHNER_VOLL } from './schalter'
 import { REIHENFOLGE, TASTEN, tastenZeichen, WERKZEUGE } from './werkzeuge'
 import { sperrSchluessel, zielAn } from './werkzeuge/auswahl'
 import { KontextMenue, UmbenennenDialog, type MenueAktion } from './Menue'
@@ -302,7 +303,7 @@ export default function Zeichner({
     const kiste = kisteId ? z.dok.kisten.find((k) => k.id === kisteId) : null
     if (raumId && z.dok.raeume.some((r) => r.id === raumId)) {
       zeigen({ raumId })
-      dispatch({ typ: 'waehlen', auswahl: kiste ? { art: 'kiste', id: kiste.id } : { art: 'raum', id: raumId } })
+      dispatch({ typ: 'waehlen', auswahl: kiste ? { art: 'kiste', id: kiste.id } : ZEICHNER_VOLL ? { art: 'raum', id: raumId } : null })
     } else if (kiste) {
       zeigen({ raumId: kiste.platz_raum_id })
     } else {
@@ -617,7 +618,7 @@ export default function Zeichner({
   function fallenLassen(e: React.DragEvent<HTMLDivElement>) {
     const tagId = e.dataTransfer.getData('text/kistly-zimmer')
     const p = cm(e)
-    if (!tagId || !p) return
+    if (!tagId || !p || !ZEICHNER_VOLL) return
     e.preventDefault()
     zimmerZuordnen(tagId, raumAn(z.dok, p)?.id ?? null)
   }
@@ -1047,7 +1048,7 @@ export default function Zeichner({
       const art = werkzeug.name
       return <RegalVorlage wert={vorlagen[art]} onAendern={(v) => setVorlagen((x) => ({ ...x, [art]: v }))} />
     }
-    if (z.auswahl) {
+    if (z.auswahl && bearbeitbar(z.auswahl.art)) {
       return (
         <Eigenschaften
           dok={z.dok}
@@ -1068,10 +1069,10 @@ export default function Zeichner({
         />
       )
     }
-    return <Assistent dok={z.dok} onWerkzeug={wechseln} />
+    return ZEICHNER_VOLL ? <Assistent dok={z.dok} onWerkzeug={wechseln} /> : <RegalHinweis onWerkzeug={wechseln} />
   })()
 
-  const hilfe = t(`zeichner.hilfe.${werkzeug.name === 'raum' && (werkzeug.s as { modus?: string }).modus === 'rechteck' ? 'rechteck' : werkzeug.name}`)
+  const hilfe = t(hilfeSchluessel(werkzeug.name === 'raum' && (werkzeug.s as { modus?: string }).modus === 'rechteck' ? 'rechteck' : werkzeug.name))
   const cursor = gezogen ? 'cursor-grabbing' : hand ? 'cursor-grab' : werkzeug.name === 'auswahl' ? 'cursor-default' : 'cursor-crosshair'
 
   return (
@@ -1145,14 +1146,14 @@ export default function Zeichner({
         </div>
       ) : null}
 
-      {ueberlappend.length > 0 ? (
+      {ZEICHNER_VOLL && ueberlappend.length > 0 ? (
         <div className="flex items-center gap-2 border-b border-warn/40 bg-warn/10 px-3 py-1.5 text-sm font-bold text-warn">
           <TriangleAlert size={16} className="shrink-0" />
           {t('zeichner.raeume_ueberlappen', { paare: ueberlappend.join(', ') })}
         </div>
       ) : null}
 
-      {offeneZimmer.length > 0 ? (
+      {ZEICHNER_VOLL && offeneZimmer.length > 0 ? (
         <div data-tour="z-zimmer" className="flex items-center gap-2 overflow-x-auto border-b border-line bg-surface px-3 py-1.5 scrollbar-thin">
           <span className="shrink-0 text-sm font-bold text-muted">{t('zeichner.noch_nicht_gezeichnet')}</span>
           {offeneZimmer.map((r) => (
@@ -1192,7 +1193,7 @@ export default function Zeichner({
               type="button"
               onClick={() => wechseln(name)}
               aria-pressed={werkzeug.name === name}
-              title={schmal ? `${t(`zeichner.werkzeug.${name}`)} (${tastenZeichen(name)}): ${t(`zeichner.hilfe.${name}`)}` : t(`zeichner.hilfe.${name}`)}
+              title={schmal ? `${t(`zeichner.werkzeug.${name}`)} (${tastenZeichen(name)}): ${t(hilfeSchluessel(name))}` : t(hilfeSchluessel(name))}
               aria-label={t(`zeichner.werkzeug.${name}`)}
               className={cx(
                 'flex min-h-9 items-center gap-2 rounded-xl text-start text-[0.9375rem] font-bold transition',
@@ -1211,6 +1212,7 @@ export default function Zeichner({
               )}
             </button>
           ))}
+          {ZEICHNER_VOLL ? (
           <button data-tour="z-rechteck"
             type="button"
             onClick={() => wechseln('raum', true)}
@@ -1230,6 +1232,7 @@ export default function Zeichner({
               </>
             )}
           </button>
+          ) : null}
         </nav>
 
         {/* Zeichenflaeche */}
@@ -1260,7 +1263,7 @@ export default function Zeichner({
               vorschau={vorschau}
               teppiche={teppiche}
               onMass={(m) => {
-                if (werkzeug.name !== 'auswahl') return
+                if (werkzeug.name !== 'auswahl' || !ZEICHNER_VOLL) return
                 setMassEingabe({ ...m, text: String(m.laenge) })
                 dispatch({ typ: 'waehlen', auswahl: { art: 'kante', raumId: m.raumId, kante: m.kante } })
               }}
@@ -1353,7 +1356,7 @@ export default function Zeichner({
             />
           ) : null}
 
-          {z.dok.raeume.length === 0 && werkzeug.name === 'auswahl' ? (
+          {ZEICHNER_VOLL && z.dok.raeume.length === 0 && werkzeug.name === 'auswahl' ? (
             <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
               <p className="rounded-xl bg-surface/90 px-4 py-2 text-base font-bold shadow">{t('zeichner.leer_hinweis')}</p>
             </div>
@@ -1418,6 +1421,7 @@ export default function Zeichner({
           ))}
           <span className="text-muted">cm</span>
         </span>
+        {ZEICHNER_VOLL ? (
         <button data-tour="z-winkel"
           type="button"
           onClick={() => setWinkel((v) => !v)}
@@ -1426,6 +1430,7 @@ export default function Zeichner({
         >
           {t('zeichner.winkel')}
         </button>
+        ) : null}
         <span className="t-serial text-muted">{ansicht ? `${Math.round(ansicht.s * 100)} %` : ''}</span>
         <span data-tour="z-tasten" className="t-sub ms-auto">{t('zeichner.tasten_hilfe')}</span>
       </div>
@@ -1510,6 +1515,11 @@ export default function Zeichner({
       />
     </div>
   )
+}
+
+/** Hilfesatz zum Werkzeug; die Auswahl hat im ausgeblendeten Zeichner einen kuerzeren. */
+function hilfeSchluessel(name: string): string {
+  return name === 'auswahl' && !ZEICHNER_VOLL ? 'zeichner.hilfe.auswahl_regal' : `zeichner.hilfe.${name}`
 }
 
 function Rund({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {

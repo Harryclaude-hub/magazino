@@ -1,93 +1,103 @@
-import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { Printer } from 'lucide-react'
-import { Button, Card, QrCode, SectionTitle } from './ui'
-import { useProject } from '../pages/ProjectLayout'
+import type { CSSProperties } from 'react'
 import { useT } from '../lib/i18n'
-import { appUrl } from '../lib/util'
+import { planeTuer } from '../lib/etikett'
+import { PAPIER_STIL, QrFeld } from './etikett/Etikett'
 
-/* Tuer-QR zum Drucken (E103). Der Code fuehrt zur Tuer-Seite des Lagers;
- * wer ihn scannt und angemeldet ist, kann sich dort ein- und austragen.
- *
- * Gedruckt wird ein eigenes Plakat, das nur beim Druck sichtbar ist. Der
- * Knopf setzt kurz eine Klasse am body, damit alles andere (auch der
- * Etikettenbogen der Seite) im Druck wegfaellt. */
+/* Das Tuer-Etikett des Lagers: ein grosser QR-Code, der zur Tuer-Seite fuehrt
+ * (/app/p/<id>/tuer). Wer ihn scannt und angemeldet ist, kann sich dort ein-
+ * und austragen. Es wird in denselben Formaten gedruckt wie die Kistenetiketten
+ * (pages/Labels.tsx); die Schrift richtet sich nach dem Platz. */
 
-const DRUCKKLASSE = 'druck-tuer'
+function mm(v: number): string {
+  return `${v.toFixed(2)}mm`
+}
 
-export function TuerEtikett() {
-  const { project, canEdit } = useProject()
+export function TuerEtikett({
+  name,
+  adresse,
+  w,
+  h,
+  mini,
+  rahmen,
+}: {
+  name: string
+  adresse: string
+  w: number
+  h: number
+  mini: boolean
+  rahmen: boolean
+}) {
   const t = useT()
-  const [druckt, setDruckt] = useState(false)
-  const adresse = appUrl(`app/p/${project.id}/tuer`)
+  const p = planeTuer(w, h, name, mini)
 
-  // Druckregeln nur solange der Block da ist.
-  useEffect(() => {
-    if (!canEdit) return
-    const el = document.createElement('style')
-    el.setAttribute('data-kistly', 'tuer-druck')
-    el.textContent = [
-      '.tuer-plakat { display: none }',
-      '@media print {',
-      `  body.${DRUCKKLASSE} #root { display: none !important }`,
-      `  body.${DRUCKKLASSE} .tuer-plakat { display: flex !important }`,
-      '  .tuer-plakat, .tuer-plakat * { -webkit-print-color-adjust: exact; print-color-adjust: exact }',
-      '}',
-    ].join('\n')
-    document.head.appendChild(el)
-    const fertig = () => {
-      document.body.classList.remove(DRUCKKLASSE)
-      setDruckt(false)
-    }
-    window.addEventListener('afterprint', fertig)
-    return () => {
-      window.removeEventListener('afterprint', fertig)
-      document.body.classList.remove(DRUCKKLASSE)
-      el.remove()
-    }
-  }, [canEdit])
-
-  if (!canEdit) return null
-
-  function drucken() {
-    document.body.classList.add(DRUCKKLASSE)
-    setDruckt(true)
-    // Ein Takt Luft, damit das Plakat im Dokument steht, bevor der Dialog aufgeht.
-    window.setTimeout(() => window.print(), 50)
+  const huelle: CSSProperties = {
+    ...PAPIER_STIL,
+    width: mm(w),
+    height: mm(h),
+    padding: mm(p.pad),
+    border: rahmen ? '0.2mm solid #8a8a8a' : 'none',
+    display: 'flex',
+    flexDirection: p.quer ? 'row' : 'column',
+    alignItems: 'center',
+    gap: mm(p.luecke),
+    fontFamily: 'var(--font-sans)',
+    lineHeight: 1.15,
+    textAlign: p.quer ? 'start' : 'center',
   }
 
-  return (
-    <>
-      <Card className="no-print mb-4 p-4">
-        <SectionTitle>{t('lager.etikett_titel')}</SectionTitle>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="w-28 shrink-0 rounded-lg border-2 border-ink bg-white p-1.5">
-            <QrCode value={adresse} size={256} className="block h-auto w-full" />
+  const text = (
+    <div
+      style={{
+        minWidth: 0,
+        width: p.quer ? undefined : '100%',
+        flex: p.quer ? 1 : undefined,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: mm(p.luecke * 0.4),
+      }}
+    >
+      <div
+        style={{
+          fontSize: mm(p.fsName),
+          fontWeight: 800,
+          lineHeight: 1.1,
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: p.nameZeilen,
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {name}
+      </div>
+      {mini ? null : (
+        <>
+          <div style={{ fontSize: mm(p.fsKopf), fontWeight: 700, lineHeight: 1.2 }}>
+            {t('lager.etikett_kopf')}
           </div>
-          <div className="min-w-0 flex-1 basis-56">
-            <p className="t-name-lg break-words">{project.name}</p>
-            <p className="t-sub mt-1">{t('lager.etikett_hinweis')}</p>
-            <Button className="mt-3" loading={druckt} onClick={drucken}>
-              <Printer size={18} /> {t('aktion.drucken')}
-            </Button>
+          <div style={{ fontSize: mm(p.fsFuss), color: '#333333', lineHeight: 1.2 }}>
+            {t('lager.etikett_fuss')}
           </div>
-        </div>
-      </Card>
-
-      {createPortal(
-        <div
-          className="tuer-plakat flex-col items-center justify-center gap-[8mm] text-center"
-          style={{ minHeight: '95vh', background: '#ffffff', color: '#000000', padding: '10mm', boxSizing: 'border-box' }}
-        >
-          <p style={{ fontSize: '14mm', fontWeight: 900, lineHeight: 1.1 }}>{project.name}</p>
-          <div style={{ width: 'min(120mm, 90%)', border: '2mm solid #000000', borderRadius: '5mm', padding: '4mm', background: '#ffffff' }}>
-            <QrCode value={adresse} size={512} className="block h-auto w-full" />
-          </div>
-          <p style={{ fontSize: '10mm', fontWeight: 800, lineHeight: 1.2 }}>{t('lager.etikett_kopf')}</p>
-          <p style={{ fontSize: '6mm' }}>{t('lager.etikett_fuss')}</p>
-        </div>,
-        document.body,
+        </>
       )}
-    </>
+    </div>
+  )
+
+  return (
+    <div style={huelle}>
+      {p.quer ? (
+        <>
+          <QrFeld wert={adresse} groesse={p.qr} />
+          {text}
+        </>
+      ) : (
+        <>
+          {text}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
+            <QrFeld wert={adresse} groesse={p.qr} />
+          </div>
+        </>
+      )}
+    </div>
   )
 }

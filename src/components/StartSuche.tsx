@@ -1,24 +1,23 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Package, Search, X } from 'lucide-react'
-import { EntnehmenDialog, ZustandPill } from './BestandDialoge'
-import { Badge, Button, Card, Chip, CodeChip, Empty, ErrorBox, Input, Loading, SectionTitle, Spinner } from './ui'
+import { ChevronRight, Package, Search, X } from 'lucide-react'
+import { BestandListe } from './BestandListe'
+import { Badge, Button, Chip, CodeChip, Empty, ErrorBox, Input, Loading, SectionTitle, Spinner } from './ui'
 import { inhaltSuchen, listBestand, listKategorien, listProjects } from '../lib/api'
 import { fuzzyAbfrage, fuzzyIndex, normalisieren } from '../lib/fuzzy'
 import { useSprache } from '../lib/i18n'
-import { mengeText, zustandVon } from '../lib/lager'
-import { ProduktBild } from './ProduktBild'
 import type { Bestand, Project, SuchTreffer } from '../lib/types'
 
-/* Suchen auf dem Start (E105): eine Leiste, optional Bereiche als Filter,
- * Treffer mit "Nehmen" und "Ausleihen". Die Daten (Bestand und Bereiche aller
+/* Suchen auf dem Start (E105, E109): eine Leiste, optional Bereiche als Filter
+ * (eine Zeile, seitlich wischbar), Treffer als dichte Zeilen; Tippen oeffnet
+ * das Blatt mit "Mitnehmen". Die Daten (Bestand und Bereiche aller
  * Lager, die man sieht) werden einmal geladen und dann im Browser mit der
  * toleranten Suche (fuzzy.ts) gefiltert. Kisten kommen ueber die vorhandene
  * Datenbanksuche dazu. Auch Suche.tsx nutzt useProdukte und ProduktListe. */
 
 const WARTEN_MS = 250
 /** So viele Produkte zeigt eine Liste. */
-const MAX_PRODUKTE = 30
+const MAX_PRODUKTE = 200
 /** So viele Kisten zeigt der Start. */
 const MAX_KISTEN = 5
 
@@ -116,12 +115,10 @@ export function produktIndex(produkte: Produkt[]) {
   ])
 }
 
-/* ------------------------------------------------------ Produktkarten */
+/* ------------------------------------------------------ Treffer-Liste */
 
-type Aktion = { p: Produkt; modus: 'nehmen' | 'ausleihen' } | null
-
-/** Liste von Treffern mit Nehmen und Ausleihen. Der Dialog gehoert dazu;
- *  nach einer Buchung ruft sie onGeaendert (zum Neuladen). */
+/** Treffer als dichte Zeilen. Tippen oeffnet das Blatt (Mitnehmen, Im
+ *  Bestand oeffnen); nach einer Buchung ruft sie onGeaendert (zum Neuladen). */
 export function ProduktListe({
   treffer,
   lagerZeigen = true,
@@ -132,80 +129,15 @@ export function ProduktListe({
   onGeaendert: () => void
 }) {
   const nav = useNavigate()
-  const [aktion, setAktion] = useState<Aktion>(null)
   return (
-    <>
-      <ul className="space-y-3">
-        {treffer.map((p) => (
-          <li key={p.b.id}>
-            <ProduktKarte
-              p={p}
-              lagerZeigen={lagerZeigen}
-              onOeffnen={() => nav(`/app/p/${p.b.project_id}/bestand?q=${encodeURIComponent(p.b.name)}`)}
-              onAktion={(modus) => setAktion({ p, modus })}
-            />
-          </li>
-        ))}
-      </ul>
-      {aktion ? (
-        <EntnehmenDialog
-          b={aktion.p.b}
-          modus={aktion.modus}
-          onClose={() => setAktion(null)}
-          onFertig={() => {
-            setAktion(null)
-            onGeaendert()
-          }}
-        />
-      ) : null}
-    </>
-  )
-}
-
-function ProduktKarte({
-  p,
-  lagerZeigen,
-  onOeffnen,
-  onAktion,
-}: {
-  p: Produkt
-  lagerZeigen: boolean
-  onOeffnen: () => void
-  onAktion: (modus: 'nehmen' | 'ausleihen') => void
-}) {
-  const { t } = useSprache()
-  const ort = [lagerZeigen ? p.lager : null, p.bereich, p.b.ort].filter(Boolean).join(' . ')
-  const leer = zustandVon(p.b) === 'leer'
-  return (
-    <Card className="p-0">
-      <button
-        type="button"
-        onClick={onOeffnen}
-        className="flex w-full items-start gap-3 rounded-karte p-4 text-start transition hover:bg-raised active:scale-[0.99]"
-      >
-        <ProduktBild pfad={p.b.bild_pfad} />
-        <span className="min-w-0 flex-1">
-          <span className="t-name-lg block break-words">{p.b.name}</span>
-          {ort ? <span className="t-sub mt-0.5 block break-words">{ort}</span> : null}
-          <span className="mt-2 block">
-            <ZustandPill b={p.b} suche />
-          </span>
-        </span>
-        <span className={`shrink-0 text-end text-2xl font-black tabular-nums ${leer ? 'text-muted' : ''}`} dir="ltr">
-          {mengeText(p.b.menge)} <span className="text-base font-bold text-muted">{p.b.einheit}</span>
-        </span>
-      </button>
-      {leer ? null : (
-        <div className="grid grid-cols-2 gap-2 px-4 pb-4">
-          <Button size="lg" full onClick={() => onAktion('nehmen')}>
-            {t('lager.nehmen')}
-          </Button>
-          <Button size="lg" full variant="outline" onClick={() => onAktion('ausleihen')}>
-            {t('lager.ausleihen_knopf')}
-          </Button>
-        </div>
-      )}
-    </Card>
+    <BestandListe
+      zeilen={treffer}
+      lagerZeigen={lagerZeigen}
+      suche
+      tabelle={false}
+      onGeaendert={onGeaendert}
+      onOeffnen={(p) => nav(`/app/p/${p.b.project_id}/bestand?q=${encodeURIComponent(p.b.name)}`)}
+    />
   )
 }
 
@@ -328,7 +260,7 @@ export function StartSuche({
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          className="h-14 ps-11 pe-12 text-lg [&::-webkit-search-cancel-button]:hidden"
+          className="h-12 ps-11 pe-12 text-[1.0625rem] [&::-webkit-search-cancel-button]:hidden"
         />
         {text ? (
           <button
@@ -351,7 +283,7 @@ export function StartSuche({
         <div
           role="group"
           aria-label={t('lager.start_bereiche')}
-          className="-mx-3 mb-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
+          className="-mx-3 mb-4 flex flex-nowrap gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden"
         >
           <Chip active={!gefiltert} onClick={() => setGewaehlt([])}>
             {t('aktion.alle')}
@@ -385,9 +317,9 @@ export function StartSuche({
             <section>
               <SectionTitle action={kistenLaedt ? <Spinner /> : null}>{t('lager.suche_kisten')}</SectionTitle>
               {kistenFehler ? <ErrorBox error={kistenFehler} onRetry={() => setKistenNr((n) => n + 1)} /> : null}
-              <ul className="space-y-2">
+              <ul className="lz overflow-hidden rounded-karte bg-surface">
                 {kistenSichtbar.slice(0, MAX_KISTEN).map((z) => (
-                  <li key={z.content_id}>
+                  <li key={z.content_id} className="lz-li">
                     <KistenZeile
                       z={z}
                       onTipp={() => nav(`/app/p/${z.project_id}/kisten/${z.item_id}?inhalt=${z.content_id}`)}
@@ -420,20 +352,23 @@ function KistenZeile({ z, onTipp }: { z: SuchTreffer; onTipp: () => void }) {
     <button
       type="button"
       onClick={onTipp}
-      className="flex w-full items-start gap-3 rounded-2xl border-2 border-line bg-surface p-3 text-start transition hover:bg-raised active:scale-[0.99]"
+      className="lz-zeile flex min-h-[60px] w-full items-center gap-3 px-4 py-2 text-start"
     >
-      <Package size={22} className="mt-0.5 shrink-0 text-muted" />
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-raised text-muted">
+        <Package size={20} />
+      </span>
       <span className="min-w-0 flex-1">
-        <span className="t-name block break-words">
+        <span className="block truncate text-base font-semibold leading-tight">
           {z.menge > 1 ? <span className="t-serial">{z.menge}x </span> : null}
           {z.inhalt}
         </span>
-        <span className="t-sub block truncate">{z.project_name}</span>
-        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <CodeChip code={z.item_code} size="sm" />
-          <Badge color={z.room_color ?? undefined}>{z.room_name ?? t('lager.bestand_ohne_bereich')}</Badge>
-        </span>
+        <span className="block truncate text-[0.8125rem] leading-snug text-muted">{z.project_name}</span>
       </span>
+      <span className="flex shrink-0 flex-col items-end gap-1">
+        <CodeChip code={z.item_code} size="sm" />
+        <Badge color={z.room_color ?? undefined}>{z.room_name ?? t('lager.bestand_ohne_bereich')}</Badge>
+      </span>
+      <ChevronRight size={16} className="spiegeln -ms-1 shrink-0 text-muted/60" aria-hidden="true" />
     </button>
   )
 }

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ChevronRight, Landmark, Package, Plus, ScanLine, Warehouse } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
 import { InstallCard } from '../components/InstallCard'
+import { LagerStatus } from '../components/LagerStatus'
 import { StartSuche } from '../components/StartSuche'
 import { Button, Empty, ErrorBox, Field, Input, Loading, Modal, SectionTitle, Wordmark, useToast } from '../components/ui'
 import { blProjektAnlegen, istAdmin, listBlProjekte, listProjects } from '../lib/api'
@@ -11,28 +12,18 @@ import { useSprache } from '../lib/i18n'
 import { useAsync } from '../lib/util'
 
 const KARTE =
-  'flex min-h-28 items-center gap-3 rounded-karte border border-line bg-surface p-5 shadow-karte transition hover:border-ink/25 active:scale-[0.99]'
-const BESTAND_KARTE =
-  'flex min-h-32 flex-col justify-between rounded-karte border border-line bg-surface p-4 shadow-karte transition hover:border-ink/25 active:scale-[0.98]'
+  'flex min-h-16 items-center gap-3 rounded-karte border border-line bg-surface p-4 shadow-karte transition hover:border-ink/25 active:scale-[0.99]'
+/** Kleiner Schnellzugriff neben der Suche, nur am Computer. */
+const SCHNELL =
+  'knopf inline-flex min-h-10 items-center gap-2 rounded-knopf bg-feld px-4 text-[0.9375rem] font-semibold text-ink hover:brightness-[0.96]'
 
-function BestandInhalt() {
-  const { t } = useSprache()
-  return (
-    <>
-      <Package size={30} />
-      <span>
-        <span className="block text-xl font-black leading-tight">{t('lager.nav_bestand')}</span>
-        <span className="t-sub mt-0.5 block">{t('lager.start_bestand_hinweis')}</span>
-      </span>
-    </>
-  )
-}
-
-/* Startbildschirm (E105): oben die Suche (tolerant bei Tippfehlern, optional
- * mit Bereichsfilter, Treffer zum Nehmen oder Ausleihen), darunter die zwei
- * grossen Wege "Scannen" und "Bestand", dann die Bundeslandprojekte als
- * Karten. Ist man nur in einem Bundeslandprojekt, stehen gleich dessen Lager
- * da, ohne den Umweg ueber die Projektkarte. */
+/* Startbildschirm (E105, E109): ganz oben "Im Lager" (eintragen und gehen),
+ * darunter die Suche (tolerant bei Tippfehlern, optional mit Bereichsfilter,
+ * Treffer zum Mitnehmen), dann die Bundeslandprojekte als Karten. Scannen,
+ * Bestand, Unterwegs, Kisten, Grundriss und Verlauf stehen nicht als grosse
+ * Knoepfe da, sondern in der unteren Leiste und im Menue; am Computer gibt es
+ * Scannen und Bestand als kleine Schnellzugriffe neben der Suche. Ist man nur
+ * in einem Bundeslandprojekt, stehen gleich dessen Lager da. */
 export default function Dashboard() {
   const { profile } = useAuth()
   const { t, tn } = useSprache()
@@ -85,39 +76,33 @@ export default function Dashboard() {
       <AppHeader title={<Wordmark size={24} />} />
 
       <Page>
-        <h1 className="mb-4 text-2xl font-black tracking-tight">
-          {profile?.display_name ? t('umzuege.hallo_name', { name: profile.display_name }) : t('umzuege.hallo')}
-        </h1>
+        {!laden && !fehler && projekte.length > 0 ? (
+          <LagerStatus projekte={projekte.map((p) => p.project)} name={profile?.display_name} />
+        ) : (
+          <h1 className="mb-4 text-2xl font-black tracking-tight">
+            {profile?.display_name ? t('umzuege.hallo_name', { name: profile.display_name }) : t('umzuege.hallo')}
+          </h1>
+        )}
 
         <StartSuche
           projekte={laden || fehler ? null : projekte.map((p) => p.project)}
           knoepfe={
-            <div className="mb-5 grid grid-cols-2 gap-3">
-              <Link
-                data-tour="start-scannen"
-                to="/app/scan"
-                className="flex min-h-32 flex-col justify-between rounded-karte bg-ink p-4 text-paper shadow-karte transition active:scale-[0.98]"
-              >
-                <ScanLine size={30} />
-                <span>
-                  <span className="block text-xl font-black leading-tight">{t('nav.scannen')}</span>
-                  <span className="mt-0.5 block text-[0.9375rem] font-semibold opacity-80">
-                    {t('lager.start_scannen_hinweis')}
-                  </span>
-                </span>
+            <div className="mb-5 hidden items-center gap-2 lg:flex">
+              <Link data-tour="start-scannen" to="/app/scan" className={SCHNELL}>
+                <ScanLine size={18} /> {t('nav.scannen')}
               </Link>
               {projekte.length === 1 ? (
-                <Link to={`/app/p/${projekte[0].project.id}/bestand`} className={BESTAND_KARTE}>
-                  <BestandInhalt />
+                <Link to={`/app/p/${projekte[0].project.id}/bestand`} className={SCHNELL}>
+                  <Package size={18} /> {t('lager.nav_bestand')}
                 </Link>
               ) : (
                 <button
                   type="button"
                   disabled={projekte.length === 0}
                   onClick={() => setBestandWahl(true)}
-                  className={`${BESTAND_KARTE} text-start disabled:opacity-45`}
+                  className={`${SCHNELL} disabled:opacity-45`}
                 >
-                  <BestandInhalt />
+                  <Package size={18} /> {t('lager.nav_bestand')}
                 </button>
               )}
             </div>

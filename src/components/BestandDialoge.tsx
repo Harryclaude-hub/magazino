@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Trash2 } from 'lucide-react'
-import { Button, Chip, ConfirmDialog, ErrorBox, Field, IconButton, Input, Modal, Select, Switch, useToast } from './ui'
+import { Minus, Plus, Trash2 } from 'lucide-react'
+import { Button, Chip, ConfirmDialog, ErrorBox, Field, IconButton, Input, Modal, Segmented, Select, useToast } from './ui'
 import { useProject, useProjektOptional } from '../pages/ProjectLayout'
 import {
   bereichLoeschen,
@@ -11,6 +11,7 @@ import {
   bestandEntfernen,
   bestandLoeschen,
   kategorieSpeichern,
+  lagerBetreten,
 } from '../lib/api'
 import { displayNameOf } from '../lib/auth'
 import { useT } from '../lib/i18n'
@@ -25,50 +26,103 @@ function fehlerText(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** Fehlerkasten; bei "nicht eingetragen" mit dem Weg zur Tuer. */
-function FehlerAnzeige({ fehler, projectId }: { fehler: string | null; projectId?: string }) {
+/** Fehlerkasten; bei "nicht eingetragen" gleich mit dem Knopf "Jetzt
+ *  eintragen" (wenn der Dialog onEingetragen kennt) und dem Weg zur Tuer. */
+function FehlerAnzeige({
+  fehler,
+  projectId,
+  onEingetragen,
+}: {
+  fehler: string | null
+  projectId?: string
+  /** Nach erfolgreichem Eintragen: der Dialog raeumt den Fehler weg und sagt "bitte noch einmal". */
+  onEingetragen?: () => void
+}) {
   const t = useT()
   // Auf dem Start gibt es keinen Lager-Rahmen; dort kommt das Lager als projectId.
   const ctx = useProjektOptional()
   const project = projectId ? { id: projectId } : ctx?.project
+  const [busy, setBusy] = useState(false)
+  const [eintragFehler, setEintragFehler] = useState<string | null>(null)
   if (!fehler) return null
+  const nichtDrin = project && fehler === t('fehler.db.lager.nicht_eingetragen')
+
+  async function eintragen() {
+    if (!project) return
+    setEintragFehler(null)
+    setBusy(true)
+    try {
+      await lagerBetreten(project.id)
+      onEingetragen?.()
+    } catch (err) {
+      setEintragFehler(fehlerText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-2">
       <ErrorBox error={fehler} />
-      {project && fehler === t('fehler.db.lager.nicht_eingetragen') ? (
-        <Link to={`/app/p/${project.id}/tuer`}>
-          <Button variant="outline" full>
-            {t('lager.zur_tuer')}
-          </Button>
-        </Link>
+      {nichtDrin ? (
+        <>
+          {onEingetragen ? (
+            <Button full loading={busy} onClick={() => void eintragen()}>
+              {t('lager.jetzt_eintragen')}
+            </Button>
+          ) : null}
+          {eintragFehler ? <ErrorBox error={eintragFehler} /> : null}
+          <Link to={`/app/p/${project.id}/tuer`}>
+            <Button variant={onEingetragen ? 'ghost' : 'outline'} full>
+              {t('lager.zur_tuer')}
+            </Button>
+          </Link>
+        </>
       ) : null}
     </div>
   )
 }
 
+/** Kleine Bestaetigung unter dem Formular ("Du bist drin, bitte noch einmal"). */
+function Hinweis({ text }: { text: string | null }) {
+  if (!text) return null
+  return (
+    <p role="status" className="rounded-[12px] bg-ok/12 px-4 py-3 text-base font-semibold text-ok">
+      {text}
+    </p>
+  )
+}
+
 /* -------------------------------------------------------- Zustand */
 
-/** Der Zustand eines Dings in einem Wort: im Lager, nur noch X, leer.
- *  In der Suche heisst leer "gibt es nicht mehr". */
-export function ZustandPill({ b, suche = false }: { b: Bestand; suche?: boolean }) {
-  const t = useT()
+/** Der Zustand als ruhiger Punkt: gruen im Lager, orange knapp, grau leer. */
+export function ZustandPunkt({ b, className }: { b: Bestand; className?: string }) {
   const z = zustandVon(b)
   return (
     <span
+      aria-hidden="true"
       className={cx(
-        'inline-flex items-center rounded-full px-3 py-1 text-[0.9375rem] font-black leading-5',
-        z === 'da' && 'bg-ok/15 text-ok',
-        z === 'knapp' && 'bg-warn text-paper',
-        z === 'leer' && 'bg-raised text-muted',
+        'inline-block h-2.5 w-2.5 shrink-0 rounded-full',
+        z === 'da' && 'bg-ok',
+        z === 'knapp' && 'bg-warn',
+        z === 'leer' && 'bg-muted/45',
+        className,
       )}
-    >
-      {z === 'da'
-        ? t('lager.z_da')
-        : z === 'knapp'
-          ? t('lager.z_knapp', { menge: mengeText(b.menge), einheit: b.einheit })
-          : t(suche ? 'lager.z_weg' : 'lager.z_leer')}
-    </span>
+    />
   )
+}
+
+/** Der Zustand in einem Wort: im Lager, nur noch X, leer.
+ *  In der Suche heisst leer "gibt es nicht mehr". */
+export function zustandText(
+  b: Bestand,
+  t: (k: string, v?: Record<string, string | number>) => string,
+  suche = false,
+): string {
+  const z = zustandVon(b)
+  if (z === 'da') return t('lager.z_da')
+  if (z === 'knapp') return t('lager.z_knapp', { menge: mengeText(b.menge), einheit: b.einheit })
+  return t(suche ? 'lager.z_weg' : 'lager.z_leer')
 }
 
 /* ------------------------------------------------------------ Zeiten */
@@ -85,52 +139,112 @@ function umAchtzehn(tageDazu: number): Date {
   return d
 }
 
-/** Heute Abend 18:00, ab 16 Uhr morgen 18:00. */
-function standardTermin(): string {
-  return lokal(umAchtzehn(new Date().getHours() < 16 ? 0 : 1))
+/* --------------------------------------------------------- Mengenregler */
+
+/** Grosse Plus- und Minus-Knoepfe mit Direkteingabe in der Mitte. max
+ *  (optional) ist die Menge, die da ist: mehr geht nicht. */
+function MengenRegler({
+  wert,
+  onChange,
+  max,
+  label,
+}: {
+  wert: string
+  onChange: (v: string) => void
+  max?: number
+  label: string
+}) {
+  const v = zahl(wert)
+  const gueltig = Number.isFinite(v)
+  const setze = (x: number) => onChange(mengeText(max !== undefined ? Math.min(x, max) : x))
+  return (
+    <div className="flex items-center justify-center gap-4">
+      <button
+        type="button"
+        aria-label="-1"
+        disabled={!gueltig || v <= 1}
+        onClick={() => setze(Math.max(1, v - 1))}
+        className="knopf grid h-14 w-14 shrink-0 place-items-center rounded-full bg-feld text-accent disabled:opacity-35"
+      >
+        <Minus size={26} />
+      </button>
+      <Input
+        inputMode="decimal"
+        dir="ltr"
+        value={wert}
+        aria-label={label}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-14 w-28 px-2 text-center text-3xl font-black tabular-nums"
+      />
+      <button
+        type="button"
+        aria-label="+1"
+        disabled={gueltig && max !== undefined && v >= max}
+        onClick={() => setze(gueltig ? v + 1 : 1)}
+        className="knopf grid h-14 w-14 shrink-0 place-items-center rounded-full bg-feld text-accent disabled:opacity-35"
+      >
+        <Plus size={26} />
+      </button>
+    </div>
+  )
 }
 
-/* --------------------------------------------------------- Entnehmen */
+/* --------------------------------------------------------- Mitnehmen */
 
-export function EntnehmenDialog({
+type Wie = 'weg' | 'zurueck'
+type Schnell = 'heute' | 'morgen' | 'drei' | 'woche' | 'eigen'
+
+const SCHNELL_TAGE: Record<Exclude<Schnell, 'eigen'>, number> = { heute: 0, morgen: 1, drei: 3, woche: 7 }
+
+/** Eine Aktion statt Entnehmen und Ausleihen: oben "Bleibt weg" (wird
+ *  verbraucht) oder "Bringe ich zurück" (mit Rückgabetermin). Der Start
+ *  richtet sich nach der Art des Dings. Gebucht wird weiter ueber
+ *  bestandBuchen 'entnahme' bzw. 'ausleihe'. */
+export function MitnehmenDialog({
   b,
-  modus,
   onClose,
   onFertig,
 }: {
   b: Bestand
-  /** Start mit "Nehmen" (kommt nicht zurueck) oder "Ausleihen" (mit Termin).
-   *  Ohne Angabe richtet sich der Schalter nach der Art des Dings. */
-  modus?: 'nehmen' | 'ausleihen'
   onClose: () => void
   onFertig: () => void
 }) {
   const t = useT()
   const toast = useToast()
+  // Heute Abend 18:00 geht nur, wenn es noch eine halbe Stunde hin ist.
+  const [heuteMoeglich] = useState(() => umAchtzehn(0).getTime() > Date.now() + 30 * 60_000)
+  const [wie, setWie] = useState<Wie>(b.art === 'ausleihe' ? 'zurueck' : 'weg')
   const [menge, setMenge] = useState('1')
-  const [zurueck, setZurueck] = useState(modus ? modus === 'ausleihen' : b.art === 'ausleihe')
-  const [bis, setBis] = useState(standardTermin)
+  const [schnell, setSchnell] = useState<Schnell>(heuteMoeglich ? 'heute' : 'morgen')
+  const [bis, setBis] = useState(() => lokal(umAchtzehn(heuteMoeglich ? 0 : 1)))
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
+  const [hinweis, setHinweis] = useState<string | null>(null)
+
+  function waehle(s: Schnell) {
+    setSchnell(s)
+    if (s !== 'eigen') setBis(lokal(umAchtzehn(SCHNELL_TAGE[s])))
+  }
 
   async function senden(e: FormEvent) {
     e.preventDefault()
     setFehler(null)
+    setHinweis(null)
     const m = zahl(menge)
     if (!(m > 0)) return setFehler(t('lager.menge_ungueltig'))
     let faellig: Date | undefined
-    if (zurueck) {
+    if (wie === 'zurueck') {
       faellig = bis ? new Date(bis) : undefined
       if (!faellig || Number.isNaN(faellig.getTime())) return setFehler(t('lager.termin_fehlt'))
       if (faellig.getTime() <= Date.now()) return setFehler(t('lager.termin_vergangen'))
     }
     setBusy(true)
     try {
-      await bestandBuchen(b.id, zurueck ? 'ausleihe' : 'entnahme', m, { faellig })
+      await bestandBuchen(b.id, wie === 'zurueck' ? 'ausleihe' : 'entnahme', m, { faellig })
       toast(
-        zurueck && faellig
-          ? t('lager.toast_ausgeliehen', { name: b.name, bis: fmtDateTime(faellig.toISOString()) })
-          : t('lager.toast_entnommen', { name: b.name, menge: mengeText(m), einheit: b.einheit }),
+        wie === 'zurueck' && faellig
+          ? t('lager.toast_mit_zurueck', { name: b.name, bis: fmtDateTime(faellig.toISOString()) })
+          : t('lager.toast_mit_weg', { name: b.name, menge: mengeText(m), einheit: b.einheit }),
         'ok',
       )
       onFertig()
@@ -141,55 +255,88 @@ export function EntnehmenDialog({
     }
   }
 
-  const heuteMoeglich = umAchtzehn(0).getTime() > Date.now()
+  const terminDatum = bis ? new Date(bis) : null
+  const terminOk = terminDatum !== null && !Number.isNaN(terminDatum.getTime())
   return (
     <Modal
       open
       onClose={onClose}
-      title={t(modus && zurueck ? 'lager.ausleihen_dialog_titel' : 'lager.entnehmen_titel', { name: b.name })}
+      title={t('lager.mitnehmen_titel', { name: b.name })}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             {t('aktion.abbrechen')}
           </Button>
-          <Button form="bestand-entnehmen" type="submit" loading={busy}>
-            {t(modus ? (zurueck ? 'lager.ausleihen_knopf' : 'lager.nehmen') : 'lager.entnehmen')}
+          <Button form="bestand-mitnehmen" type="submit" loading={busy}>
+            {t('lager.mitnehmen')}
           </Button>
         </>
       }
     >
-      <form id="bestand-entnehmen" onSubmit={senden} className="space-y-4">
-        <p className="t-sub">{t('lager.da', { menge: mengeText(b.menge), einheit: b.einheit })}</p>
-        <Field label={`${t('lager.menge')} (${b.einheit})`}>
-          <Input
-            autoFocus
-            inputMode="decimal"
-            dir="ltr"
-            value={menge}
-            onChange={(e) => setMenge(e.target.value)}
-            className="text-2xl font-black"
+      <form id="bestand-mitnehmen" onSubmit={senden} className="space-y-5">
+        <div className="space-y-2">
+          <Segmented<Wie>
+            label={t('lager.mn_wie')}
+            value={wie}
+            onChange={setWie}
+            options={[
+              { value: 'weg', label: t('lager.mn_weg') },
+              { value: 'zurueck', label: t('lager.mn_zurueck') },
+            ]}
           />
-        </Field>
-        <Switch checked={zurueck} onChange={setZurueck} label={t('lager.kommt_zurueck')} />
-        {zurueck ? (
-          <div className="space-y-2">
-            <Field label={t('lager.zurueck_bis')}>
-              <Input type="datetime-local" dir="ltr" value={bis} onChange={(e) => setBis(e.target.value)} />
-            </Field>
+          <p className="t-sub px-1">{t(wie === 'weg' ? 'lager.mn_weg_hinweis' : 'lager.mn_zurueck_hinweis')}</p>
+        </div>
+
+        <div className="space-y-2">
+          <MengenRegler wert={menge} onChange={setMenge} max={b.menge} label={`${t('lager.menge')} (${b.einheit})`} />
+          <p className="t-sub text-center">{t('lager.da', { menge: mengeText(b.menge), einheit: b.einheit })}</p>
+        </div>
+
+        {wie === 'zurueck' ? (
+          <div className="space-y-3">
+            <span className="block px-1 text-sm font-semibold text-muted">{t('lager.zurueck_bis')}</span>
             <div className="flex flex-wrap gap-2">
               {heuteMoeglich ? (
-                <Chip onClick={() => setBis(lokal(umAchtzehn(0)))}>{t('lager.heute_abend')}</Chip>
+                <Chip active={schnell === 'heute'} onClick={() => waehle('heute')}>
+                  {t('lager.heute_abend')}
+                </Chip>
               ) : null}
-              <Chip onClick={() => setBis(lokal(umAchtzehn(1)))}>{t('lager.morgen')}</Chip>
-              <Chip onClick={() => setBis(lokal(umAchtzehn(7)))}>{t('lager.in_woche')}</Chip>
+              <Chip active={schnell === 'morgen'} onClick={() => waehle('morgen')}>
+                {t('lager.morgen')}
+              </Chip>
+              <Chip active={schnell === 'drei'} onClick={() => waehle('drei')}>
+                {t('lager.in_3_tagen')}
+              </Chip>
+              <Chip active={schnell === 'woche'} onClick={() => waehle('woche')}>
+                {t('lager.in_woche')}
+              </Chip>
+              <Chip active={schnell === 'eigen'} onClick={() => waehle('eigen')}>
+                {t('lager.datum_waehlen')}
+              </Chip>
             </div>
+            {schnell === 'eigen' ? (
+              <Input type="datetime-local" dir="ltr" value={bis} onChange={(e) => setBis(e.target.value)} aria-label={t('lager.zurueck_bis')} />
+            ) : null}
+            {terminOk && terminDatum ? (
+              <p className="t-sub px-1">{t('lager.zurueck_bis_wann', { zeit: fmtDateTime(terminDatum.toISOString()) })}</p>
+            ) : null}
           </div>
         ) : null}
-        <FehlerAnzeige fehler={fehler} projectId={b.project_id} />
+
+        <Hinweis text={hinweis} />
+        <FehlerAnzeige
+          fehler={fehler}
+          projectId={b.project_id}
+          onEingetragen={() => {
+            setFehler(null)
+            setHinweis(t('lager.du_bist_drin'))
+          }}
+        />
       </form>
     </Modal>
   )
 }
+
 
 /* ------------------------------------------------- Zugang und Zaehlen */
 
@@ -214,10 +361,12 @@ export function ZugangDialog({
   const [menge, setMenge] = useState(zaehlen ? mengeText(b.menge) : '1')
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
+  const [hinweis, setHinweis] = useState<string | null>(null)
 
   async function senden(e: FormEvent) {
     e.preventDefault()
     setFehler(null)
+    setHinweis(null)
     const m = zahl(menge)
     if (zaehlen ? !(m >= 0) : !(m > 0)) return setFehler(t(zaehlen ? 'lager.menge_ungueltig_null' : 'lager.menge_ungueltig'))
     setBusy(true)
@@ -255,17 +404,29 @@ export function ZugangDialog({
     >
       <form id="bestand-zugang" onSubmit={senden} className="space-y-4">
         {zaehlen ? <p className="t-sub">{t('lager.zaehlen_hinweis')}</p> : null}
-        <Field label={`${t('lager.menge')} (${b.einheit})`}>
-          <Input
-            autoFocus
-            inputMode="decimal"
-            dir="ltr"
-            value={menge}
-            onChange={(e) => setMenge(e.target.value)}
-            className="text-2xl font-black"
-          />
-        </Field>
-        <FehlerAnzeige fehler={fehler} />
+        {zaehlen ? (
+          <Field label={`${t('lager.menge')} (${b.einheit})`}>
+            <Input
+              autoFocus
+              inputMode="decimal"
+              dir="ltr"
+              value={menge}
+              onChange={(e) => setMenge(e.target.value)}
+              className="text-2xl font-black"
+            />
+          </Field>
+        ) : (
+          <MengenRegler wert={menge} onChange={setMenge} label={`${t('lager.menge')} (${b.einheit})`} />
+        )}
+        <Hinweis text={hinweis} />
+        <FehlerAnzeige
+          fehler={fehler}
+          projectId={b.project_id}
+          onEingetragen={() => {
+            setFehler(null)
+            setHinweis(t('lager.du_bist_drin'))
+          }}
+        />
       </form>
     </Modal>
   )

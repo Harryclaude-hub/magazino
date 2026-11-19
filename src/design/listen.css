@@ -1,0 +1,90 @@
+/* ------------------------------------------------ Listen und Tabellen (E109)
+ * Dichte Zeilen am Handy (Inset grouped: Haarlinien statt Rahmen), die
+ * Tabelle am Computer, das Blatt mit den Aktionen. Nur Optik: ohne diese
+ * Datei stehen dieselben Zeilen schlicht untereinander. Farben nur ueber
+ * die Variablen aus index.css. */
+
+/* Lange Listen: Zeilen ausserhalb des Bildes werden nicht gezeichnet. */
+.lz-li {
+  position: relative;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
+}
+
+/* Haarlinie zwischen den Zeilen, beginnt hinter dem Foto (16 + 40 + 12 px). */
+.lz > .lz-li + .lz-li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  inset-inline-start: 4.25rem;
+  inset-inline-end: 0;
+  height: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+
+.lz-zeile {
+  transition: background-color 120ms ease;
+}
+.lz-zeile:active {
+  background: var(--feld);
+}
+.lz-zeile:focus-visible,
+.bl-zeile:focus-visible,
+.lt-zeile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Tabelle am Computer */
+.lt th {
+  padding: 0.625rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--feld) 55%, var(--surface));
+}
+.lt .lt-sort {
+  font: inherit;
+  cursor: pointer;
+}
+.lt .lt-sort:hover {
+  color: var(--ink);
+}
+.lt td {
+  padding: 0.5rem 0.75rem;
+  vertical-align: middle;
+}
+.lt .lt-zeile {
+  cursor: pointer;
+  transition: background-color 100ms ease;
+}
+.lt .lt-zeile + .lt-zeile > td {
+  border-top: 1px solid var(--line);
+}
+.lt .lt-zeile:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+.lt .lt-zeile:focus-visible {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Blatt: Aktionsliste wie in iOS (graue Gruppe, Haarlinien dazwischen) */
+.bl-liste > li + li {
+  border-top: 1px solid var(--line);
+}
+.bl-zeile {
+  transition: background-color 120ms ease;
+}
+.bl-zeile:active {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lz-zeile,
+  .bl-zeile,
+  .lt .lt-zeile {
+    transition: none;
+  }
+}

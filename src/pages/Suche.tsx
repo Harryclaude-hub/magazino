@@ -43,7 +43,7 @@ const Lageplan = lazy(() => import('../components/plan/Lageplan').then((m) => ({
 
 const WARTEN_MS = 300
 /** So viele Produkte zeigt die Seite. */
-const MAX_PRODUKTE = 20
+const MAX_PRODUKTE = 100
 
 /** So viele Treffer zeigt die Seite. Einer mehr wird geholt, um zu
  *  wissen, ob es noch weitere gibt. */

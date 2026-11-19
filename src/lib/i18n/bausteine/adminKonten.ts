@@ -164,4 +164,10 @@ export const adminKonten: Woerterbuch = {
   'adminkonten.art_rueckgabe': { de: 'Zurückgegeben' },
   'adminkonten.art_korrektur': { de: 'Gezählt' },
   'adminkonten.art_admin': { de: 'Verwaltung' },
+  // Konto-Status (0059)
+  'adminkonten.ks_erstellt': { de: 'Konto erstellt' },
+  'adminkonten.ks_passwort_offen': { de: 'Eingeloggt, Passwort noch offen' },
+  'adminkonten.ks_aktiv': { de: 'Aktiv, startklar' },
+  'adminkonten.ks_wartet': { de: 'Wartet auf Freigabe' },
+  'adminkonten.ks_gesperrt': { de: 'Gesperrt' },
 }

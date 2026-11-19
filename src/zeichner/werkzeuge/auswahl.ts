@@ -25,6 +25,7 @@ import {
   type Dok,
 } from '../dok.ts'
 import { fangen } from '../fangen.ts'
+import { bearbeitbar, zeichnerVoll } from '../schalter.ts'
 import { dekoEbene } from '../../components/plan/moebelArt.ts'
 import type { Aktion, Kontext, Schritt, Werkzeug, Zeiger } from './typen.ts'
 
@@ -114,6 +115,14 @@ function kantenAchsen(p: Punkt[]): { achse: 'x' | 'y'; lage: number; von: number
 /** Welches Element ein Klick an p trifft (Symbol, Ecke, Kante, Linie,
  *  Kiste, Tuer/Fenster, Moebel, Raum), sonst null. */
 export function zielAn(k: Kontext, p: Punkt): NonNullable<Auswahl> | null {
+  // Ohne den vollen Zeichner (schalter.ts) greift nur, was Regal, Schrank oder Kiste ist: Raeume,
+  // Tueren, Fenster, Linien und Symbole bleiben im Plan, sind aber nicht zu fassen.
+  if (!zeichnerVoll()) {
+    const weg0 = k.ohneDeko ? dekoEbene(k.dok.objekte) : null
+    const objekte = weg0 ? k.dok.objekte.filter((o) => !weg0.has(o.id)) : k.dok.objekte
+    const t0 = trefferAn({ ...k.dok, objekte, raeume: [], oeffnungen: [] }, p, 8 / k.massstab)
+    return t0 ? { art: t0.art, id: t0.id } : null
+  }
   const sym = symbolAn(k.dok, p, SYMBOL_PX / k.massstab)
   if (sym) return { art: 'symbol', id: sym.id }
   const g = griffAn(k, p)
@@ -219,7 +228,7 @@ function pfeil(k: Kontext, code: string, schritt: number): Aktion[] | null {
   if (dx === 0 && dy === 0) return null
   const a = k.auswahl
   const d = k.dok
-  if (!a) return []
+  if (!a || !bearbeitbar(a.art)) return []
   let neu: Dok | null = null
   switch (a.art) {
     case 'raum':
@@ -306,6 +315,7 @@ export const auswahlWerkzeug: Werkzeug<AuswahlZustand> = {
   },
 
   doppel(k: Kontext, z: Zeiger): Schritt<AuswahlZustand> {
+    if (!zeichnerVoll()) return { s: { zug: null } }
     const g = griffAn(k, z.p)
     // Ecken einfuegen und entfernen nur an einem freigegebenen Raum.
     if (g && k.entsperrt !== undefined && k.entsperrt !== `raum:${g.raumId}`) return { s: { zug: null } }
@@ -329,7 +339,7 @@ export const auswahlWerkzeug: Werkzeug<AuswahlZustand> = {
   taste(k: Kontext, code: string, _key: string, frei: boolean, s: AuswahlZustand): Schritt<AuswahlZustand> | null {
     if (code === 'Delete' || code === 'Backspace') {
       const a = k.auswahl
-      if (!a || a.art === 'kante' || a.art === 'kiste') return { s }
+      if (!a || a.art === 'kante' || a.art === 'kiste' || !bearbeitbar(a.art)) return { s }
       if (a.art === 'raum') {
         const codes = kistenImRaum(k.dok, a.id).map((x) => x.code)
         if (codes.length) return { s, aktionen: [{ typ: 'loeschen_fragen', raumId: a.id, codes }] }

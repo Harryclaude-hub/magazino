@@ -8,7 +8,7 @@ export const lager: Woerterbuch = {
   // ------------------------------------------------------------ Menue
   'lager.nav_tuer': { de: 'Tür' },
   'lager.nav_bestand': { de: 'Bestand' },
-  'lager.nav_ausleihen': { de: 'Ausleihen' },
+  'lager.nav_ausleihen': { de: 'Unterwegs' },
 
   // ------------------------------------------------------- Allgemein
   'lager.fehler': { de: '{grund}' },
@@ -31,9 +31,7 @@ export const lager: Woerterbuch = {
   'lager.tuer_austragen': { de: 'Austragen' },
   'lager.tuer_status_drin': { de: 'Du bist eingetragen seit {zeit}.' },
   'lager.tuer_status_draussen': { de: 'Du bist nicht eingetragen.' },
-  'lager.tuer_hinweis': {
-    de: 'Trag dich ein, wenn du ins Lager gehst, und trag dich aus, wenn du gehst. Nur eingetragen kannst du etwas entnehmen oder ausleihen.',
-  },
+  'lager.tuer_hinweis': { de: 'Trag dich ein, wenn du ins Lager gehst, und trag dich aus, wenn du gehst. Nur eingetragen kannst du etwas mitnehmen.' },
   'lager.tuer_hinweis_besitzer': {
     de: 'Als Besitzer darfst du auch ohne Eintrag buchen.',
   },
@@ -69,38 +67,24 @@ export const lager: Woerterbuch = {
   },
   'lager.mindestens': { de: 'Mindestens {menge} {einheit}' },
   'lager.ort_zeile': { de: 'Ort: {ort}' },
-  'lager.art_verbrauch': { de: 'Verbrauch' },
-  'lager.art_ausleihe': { de: 'Ausleihen' },
-  'lager.art_hinweis': {
-    de: 'Verbrauch wird aufgebraucht. Ausleihen kommt zurück.',
-  },
-  'lager.entnehmen': { de: 'Entnehmen' },
+  'lager.art_verbrauch': { de: 'Wird verbraucht' },
+  'lager.art_ausleihe': { de: 'Kommt zurück' },
+  'lager.art_hinweis': { de: 'Wird verbraucht: bleibt weg. Kommt zurück: wird wieder gebracht.' },
   'lager.zugang': { de: 'Zugang' },
   'lager.zaehlen': { de: 'Zählen' },
   'lager.neu': { de: 'Neu hinzufügen' },
   'lager.bereiche_verwalten': { de: 'Bereiche verwalten' },
 
   // ------------------------------------------------------ Entnehmen
-  'lager.entnehmen_titel': { de: '{name} entnehmen' },
   'lager.da': { de: 'Da sind {menge} {einheit}.' },
-  'lager.kommt_zurueck': { de: 'Kommt zurück' },
-  'lager.kommt_zurueck_hinweis': {
-    de: 'Aus, wenn es verbraucht wird. An, wenn du es zurückbringst.',
-  },
   'lager.zurueck_bis': { de: 'Zurück bis' },
   'lager.heute_abend': { de: 'Heute Abend' },
   'lager.morgen': { de: 'Morgen' },
-  'lager.in_woche': { de: 'In einer Woche' },
+  'lager.in_woche': { de: 'Nächste Woche' },
   'lager.termin_vergangen': {
     de: 'Der Rückgabetermin liegt in der Vergangenheit.',
   },
   'lager.termin_fehlt': { de: 'Bitte einen Rückgabetermin wählen.' },
-  'lager.toast_entnommen': {
-    de: '{name}: {menge} {einheit} entnommen',
-  },
-  'lager.toast_ausgeliehen': {
-    de: '{name} ausgeliehen bis {bis}',
-  },
 
   // ------------------------------------------------- Zugang, Zählen
   'lager.zugang_titel': { de: '{name}: Zugang' },
@@ -132,14 +116,10 @@ export const lager: Woerterbuch = {
   'lager.name_fehlt': { de: 'Bitte einen Namen eingeben.' },
   'lager.toast_angelegt': { de: '{name} angelegt' },
   'lager.aendern_titel': { de: '{name} ändern' },
-  'lager.aendern_hinweis': {
-    de: 'Die Menge änderst du mit Entnehmen, Zugang oder Zählen.',
-  },
+  'lager.aendern_hinweis': { de: 'Die Menge änderst du mit Mitnehmen, Zugang oder Zählen.' },
   'lager.toast_geaendert': { de: '{name} gespeichert' },
   'lager.loeschen_titel': { de: '{name} löschen?' },
-  'lager.loeschen_text': {
-    de: 'Das Ding wird aus dem Bestand gelöscht, samt seinen Ausleihen. Das lässt sich nicht rückgängig machen.',
-  },
+  'lager.loeschen_text': { de: 'Das Ding wird aus dem Bestand gelöscht, samt dem, was davon unterwegs ist. Das lässt sich nicht rückgängig machen.' },
   'lager.toast_geloescht': { de: '{name} gelöscht' },
 
   // ------------------------------------------------------- Bereiche
@@ -155,22 +135,19 @@ export const lager: Woerterbuch = {
   'lager.toast_bereich': { de: 'Bereich gespeichert' },
 
   // ------------------------------------------------------ Ausleihen
-  'lager.ausleihen_titel': { de: 'Ausleihen' },
-  'lager.ausleihen_laedt': { de: 'Ausleihen werden geladen' },
-  'lager.meine_offenen': { de: 'Meine offenen' },
-  'lager.alle_offenen': { de: 'Alle offenen' },
-  'lager.keine_meine': { de: 'Du hast nichts ausgeliehen.' },
-  'lager.keine_alle': { de: 'Es ist nichts ausgeliehen.' },
-  'lager.faellig': { de: 'Fällig {zeit}' },
-  'lager.ueberfaellig': { de: 'Überfällig' },
+  'lager.ausleihen_titel': { de: 'Unterwegs' },
+  'lager.ausleihen_laedt': { de: 'Unterwegs wird geladen' },
+  'lager.meine_offenen': { de: 'Meine' },
+  'lager.alle_offenen': { de: 'Alle' },
+  'lager.keine_meine': { de: 'Bei dir ist nichts unterwegs.' },
+  'lager.keine_alle': { de: 'Es ist nichts unterwegs.' },
   'lager.von_wem': { de: 'von {name}' },
   'lager.zurueckgebracht': { de: 'Zurückgebracht' },
   'lager.toast_zurueck': { de: 'Als zurückgebracht gebucht' },
   'lager.in_kalender': { de: 'In Kalender' },
   'lager.alle_in_kalender': { de: 'Alle meine offenen in den Kalender' },
   'lager.toast_kalender': { de: 'Kalenderdatei erstellt' },
-  'lager.erledigt_titel': { de: 'Zurückgebracht' },
-  'lager.erledigt_zeigen': { de: 'Zurückgebrachte anzeigen' },
+  'lager.erledigt_titel': { de: 'Schon zurückgebracht' },
   'lager.erledigt_leer': { de: 'Noch nichts zurückgebracht.' },
   'lager.zurueck_am': { de: 'zurück am {zeit}' },
   'lager.kal_titel': { de: 'Zurückbringen: {ding} ({lager})' },
@@ -185,8 +162,8 @@ export const lager: Woerterbuch = {
   'lager.home_nicht_drin': { de: 'Nicht eingetragen' },
   'lager.home_knapp': { de: '{n} knapp' },
   'lager.home_alles_da': { de: 'Alles da' },
-  'lager.home_offen': { de: '{n} offen' },
-  'lager.home_nichts_offen': { de: 'Nichts offen' },
+  'lager.home_offen': { de: '{n} unterwegs' },
+  'lager.home_nichts_offen': { de: 'Nichts unterwegs' },
   'lager.home_ueberfaellig': { de: '{n} überfällig' },
   'lager.home_fehler': { de: 'Nicht geladen' },
   'lager.leer_zugeteilt': {
@@ -264,9 +241,7 @@ export const lager: Woerterbuch = {
   'lager.suche_lager': { de: 'Lager' },
 
   // ---------------------------- Ablehnungen der Datenbank (0050)
-  'fehler.db.lager.nur_buchung': {
-    de: 'Die Menge lässt sich nur über eine Buchung ändern: Entnehmen, Zugang oder Zählen.',
-  },
+  'fehler.db.lager.nur_buchung': { de: 'Die Menge lässt sich nur über eine Buchung ändern: Mitnehmen, Zugang oder Zählen.' },
   'fehler.db.lager.fremde_kategorie': {
     de: 'Dieser Bereich gehört zu einem anderen Lager.',
   },
@@ -294,9 +269,7 @@ export const lager: Woerterbuch = {
   'fehler.db.lager.nicht_eingetragen': {
     de: 'Du bist nicht eingetragen. Trag dich zuerst an der Tür ein.',
   },
-  'fehler.db.lager.termin': {
-    de: 'Zum Ausleihen brauchst du einen Rückgabetermin.',
-  },
+  'fehler.db.lager.termin': { de: 'Zum Zurückbringen brauchst du einen Rückgabetermin.' },
   'fehler.db.lager.zu_wenig': {
     de: 'So viel ist nicht da. Es sind nur {n} {einheit}.',
   },
@@ -306,9 +279,7 @@ export const lager: Woerterbuch = {
   'fehler.db.lager.bereich_nicht_leer': {
     de: 'Dieser Bereich ist nicht leer. Räum erst die Produkte und Kisten daraus weg.',
   },
-  'fehler.db.lager.noch_ausgeliehen': {
-    de: 'Das ist noch ausgeliehen. Erst wenn es zurück ist, lässt es sich entfernen.',
-  },
+  'fehler.db.lager.noch_ausgeliehen': { de: 'Das ist noch unterwegs. Erst wenn es zurück ist, lässt es sich entfernen.' },
   'fehler.db.lager.name': {
     de: 'Bitte einen gültigen Namen eingeben.',
   },
@@ -321,9 +292,6 @@ export const lager: Woerterbuch = {
   'fehler.db.admin.selbst': {
     de: 'Das geht nicht bei deinem eigenen Konto.',
   },
-  'lager.nehmen': { de: 'Nehmen' },
-  'lager.ausleihen_knopf': { de: 'Ausleihen' },
-  'lager.ausleihen_dialog_titel': { de: '{name} ausleihen' },
   'lager.start_scannen_hinweis': { de: 'Schlüssel zum Lager' },
   'lager.start_bestand_hinweis': { de: 'Was da ist' },
   'lager.start_bereiche': { de: 'Bereiche' },
@@ -345,4 +313,44 @@ export const lager: Woerterbuch = {
   'lager.passwort_fehler_kein_admin': { de: 'Nur Admins dürfen das.' },
   'lager.passwort_fehler_setzen_fehlgeschlagen': { de: 'Das Passwort konnte nicht gesetzt werden. Bitte noch einmal versuchen.' },
   'lager.passwort_fehler_unbekannt': { de: 'Das Passwort konnte nicht gesetzt werden.' },
+
+  // ------------------------------- Mitnehmen, Unterwegs, Start (E109)
+  'lager.mitnehmen': { de: 'Mitnehmen' },
+  'lager.mitnehmen_titel': { de: '{name} mitnehmen' },
+  'lager.mn_wie': { de: 'Wie nimmst du es mit?' },
+  'lager.mn_weg': { de: 'Bleibt weg' },
+  'lager.mn_zurueck': { de: 'Bringe ich zurück' },
+  'lager.mn_weg_hinweis': { de: 'Wird verbraucht und kommt nicht zurück.' },
+  'lager.mn_zurueck_hinweis': { de: 'Du bringst es wieder. Wir erinnern dich an die Rückgabe.' },
+  'lager.in_3_tagen': { de: 'In 3 Tagen' },
+  'lager.datum_waehlen': { de: 'Datum und Uhrzeit' },
+  'lager.zurueck_bis_wann': { de: 'Zurück bis {zeit}' },
+  'lager.toast_mit_weg': { de: '{name}: {menge} {einheit} mitgenommen' },
+  'lager.toast_mit_zurueck': { de: '{name} mitgenommen, zurück bis {bis}' },
+  'lager.jetzt_eintragen': { de: 'Jetzt eintragen' },
+  'lager.du_bist_drin': { de: 'Du bist drin. Bitte noch einmal.' },
+  'lager.mehr_anzeigen': { de: '{n} weitere anzeigen' },
+  'lager.mehr_aktionen': { de: 'Mehr' },
+  'lager.im_bestand_oeffnen': { de: 'Im Bestand öffnen' },
+  'lager.foto': { de: 'Foto' },
+  'lager.ort_kurz': { de: 'Ort' },
+  'lager.zustand': { de: 'Zustand' },
+  'lager.aktionen': { de: 'Aktionen' },
+  'lager.anzahl_dinge': { de: 'Im Bestand: {n}' },
+  'lager.anzahl_von': { de: '{n} von {gesamt} im Bestand' },
+  'lager.ueberf_gerade': { de: 'gerade überfällig' },
+  'lager.ueberf_std': { de: 'überfällig seit {n} Std.' },
+  'lager.ueberf_tage.eins': { de: 'überfällig seit {n} Tag' },
+  'lager.ueberf_tage.viele': { de: 'überfällig seit {n} Tagen' },
+  'lager.faellig_heute': { de: 'heute {zeit}' },
+  'lager.faellig_morgen': { de: 'morgen {zeit}' },
+  'lager.faellig_am': { de: '{tag} {zeit}' },
+  'lager.st_prueft': { de: 'Einen Moment' },
+  'lager.st_seit': { de: 'Du bist seit {zeit} im Lager' },
+  'lager.st_draussen': { de: 'Du bist nicht im Lager' },
+  'lager.st_ich_gehe': { de: 'Ich gehe' },
+  'lager.st_ich_bin_da': { de: 'Ich bin im Lager' },
+  'lager.st_niemand': { de: 'Gerade niemand im Lager' },
+  'lager.st_drin_n.eins': { de: '{n} Person im Lager' },
+  'lager.st_drin_n.viele': { de: '{n} Personen im Lager' },
 }

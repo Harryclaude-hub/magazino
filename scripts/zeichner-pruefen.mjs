@@ -10,15 +10,21 @@ import { unterschied, istLeer, geloeschteMitKisten } from '../src/zeichner/diff.
 import { zReducer, zStart } from '../src/zeichner/zustand.ts'
 import { fangen, weiterFangen } from '../src/zeichner/fangen.ts'
 import { messpunkte, messFangen, schnellMasse, istLichte } from '../src/zeichner/messpunkte.ts'
-import { WERKZEUGE } from '../src/zeichner/werkzeuge/index.ts'
+import { WERKZEUGE, REIHENFOLGE } from '../src/zeichner/werkzeuge/index.ts'
 import { textLage } from '../src/zeichner/werkzeuge/typen.ts'
 import { raumStart } from '../src/zeichner/werkzeuge/raum.ts'
 import { zielAn } from '../src/zeichner/werkzeuge/auswahl.ts'
+import { ZEICHNER_VOLL, bearbeitbar, zeichnerVollSetzen } from '../src/zeichner/schalter.ts'
 import { KATALOG, REGAL_STANDARD, SCHRANK_STANDARD, gehoertZu } from '../src/zeichner/katalog.ts'
 import { BODEN_STANDARD, WANDFARBEN, kontrast } from '../src/lib/farben.ts'
 import { faecherGueltig, flaeche2, zuUmriss, polygonFehler, wandStuecke } from '../src/lib/geometrie.ts'
 import { trefferAn, innenPunkt, objektUmriss, stapelVon, flaecheQm } from '../src/components/plan/hilfe.ts'
 import * as ans from '../src/components/plan/ansicht.ts'
+
+// Der Zeichner ist ausgeblendet (ZEICHNER_VOLL false, Karam 19.11.2026): die
+// Werkzeuge bleiben als Code und werden hier im vollen Zustand geprueft, am
+// Ende steht ein eigener Abschnitt fuer den ausgeblendeten Zustand.
+zeichnerVollSetzen(true)
 
 let fehler = 0
 function gleich(name, ist, soll) {
@@ -1143,6 +1149,37 @@ const vorab = (z) => dok.kistenDraussen(z.dok, dok.umrissGeaendert(z.basis, z.do
   const doppelZu = spielen('auswahl', [{ doppel: [200, 0] }], d, { entsperrt: null })
   gleich('Sperre: Doppelklick gesperrt fuegt keine Ecke ein', doppelZu.d.raeume[0].punkte.length, 4)
 }
+
+/* ------------------------------------------------------ Ausgeblendeter Zeichner */
+
+{
+  zeichnerVollSetzen(ZEICHNER_VOLL)
+  const raum = dok.raumAnlegen(leer(), 'r1', [[0, 0], [400, 0], [400, 300], [0, 300]]).dok
+  const d = { ...raum, oeffnungen: [tuer('tx', 'r1', 0, 100, 90)] }
+  if (!ZEICHNER_VOLL) {
+    gleich('Ausgeblendet: Raum nicht greifbar', zielAn(kontext(d, { entsperrt: null }), [200, 150]), null)
+    gleich('Ausgeblendet: Wand nicht greifbar', zielAn(kontext(d, { entsperrt: null }), [200, 0]), null)
+    gleich('Ausgeblendet: Ecke nicht greifbar', zielAn(kontext(d, { entsperrt: null }), [0, 0]), null)
+    const zu = spielen('auswahl', [{ runter: [200, 150] }, { bewegen: [260, 150] }, { hoch: [260, 150] }], d, { entsperrt: 'raum:r1' })
+    gleich('Ausgeblendet: Raum bleibt stehen', zu.d.raeume[0].punkte[0], [0, 0])
+    gleich('Ausgeblendet: nichts gewaehlt', zu.auswahl, null)
+    const del = spielen('auswahl', [{ taste: 'Delete', key: 'Delete' }], d, { auswahl: { art: 'raum', id: 'r1' } })
+    gleich('Ausgeblendet: Entf loescht keinen Raum', del.d.raeume.length, 1)
+    const pf = spielen('auswahl', [{ taste: 'ArrowRight', key: 'ArrowRight' }], d, {})
+    gleich('Ausgeblendet: Pfeil ohne Wirkung', pf.d.raeume[0].punkte[0], [0, 0])
+    const dd = spielen('auswahl', [{ doppel: [200, 0] }], d, { entsperrt: null })
+    gleich('Ausgeblendet: Doppelklick fuegt keine Ecke ein', dd.d.raeume[0].punkte.length, 4)
+    wahr('Ausgeblendet: Raum wird weiter angezeigt', d.raeume.length === 1)
+    gleich('Ausgeblendet: Werkzeugleiste', REIHENFOLGE, ['auswahl', 'regal', 'schrank', 'messen'])
+    // Regale und Schraenke bleiben greifbar und bearbeitbar.
+    const rd = { ...d, objekte: [regal('rg1', 'r1', 150, 100)] }
+    gleich('Ausgeblendet: Regal greifbar', zielAn(kontext(rd, { entsperrt: null }), [170, 110])?.art, 'objekt')
+    wahr('Ausgeblendet: nur Regal und Kiste bearbeitbar', bearbeitbar('objekt') && bearbeitbar('kiste') && !bearbeitbar('raum') && !bearbeitbar('oeffnung') && !bearbeitbar('linie'))
+    const gez = spielen('auswahl', [{ runter: [170, 110] }, { bewegen: [230, 110] }, { hoch: [230, 110] }], rd, { entsperrt: 'objekt:rg1' })
+    gleich('Ausgeblendet: Regal laesst sich verschieben', gez.d.objekte[0].x, 210)
+  }
+}
+zeichnerVollSetzen(true)
 
 /* ------------------------------------------------------ Farben */
 
