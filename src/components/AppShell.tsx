@@ -1,13 +1,16 @@
 import { Children, Fragment, isValidElement, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { createPortal } from 'react-dom'
-import { ChevronLeft, CircleHelp, MoreHorizontal } from 'lucide-react'
+import { Bell, ChevronLeft, ScanLine } from 'lucide-react'
 import { cx } from '../lib/util'
-import { Avatar } from './ui'
+import { Avatar, Logo } from './ui'
+import { emailAnzeige } from '../lib/konto'
 import { displayNameOf, useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 import { ErklaerKnopf, Fuehrung } from './Fuehrung'
 import { ProjektMenue } from './ProjektMenue'
+import { HeaderAktionen, type KopfAktion } from './HeaderAktionen'
+import { HinweiseInhalt, useHinweise } from './HinweiseGlocke'
+import { ProfilInhalt } from './ProfilMenue'
 
 /* ------------------------------------------------ Knopf Siedlung (E83)
  * Die Siedlung taucht im Programm nicht mehr auf (E104): kein Knopf in der
@@ -61,8 +64,9 @@ export function useSiedlungKnopf(): boolean {
   return useSyncExternalStore(siedlungKnopfBeobachten, siedlungKnopfAn)
 }
 
-/** Kopfzeile. Rechts steht immer das eigene Profil, so wie bei den grossen
- *  Messengern. Zusaetzliche Knoepfe kommen links daneben.
+/** Kopfzeile. Links immer das Magazino-Logo (Tipp fuehrt auf /app), rechts
+ *  die Aktionsgruppe (HeaderAktionen): Scannen, Hinweise, Profil. Eine neue
+ *  Funktion haengt einen Eintrag in `eintraege` an.
  *
  *  Aussehen wie bei iOS: Am Handy steht der Titel gross (Large Title) unter
  *  der Leiste und scrollt mit; erst wenn er hinter der Leiste verschwindet,
@@ -71,7 +75,11 @@ export function useSiedlungKnopf(): boolean {
  *  von Anfang an in der Leiste. Das Umschalten liest nur die Scrollhoehe und
  *  setzt zwei Merker; Inhalt und Knoepfe bleiben, wie sie sind. Titel, die
  *  keine Zeichenkette sind (das Logo), und Leisten, die nicht kleben
- *  (Zeichner), behalten die schlanke Form. */
+ *  (Zeichner), behalten die schlanke Form.
+ *
+ *  Die Knoepfe der Seite (actions) stehen am Computer links neben der
+ *  Aktionsgruppe; am Handy liegen sie samt Erklaerung im Profil-Menue, damit
+ *  die Leiste bei drei Symbolen bleibt. */
 export function AppHeader({
   title,
   subtitle,
@@ -93,6 +101,8 @@ export function AppHeader({
   const nav = useNavigate()
   const { profile, user } = useAuth()
   const t = useT()
+  const hinweise = useHinweise(user?.id)
+  const [erklaerung, setErklaerung] = useState(false)
   const gross = sticky && typeof title === 'string'
   const kopf = useRef<HTMLElement>(null)
   const grosserTitel = useRef<HTMLDivElement>(null)
@@ -122,6 +132,32 @@ export function AppHeader({
     }
   }, [sticky])
 
+  const seitenKnoepfe = einzeln(actions)
+  // Die Liste der Aktionen. Neue Funktion: hier einen Eintrag anhaengen.
+  const eintraege: KopfAktion[] = [
+    { id: 'scannen', icon: <ScanLine size={19} />, label: t('kopf.scannen'), to: '/app/scan', tour: 'kopf-scannen' },
+    {
+      id: 'hinweise',
+      icon: <Bell size={19} />,
+      label: hinweise.summe > 0 ? t('kopf.hinweise_zaehler', { n: hinweise.summe }) : t('kopf.hinweise'),
+      zaehler: hinweise.summe,
+      blattTitel: t('kopf.hinweise'),
+      blatt: (b) => <HinweiseInhalt s={hinweise} b={b} />,
+      tour: 'kopf-hinweise',
+    },
+  ]
+  if (showProfile) {
+    eintraege.push({
+      id: 'profil',
+      icon: <Avatar name={displayNameOf(profile, emailAnzeige(user?.email) || '?')} size={36} />,
+      label: t('kopf.profil'),
+      ohneGrund: true,
+      fest: true,
+      tour: 'profil',
+      blatt: (b) => <ProfilInhalt b={b} extra={seitenKnoepfe} onErklaerung={() => setErklaerung(true)} />,
+    })
+  }
+
   const breite = wide ? 'max-w-6xl lg:max-w-[1600px]' : 'max-w-5xl lg:max-w-6xl 2xl:max-w-7xl'
   return (
     <>
@@ -135,25 +171,38 @@ export function AppHeader({
           sticky && 'sticky top-0',
         )}
       >
-        <div className={cx('mx-auto flex min-h-14 items-center gap-2 px-3 py-1.5 sm:px-5', breite)}>
+        <div className={cx('mx-auto flex min-h-14 items-center gap-1.5 px-3 py-1.5 sm:gap-2 sm:px-5', breite)}>
           {back ? (
             <button
               data-tour="zurueck"
               onClick={() => (typeof back === 'string' ? nav(back) : nav(-1))}
               aria-label={t('aktion.zurueck')}
               title={t('aktion.zurueck')}
-              className="knopf -ms-1.5 flex h-11 shrink-0 items-center gap-0.5 rounded-full pe-2 ps-0.5 text-accent-text transition hover:bg-tint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+              className="knopf -ms-1.5 flex h-11 shrink-0 items-center gap-0.5 rounded-full pe-1 ps-0.5 text-accent-text transition hover:bg-tint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent sm:pe-2"
             >
-              <ChevronLeft size={30} className="spiegeln stroke-[2.3]" aria-hidden="true" />
+              <ChevronLeft size={28} className="spiegeln stroke-[2.3]" aria-hidden="true" />
               <span className="hidden text-base font-medium sm:inline">{t('aktion.zurueck')}</span>
             </button>
           ) : null}
           {/* Erst zurueck, dann das Menue des Umzugs (E80). */}
           <ProjektMenue />
+          {/* Das Logo ist immer da (E108). */}
+          <Link
+            to="/app"
+            data-tour="kopf-logo"
+            aria-label={t('kopf.logo')}
+            title={t('kopf.logo')}
+            className="kopf-logo knopf flex h-11 shrink-0 items-center gap-2 rounded-full pe-1 ps-0.5 focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent"
+          >
+            <Logo size={28} className="rounded-[22%]" />
+            <span className="hidden text-[1.05rem] font-bold tracking-[-0.02em] text-ink sm:inline" aria-hidden="true">
+              Magazino
+            </span>
+          </Link>
 
           <div
             className={cx(
-              'min-w-0 flex-1 transition-[opacity,visibility] duration-200',
+              'min-w-0 flex-1 transition-[opacity,visibility] duration-200 sm:ms-1',
               gross &&
                 'max-lg:text-center max-lg:group-data-[titel=nein]/k:invisible max-lg:group-data-[titel=nein]/k:opacity-0',
             )}
@@ -164,27 +213,13 @@ export function AppHeader({
             ) : null}
           </div>
 
-          {/* Am Computer alle Knoepfe nebeneinander. Am Handy (E76) nur der
-              erste, der Rest samt Erklaerung im Menue "Mehr": so bleibt die
-              Kopfzeile ruhig und gleichmaessig. */}
+          {/* Am Computer die Knoepfe der Seite und die Erklaerung links neben
+              der Aktionsgruppe; am Handy liegen sie im Profil-Menue. */}
           <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
-            {actions}
+            {seitenKnoepfe}
             <ErklaerKnopf />
           </div>
-          <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
-            <KopfHandy actions={actions} />
-            {showProfile ? (
-              <Link
-                data-tour="profil"
-                to="/app/einstellungen"
-                aria-label={t('kopf.profil')}
-                title={t('kopf.profil')}
-                className="knopf ms-0.5 rounded-full transition"
-              >
-                <Avatar name={displayNameOf(profile, user?.email ?? '?')} size={36} />
-              </Link>
-            ) : null}
-          </div>
+          <HeaderAktionen eintraege={eintraege} />
         </div>
       </header>
       {gross ? (
@@ -195,6 +230,7 @@ export function AppHeader({
           </div>
         </div>
       ) : null}
+      {erklaerung ? <Fuehrung onClose={() => setErklaerung(false)} /> : null}
     </>
   )
 }
@@ -207,75 +243,6 @@ function einzeln(knoten: ReactNode): ReactNode[] {
     else out.push(k)
   }
   return out
-}
-
-/** Kopfzeile am Handy: hoechstens ein Knopf sichtbar, der Rest und die
- *  Erklaerung in einem Blatt, das von unten kommt (E79). Das Blatt liegt
- *  ueber allem (Portal an body), damit nichts darueber oder darunter
- *  rutscht. Neben jedem Zeichen steht sein Name (aus aria-label, siehe
- *  .kopf-menue in index.css). Die Erklaerung haelt ihren Zustand hier, nicht
- *  im Blatt: sonst verschwand sie mit dem Blatt, sobald man tippte. */
-function KopfHandy({ actions }: { actions: ReactNode }) {
-  const t = useT()
-  const knoepfe = einzeln(actions)
-  const [offen, setOffen] = useState(false)
-  const [erklaerung, setErklaerung] = useState(false)
-  useEffect(() => {
-    if (!offen) return
-    const taste = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOffen(false)
-    }
-    document.addEventListener('keydown', taste)
-    return () => document.removeEventListener('keydown', taste)
-  }, [offen])
-  if (knoepfe.length <= 1) {
-    return (
-      <>
-        {knoepfe}
-        <ErklaerKnopf />
-      </>
-    )
-  }
-  return (
-    <>
-      {knoepfe[0]}
-      <button
-        type="button"
-        aria-label={t('kopf.mehr')}
-        title={t('kopf.mehr')}
-        aria-expanded={offen}
-        onClick={() => setOffen(true)}
-        className="knopf flex h-10 w-10 items-center justify-center rounded-full bg-feld text-accent transition hover:brightness-[0.96]"
-      >
-        <MoreHorizontal size={20} />
-      </button>
-      {offen
-        ? createPortal(
-            <div className="fixed inset-0 z-[90] sm:hidden" role="dialog" aria-modal="true" aria-label={t('kopf.mehr')}>
-              <button type="button" aria-label={t('aktion.schliessen')} className="d-schleier absolute inset-0 bg-[var(--schleier)] backdrop-blur-[3px]" onClick={() => setOffen(false)} />
-              <div
-                // Nach dem Tippen auf einen Eintrag schliessen; der Eintrag hat dann schon gehandelt.
-                onClickCapture={() => window.setTimeout(() => setOffen(false), 0)}
-                className="kopf-menue d-blatt safe-bottom absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col gap-2 overflow-y-auto overscroll-contain rounded-t-[20px] bg-paper p-3 shadow-dialog"
-              >
-                <span className="kopf-griff" aria-hidden="true" />
-                {knoepfe.slice(1)}
-                <button
-                  type="button"
-                  aria-label={t('fuehrung.knopf')}
-                  onClick={() => setErklaerung(true)}
-                  className="knopf items-center text-accent"
-                >
-                  <CircleHelp size={19} />
-                </button>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
-      {erklaerung ? <Fuehrung onClose={() => setErklaerung(false)} /> : null}
-    </>
-  )
 }
 
 export function Page({

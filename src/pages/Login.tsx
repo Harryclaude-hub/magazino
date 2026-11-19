@@ -49,11 +49,14 @@ export default function Login() {
           <h1 className="t-gross">Magazino</h1>
         </div>
         <form onSubmit={onSubmit} className="space-y-4 sm:rounded-[24px] sm:bg-surface sm:p-7 sm:shadow-karte">
-          <Field label={t('konto.email')}>
+          <Field label={t('konto.login')}>
             <Input
-              type="email"
+              type="text"
               dir="ltr"
               autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

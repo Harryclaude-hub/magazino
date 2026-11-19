@@ -58,6 +58,15 @@ function Gate({ children }: { children: ReactNode }) {
   const loc = useLocation()
   if (!ready) return <Loading label="Moment" />
   if (!session) return <Navigate to="/login" replace state={{ from: loc.pathname + loc.search }} />
+  /* Startpasswort vom Admin: nichts anderes als die Einstellungen, bis die
+   * Person ein eigenes Passwort gesetzt hat (dort faellt der Merker). Nur
+   * eine Bequemlichkeits-Sperre der Oberflaeche, keine Datenbankregel. */
+  if (
+    session.user.user_metadata?.passwort_aendern === true &&
+    loc.pathname.replace(/\/+$/, '') !== '/app/einstellungen'
+  ) {
+    return <Navigate to="/app/einstellungen" replace />
+  }
   // Angemeldet heisst noch nicht freigeschaltet (0036).
   return <FreigabeTor>{children}</FreigabeTor>
 }

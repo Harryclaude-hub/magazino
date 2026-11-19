@@ -16,14 +16,22 @@ export const adminKonten: Woerterbuch = {
   // Neues Konto
   'adminkonten.konto_titel': { de: 'Neues Konto anlegen' },
   'adminkonten.konto_hinweis': {
-    de: 'Konten gibt es nur von dir. Du legst E-Mail und Startpasswort fest und schickst beides der Person.',
+    de: 'Konten gibt es nur von dir. Du gibst einen Benutzernamen oder eine E-Mail an, legst ein Startpasswort fest und schickst beides der Person.',
   },
+  'adminkonten.konto_art': { de: 'Anmelden mit' },
+  'adminkonten.benutzername': { de: 'Benutzername' },
+  'adminkonten.benutzername_hinweis': {
+    de: 'Kleinbuchstaben, Ziffern, Punkt, Bindestrich und Unterstrich, 3 bis 30 Zeichen. Dafür geht keine E-Mail raus.',
+  },
+  'adminkonten.name_pflicht': { de: 'Bitte einen Namen eintragen, so sehen es die anderen.' },
+  'adminkonten.name_hinweis_pflicht': { de: 'Pflicht, so sehen es die anderen.' },
+  'adminkonten.muss_aendern': { de: 'Du musst gleich ein eigenes Passwort setzen. Das Startpasswort gilt nur für die erste Anmeldung.' },
   'adminkonten.email': { de: 'E-Mail' },
   'adminkonten.name': { de: 'Name' },
   'adminkonten.name_hinweis': { de: 'Freiwillig, so sehen es die anderen.' },
   'adminkonten.startpasswort': { de: 'Startpasswort' },
   'adminkonten.passwort_hinweis': {
-    de: 'Mindestens 10 Zeichen mit Buchstaben und Ziffern. Am einfachsten erzeugen lassen.',
+    de: 'Mindestens 10 Zeichen mit Buchstaben und Ziffern, nicht der Name und nichts Gängiges. Am einfachsten erzeugen lassen.',
   },
   'adminkonten.pw_erzeugen': { de: 'Zufälliges Passwort erzeugen' },
   'adminkonten.projekt_wahl': { de: 'Zugang zu Bundeslandprojekten' },
@@ -47,19 +55,37 @@ export const adminKonten: Woerterbuch = {
   },
   'adminkonten.adresse': { de: 'Adresse der App' },
   'adminkonten.erfolg_hinweis': {
-    de: 'Das Startpasswort wird nur jetzt angezeigt. Nach dem Schließen siehst du es nie wieder. Die Person soll sich anmelden und danach ein eigenes Passwort setzen.',
+    de: 'Das Startpasswort wird nur jetzt angezeigt. Nach dem Schließen siehst du es nie wieder, niemand kann es danach abrufen.',
   },
   'adminkonten.kopieren': { de: 'Kopieren' },
   'adminkonten.kopiert': { de: 'Kopiert' },
   'adminkonten.kopieren_fehler': { de: 'Kopieren hat nicht geklappt. Markiere den Text und kopiere ihn von Hand.' },
   'adminkonten.fertig': { de: 'Fertig' },
   'adminkonten.kopier_text': {
-    de: 'Hallo {name},\nhier ist dein Zugang zu Magazino:\nAdresse: {adresse}\nE-Mail: {email}\nStartpasswort: {passwort}\nBitte melde dich an und setze danach dein eigenes Passwort.',
+    de: 'Hallo {name},\nhier ist dein Zugang zu Magazino:\nAdresse: {adresse}\n{feld}: {login}\nStartpasswort: {passwort}\nBitte melde dich an. Du musst gleich ein eigenes Passwort setzen.',
   },
+
+  // Passwort einer Person neu setzen
+  'adminkonten.pw_titel': { de: 'Passwort' },
+  'adminkonten.pw_kein_einsehen': { de: 'Ein bestehendes Passwort kann niemand sehen, nur neu setzen.' },
+  'adminkonten.pw_admin_selbst': { de: 'Das Passwort eines Admins setzt er selbst, in seinen Einstellungen.' },
+  'adminkonten.pw_neu_setzen': { de: 'Neues Startpasswort setzen' },
+  'adminkonten.pw_dialog_titel': { de: 'Neues Startpasswort für {name}' },
+  'adminkonten.pw_dialog_text': {
+    de: 'Das alte Passwort wird ersetzt. Die Person muss sich mit dem neuen Startpasswort anmelden und gleich ein eigenes setzen.',
+  },
+  'adminkonten.pw_setzen': { de: 'Passwort setzen' },
+  'adminkonten.pw_frage_titel': { de: 'Passwort von {name} neu setzen?' },
+  'adminkonten.pw_frage': {
+    de: 'Das alte Passwort ist danach ungültig. Alle Geräte von {name} werden abgemeldet.',
+  },
+  'adminkonten.pw_frage_ja': { de: 'Neu setzen' },
+  'adminkonten.pw_gesetzt_titel': { de: 'Neues Startpasswort' },
+  'adminkonten.pw_gesetzt_text': { de: 'Das Passwort ist gesetzt, alle Geräte der Person sind abgemeldet.' },
 
   // Leute
   'adminkonten.leute_titel': { de: 'Leute' },
-  'adminkonten.suchen': { de: 'Name oder E-Mail' },
+  'adminkonten.suchen': { de: 'Name, Benutzername oder E-Mail' },
   'adminkonten.zuletzt_aktiv': { de: 'Zuletzt aktiv {wann}' },
   'adminkonten.nie_aktiv': { de: 'Noch nie aktiv' },
   'adminkonten.buchungen': { de: 'Buchungen: {n}' },

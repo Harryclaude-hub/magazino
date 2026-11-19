@@ -20,6 +20,9 @@ export const konto: Woerterbuch = {
 
   // ---------------------------------------------------------------- Felder
   'konto.email': { de: 'E-Mail' },
+  'konto.login': { de: 'E-Mail oder Benutzername' },
+  // Bewusst allgemein: verraet nicht, ob es den Namen gibt.
+  'konto.login_falsch': { de: 'Benutzername, E-Mail oder Passwort stimmt nicht.' },
   'konto.email_platzhalter': { de: 'du@beispiel.de' },
   'konto.passwort': { de: 'Passwort' },
   'konto.passwort_platzhalter': { de: 'Dein Passwort' },

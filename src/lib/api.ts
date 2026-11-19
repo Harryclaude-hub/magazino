@@ -60,14 +60,15 @@ export async function istAdmin(): Promise<boolean> {
   return res.data === true
 }
 
-export type Freigabe = 'wartet' | 'frei' | 'gesperrt'
+/** 'passwort': Startpasswort vom Admin, die Person muss erst ein eigenes setzen (0058). */
+export type Freigabe = 'wartet' | 'frei' | 'gesperrt' | 'passwort'
 
 /** Ist das eigene Konto freigeschaltet (0036)? Admins sind immer frei. */
 export async function meineFreigabe(): Promise<Freigabe> {
   const res = await supabase.rpc('meine_freigabe')
   if (res.error) throw new Error(errText(res.error))
   const s = res.data as string | null
-  return s === 'frei' || s === 'gesperrt' ? s : 'wartet'
+  return s === 'frei' || s === 'gesperrt' || s === 'passwort' ? s : 'wartet'
 }
 
 /** Admin: ein Konto freischalten, sperren oder zuruecksetzen. */
@@ -1285,13 +1286,15 @@ export async function lagerVerlassen(projectId: string): Promise<LagerZugang> {
  *  frei und teilt es den Bundeslandprojekten zu. Gibt die Konto-Id zurueck. Schlaegt ein
  *  Folgeschritt fehl, steht das Konto trotzdem da; der Fehler sagt es. */
 export async function adminKontoAnlegen(input: {
-  email: string
+  /** Entweder eine E-Mail-Adresse oder nur ein Benutzername (dann geht nie eine Mail an Fremde). */
+  email?: string
+  benutzername?: string
   password: string
   name: string
   bundeslaender: { blId: string; rolle: 'editor' | 'viewer' }[]
-}): Promise<string> {
+}): Promise<{ userId: string; login: string }> {
   const { data, error } = await supabase.functions.invoke('konto-anlegen', {
-    body: { email: input.email, password: input.password, name: input.name },
+    body: { email: input.email, benutzername: input.benutzername, password: input.password, name: input.name },
   })
   let kennung = (data as { error?: string } | null)?.error
   if (error && !kennung) {
@@ -1303,9 +1306,12 @@ export async function adminKontoAnlegen(input: {
     }
   }
   const userId = (data as { user_id?: string } | null)?.user_id
+  const login = (data as { login?: string } | null)?.login
   if (!userId) throw new Error(tg(`lager.konto_fehler_${kennung ?? 'unbekannt'}`))
   try {
     await adminFreigabeSetzen(userId, 'frei')
+    const merk = await supabase.rpc('admin_startpasswort_merken', { p_user: userId })
+    if (merk.error) throw merk.error
     for (const b of input.bundeslaender) {
       const r = await supabase.rpc('bl_mitglied_setzen', { p_user: userId, p_bl: b.blId, p_rolle: b.rolle })
       if (r.error) throw r.error
@@ -1313,7 +1319,41 @@ export async function adminKontoAnlegen(input: {
   } catch (e) {
     throw new Error(tg('lager.konto_halb', { grund: errText(e) }))
   }
-  return userId
+  return { userId, login: login ?? input.benutzername ?? input.email ?? '' }
+}
+
+/** Admin: einer anderen Person (kein Admin) ein NEUES Startpasswort setzen. Ein bestehendes
+ *  Passwort kann niemand lesen. Die Person muss beim naechsten Anmelden ein eigenes setzen,
+ *  ihre offenen Sitzungen sind beendet. */
+export async function adminPasswortSetzen(userId: string, passwort: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('passwort-setzen', { body: { user_id: userId, password: passwort } })
+  let kennung = (data as { error?: string } | null)?.error
+  if (error && !kennung) {
+    try {
+      const body = await (error as { context?: Response }).context?.json?.()
+      kennung = (body as { error?: string } | undefined)?.error
+    } catch {
+      /* ohne Inhalt */
+    }
+  }
+  if (kennung || error) throw new Error(tg(`lager.passwort_fehler_${kennung ?? 'unbekannt'}`))
+  // Die Datenbank sperrt das Konto, bis die Person ein eigenes Passwort gesetzt hat (0058).
+  const merk = await supabase.rpc('admin_startpasswort_merken', { p_user: userId })
+  if (merk.error) throw lagerFehler(merk.error)
+}
+
+export interface Hinweis {
+  project_id: string
+  lager: string
+  art: 'ueberfaellig' | 'bald' | 'knapp'
+  anzahl: number
+}
+
+/** Was fuer mich offen ist (Glocke im Header): ueberfaellige und bald faellige Ausleihen, knapper Bestand. */
+export async function meineHinweise(): Promise<Hinweis[]> {
+  const { data, error } = await supabase.rpc('meine_hinweise')
+  if (error) throw lagerFehler(error)
+  return ((data ?? []) as Hinweis[]).map((h) => ({ ...h, anzahl: Number(h.anzahl) }))
 }
 
 export async function adminAdminSetzen(userId: string, istAdmin: boolean): Promise<void> {

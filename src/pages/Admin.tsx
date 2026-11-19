@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Check, ChevronDown, ChevronRight, Copy, KeyRound, Pencil, Plus, RefreshCw, Search, ShieldCheck, ShieldX, Trash2, Undo2, Users } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
-import { Badge, Button, Card, Chip, ConfirmDialog, Empty, ErrorBox, Field, Input, Loading, Modal, SectionTitle, Select, useToast } from '../components/ui'
+import { Badge, Button, Card, Chip, ConfirmDialog, Empty, ErrorBox, Field, Input, Loading, Modal, PasswordInput, SectionTitle, Select, useToast } from '../components/ui'
 import {
   adminAdminSetzen,
   adminAktivitaet,
@@ -10,6 +10,7 @@ import {
   adminBlMitglieder,
   adminKontoLoeschen,
   adminNutzerAktivitaet,
+  adminPasswortSetzen,
   blMitgliedSetzen,
   blProjektAnlegen,
   blProjektLoeschen,
@@ -26,7 +27,8 @@ import {
 } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useSprache } from '../lib/i18n'
-import { passwortGenug } from '../lib/passwort'
+import { benutzernameGueltig, emailAnzeige, istInternesKonto, loginZuEmail, passwortPruefen } from '../lib/konto'
+import { passwortFehlerSatz } from '../lib/passwort'
 import type { AdminAktivitaetZeile, AdminNutzer, AdminNutzerAktivitaet, AdminUebersicht } from '../lib/types'
 import { appUrl, useAsync, type AsyncState } from '../lib/util'
 
@@ -91,12 +93,27 @@ function zufallZeichen(alphabet: string): string {
   }
 }
 
-function passwortErzeugen(laenge = 12): string {
+/** Zufaellig und gut lesbar. Wird so lange neu gewuerfelt, bis es die Regeln
+ *  (auch gegen Namen und Adresse) besteht. */
+function passwortErzeugen(namen: string[] = [], laenge = 12): string {
   for (;;) {
     let p = ''
     for (let i = 0; i < laenge; i++) p += zufallZeichen(PW_ALPHABET)
-    if (passwortGenug(p)) return p
+    if (passwortPruefen(p, namen) === null) return p
   }
+}
+
+/** Alles, was nicht im Passwort vorkommen soll: Name (auch die einzelnen
+ *  Woerter), Benutzername, E-Mail und deren Teile. */
+function sperrWoerter(...quellen: (string | null | undefined)[]): string[] {
+  const aus = new Set<string>()
+  for (const q of quellen) {
+    const text = (q ?? '').trim()
+    if (!text) continue
+    aus.add(text)
+    for (const w of text.split(/[\s@._-]+/)) if (w.length >= 4) aus.add(w)
+  }
+  return [...aus]
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -137,6 +154,7 @@ const STATUS_FARBE: Record<Freigabe, string> = {
   wartet: 'var(--warn)',
   frei: 'var(--ok)',
   gesperrt: 'var(--danger)',
+  passwort: 'var(--warn)',
 }
 
 function ZugangWahl({ wert, onChange, disabled, label, mitKeine }: { wert: Zugang; onChange: (z: Zugang) => void; disabled?: boolean; label: string; mitKeine?: boolean }) {
@@ -164,7 +182,7 @@ function AktZeile({ z, mitPerson }: { z: AdminAktivitaetZeile; mitPerson: boolea
       <p className="t-sub mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
         {mitPerson ? (
           <span className="break-all" dir="ltr">
-            {z.email ?? t('adminkonten.system')}
+            {z.email ? emailAnzeige(z.email) : t('adminkonten.system')}
           </span>
         ) : null}
         {z.lager ? <span>{z.lager}</span> : null}
@@ -219,7 +237,7 @@ function AktivitaetTab({ leute }: { leute: AsyncState<AdminNutzerAktivitaet[]> }
             <option value="">{t('adminkonten.akt_alle')}</option>
             {(leute.data ?? []).map((n) => (
               <option key={n.user_id} value={n.user_id}>
-                {n.name?.trim() ? `${n.name.trim()} (${n.email})` : n.email}
+                {n.name?.trim() ? `${n.name.trim()} (${emailAnzeige(n.email)})` : emailAnzeige(n.email)}
               </option>
             ))}
           </Select>
@@ -232,10 +250,20 @@ function AktivitaetTab({ leute }: { leute: AsyncState<AdminNutzerAktivitaet[]> }
 
 /* ----------------------------------------------------------- Neues Konto */
 
-interface Erfolg {
-  email: string
+/* Zugangsdaten zum einmaligen Zeigen und Kopieren. Das Passwort lebt nur in den
+ * Eigenschaften des Dialogs, nirgends sonst: nicht im Speicher des Browsers,
+ * nicht in der Adresse, nicht im Protokoll. Wer den Dialog schliesst, hat es
+ * nie wieder. */
+interface Zugangsdaten {
+  /** Benutzername oder E-Mail, genau so, wie die Person ihn eintippt. */
+  login: string
+  istBenutzername: boolean
   name: string
   passwort: string
+}
+
+interface Erfolg {
+  z: Zugangsdaten
   /** Konto steht, nur die Zuteilung fehlt. */
   halb: boolean
   grund: string
@@ -252,13 +280,14 @@ function ErfolgZeile({ label, wert }: { label: string; wert: string }) {
   )
 }
 
-function ErfolgDialog({ e, onClose }: { e: Erfolg; onClose: () => void }) {
+function ZugangsDialog({ titel, kopf, z, onClose }: { titel: string; kopf: ReactNode; z: Zugangsdaten; onClose: () => void }) {
   const { t } = useSprache()
   const toast = useToast()
   const [kopiert, setKopiert] = useState(false)
   const adresse = appUrl('')
+  const feld = t(z.istBenutzername ? 'adminkonten.benutzername' : 'adminkonten.email')
   async function kopieren() {
-    const text = t('adminkonten.kopier_text', { name: e.name || e.email, email: e.email, passwort: e.passwort, adresse })
+    const text = t('adminkonten.kopier_text', { name: z.name || z.login, feld, login: z.login, passwort: z.passwort, adresse })
     try {
       await navigator.clipboard.writeText(text)
       setKopiert(true)
@@ -271,7 +300,7 @@ function ErfolgDialog({ e, onClose }: { e: Erfolg; onClose: () => void }) {
     <Modal
       open
       onClose={onClose}
-      title={t(e.halb ? 'adminkonten.halb_titel' : 'adminkonten.erfolg_titel')}
+      title={titel}
       footer={
         <>
           <Button variant="outline" onClick={() => void kopieren()}>
@@ -282,29 +311,42 @@ function ErfolgDialog({ e, onClose }: { e: Erfolg; onClose: () => void }) {
       }
     >
       <div className="space-y-3">
-        {e.halb ? (
-          <FehlerSatz text={t('adminkonten.halb_text', { grund: e.grund })} />
-        ) : (
-          <p className="text-sm font-semibold text-ok">{t('adminkonten.erfolg_text')}</p>
-        )}
-        <ErfolgZeile label={t('adminkonten.email')} wert={e.email} />
-        <ErfolgZeile label={t('adminkonten.startpasswort')} wert={e.passwort} />
+        {kopf}
+        <ErfolgZeile label={feld} wert={z.login} />
+        <ErfolgZeile label={t('adminkonten.startpasswort')} wert={z.passwort} />
         <ErfolgZeile label={t('adminkonten.adresse')} wert={adresse} />
+        <p className="text-sm font-semibold">{t('adminkonten.muss_aendern')}</p>
         <p className="t-sub">{t('adminkonten.erfolg_hinweis')}</p>
       </div>
     </Modal>
   )
 }
 
+type Anmeldeart = 'benutzername' | 'email'
+
 function NeuesKonto({ bl, onAngelegt }: { bl: AsyncState<BlProjekt[]>; onAngelegt: () => void }) {
   const { t } = useSprache()
-  const [email, setEmail] = useState('')
+  const [art, setArt] = useState<Anmeldeart>('benutzername')
+  const [login, setLogin] = useState('')
   const [name, setName] = useState('')
   const [pw, setPw] = useState('')
   const [wahl, setWahl] = useState<Record<string, Rolle>>({})
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
   const [erfolg, setErfolg] = useState<Erfolg | null>(null)
+
+  const istBn = art === 'benutzername'
+  const kennung = login.trim().toLowerCase()
+  // Der Benutzername wird schon beim Tippen geprueft, die E-Mail erst beim Absenden.
+  const kennungFehler = istBn && kennung && !benutzernameGueltig(kennung) ? t('lager.konto_fehler_benutzername_ungueltig') : null
+  const pwFehler = pw ? passwortPruefen(pw, sperrWoerter(name, kennung)) : null
+
+  function artWechseln(neu: Anmeldeart) {
+    if (neu === art) return
+    setArt(neu)
+    setLogin('')
+    setFehler(null)
+  }
 
   function umschalten(id: string, an: boolean) {
     setWahl((w) => {
@@ -316,42 +358,55 @@ function NeuesKonto({ bl, onAngelegt }: { bl: AsyncState<BlProjekt[]>; onAngeleg
   }
 
   async function anlegen() {
-    const mail = email.trim().toLowerCase()
-    if (!EMAIL.test(mail)) return setFehler(t('adminkonten.email_ungueltig'))
-    if (!passwortGenug(pw)) return setFehler(t('adminkonten.passwort_schwach'))
+    if (!kennung) return setFehler(t('lager.konto_fehler_login_fehlt'))
+    if (istBn) {
+      if (!benutzernameGueltig(kennung)) return setFehler(t('lager.konto_fehler_benutzername_ungueltig'))
+      if (!name.trim()) return setFehler(t('adminkonten.name_pflicht'))
+    } else if (!EMAIL.test(kennung)) {
+      return setFehler(t('adminkonten.email_ungueltig'))
+    }
+    const pf = passwortPruefen(pw, sperrWoerter(name, kennung))
+    if (pf) return setFehler(passwortFehlerSatz(pf))
     setFehler(null)
     setBusy(true)
+    const z: Zugangsdaten = { login: kennung, istBenutzername: istBn, name: name.trim(), passwort: pw }
+    // Die Adresse, unter der das Konto in der Datenbank steht (beim Benutzernamen die interne).
+    const intern = loginZuEmail(kennung)
+    function formLeeren() {
+      setLogin('')
+      setName('')
+      setPw('')
+      setWahl({})
+    }
     try {
       // Vorher nachsehen, ob es die Adresse schon gibt: nur so ist ein Fehler
-      // nach dem Anlegen (Zuteilung fehlt) von "E-Mail vergeben" zu trennen.
+      // nach dem Anlegen (Zuteilung fehlt) von "schon vergeben" zu trennen.
       const vorher = new Set((await adminNutzerAktivitaet()).map((n) => n.email.toLowerCase()))
       try {
         await adminKontoAnlegen({
-          email: mail,
+          ...(istBn ? { benutzername: kennung } : { email: kennung }),
           password: pw,
-          name: name.trim(),
+          name: z.name,
           bundeslaender: Object.entries(wahl).map(([blId, rolle]) => ({ blId, rolle })),
         })
       } catch (err) {
         const grund = err instanceof Error ? err.message : String(err)
         let halb = false
-        if (!vorher.has(mail)) {
+        if (!vorher.has(intern)) {
           try {
-            halb = (await adminNutzerAktivitaet()).some((n) => n.email.toLowerCase() === mail)
+            halb = (await adminNutzerAktivitaet()).some((n) => n.email.toLowerCase() === intern)
           } catch {
             /* Nachpruefung fehlgeschlagen: der Fehlersatz unten bleibt stehen */
           }
         }
         if (!halb) return setFehler(grund)
-        setErfolg({ email: mail, name: name.trim(), passwort: pw, halb: true, grund })
+        setErfolg({ z, halb: true, grund })
+        formLeeren()
         onAngelegt()
         return
       }
-      setErfolg({ email: mail, name: name.trim(), passwort: pw, halb: false, grund: '' })
-      setEmail('')
-      setName('')
-      setPw('')
-      setWahl({})
+      setErfolg({ z, halb: false, grund: '' })
+      formLeeren()
       onAngelegt()
     } catch (err) {
       setFehler(err instanceof Error ? err.message : String(err))
@@ -366,21 +421,63 @@ function NeuesKonto({ bl, onAngelegt }: { bl: AsyncState<BlProjekt[]>; onAngeleg
       <p className="t-sub mb-4">{t('adminkonten.konto_hinweis')}</p>
       <form
         className="space-y-4"
+        autoComplete="off"
         onSubmit={(ev) => {
           ev.preventDefault()
           void anlegen()
         }}
       >
-        <Field label={t('adminkonten.email')} required>
-          <Input type="email" dir="ltr" autoComplete="off" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </Field>
-        <Field label={t('adminkonten.name')} hint={t('adminkonten.name_hinweis')}>
+        <div>
+          <p className="mb-2 text-[0.9375rem] font-bold">{t('adminkonten.konto_art')}</p>
+          <div className="flex flex-wrap gap-2">
+            <Chip active={istBn} onClick={() => artWechseln('benutzername')}>
+              {t('adminkonten.benutzername')}
+            </Chip>
+            <Chip active={!istBn} onClick={() => artWechseln('email')}>
+              {t('adminkonten.email')}
+            </Chip>
+          </div>
+        </div>
+        {istBn ? (
+          <Field label={t('adminkonten.benutzername')} hint={t('adminkonten.benutzername_hinweis')} error={kennungFehler} required>
+            <Input
+              dir="ltr"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              maxLength={30}
+              value={login}
+              onChange={(e) => setLogin(e.target.value.toLowerCase().replace(/\s/g, ''))}
+            />
+          </Field>
+        ) : (
+          <Field label={t('adminkonten.email')} required>
+            <Input
+              type="email"
+              dir="ltr"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              inputMode="email"
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+            />
+          </Field>
+        )}
+        <Field label={t('adminkonten.name')} hint={t(istBn ? 'adminkonten.name_hinweis_pflicht' : 'adminkonten.name_hinweis')} required={istBn}>
           <Input value={name} maxLength={60} autoComplete="off" onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label={t('adminkonten.startpasswort')} hint={t('adminkonten.passwort_hinweis')} required>
-          <Input dir="ltr" autoComplete="off" spellCheck={false} className="font-mono" value={pw} onChange={(e) => setPw(e.target.value)} />
+        <Field
+          label={t('adminkonten.startpasswort')}
+          hint={t('adminkonten.passwort_hinweis')}
+          error={pwFehler ? passwortFehlerSatz(pwFehler) : null}
+          required
+        >
+          <PasswordInput dir="ltr" autoComplete="new-password" className="font-mono" value={pw} onChange={(e) => setPw(e.target.value)} />
         </Field>
-        <Button type="button" variant="outline" onClick={() => setPw(passwortErzeugen())}>
+        <Button type="button" variant="outline" onClick={() => setPw(passwortErzeugen(sperrWoerter(name, kennung)))}>
           <KeyRound size={16} /> {t('adminkonten.pw_erzeugen')}
         </Button>
 
@@ -420,8 +517,117 @@ function NeuesKonto({ bl, onAngelegt }: { bl: AsyncState<BlProjekt[]>; onAngeleg
           <Plus size={18} /> {t('adminkonten.anlegen')}
         </Button>
       </form>
-      {erfolg ? <ErfolgDialog e={erfolg} onClose={() => setErfolg(null)} /> : null}
+      {erfolg ? (
+        <ZugangsDialog
+          titel={t(erfolg.halb ? 'adminkonten.halb_titel' : 'adminkonten.erfolg_titel')}
+          kopf={
+            erfolg.halb ? (
+              <FehlerSatz text={t('adminkonten.halb_text', { grund: erfolg.grund })} />
+            ) : (
+              <p className="text-sm font-semibold text-ok">{t('adminkonten.erfolg_text')}</p>
+            )
+          }
+          z={erfolg.z}
+          onClose={() => setErfolg(null)}
+        />
+      ) : null}
     </section>
+  )
+}
+
+/* ----------------------------------------------- Neues Startpasswort setzen */
+
+/** Dialog zum Neusetzen eines Startpassworts. Wird nur beim Oeffnen eingehaengt,
+ *  der Zustand beginnt also immer leer. Das neue Passwort steht erst nach der
+ *  Rueckfrage und dem erfolgreichen Setzen einmal im Ergebnis, nie danach. */
+function PasswortSetzenDialog({ n, name, onClose }: { n: AdminNutzerAktivitaet; name: string; onClose: () => void }) {
+  const { t } = useSprache()
+  const [pw, setPw] = useState('')
+  const [frage, setFrage] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [ergebnis, setErgebnis] = useState<string | null>(null)
+  const namen = sperrWoerter(n.name, n.email, emailAnzeige(n.email))
+  const pwFehler = pw ? passwortPruefen(pw, namen) : null
+
+  function weiter() {
+    const pf = passwortPruefen(pw, namen)
+    if (pf) return setFehler(passwortFehlerSatz(pf))
+    setFehler(null)
+    setFrage(true)
+  }
+
+  async function setzen() {
+    setFrage(false)
+    setBusy(true)
+    setFehler(null)
+    try {
+      await adminPasswortSetzen(n.user_id, pw)
+      setErgebnis(pw)
+      setPw('')
+    } catch (err) {
+      setFehler(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (ergebnis !== null) {
+    return (
+      <ZugangsDialog
+        titel={t('adminkonten.pw_gesetzt_titel')}
+        kopf={<p className="text-sm font-semibold text-ok">{t('adminkonten.pw_gesetzt_text')}</p>}
+        z={{ login: emailAnzeige(n.email), istBenutzername: istInternesKonto(n.email), name: n.name?.trim() ?? '', passwort: ergebnis }}
+        onClose={onClose}
+      />
+    )
+  }
+
+  return (
+    <>
+      <Modal
+        open
+        onClose={onClose}
+        title={t('adminkonten.pw_dialog_titel', { name })}
+        footer={
+          <>
+            <Button variant="ghost" onClick={onClose}>
+              {t('aktion.abbrechen')}
+            </Button>
+            <Button loading={busy} onClick={weiter}>
+              {t('adminkonten.pw_setzen')}
+            </Button>
+          </>
+        }
+      >
+        <form
+          className="space-y-4"
+          autoComplete="off"
+          onSubmit={(ev) => {
+            ev.preventDefault()
+            weiter()
+          }}
+        >
+          <p className="t-sub">{t('adminkonten.pw_dialog_text')}</p>
+          <Field label={t('adminkonten.startpasswort')} hint={t('adminkonten.passwort_hinweis')} error={pwFehler ? passwortFehlerSatz(pwFehler) : null} required>
+            <PasswordInput dir="ltr" autoComplete="new-password" className="font-mono" value={pw} onChange={(e) => setPw(e.target.value)} />
+          </Field>
+          <Button type="button" variant="outline" onClick={() => setPw(passwortErzeugen(namen))}>
+            <KeyRound size={16} /> {t('adminkonten.pw_erzeugen')}
+          </Button>
+          {fehler ? <FehlerSatz text={fehler} /> : null}
+        </form>
+      </Modal>
+      <ConfirmDialog
+        open={frage}
+        danger
+        title={t('adminkonten.pw_frage_titel', { name })}
+        body={t('adminkonten.pw_frage', { name })}
+        confirmLabel={t('adminkonten.pw_frage_ja')}
+        onClose={() => setFrage(false)}
+        onConfirm={setzen}
+      />
+    </>
   )
 }
 
@@ -452,7 +658,8 @@ function PersonDialog({
   const [frage, setFrage] = useState<Frage>(null)
   const [lokal, setLokal] = useState<Record<string, Zugang>>({})
   const ich = user?.id === n.user_id
-  const name = n.name?.trim() || n.email
+  const [pwDialog, setPwDialog] = useState(false)
+  const name = n.name?.trim() || emailAnzeige(n.email)
   const freigabe = u?.freigabe
   const alleinige = u ? u.umzuege.filter((x) => x.eigentuemer && x.mitglieder <= 1).length : 0
 
@@ -503,8 +710,9 @@ function PersonDialog({
                 </span>
               ) : null}
             </div>
-            <p className="t-sub mt-1 break-all" dir="ltr">
-              {n.email}
+            <p className="t-sub mt-1 flex flex-wrap items-center gap-2 break-all">
+              {istInternesKonto(n.email) ? <Badge>{t('adminkonten.benutzername')}</Badge> : null}
+              <span dir="ltr">{emailAnzeige(n.email)}</span>
             </p>
             <p className="t-sub mt-1">
               {n.zuletzt_aktiv ? t('adminkonten.zuletzt_aktiv', { wann: relativ(n.zuletzt_aktiv, lang) }) : t('adminkonten.nie_aktiv')}
@@ -540,6 +748,18 @@ function PersonDialog({
                   </li>
                 ))}
               </ul>
+            )}
+          </section>
+
+          <section>
+            <SectionTitle>{t('adminkonten.pw_titel')}</SectionTitle>
+            <p className="t-sub mb-2">{t('adminkonten.pw_kein_einsehen')}</p>
+            {n.ist_admin ? (
+              <p className="t-sub">{t('adminkonten.pw_admin_selbst')}</p>
+            ) : ich ? null : (
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => setPwDialog(true)}>
+                <KeyRound size={16} /> {t('adminkonten.pw_neu_setzen')}
+              </Button>
             )}
           </section>
 
@@ -586,6 +806,8 @@ function PersonDialog({
         </div>
       </Modal>
 
+      {pwDialog ? <PasswortSetzenDialog n={n} name={name} onClose={() => setPwDialog(false)} /> : null}
+
       <ConfirmDialog
         open={frage !== null}
         danger={frage === 'loeschen' || frage === 'sperren' || frage === 'admin_entziehen'}
@@ -631,7 +853,7 @@ function LeuteTab({
   const liste = useMemo(() => {
     const alle = leute.data ?? []
     const s = q.trim().toLowerCase()
-    const treffer = s ? alle.filter((n) => (n.name ?? '').toLowerCase().includes(s) || n.email.toLowerCase().includes(s)) : alle
+    const treffer = s ? alle.filter((n) => (n.name ?? '').toLowerCase().includes(s) || emailAnzeige(n.email).toLowerCase().includes(s)) : alle
     // Wer auf Freigabe wartet, steht oben.
     const rang = (n: AdminNutzerAktivitaet) => (nutzerMap.get(n.user_id)?.freigabe === 'wartet' && !n.ist_admin ? 0 : 1)
     return [...treffer].sort((a, b) => rang(a) - rang(b))
@@ -660,7 +882,8 @@ function LeuteTab({
                         <button type="button" onClick={() => setOffen(n.user_id)} className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-start transition hover:bg-raised">
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-center gap-2">
-                              <span className="t-name min-w-0 break-words">{n.name?.trim() || n.email}</span>
+                              <span className="t-name min-w-0 break-words">{n.name?.trim() || emailAnzeige(n.email)}</span>
+                              {istInternesKonto(n.email) ? <Badge>{t('adminkonten.benutzername')}</Badge> : null}
                               {n.ist_admin ? (
                                 <Badge>
                                   <ShieldCheck size={14} /> {t('admin.ist_admin')}
@@ -674,7 +897,7 @@ function LeuteTab({
                             </span>
                             {n.name?.trim() ? (
                               <span className="t-sub block break-all" dir="ltr">
-                                {n.email}
+                                {emailAnzeige(n.email)}
                               </span>
                             ) : null}
                             <span className="t-sub mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">

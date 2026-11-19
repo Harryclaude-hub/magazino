@@ -221,3 +221,24 @@ html .border-ink.bg-ink.text-paper {
     --line: rgba(174, 174, 178, 0.6);
   }
 }
+
+/* ------------------------------------------- Kopfzeile: Aktionsgruppe (E108)
+ * Popover der Glocke und des Profils waechst aus der rechten oberen Ecke auf
+ * der Feder; der rote Zaehler federt beim Erscheinen. Ohne diese Datei
+ * erscheinen sie einfach. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='ruhig']) .kopf-popover {
+    animation: d-pop 300ms var(--feder-pop) backwards;
+  }
+  html:not([data-motion='ruhig']) .kopf-zaehler {
+    animation: d-pop 320ms var(--feder-pop) backwards;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='ruhig']) :is(.kopf-popover, .kopf-zaehler) {
+    animation: d-ein 150ms linear backwards;
+  }
+}
+.kopf-logo:hover {
+  background: var(--tint);
+}

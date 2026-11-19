@@ -60,10 +60,18 @@ export const einstellungen: Woerterbuch = {
 
   // --------------------------------------------------------------- Passwort
   'einstellungen.passwort': { de: 'Passwort' },
+  'einstellungen.benutzername': { de: 'Benutzername' },
+  'einstellungen.zwang_titel': { de: 'Bitte setze jetzt dein eigenes Passwort' },
+  'einstellungen.zwang_text': {
+    de: 'Dein Startpasswort kennt auch die Person, die dein Konto angelegt hat. Bis du ein eigenes hast, kommst du nicht weiter. Gib unten das Startpasswort als aktuelles Passwort ein und wähle ein neues.',
+  },
+  'einstellungen.passwort_nie_sichtbar': {
+    de: 'Dein Passwort kann niemand sehen, auch kein Admin. Man kann es nur neu setzen.',
+  },
   'einstellungen.aktuelles_passwort': { de: 'Aktuelles Passwort' },
   'einstellungen.neues_passwort': { de: 'Neues Passwort' },
   'einstellungen.passwort_hinweis': {
-    de: 'Mindestens 10 Zeichen, mit Buchstaben und Ziffern. Mit dem Auge kannst du es anzeigen.',
+    de: 'Mindestens 10 Zeichen, mit Buchstaben und Ziffern, nicht dein Name. Mit dem Auge kannst du es anzeigen.',
   },
   'einstellungen.passwort_wiederholen': {
     de: 'Neues Passwort wiederholen',

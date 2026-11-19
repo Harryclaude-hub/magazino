@@ -20,8 +20,8 @@ import { STUFEN, STUFE_SYMBOL, useMotion, type Stufe } from '../lib/bewegung'
 import { displayNameOf, useAuth } from '../lib/auth'
 import { getPrefs, istAdmin, setPrefs } from '../lib/api'
 import { useT } from '../lib/i18n'
-import { passwortGenug } from '../lib/passwort'
-import { errText, supabase } from '../lib/supabase'
+import { emailAnzeige, istInternesKonto, passwortPruefen } from '../lib/konto'
+import { passwortFehlerSatz } from '../lib/passwort'
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 import type { NotificationPrefs } from '../lib/types'
 
@@ -73,6 +73,11 @@ export default function Settings() {
   const nav = useNavigate()
   const t = useT()
   const [admin, setAdmin] = useState(false)
+  // Startpasswort vom Admin: bis ein eigenes gesetzt ist, gibt die App nur diese Seite frei (Gate in App.tsx).
+  const zwang = user?.user_metadata?.passwort_aendern === true
+  const [zwangErledigt, setZwangErledigt] = useState(false)
+  const anzeigeName = emailAnzeige(user?.email)
+  const intern = istInternesKonto(user?.email)
   useEffect(() => {
     let alive = true
     istAdmin()
@@ -96,6 +101,11 @@ export default function Settings() {
   const [prefs, setPrefsState] = useState<NotificationPrefs | null>(null)
   const [prefsError, setPrefsError] = useState<string | null>(null)
   const [prefsLoading, setPrefsLoading] = useState(true)
+
+  // Erst wenn der Merker in der Sitzung wirklich gefallen ist, geht es weiter (sonst schickt das Gate zurueck).
+  useEffect(() => {
+    if (zwangErledigt && !zwang) nav('/app', { replace: true })
+  }, [zwangErledigt, zwang, nav])
 
   useEffect(() => {
     setName(profile?.display_name ?? '')
@@ -130,8 +140,9 @@ export default function Settings() {
   async function passwortSpeichern(e: FormEvent) {
     e.preventDefault()
     setPassFehler(null)
-    if (!passwortGenug(password)) {
-      setPassFehler(t('konto.passwort_kurz'))
+    const pf = passwortPruefen(password, [profile?.display_name ?? '', anzeigeName, anzeigeName.split('@')[0]].filter(Boolean))
+    if (pf) {
+      setPassFehler(passwortFehlerSatz(pf))
       return
     }
     if (password !== passwordNochmal) {
@@ -145,13 +156,8 @@ export default function Settings() {
     setBusyPass(true)
     try {
       const r = await passwortAendern(altesPasswort, password)
-      /* Das Band "Bitte setze ein eigenes Passwort" (Lagerstart) hoert hier
-       * auf. Scheitert nur dieser Schritt, steht das neue Passwort trotzdem;
-       * der Fehler wird gemeldet, nicht verschluckt. */
-      if (user?.user_metadata?.passwort_aendern === true) {
-        const m = await supabase.auth.updateUser({ data: { passwort_aendern: false } })
-        if (m.error) toast(errText(m.error), 'error')
-      }
+      // Der Merker "Startpasswort" faellt in passwortAendern im selben Aufruf.
+      if (zwang) setZwangErledigt(true)
       setAltesPasswort('')
       setPassword('')
       setPasswordNochmal('')
@@ -181,11 +187,17 @@ export default function Settings() {
     <div className="min-h-screen bg-paper">
       <AppHeader title={t('einstellungen.titel')} back="/app" />
       <Page>
+        {zwang ? (
+          <div role="alert" className="mb-6 rounded-2xl border-2 p-4" style={{ borderColor: 'var(--warn)' }}>
+            <p className="t-name-lg">{t('einstellungen.zwang_titel')}</p>
+            <p className="t-sub mt-1">{t('einstellungen.zwang_text')}</p>
+          </div>
+        ) : null}
         {/* Profil */}
         <Abschnitt>{t('einstellungen.profil')}</Abschnitt>
         <Card className="mb-8 p-4">
           <div className="mb-5 flex items-center gap-3">
-            <Avatar name={displayNameOf(profile, user?.email ?? '?')} size={56} />
+            <Avatar name={displayNameOf(profile, anzeigeName || '?')} size={56} />
             <div className="min-w-0">
               <p className="t-name-lg truncate">
                 {displayNameOf(profile, t('einstellungen.ohne_namen'))}
@@ -193,7 +205,7 @@ export default function Settings() {
               {/* Die Adresse selbst bleibt von links nach rechts, auch im
                   arabischen Satz. */}
               <p className="t-sub truncate" dir="ltr">
-                {user?.email}
+                {intern ? `${t('einstellungen.benutzername')}: ${anzeigeName}` : anzeigeName}
               </p>
             </div>
           </div>
@@ -238,10 +250,10 @@ export default function Settings() {
           <form onSubmit={passwortSpeichern} className="space-y-4">
             {/* Fuer Passwort-Manager: zu welchem Konto das Passwort gehoert. */}
             <input
-              type="email"
+              type="text"
               name="username"
               autoComplete="username"
-              value={user?.email ?? ''}
+              value={anzeigeName}
               readOnly
               hidden
             />
@@ -290,7 +302,7 @@ export default function Settings() {
           </form>
           <p className="mt-4 flex items-start gap-2 text-sm text-muted">
             <ShieldCheck size={16} className="mt-0.5 shrink-0" />
-            {t('einstellungen.sicherheit_hinweis')}
+            {t('einstellungen.passwort_nie_sichtbar')} {t('einstellungen.sicherheit_hinweis')}
           </p>
         </Card>
 

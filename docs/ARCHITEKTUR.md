@@ -101,6 +101,29 @@ und damit alles zurueckrollt; der Bericht steht in der Meldung.
 8. **Kein Schluessel im Repo**, CORS der Funktionen nur fuer die eigene
    Adresse, Fehlertexte ohne Innenleben.
 
+## 4b. Passwoerter und Benutzernamen (E107)
+
+- **Passwoerter kann niemand lesen.** Supabase speichert nur einen Hash (bcrypt). Kein Admin, kein Entwickler und keine Funktion
+  kann ein bestehendes Passwort anzeigen; es gibt keine Stelle im Programm, die eines ausgibt. Man kann nur ein NEUES setzen.
+- **Eigenes Passwort aendern** geht nur eingeloggt und verlangt das aktuelle Passwort (wird gegen einen Probe-Login geprueft);
+  danach werden alle anderen Geraete abgemeldet.
+- **Admin setzt ein Startpasswort** (Konto anlegen oder "Neues Startpasswort setzen", Funktion `passwort-setzen`): nur fuer Konten,
+  die kein Admin sind; das Startpasswort steht einmal im Dialog zum Weitergeben und danach nirgends; die offenen Sitzungen der Person
+  werden beendet (`admin_sitzungen_beenden`, 0057).
+- **Zwang zum eigenen Passwort, von der Datenbank erzwungen (0058):** Beim Setzen eines Startpassworts merkt sich `konto_freigaben` nur
+  dessen Hash (`start_hash`). Solange der aktuelle Hash des Kontos gleich diesem ist, gilt das Konto als nicht freigegeben
+  (`ist_freigegeben()` ist falsch, `meine_freigabe()` meldet `passwort`): es sieht und aendert nichts, nur das eigene Passwort geht.
+  Setzt die Person ein neues, aendert sich der Hash (bcrypt nimmt jedes Mal ein neues Salz) und die Sperre faellt von selbst. Der
+  Merker im Profil (`user_metadata`) ist nur Bedienkomfort, weil die Person ihn selbst aendern koennte; die Sperre haengt nicht daran.
+- **Regeln fuer jedes neue Passwort** (Browser UND Server-Funktionen): mindestens 10 Zeichen, Buchstaben und Ziffern, kein bekanntes
+  Allerwelts-Passwort, nicht der Name oder die Adresse. Dazu empfohlen in Supabase (Authentication, Passwort): Mindestlaenge 10,
+  Buchstaben und Ziffern; "Leaked password protection" gibt es erst im Pro-Plan.
+- **Benutzername statt E-Mail:** Supabase kennt Konten nur mit E-Mail. Wer nur einen Namen hat, bekommt intern `<name>@magazino.invalid`
+  (die Endung `.invalid` ist weltweit reserviert und kann nie Post empfangen, es geht also nie eine Mail an Fremde). Die Seite setzt sie
+  beim Anmelden selbst ein und blendet sie ueberall aus (`src/lib/konto.ts`). Solche Konten haben keinen Passwort-per-Mail-Weg;
+  vergessene Passwoerter setzt der Admin neu.
+- **Anmeldefehler** sagen nie, ob ein Name existiert. Supabase begrenzt Anmeldeversuche je Adresse und IP selbst.
+
 ## 4a. Wie ein Konto entsteht (Ablauf)
 
 ```

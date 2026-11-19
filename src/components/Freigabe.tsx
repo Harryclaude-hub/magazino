@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Hourglass, LogOut, RefreshCw, ShieldX } from 'lucide-react'
 import { Button, ErrorBox, Loading, Wordmark } from './ui'
 import { SpracheWahl } from './SpracheToggle'
 import { meineFreigabe, type Freigabe } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useSprache } from '../lib/i18n'
+import { emailAnzeige } from '../lib/konto'
 
 /* Freischaltung (0036): Ein neues Konto darf sich anmelden, sieht aber nur
  * diese Seite, bis ein Admin es freischaltet. Gesperrte Konten sehen einen
@@ -19,6 +20,7 @@ const ALLE_MS = 20_000
 
 export function FreigabeTor({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  const loc = useLocation()
   const [status, setStatus] = useState<Freigabe | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
 
@@ -35,11 +37,11 @@ export function FreigabeTor({ children }: { children: ReactNode }) {
     setStatus(null)
     setFehler(null)
     void pruefen()
-  }, [user?.id, pruefen])
+  }, [user?.id, user?.user_metadata?.passwort_aendern, pruefen])
 
   // Solange nicht frei: regelmaessig und beim Zurueckkommen nachfragen.
   useEffect(() => {
-    if (status === 'frei') return
+    if (status === 'frei' || status === 'passwort') return
     const id = window.setInterval(() => void pruefen(), ALLE_MS)
     const sichtbar = () => {
       if (document.visibilityState === 'visible') void pruefen()
@@ -52,6 +54,10 @@ export function FreigabeTor({ children }: { children: ReactNode }) {
   }, [status, pruefen])
 
   if (status === 'frei') return <>{children}</>
+  // Startpasswort vom Admin (0058): die Datenbank sperrt alles ausser dem Passwortwechsel.
+  if (status === 'passwort') {
+    return loc.pathname.startsWith('/app/einstellungen') ? <>{children}</> : <Navigate to="/app/einstellungen" replace />
+  }
   if (status === null && !fehler) return <Loading label="Moment" />
   return <WarteSeite status={status} fehler={fehler} onNochmal={() => void pruefen()} />
 }
@@ -81,7 +87,7 @@ function WarteSeite({ status, fehler, onNochmal }: { status: Freigabe | null; fe
             <p className="mt-2 text-base leading-relaxed">{t(gesperrt ? 'freigabe.gesperrt_text' : 'freigabe.warten_text')}</p>
             {user?.email ? (
               <p className="t-sub mt-3 break-all" dir="ltr">
-                {user.email}
+                {emailAnzeige(user.email)}
               </p>
             ) : null}
           </>

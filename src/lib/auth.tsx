@@ -10,6 +10,7 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase, errText, pruefClientAnlegen, startAusgewertet } from './supabase'
 import { appUrl } from './util'
+import { loginZuEmail } from './konto'
 import { tg } from './i18n'
 import {
   eigenesEinloesenBeginnen,
@@ -256,12 +257,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       profile,
       ready,
+      /* Der Parameter heisst email, ist aber E-Mail ODER Benutzername. Die
+       * Umrechnung (loginZuEmail) steht nur hier. Falsche Daten melden immer
+       * denselben Satz, egal ob es den Namen gibt. */
       async signIn(email, password) {
         const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: loginZuEmail(email),
           password,
         })
-        if (error) throw new Error(errText(error))
+        if (error) {
+          if (error.code === 'invalid_credentials' || error.message === 'Invalid login credentials') {
+            throw new Error(tg('konto.login_falsch'))
+          }
+          throw new Error(errText(error))
+        }
       },
       async signUp(email, password, displayName) {
         const { data, error } = await supabase.auth.signUp({
@@ -292,8 +301,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await aktuellesPasswortPruefen(email, aktuell)
         /* current_password kennt auth-js 2.116 (UserAttributes). Der Server
          * prueft es zusaetzlich, wenn das im Projekt eingeschaltet ist. Die
-         * Pruefung, auf die sich die App verlaesst, ist die Probe darueber. */
-        const { error } = await supabase.auth.updateUser({ password: neu, current_password: aktuell })
+         * Pruefung, auf die sich die App verlaesst, ist die Probe darueber.
+         * War es ein Startpasswort vom Admin (passwort_aendern), faellt der
+         * Merker im selben Aufruf: entweder beides oder nichts. */
+        const zwang = session?.user?.user_metadata?.passwort_aendern === true
+        const { error } = await supabase.auth.updateUser({
+          password: neu,
+          current_password: aktuell,
+          ...(zwang ? { data: { passwort_aendern: false } } : {}),
+        })
         if (error) throw new Error(errText(error))
         return { andereAbgemeldet: await andereGeraeteAbmelden() }
       },
