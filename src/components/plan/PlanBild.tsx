@@ -34,6 +34,7 @@ import { dekoEbene } from './moebelArt'
 import { brettUmriss, schienenregal, schienenStriche, vorderlinie } from './schienenregal'
 import { MoebelSymbol, moebelArt } from './moebelSymbol'
 import { radArt, radFaktor } from './ansicht'
+import { SACHLICH } from '../../lib/ansicht'
 
 /* Die Draufsicht eines Grundrisses als SVG in Zentimetern.
  *
@@ -613,7 +614,10 @@ const SymbolEbene = memo(function SymbolEbene({
   )
 })
 
-export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, beschriftung = true, teppiche = true, deko = true }: PlanEbenenProps) {
+export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, beschriftung = true, teppiche: teppicheWunsch = true, deko: dekoWunsch = true }: PlanEbenenProps) {
+  // Sachlich (src/lib/ansicht.ts): keine Teppiche, keine Deko, keine Linien, kein Strom.
+  const teppiche = teppicheWunsch && !SACHLICH
+  const deko = dekoWunsch && !SACHLICH
   // Teppiche zuunterst, Haengendes (Oberschraenke, Lampen) zuoberst, damit
   // nichts verdeckt wird (E74); Teppiche und Deko (E82) lassen sich ausblenden.
   const objekte = useMemo(() => {
@@ -641,8 +645,10 @@ export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, be
       {kisten ? <KistenEbene kisten={daten.kisten} massstab={massstab} /> : null}
       <WandEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
       <OeffnungEbene raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
-      <LinienEbene linien={daten.grundriss.linien} />
-      <SymbolEbene symbole={daten.grundriss.symbole} auto={auto} massstab={massstab} raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
+      {SACHLICH ? null : <LinienEbene linien={daten.grundriss.linien} />}
+      {SACHLICH ? null : (
+        <SymbolEbene symbole={daten.grundriss.symbole} auto={auto} massstab={massstab} raeume={daten.raeume} oeffnungen={daten.oeffnungen} />
+      )}
       {beschriftung ? <BeschriftungEbene raeume={daten.raeume} massstab={massstab} /> : null}
       {/* Die Klassen sind nur Haken fuer die Designschicht (design/plan.css):
           weiche Auswahl und pulsierender Ring. Ohne sie bleibt alles wie es ist. */}
@@ -960,10 +966,12 @@ export function PlanLegende({ mitKiste = true }: { mitKiste?: boolean }) {
       {text}
     </span>
   )
+  // Sachlich: nur noch "hier" (die gesuchte Kiste), sonst keine Legende.
+  if (SACHLICH && !mitKiste) return null
   return (
     <div className="t-sub flex flex-wrap gap-x-4 gap-y-1">
-      {eintrag('var(--plan-tuer)', t('plan.tuer'))}
-      {eintrag('var(--plan-fenster)', t('plan.fenster'))}
+      {SACHLICH ? null : eintrag('var(--plan-tuer)', t('plan.tuer'))}
+      {SACHLICH ? null : eintrag('var(--plan-fenster)', t('plan.fenster'))}
       {mitKiste ? eintrag('var(--plan-hervor)', t('plan.legende_hier')) : null}
     </div>
   )

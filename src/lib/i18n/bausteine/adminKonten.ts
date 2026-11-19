@@ -99,7 +99,7 @@ export const adminKonten: Woerterbuch = {
   'adminkonten.konto_aktionen': { de: 'Konto' },
   'adminkonten.admin_machen': { de: 'Zum Admin machen' },
   'adminkonten.admin_entziehen': { de: 'Admin entziehen' },
-  'adminkonten.admin_zuerst': { de: 'Ein Admin lässt sich weder sperren noch löschen. Entzieh ihm erst die Admin-Rechte.' },
+  'adminkonten.admin_zuerst': { de: 'Ein Admin lässt sich weder pausieren noch löschen. Entzieh ihm erst die Admin-Rechte.' },
   'adminkonten.admin_gemacht': { de: '{name} ist jetzt Admin.' },
   'adminkonten.admin_entzogen': { de: '{name} ist kein Admin mehr.' },
   'adminkonten.verlauf_titel': { de: 'Verlauf dieser Person' },
@@ -113,11 +113,11 @@ export const adminKonten: Woerterbuch = {
     de: 'Die Person verwaltet keine Konten mehr und sieht nur noch ihre Projekte. Du kannst es jederzeit wieder ändern.',
   },
   'adminkonten.frage_admin_entziehen_ja': { de: 'Admin entziehen' },
-  'adminkonten.frage_sperren_titel': { de: '{name} sperren?' },
+  'adminkonten.frage_sperren_titel': { de: '{name} pausieren?' },
   'adminkonten.frage_sperren': {
-    de: 'Das Konto kann sich noch anmelden, sieht aber nur einen Hinweis und kommt an nichts mehr heran. Entsperren geht jederzeit.',
+    de: 'Das Konto kann sich anmelden, sieht aber nur die leere Startseite und kann nichts bedienen. Fortsetzen geht jederzeit.',
   },
-  'adminkonten.frage_sperren_ja': { de: 'Sperren' },
+  'adminkonten.frage_sperren_ja': { de: 'Pausieren' },
   'adminkonten.frage_loeschen_titel': { de: '{name} endgültig löschen?' },
   'adminkonten.frage_loeschen': {
     de: 'Das Konto und die Anmeldung verschwinden für immer. Alle Ausleihen dieser Person werden mit gelöscht (offen: {offen}). Buchungen und Verlauf bleiben, aber ohne Namen. Besitzt die Person ein Lager allein, wird es mit allem Bestand gelöscht (Lager: {n}). Das lässt sich nicht rückgängig machen.',
@@ -169,7 +169,7 @@ export const adminKonten: Woerterbuch = {
   'adminkonten.ks_passwort_offen': { de: 'Eingeloggt, Passwort noch offen' },
   'adminkonten.ks_aktiv': { de: 'Aktiv, startklar' },
   'adminkonten.ks_wartet': { de: 'Wartet auf Freigabe' },
-  'adminkonten.ks_gesperrt': { de: 'Gesperrt' },
+  'adminkonten.ks_gesperrt': { de: 'Pausiert' },
   'fehler.db.admin.passwort_offen': { de: 'Diese Person muss erst ein eigenes Passwort setzen, bevor sie Admin werden kann.' },
   'fehler.db.lager.fest': { de: 'Das lässt sich nicht in ein anderes Lager oder Projekt verschieben.' },
 }

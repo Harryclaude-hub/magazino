@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowBigUp, ArrowDownToLine, ArrowUpFromLine, Car, Clock, Crosshair, Eye, Flower2, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, LogOut, Map as KarteIcon, Maximize2, Minimize2, Moon, Rotate3d, RotateCw, Siren, SlidersHorizontal, Square, Sun, SwitchCamera, Target, X } from 'lucide-react'
+import { SACHLICH } from '../../lib/ansicht'
 import { useSprache } from '../../lib/i18n'
 import type { GrundrissDaten, Item } from '../../lib/types'
 import { cx } from '../../lib/util'
@@ -292,6 +293,13 @@ export function bedienHinweis(z: { gehen: boolean; faehrt: boolean; haelt: boole
   return z.beruehren ? 'plan3d.begehen_bedienung_handy' : 'plan3d.begehen_bedienung'
 }
 
+/** Sachlich (src/lib/ansicht.ts): nur das Noetige, gehen, umschauen, Licht. */
+// eslint-disable-next-line react/only-export-components -- reine Rechnung
+export function kurzHinweis(gehen: boolean, beruehren: boolean): string {
+  if (gehen) return beruehren ? 'plan3d.kurz_gehen_handy' : 'plan3d.kurz_gehen'
+  return beruehren ? 'plan3d.bedienung_handy' : 'plan3d.bedienung'
+}
+
 /** Masse der Bedienung beim Begehen in rem (wie Tailwind; die App hat 18 px
  *  je rem, ab 1024 px Breite 17 px, index.css): eine Stelle fuer die Lage
  *  am Bildschirm (style) und die Pruefung, dass sich nichts ueberdeckt.
@@ -430,6 +438,8 @@ export default function Raum3D({
   // Maustaste; das Geraet merkt es sich. Neuer Schluessel, damit alle mit
   // Drehen anfangen.
   const [hand, setHand] = useState(() => {
+    // Sachlich gibt es "Hand" nicht (src/lib/ansicht.ts): immer Drehen.
+    if (SACHLICH) return false
     try {
       return localStorage.getItem('kistly.3d.hand') === '1'
     } catch {
@@ -480,14 +490,20 @@ export default function Raum3D({
     const uhr = window.setInterval(() => setStunde(new Date().getHours()), 60_000)
     return () => window.clearInterval(uhr)
   }, [])
-  const lichtJetzt: 'tag' | 'abend' = licht === 'auto' ? (stunde >= 7 && stunde < 19 ? 'tag' : 'abend') : licht
+  // Sachlich (src/lib/ansicht.ts): fester Tageslicht-Look, nur die Raumbeleuchtung
+  // laesst sich an und aus schalten (lichtAn, Standard an).
+  const [lichtAn, setLichtAn] = useState(true)
+  const lichtJetzt: 'tag' | 'abend' = SACHLICH ? 'tag' : licht === 'auto' ? (stunde >= 7 && stunde < 19 ? 'tag' : 'abend') : licht
   // Licht je Raum (E74): ohne eigene Wahl folgt es Tag (aus) und Abend (an).
   // Ein Klick auf einen Schalter an der Wand oder in der Liste schaltet um.
   const [raumLicht, setRaumLicht] = useState<Record<string, boolean>>({})
   const [lichtListeAuf, setLichtListeAuf] = useState(false)
-  const [teppiche, setTeppiche] = useState(true)
+  // Sachlich: keine Teppiche und keine Deko (die Daten bleiben, sie werden nicht gezeichnet).
+  const [teppiche, setTeppiche] = useState(!SACHLICH)
   // Deko und Spielzeug (E82): eigene Ebene wie die Teppiche.
-  const [deko, setDeko] = useState(true)
+  const [deko, setDeko] = useState(!SACHLICH)
+  // Sachlich: Von oben oder Schraeg, nur fuer die Anzeige des gewaehlten Knopfes.
+  const [blickArt, setBlickArt] = useState<'oben' | 'schraeg'>('schraeg')
   // Karte einer angetippten Kiste und die Kiste, die offen gezeigt wird (E82).
   const [karte, setKarte] = useState<string | null>(null)
   const [offeneKiste, setOffeneKiste] = useState<string | null>(null)
@@ -512,10 +528,10 @@ export default function Raum3D({
     () => daten.raeume.filter((r) => r.punkte.length >= 3 && (!raumId || r.id === raumId)),
     [daten.raeume, raumId],
   )
-  const raumAn = (id: string) => raumLicht[id] ?? lichtJetzt === 'abend'
+  const raumAn = (id: string) => (SACHLICH ? lichtAn : (raumLicht[id] ?? lichtJetzt === 'abend'))
   const lichtAnSet = useMemo(
-    () => new Set(lichtRaeumeListe.filter((r) => raumLicht[r.id] ?? lichtJetzt === 'abend').map((r) => r.id)),
-    [lichtRaeumeListe, raumLicht, lichtJetzt],
+    () => new Set(lichtRaeumeListe.filter((r) => (SACHLICH ? lichtAn : (raumLicht[r.id] ?? lichtJetzt === 'abend'))).map((r) => r.id)),
+    [lichtRaeumeListe, raumLicht, lichtJetzt, lichtAn],
   )
   const lichtJetztRef = useRef(lichtJetzt)
   useLayoutEffect(() => {
@@ -575,8 +591,11 @@ export default function Raum3D({
     motor.current?.lichtRaeume(lichtAnSet)
   }, [lichtAnSet, geht])
   useEffect(() => {
+    // Sachlich schaltet auch ein Schalter an der Wand das ganze Licht.
     motor.current?.schalter((id) =>
-      setRaumLicht((vorher) => ({ ...vorher, [id]: !(vorher[id] ?? lichtJetztRef.current === 'abend') })),
+      SACHLICH
+        ? setLichtAn((v) => !v)
+        : setRaumLicht((vorher) => ({ ...vorher, [id]: !(vorher[id] ?? lichtJetztRef.current === 'abend') })),
     )
   }, [geht])
 
@@ -682,6 +701,7 @@ export default function Raum3D({
 
   const blick = (b: Blick) => {
     setGehen(false)
+    if (b === 'oben' || b === 'schraeg') setBlickArt(b)
     motor.current?.blick(b)
   }
 
@@ -720,7 +740,7 @@ export default function Raum3D({
   // Grundrisses (Meter, Welt x und z), damit Speichern genau das trifft,
   // was man in 3D sieht.
   // Nur wer auch speichern darf (Admin): sonst bleibt alles ansehen.
-  const tragenAn = gehen && geht === 'ja' && daten.raeume.length > 0 && Boolean(onMoebelSpeichern)
+  const tragenAn = !SACHLICH && gehen && geht === 'ja' && daten.raeume.length > 0 && Boolean(onMoebelSpeichern)
   const [trag, setTrag] = useState<MoebelTragZustand>(TRAG_START)
   const traegt = tragenAn ? trag.traegt : null
   const gesperrt = useMemo(() => new Set(daten.objekte.filter((o) => moebelArt(o.name ?? '') === 'mauer').map((o) => o.id)), [daten.objekte])
@@ -981,7 +1001,10 @@ export default function Raum3D({
   const menueName = menue ? (daten.objekte.find((o) => o.id === menue.objektId)?.name ?? '') : ''
 
   // Knoepfe beim Begehen (E87): was gerade geht, in fester Reihenfolge.
-  const knoepfe = gehen ? bedienKnoepfe({ moeglich, fahrzeug: fahrt, haltung, haelt, beruehren }) : []
+  // Sachlich nur Springen, Aufstehen und Aussteigen (sonst sitzt man am Handy fest).
+  const knoepfe = gehen
+    ? bedienKnoepfe({ moeglich, fahrzeug: fahrt, haltung, haelt, beruehren }).filter((k) => !SACHLICH || k === 'springen' || k === 'aufstehen' || k === 'aussteigen')
+    : []
   const knopfGruppe =
     knoepfe.length > 0 ? (
       <div
@@ -1099,7 +1122,44 @@ export default function Raum3D({
           Ab sm eine Reihe mit Namen. Sie beginnt unter der Statusleiste des
           Handys (safe-area), im Vollbild liegt sie halbdurchsichtig ueber
           dem Bild, und sie laesst sich einklappen. */}
-      {leisteZu ? null : (
+      {SACHLICH ? (
+        <div
+          className={cx(
+            // Eine schmale Reihe mit Symbolknoepfen: Ansicht, Licht, Begehen.
+            'flex flex-wrap items-center justify-center gap-1.5 pb-2 pe-[calc(env(safe-area-inset-right,0px)+0.5rem)] ps-[calc(env(safe-area-inset-left,0px)+0.5rem)] pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] lg:justify-start',
+            'border-b border-line bg-surface',
+          )}
+        >
+          <div className="flex rounded-xl border-2 border-line p-0.5" role="group" aria-label={t('plan3d.ansicht')}>
+            <Teil zeichen={KarteIcon} name={t('plan3d.ansicht_oben')} an={!gehen && blickArt === 'oben'} onClick={() => blick('oben')} />
+            <Teil zeichen={Eye} name={t('plan3d.ansicht_schraeg')} an={!gehen && blickArt === 'schraeg'} onClick={() => blick('schraeg')} />
+          </div>
+          {hatKiste ? (
+            <Knopf zeichen={Crosshair} farbe="var(--plan-hervor)" name={t('plan3d.zur_kiste')} onClick={() => blick('kiste')} disabled={geht !== 'ja'} />
+          ) : null}
+          <Knopf
+            zeichen={lichtAn ? Lightbulb : LightbulbOff}
+            name={t('plan3d.licht')}
+            hilfe={t(lichtAn ? 'plan3d.licht_ausschalten' : 'plan3d.licht_einschalten')}
+            an={lichtAn}
+            onClick={() => setLichtAn((v) => !v)}
+            disabled={geht !== 'ja' || leer}
+          />
+          <Knopf
+            zeichen={Footprints}
+            name={t(gehen ? 'plan3d.begehen_ende' : 'plan3d.begehen')}
+            hilfe={t('plan3d.begehen_hilfe')}
+            an={gehen}
+            onClick={() => setGehen((v) => !v)}
+            disabled={geht !== 'ja' || leer}
+          />
+          <p className="t-sub hidden min-w-0 flex-1 truncate px-1 lg:block" title={geht === 'ja' ? t(kurzHinweis(gehen, beruehren)) : undefined}>
+            {geht !== 'ja' ? null : t(kurzHinweis(gehen, beruehren))}
+          </p>
+          {onSchliessen && !vollbild ? <Knopf zeichen={X} name={t('plan3d.schliessen')} onClick={onSchliessen} /> : null}
+        </div>
+      ) : null}
+      {SACHLICH || leisteZu ? null : (
       <div
         className={cx(
           // Hochkant zwei Reihen, quer (ab md) eine Reihe nur mit Zeichen, ab lg mit Namen.
@@ -1322,10 +1382,11 @@ export default function Raum3D({
               key={`${menue.objektId}|${menue.x}|${menue.y}`}
               x={menue.x}
               y={menue.y}
-              tragbar={menue.tragbar}
-              gesperrt={menue.gesperrt}
-              sitzbar={menue.sitzbar}
-              liegen={menue.liegen}
+              // Sachlich nur "Details" (Regal: Faecher, Moebel: Karte).
+              tragbar={!SACHLICH && menue.tragbar}
+              gesperrt={!SACHLICH && menue.gesperrt}
+              sitzbar={!SACHLICH && menue.sitzbar}
+              liegen={!SACHLICH && menue.liegen}
               name={menueName}
               onWahl={menueWahl}
               onZu={menueZu}

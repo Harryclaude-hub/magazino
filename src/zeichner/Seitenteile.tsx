@@ -4,6 +4,7 @@ import { FachAnsicht } from '../components/plan/FachAnsicht'
 import { objektName } from '../components/plan/lage'
 import { Button, CodeChip, ErrorBox, Input, Spinner } from '../components/ui'
 import { UEBERSTAND_MAX_CM, type Unterlage } from '../lib/geometrie'
+import { SACHLICH } from '../lib/ansicht'
 import { useSprache } from '../lib/i18n'
 import type { Item, Objekt, PlanKiste } from '../lib/types'
 import { euroText } from '../lib/preis'
@@ -160,9 +161,11 @@ export function RegalHinweis({ onWerkzeug }: { onWerkzeug: (name: WerkzeugName) 
         <Button size="sm" variant="soft" onClick={() => onWerkzeug('regal')}>
           {t('zeichner.werkzeug.regal')}
         </Button>
-        <Button size="sm" variant="soft" onClick={() => onWerkzeug('schrank')}>
-          {t('zeichner.werkzeug.schrank')}
-        </Button>
+        {SACHLICH ? null : (
+          <Button size="sm" variant="soft" onClick={() => onWerkzeug('schrank')}>
+            {t('zeichner.werkzeug.schrank')}
+          </Button>
+        )}
       </div>
     </div>
   )

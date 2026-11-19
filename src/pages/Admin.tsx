@@ -163,10 +163,10 @@ function KontoStatus({ status }: { status: AdminNutzerAktivitaet['konto_status']
   const { t } = useSprache()
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-sm font-bold"
-      style={{ color: KONTO_STATUS_FARBE[status] }}
+      className="inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1 text-sm font-bold"
+      style={{ color: KONTO_STATUS_FARBE[status], background: 'color-mix(in srgb, ' + KONTO_STATUS_FARBE[status] + ' 12%, transparent)' }}
     >
-      <span className="h-2 w-2 rounded-full" style={{ background: KONTO_STATUS_FARBE[status] }} />
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: KONTO_STATUS_FARBE[status] }} />
       {t(`adminkonten.ks_${status}`)}
     </span>
   )
@@ -722,8 +722,8 @@ function PersonDialog({
                   <ShieldCheck size={14} /> {t('admin.ist_admin')}
                 </Badge>
               ) : null}
-              {n.ist_admin ? null : <KontoStatus status={n.konto_status} />}
-              {freigabe ? (
+              <KontoStatus status={n.konto_status} />
+              {freigabe && !n.ist_admin ? (
                 <span
                   className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-sm font-bold"
                   style={{ color: STATUS_FARBE[freigabe] }}
@@ -911,7 +911,6 @@ function LeuteTab({
                                   <ShieldCheck size={14} /> {t('admin.ist_admin')}
                                 </Badge>
                               ) : null}
-                              {n.ist_admin ? null : <KontoStatus status={n.konto_status} />}
                             </span>
                             {n.name?.trim() ? (
                               <span className="t-sub block break-all" dir="ltr">
@@ -926,6 +925,7 @@ function LeuteTab({
                               {n.drin_in ? <span className="font-bold text-ok">{t('adminkonten.drin_in', { lager: n.drin_in })}</span> : null}
                             </span>
                           </span>
+                          <span className="shrink-0"><KontoStatus status={n.konto_status} /></span>
                           <ChevronRight size={18} className="spiegeln shrink-0 text-muted" />
                         </button>
                       </li>

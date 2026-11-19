@@ -488,7 +488,7 @@ wahr('Tasten: Springen und Hinstellen ohne Buchstaben (Leertaste und Klick stehe
   }
   wahr('Motor: MoebelKontext3D mit objektId, x, y, tragbar, gesperrt, sitzbar, liegen', /export interface MoebelKontext3D \{\s*objektId: string\s*x: number\s*y: number\s*tragbar: boolean\s*gesperrt: boolean\s*sitzbar: boolean\s*liegen: boolean\s*\}/.test(motor))
   wahr('Motor: gesperrt nur, wenn Tragen ginge; liegen aus der Art des Platzes', motor.includes("tragbar: traegt, gesperrt: !traegt && tragenGeht(), sitzbar: pl !== null, liegen: pl?.art === 'liegen' })"))
-  wahr('Raum3D: gesperrt und liegen ans Menue', raum8.includes('gesperrt={menue.gesperrt}') && raum8.includes('liegen={menue.liegen}'))
+  wahr('Raum3D: gesperrt und liegen ans Menue (sachlich nur Details, src/lib/ansicht.ts)', raum8.includes('gesperrt={!SACHLICH && menue.gesperrt}') && raum8.includes('liegen={!SACHLICH && menue.liegen}'))
   // Nacharbeit E92: der Zeiger, der das Menue oeffnete, schaut bis zum Loslassen nicht um.
   const schauB = motor.slice(motor.indexOf('const schauBewegen = '), motor.indexOf('const schauHoch = '))
   const schauH = motor.slice(motor.indexOf('const schauHoch = '), motor.indexOf("addEventListener('pointerdown', schauRunter)"))

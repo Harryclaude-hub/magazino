@@ -15,6 +15,7 @@ import { textLage } from '../src/zeichner/werkzeuge/typen.ts'
 import { raumStart } from '../src/zeichner/werkzeuge/raum.ts'
 import { zielAn } from '../src/zeichner/werkzeuge/auswahl.ts'
 import { ZEICHNER_VOLL, bearbeitbar, zeichnerVollSetzen } from '../src/zeichner/schalter.ts'
+import { SACHLICH } from '../src/lib/ansicht.ts'
 import { KATALOG, REGAL_STANDARD, SCHRANK_STANDARD, gehoertZu } from '../src/zeichner/katalog.ts'
 import { BODEN_STANDARD, WANDFARBEN, kontrast } from '../src/lib/farben.ts'
 import { faecherGueltig, flaeche2, zuUmriss, polygonFehler, wandStuecke } from '../src/lib/geometrie.ts'
@@ -1170,7 +1171,8 @@ const vorab = (z) => dok.kistenDraussen(z.dok, dok.umrissGeaendert(z.basis, z.do
     const dd = spielen('auswahl', [{ doppel: [200, 0] }], d, { entsperrt: null })
     gleich('Ausgeblendet: Doppelklick fuegt keine Ecke ein', dd.d.raeume[0].punkte.length, 4)
     wahr('Ausgeblendet: Raum wird weiter angezeigt', d.raeume.length === 1)
-    gleich('Ausgeblendet: Werkzeugleiste', REIHENFOLGE, ['auswahl', 'regal', 'schrank', 'messen'])
+    // Sachlich (src/lib/ansicht.ts, Karam 19.11.2026): auch der Schrank ist aus der Leiste.
+    gleich('Ausgeblendet: Werkzeugleiste', REIHENFOLGE, SACHLICH ? ['auswahl', 'regal', 'messen'] : ['auswahl', 'regal', 'schrank', 'messen'])
     // Regale und Schraenke bleiben greifbar und bearbeitbar.
     const rd = { ...d, objekte: [regal('rg1', 'r1', 150, 100)] }
     gleich('Ausgeblendet: Regal greifbar', zielAn(kontext(rd, { entsperrt: null }), [170, 110])?.art, 'objekt')

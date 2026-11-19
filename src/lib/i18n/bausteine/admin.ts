@@ -36,19 +36,19 @@ export const admin: Woerterbuch = {
   // Freischaltung (0036)
   'admin.status_wartet': { de: 'Wartet auf Freigabe' },
   'admin.status_frei': { de: 'Freigeschaltet' },
-  'admin.status_gesperrt': { de: 'Gesperrt' },
+  'admin.status_gesperrt': { de: 'Pausiert' },
   'admin.wartende_titel': { de: 'Warten auf Freigabe ({n})' },
   'admin.alle_titel': { de: 'Alle Nutzer' },
   'admin.freischalten': { de: 'Freischalten' },
-  'admin.sperren': { de: 'Sperren' },
-  'admin.entsperren': { de: 'Entsperren' },
+  'admin.sperren': { de: 'Pausieren' },
+  'admin.entsperren': { de: 'Fortsetzen' },
   'admin.loeschen': { de: 'Konto löschen' },
   'admin.freigeschaltet': { de: '{name} ist freigeschaltet.' },
-  'admin.gesperrt': { de: '{name} ist gesperrt.' },
-  'admin.entsperrt': { de: '{name} ist wieder frei.' },
-  'admin.sperren_frage_titel': { de: '{name} sperren?' },
+  'admin.gesperrt': { de: '{name} ist pausiert.' },
+  'admin.entsperrt': { de: '{name} ist wieder aktiv.' },
+  'admin.sperren_frage_titel': { de: '{name} pausieren?' },
   'admin.sperren_frage': {
-    de: 'Das Konto kann sich noch anmelden, sieht aber nur einen Hinweis und kommt an nichts mehr heran. Entsperren geht jederzeit.',
+    de: 'Das Konto kann sich anmelden, sieht aber nur die leere Startseite und kann nichts bedienen. Fortsetzen geht jederzeit.',
   },
   'admin.loeschen_frage_titel': { de: '{name} endgültig löschen?' },
   'admin.loeschen_frage': {
@@ -63,9 +63,9 @@ export const admin: Woerterbuch = {
   'freigabe.warten_text': {
     de: 'Dein Konto ist angelegt. Bevor du Magazino nutzen kannst, muss ein Admin es freischalten. Diese Seite öffnet sich von selbst, sobald das passiert ist.',
   },
-  'freigabe.gesperrt_titel': { de: 'Konto gesperrt' },
+  'freigabe.gesperrt_titel': { de: 'Konto pausiert' },
   'freigabe.gesperrt_text': {
-    de: 'Dieses Konto ist gesperrt. Wende dich an den Admin, wenn du glaubst, dass das ein Fehler ist.',
+    de: 'Dein Konto ist pausiert. Wende dich an den Admin.',
   },
   'freigabe.hinweis_registrieren': {
     de: 'Nach der Anmeldung schaltet ein Admin dein Konto frei. Bis dahin siehst du eine Warte-Seite.',

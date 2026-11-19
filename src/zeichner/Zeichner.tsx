@@ -59,6 +59,7 @@ import { REGAL_STANDARD, SCHRANK_STANDARD } from './katalog'
 import { Leinwand, type Ansicht, type WandMass } from './Leinwand'
 import { einpassen, radArt, radFaktor, verschieben, zoomAm } from '../components/plan/ansicht'
 import { Assistent, KistenListe, PlanSuche, RegalHinweis, RegalVorlage, UnterlagenWahl } from './Seitenteile'
+import { SACHLICH } from '../lib/ansicht'
 import { bearbeitbar, ZEICHNER_VOLL } from './schalter'
 import { REIHENFOLGE, TASTEN, tastenZeichen, WERKZEUGE } from './werkzeuge'
 import { sperrSchluessel, zielAn } from './werkzeuge/auswahl'
@@ -180,9 +181,10 @@ export default function Zeichner({
   const [groesse, setGroesse] = useState<[number, number]>([0, 0])
   const [raster, setRaster] = useState<1 | 5 | 10>(5)
   const [winkel, setWinkel] = useState(true)
-  // Alte Daten (Teppiche, Deko) werden weiter gezeigt, neue entstehen nicht.
-  const teppiche = true
-  const deko = true
+  // Alte Daten (Teppiche, Deko) werden weiter gezeigt, neue entstehen nicht;
+  // sachlich (src/lib/ansicht.ts) werden sie gar nicht mehr gezeigt.
+  const teppiche = !SACHLICH
+  const deko = !SACHLICH
   /** Umschalter 2D/3D: 3D liegt ueber der Zeichenflaeche und zeigt z.dok live. */
   const [drei, setDrei] = useState(begehen)
   // E87: begehen gilt nur fuer das erste 3D; zurueck auf 2D vergisst es.

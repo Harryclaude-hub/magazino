@@ -58,11 +58,11 @@ export const zeichnerWoerter: Woerterbuch = {
     de: 'Klicken wählt aus, Ziehen verschiebt nur die Ansicht. Rechtsklick öffnet das Menü: Verschieben / Größe ändern, Umbenennen, Drehen, Löschen. Entf löscht.',
   },
   'zeichner.hilfe.auswahl_regal': {
-    de: 'Klicken wählt ein Regal oder einen Schrank aus. Rechtsklick öffnet das Menü: Verschieben, Drehen, Löschen.',
+    de: 'Klicken wählt ein Regal aus. Rechtsklick öffnet das Menü: Verschieben, Drehen, Löschen.',
   },
-  'zeichner.nur_regale.titel': { de: 'Regale und Schränke' },
+  'zeichner.nur_regale.titel': { de: 'Regale' },
   'zeichner.nur_regale.hilfe': {
-    de: 'Hier setzt und bearbeitest du Regale und Schränke. Räume, Türen und Fenster bleiben, wie sie sind.',
+    de: 'Hier setzt und bearbeitest du Regale. Der Grundriss bleibt, wie er ist.',
   },
   'zeichner.hilfe.raum': {
     de: 'Punkt für Punkt: Richtung zeigen, Länge tippen (3,45 oder 345), Enter. Klick auf den Start oder Enter schließt den Raum.',
