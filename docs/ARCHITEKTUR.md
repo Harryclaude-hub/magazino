@@ -201,7 +201,7 @@ Das ist ein Einmal-Import, keine laufende Synchronisation.
 - Das fruehere Umzugsprogramm (Zimmer, Personen, Moebel, Chat, Siedlung, Anrufe) ist aus Menues und Routen genommen, der Code liegt noch im Repo (Marke `kistly-umzugsprogramm` im Git zeigt den vollen alten Stand); es ist aufzuraeumen, wenn Karam es will. Seine Wohnung ist gesichert (Datei in Super Claude, Ordner _Sicherungen) und nicht mehr in der Datenbank. Rest-Hinweis: sind aber
   nicht Teil dieses Umbaus; ein spaeterer Rework entscheidet, was bleibt.
 
-## 8. Wie weit traegt das? (Skalierung, Stand 19.11.2026)
+## 8. Wie weit traegt das? (Skalierung, Stand 19.11.2026; GitHub-Kosten siehe `docs/GITHUB-KOSTEN-2026-11-20.md`)
 
 Zahlen: Supabase-Preisseite und GitHub-Pages-Grenzen vom 19.11.2026 (aendern sich, vor
 Entscheidungen neu nachsehen). Annahmen sind als Annahme gekennzeichnet.

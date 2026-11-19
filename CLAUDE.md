@@ -69,7 +69,7 @@ in der Datenbank.
 
 Dazu: keine Schluessel im Diff, kein U+2014, keine Wegwerf-Testseiten.
 Commit-Nachrichten auf Deutsch, am Ende die Co-Authored-By-Zeile.
-Jeder Push auf `main` geht sofort live (GitHub Pages).
+Seit 20.11.2026 baut GitHub NICHT mehr bei jedem Push (Rechenzeit kostet Geld, siehe docs/GITHUB-KOSTEN-2026-11-20.md). Veroeffentlichen: `node scripts/veroeffentlichen.mjs` (baut den letzten Commit lokal, legt ihn auf den Zweig gh-pages).
 
 ## Wo der Stand steht
 
