@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { Button, Chip, ConfirmDialog, ErrorBox, Field, IconButton, Input, Modal, Select, Switch, useToast } from './ui'
-import { useProject } from '../pages/ProjectLayout'
+import { useProject, useProjektOptional } from '../pages/ProjectLayout'
 import {
   bereichLoeschen,
   bestandAendern,
@@ -26,14 +26,16 @@ function fehlerText(err: unknown): string {
 }
 
 /** Fehlerkasten; bei "nicht eingetragen" mit dem Weg zur Tuer. */
-function FehlerAnzeige({ fehler }: { fehler: string | null }) {
+function FehlerAnzeige({ fehler, projectId }: { fehler: string | null; projectId?: string }) {
   const t = useT()
-  const { project } = useProject()
+  // Auf dem Start gibt es keinen Lager-Rahmen; dort kommt das Lager als projectId.
+  const ctx = useProjektOptional()
+  const project = projectId ? { id: projectId } : ctx?.project
   if (!fehler) return null
   return (
     <div className="space-y-2">
       <ErrorBox error={fehler} />
-      {fehler === t('fehler.db.lager.nicht_eingetragen') ? (
+      {project && fehler === t('fehler.db.lager.nicht_eingetragen') ? (
         <Link to={`/app/p/${project.id}/tuer`}>
           <Button variant="outline" full>
             {t('lager.zur_tuer')}
@@ -92,17 +94,21 @@ function standardTermin(): string {
 
 export function EntnehmenDialog({
   b,
+  modus,
   onClose,
   onFertig,
 }: {
   b: Bestand
+  /** Start mit "Nehmen" (kommt nicht zurueck) oder "Ausleihen" (mit Termin).
+   *  Ohne Angabe richtet sich der Schalter nach der Art des Dings. */
+  modus?: 'nehmen' | 'ausleihen'
   onClose: () => void
   onFertig: () => void
 }) {
   const t = useT()
   const toast = useToast()
   const [menge, setMenge] = useState('1')
-  const [zurueck, setZurueck] = useState(b.art === 'ausleihe')
+  const [zurueck, setZurueck] = useState(modus ? modus === 'ausleihen' : b.art === 'ausleihe')
   const [bis, setBis] = useState(standardTermin)
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
@@ -140,14 +146,14 @@ export function EntnehmenDialog({
     <Modal
       open
       onClose={onClose}
-      title={t('lager.entnehmen_titel', { name: b.name })}
+      title={t(modus && zurueck ? 'lager.ausleihen_dialog_titel' : 'lager.entnehmen_titel', { name: b.name })}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             {t('aktion.abbrechen')}
           </Button>
           <Button form="bestand-entnehmen" type="submit" loading={busy}>
-            {t('lager.entnehmen')}
+            {t(modus ? (zurueck ? 'lager.ausleihen_knopf' : 'lager.nehmen') : 'lager.entnehmen')}
           </Button>
         </>
       }
@@ -179,7 +185,7 @@ export function EntnehmenDialog({
             </div>
           </div>
         ) : null}
-        <FehlerAnzeige fehler={fehler} />
+        <FehlerAnzeige fehler={fehler} projectId={b.project_id} />
       </form>
     </Modal>
   )

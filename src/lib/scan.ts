@@ -29,22 +29,30 @@ export interface ScanResult {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** Die Tuer-QR eines Lagers: <origin>/<Basis>/app/p/<uuid>/tuer (E103). */
+const TUER_RE = /\/app\/p\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/tuer(?:[/?#]|$)/i
 const LINK_RE = /\/s\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
 
 export interface ScanInput {
   itemId: string | null
   code: string | null
+  /** Der Code ist die Tuer eines Lagers: dort traegt man sich ein und aus. */
+  tuerProjektId: string | null
 }
 
-/** Zerlegt, was die Kamera oder die Tastatur geliefert hat: eine Adresse
- *  der Form <origin>/s/<uuid>, eine nackte UUID oder ein Code wie W-3-007. */
+/** Zerlegt, was die Kamera oder die Tastatur geliefert hat: die Tuer-Adresse
+ *  eines Lagers (.../app/p/<uuid>/tuer), eine Kisten-Adresse der Form
+ *  <origin>/s/<uuid>, eine nackte UUID oder ein Code wie W-3-007. */
 export function parseScanInput(text: string): ScanInput {
   const raw = text.trim()
-  if (!raw) return { itemId: null, code: null }
+  const keins = { itemId: null, code: null, tuerProjektId: null }
+  if (!raw) return keins
+  const tuer = TUER_RE.exec(raw)
+  if (tuer) return { ...keins, tuerProjektId: tuer[1].toLowerCase() }
   const link = LINK_RE.exec(raw)
-  if (link) return { itemId: link[1], code: null }
-  if (UUID_RE.test(raw)) return { itemId: raw, code: null }
-  return { itemId: null, code: normalizeCodeInput(raw) }
+  if (link) return { ...keins, itemId: link[1] }
+  if (UUID_RE.test(raw)) return { ...keins, itemId: raw }
+  return { ...keins, code: normalizeCodeInput(raw) }
 }
 
 async function itemById(id: string): Promise<Item | null> {
@@ -129,6 +137,7 @@ async function photoPathsOf(itemId: string): Promise<string[]> {
  */
 export async function resolveScan(text: string): Promise<ScanResult | null> {
   const { itemId, code } = parseScanInput(text)
+  // Eine Tuer ist keine Kiste; ScanHub leitet sie vorher weiter.
   if (!itemId && !code) return null
 
   let item: Item | null = null

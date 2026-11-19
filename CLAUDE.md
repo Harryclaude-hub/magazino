@@ -40,10 +40,9 @@ Karam, Eigentuemer von Magazino. Das Programm hiess bis 14.11.2026 Kistly, am 14
 - `prefix`, `seq` und `code` einer Kiste vergibt nur die Datenbank.
 - Angewandte Migrationen werden nie geaendert, ein Fehler bekommt eine
   neue Nummer. Angewandt sind 0001 bis 0055 (0050 bis 0055 sind der Lagerumbau).
-- Woerterbuecher in `src/lib/i18n/bausteine`: jeder Eintrag hat `de` UND
-  `ar` mit denselben Platzhaltern. Arabisch laeuft von rechts nach links,
-  Plaene und Karten werden nie gespiegelt, Seriennummern stehen immer
-  links nach rechts.
+- Woerterbuecher in `src/lib/i18n/bausteine`: jeder Eintrag hat `de`. Arabisch ist seit
+  E105 (19.11.2026) entfernt, es gibt nur Deutsch. Der volle zweisprachige Stand liegt im
+  Kistli-Repo und in der Git-Marke `kistly-umzugsprogramm`.
 - Laden, Fehler und leer sind drei verschiedene Zustaende. Kein Fehler
   wird still geschluckt.
 - Dialoge setzen ihren Zustand beim Oeffnen zurueck.
@@ -59,12 +58,12 @@ npx oxlint                        nur Warnungen erlaubt
 npm run build                     wie auf GitHub
 node scripts/woerter-pruefen.mjs  bekannt: 8 Meldungen bei *.eins
 node scripts/szene-pruefen.mjs    dazu geometrie-, zeichner-, kollision-,
-                                  moebel-, aussen-, avatar-, osm-,
-                                  siedlung-, siedlung-ui-, siedlung-innen-,
-                                  siedlung-wohnungen-, siedlung-gemeinsam-,
-                                  minikarte-, stadt-daten-, stadt-, innen-,
+                                  moebel-, aussen-, avatar-, osm-, innen-,
                                   physik-, fahren-, motor-fahren-,
-                                  moebel-tragen- und bedienung-pruefen
+                                  moebel-tragen-, bedienung-, kalender- und
+                                  fuzzy-pruefen
+(Die Skripte siedlung-*, stadt-*, minikarte-pruefen gehoeren zur Siedlung, die aus
+Magazino genommen ist und im Kistli-Repo lebt; sie schlagen hier absichtlich an.)
 Wo jemand wohnt (Siedlung, Adresse, Stockwerk), steht nie im Code, nur
 in der Datenbank.
 ```
@@ -89,10 +88,11 @@ Jeder Push auf `main` geht sofort live (GitHub Pages).
 
 - Das Programm heisst **Magazino** (blaues Logo mit M), Adresse https://harryclaude-hub.github.io/magazino/
   (Repo `Harryclaude-hub/magazino`, vorher `fundkiste`, davor `kistly`).
-- Die alte Adresse /kistly/ leitet ueber ein kleines privates Repo `kistly` (nur eine
-  Weiterleitungsseite, zeigt direkt auf /magazino/) weiter, weil auf gedruckten Etiketten
-  QR-Codes mit der alten Adresse stehen. Dieses Repo nie loeschen, solange alte Etiketten
-  benutzt werden. /fundkiste/ gibt es nicht mehr.
+- **Kistli lebt wieder als eigenes Programm** im Repo `Harryclaude-hub/kistly` (privat, Stand
+  vor allen Umbauten, mit Zimmern, Moebeln, Chat, 3D-Wohnung, zweisprachig). Es braucht eine
+  eigene Datenbank (noch nicht angelegt, siehe docs/UEBERGABE.md); bis dahin baut sein Workflow
+  nicht. Das fruehere kleine Weiterleitungs-Repo heisst jetzt `kistly-weiterleitung` (Seite aus).
+  /fundkiste/ gibt es nicht mehr.
 - Bewusst NICHT umbenannt, weil unsichtbar und mit Daten verknuepft: Ablehnungs-Kennungen
   `kistly:...` in der Datenbank, localStorage-Schluessel `kistly.*`, CSS-Klassen, Ordner
   `C:\Users\Home\kistly`.

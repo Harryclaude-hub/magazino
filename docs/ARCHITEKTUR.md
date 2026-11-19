@@ -39,9 +39,13 @@ stoesst auf dieselben Regeln. Darum ist nichts "nur versteckt".
 - Design ist eine eigene Schicht (`src/index.css` Farbrollen, `src/design/`):
   blau und weiss, Hell und Dunkel, weitere Designs. Funktion und Optik sind
   getrennt, Farben nur ueber Variablen.
-- Zwei Sprachen (Deutsch, Arabisch von rechts nach links), jeder Text in
+- Nur Deutsch (Arabisch ist seit E105 entfernt). Jeder Text steht in
   `src/lib/i18n/bausteine/`, eine Pruefung (`scripts/woerter-pruefen.mjs`)
   meldet fehlende Texte.
+- Startbildschirm (`Dashboard.tsx`): Suchleiste mit Bereichsfiltern, tolerante Suche
+  gegen Tippfehler (`src/lib/fuzzy.ts`, Damerau-Levenshtein plus lockere Schluessel,
+  getestet mit `scripts/fuzzy-pruefen.mjs`), Treffer mit Nehmen und Ausleihen, Scanner
+  fuer Kisten und Lagertuer.
 - Datenbankzugriff nur in `src/lib/api.ts` (Hausregel). Jede Seite ruft nur
   diese Funktionen. Dadurch gibt es eine Stelle, an der man Aufrufe prueft.
 

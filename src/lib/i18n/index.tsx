@@ -23,7 +23,8 @@ import { WOERTER } from './woerter'
  */
 
 export type Lang = 'de' | 'ar'
-export const SPRACHEN: Lang[] = ['de', 'ar']
+/* Seit E105 gibt es nur noch Deutsch; 'ar' bleibt als Typ, damit nichts bricht, wird aber nie gewaehlt. */
+export const SPRACHEN: Lang[] = ['de']
 export const SPRACH_NAME: Record<Lang, string> = { de: 'Deutsch', ar: 'العربية' }
 export const SPRACH_KUERZEL: Record<Lang, string> = { de: 'DE', ar: 'ع' }
 
@@ -36,10 +37,9 @@ export function richtungVon(lang: Lang): 'ltr' | 'rtl' {
 
 function lesen(): Lang {
   try {
-    const v = localStorage.getItem(KEY)
-    if (v === 'de' || v === 'ar') return v
-    // Ohne gespeicherte Wahl entscheidet die Sprache des Geraets.
-    return navigator.language?.toLowerCase().startsWith('ar') ? 'ar' : 'de'
+    // Eine frueher gespeicherte arabische Wahl wird ignoriert und ueberschrieben.
+    if (localStorage.getItem(KEY) === 'ar') localStorage.setItem(KEY, 'de')
+    return 'de'
   } catch {
     return 'de'
   }

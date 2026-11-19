@@ -1,10 +1,8 @@
 // Prueft die Woerterbuecher unter src/lib/i18n/bausteine:
 //  - jeder im Code benutzte Schluessel existiert,
-//  - de und ar haben dieselben Platzhalter,
+//  - (Arabisch ist seit E105 entfernt, nur Deutsch),
 //  - nirgends steht der lange Gedankenstrich (U+2014).
 // Aufruf im Projektordner: node scripts/woerter-pruefen.mjs
-// Bekannt und gewollt: 9 Meldungen PLATZHALTER bei *.eins, dort steht im
-// Arabischen die Einzahl ohne Zahl.
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -12,18 +10,13 @@ const root = 'src'
 const dict = {}
 for (const f of fs.readdirSync('src/lib/i18n/bausteine')) {
   const txt = fs.readFileSync(path.join('src/lib/i18n/bausteine', f), 'utf8')
-  const re = /'([a-z_]+\.[a-z0-9_.]+)':\s*\{\s*de:\s*(['"`])([\s\S]*?)\2,\s*ar:\s*(['"`])([\s\S]*?)\4,?\s*\}/g
+  const re = /'([a-z_]+\.[a-z0-9_.]+)':\s*\{\s*de:\s*(['"`])([\s\S]*?)\2,?\s*\}/g
   let m
-  while ((m = re.exec(txt))) dict[m[1]] = { de: m[3], ar: m[5] }
+  while ((m = re.exec(txt))) dict[m[1]] = { de: m[3] }
 }
-const ph = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((x) => x[1]).sort().join(',')
 let bad = 0
 for (const [k, v] of Object.entries(dict)) {
-  if (ph(v.de) !== ph(v.ar)) {
-    console.log('PLATZHALTER', k, ph(v.de), '|', ph(v.ar))
-    bad++
-  }
-  if ((v.de + v.ar).includes(String.fromCharCode(0x2014))) {
+  if (v.de.includes(String.fromCharCode(0x2014))) {
     console.log('GEDANKENSTRICH', k)
     bad++
   }

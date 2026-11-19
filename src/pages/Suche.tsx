@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Camera, Map as KarteIcon, Package, Search, X } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
@@ -6,15 +6,15 @@ import { Ausschnitt } from '../components/Ausschnitt'
 import { FuellBalken } from '../components/Fuellstand'
 import { PunktBild } from '../components/PunktBild'
 import { trefferOrt } from '../components/plan/lage'
-import { Badge, Button, Card, CodeChip, Empty, ErrorBox, Input, Loading, SectionTitle, Spinner } from '../components/ui'
-import { ZustandPill } from '../components/BestandDialoge'
-import { inhaltSuchen, listBestand, listKategorien, listProjects } from '../lib/api'
-import { mengeText } from '../lib/lager'
+import { Badge, Button, CodeChip, Empty, ErrorBox, Input, Loading, SectionTitle, Spinner } from '../components/ui'
+import { ProduktListe, produktIndex, useProdukte } from '../components/StartSuche'
+import { inhaltSuchen } from '../lib/api'
+import { fuzzyAbfrage } from '../lib/fuzzy'
 import { useIstDesktop } from '../lib/desktop'
 import { useSprache } from '../lib/i18n'
 import { signedUrls } from '../lib/media'
 import { rahmenVon } from '../lib/rahmen'
-import type { Bestand, ItemContent, ItemPhoto, SuchTreffer } from '../lib/types'
+import type { ItemContent, ItemPhoto, SuchTreffer } from '../lib/types'
 import { cx } from '../lib/util'
 
 /* Suchen ueber alle Lager (E105): Kisten (Inhalt) und Produkte (Bestand).
@@ -45,18 +45,6 @@ const WARTEN_MS = 300
 /** So viele Produkte zeigt die Seite. */
 const MAX_PRODUKTE = 20
 
-/** Ein Ding aus dem Bestand mit dem Lager und dem Bereich, in dem es liegt. */
-interface Produkt {
-  b: Bestand
-  lager: string
-  bereich: string | null
-}
-
-/** Alle Woerter der Anfrage muessen im Namen oder Ort stehen. */
-function passt(p: Produkt, woerter: string[]): boolean {
-  const heu = `${p.b.name} ${p.b.ort ?? ''}`.toLowerCase()
-  return woerter.every((w) => heu.includes(w))
-}
 /** So viele Treffer zeigt die Seite. Einer mehr wird geholt, um zu
  *  wissen, ob es noch weitere gibt. */
 const MAX_TREFFER = 60
@@ -116,7 +104,6 @@ export default function Suche() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const suchwort = q.trim()
-  const sucht = suchwort.length >= 2
   const gewaehltId = params.get('t')
 
   /* Das Feld hat seinen eigenen Text, die Adresse folgt ihm verzoegert.
@@ -147,10 +134,12 @@ export default function Suche() {
   const [fehler, setFehler] = useState<string | null>(null)
   const [versuch, setVersuch] = useState(0)
   /* Der Bestand aller Lager, einmal geladen, sobald gesucht wird. */
-  const [produkte, setProdukte] = useState<Produkt[] | null>(null)
-  const [produkteLaedt, setProdukteLaedt] = useState(false)
-  const [produkteFehler, setProdukteFehler] = useState<string | null>(null)
-  const [produkteVersuch, setProdukteVersuch] = useState(0)
+  const {
+    daten: bestandDaten,
+    laedt: produkteLaedt,
+    fehler: produkteFehler,
+    neu: bestandNeu,
+  } = useProdukte(suchwort.length >= 2)
   const [fotoUrls, setFotoUrls] = useState<Map<string, string>>(new Map())
   const [fotoOffen, setFotoOffen] = useState(false)
 
@@ -162,46 +151,17 @@ export default function Suche() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, suchwort])
 
-  /* Bestand holen: ein Mal je Besuch (und bei "Nochmal"). Ein Fehler steht
-   * sichtbar da; die Kistensuche laeuft trotzdem weiter. */
-  useEffect(() => {
-    if (suchwort.length < 2 || produkte !== null) return
-    let alive = true
-    setProdukteLaedt(true)
-    setProdukteFehler(null)
-    ;(async () => {
-      const lager = await listProjects()
-      const teile = await Promise.all(
-        lager.map(async (l) => {
-          const [bestand, kat] = await Promise.all([listBestand(l.project.id), listKategorien(l.project.id)])
-          return bestand.map<Produkt>((b) => ({
-            b,
-            lager: l.project.name,
-            bereich: kat.find((k) => k.id === b.kategorie_id)?.name ?? null,
-          }))
-        }),
-      )
-      return teile.flat()
-    })()
-      .then((alle) => {
-        if (alive) setProdukte(alle)
-      })
-      .catch((err: unknown) => {
-        if (alive) setProdukteFehler(err instanceof Error ? err.message : String(err))
-      })
-      .finally(() => {
-        if (alive) setProdukteLaedt(false)
-      })
-    return () => {
-      alive = false
-    }
-    // produkte gehoert nicht in die Liste: einmal geladen, nie wieder.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sucht, produkteVersuch])
-
-  const woerter = suchwort.toLowerCase().split(/\s+/).filter(Boolean)
-  const produktTreffer =
-    suchwort.length >= 2 && produkte ? produkte.filter((p) => passt(p, woerter)).slice(0, MAX_PRODUKTE) : []
+  /* Tolerant gesucht: Tippfehler, Umlaute ohne Punkte, vertauschte Buchstaben. */
+  const produktIdx = useMemo(() => produktIndex(bestandDaten?.produkte ?? []), [bestandDaten])
+  const produktTreffer = useMemo(
+    () =>
+      suchwort.length >= 2 && bestandDaten
+        ? fuzzyAbfrage(produktIdx, suchwort)
+            .map((x) => x.item)
+            .slice(0, MAX_PRODUKTE)
+        : [],
+    [suchwort, bestandDaten, produktIdx],
+  )
 
   /* Suchen. Eine alte Antwort, die nach einer neueren ankommt, wird
    * verworfen. Die alten Treffer bleiben stehen, bis die neuen da sind:
@@ -289,16 +249,7 @@ export default function Suche() {
         <SectionTitle>
           {t('lager.suche_produkte')} ({produktTreffer.length})
         </SectionTitle>
-        <ul className="space-y-2">
-          {produktTreffer.map((p) => (
-            <li key={p.b.id}>
-              <ProduktZeile
-                p={p}
-                onTipp={() => nav(`/app/p/${p.b.project_id}/bestand?q=${encodeURIComponent(p.b.name)}`)}
-              />
-            </li>
-          ))}
-        </ul>
+        <ProduktListe treffer={produktTreffer} onGeaendert={bestandNeu} />
       </section>
     ) : null
 
@@ -390,10 +341,7 @@ export default function Suche() {
               <div className="mb-4">
                 <ErrorBox
                   error={produkteFehler}
-                  onRetry={() => {
-                    setProdukte(null)
-                    setProdukteVersuch((v) => v + 1)
-                  }}
+                  onRetry={bestandNeu}
                 />
               </div>
             ) : null}
@@ -626,31 +574,5 @@ function TrefferDetail({
         ) : null}
       </div>
     </div>
-  )
-}
-
-/** Ein Produkt aus dem Bestand: Zustand, Menge, Lager und Bereich. Ein Tipp
- *  fuehrt in den Bestand dieses Lagers, schon auf den Namen gesucht. */
-function ProduktZeile({ p, onTipp }: { p: Produkt; onTipp: () => void }) {
-  const ort = [p.lager, p.bereich, p.b.ort].filter(Boolean).join(' . ')
-  return (
-    <Card className="p-0">
-      <button
-        type="button"
-        onClick={onTipp}
-        className="flex w-full items-start gap-3 rounded-karte p-3 text-start transition hover:bg-raised active:scale-[0.99]"
-      >
-        <span className="min-w-0 flex-1">
-          <span className="t-name block break-words">{p.b.name}</span>
-          <span className="t-sub mt-0.5 block break-words">{ort}</span>
-          <span className="mt-2 block">
-            <ZustandPill b={p.b} suche />
-          </span>
-        </span>
-        <span className="shrink-0 text-end text-xl font-black tabular-nums" dir="ltr">
-          {mengeText(p.b.menge)} <span className="text-sm font-bold text-muted">{p.b.einheit}</span>
-        </span>
-      </button>
-    </Card>
   )
 }

@@ -26,7 +26,6 @@ import Items from './pages/Items'
 import ItemDetail from './pages/ItemDetail'
 import Labels from './pages/Labels'
 import Groessen from './pages/Groessen'
-import ScanPage from './pages/ScanPage'
 import ProjectSettings from './pages/ProjectSettings'
 import ScanResolve from './pages/ScanResolve'
 import NotFound from './pages/NotFound'
@@ -161,7 +160,8 @@ export default function App() {
                 <Route path="etiketten" element={<Labels />} />
                 <Route path="export" element={<ZumLager />} />
                 <Route path="groessen" element={<Groessen />} />
-                <Route path="scan" element={<ScanPage />} />
+                {/* E105: Scannen laeuft ueber den gemeinsamen Scanner (Kiste oder Lagertuer), nicht mehr ueber die Umzugs-Seite. */}
+                <Route path="scan" element={<Navigate to="/app/scan" replace />} />
                 <Route path="verlauf" element={<Verlauf />} />
                 {/* Alte Adressen: Chat, Team, Siedlung und was es sonst nicht mehr gibt. */}
                 <Route path="chat" element={<ZumLager />} />

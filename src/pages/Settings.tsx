@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Bell, BellOff, LogOut, ShieldCheck } from 'lucide-react'
-import { AppHeader, Page, siedlungKnopfSetzen, useSiedlungKnopf } from '../components/AppShell'
-import { AvatarEditor } from '../components/AvatarEditor'
+import { AppHeader, Page } from '../components/AppShell'
 import { InstallCard } from '../components/InstallCard'
 import { ALLE_DESIGNS, MODE_KEY, useTheme } from '../components/ThemeToggle'
-import { SpracheWahl } from '../components/SpracheToggle'
 import {
   Avatar,
   Button,
@@ -74,8 +72,6 @@ export default function Settings() {
   const toast = useToast()
   const nav = useNavigate()
   const t = useT()
-  // Knopf Siedlung oben rechts (E83): nur dieses Geraet, sofort wirksam.
-  const siedlungKnopf = useSiedlungKnopf()
   const [admin, setAdmin] = useState(false)
   useEffect(() => {
     let alive = true
@@ -234,8 +230,6 @@ export default function Settings() {
             </div>
           </Field>
 
-          {/* Figur in der 3D-Wohnung (E82), gleich unter dem Namen. */}
-          <AvatarEditor />
         </Card>
 
         {/* Sicherheit */}
@@ -354,18 +348,6 @@ export default function Settings() {
             ) : prefs ? (
               <>
                 <Switch
-                  checked={prefs.chat}
-                  onChange={(v) => void savePrefs({ chat: v })}
-                  label={t('einstellungen.chat')}
-                  hint={t('einstellungen.chat_hinweis')}
-                />
-                <Switch
-                  checked={prefs.calls}
-                  onChange={(v) => void savePrefs({ calls: v })}
-                  label={t('einstellungen.anrufe')}
-                  hint={t('einstellungen.anrufe_hinweis')}
-                />
-                <Switch
                   checked={prefs.items}
                   onChange={(v) => void savePrefs({ items: v })}
                   label={t('einstellungen.kisten')}
@@ -374,12 +356,6 @@ export default function Settings() {
               </>
             ) : null}
           </div>
-        </Card>
-
-        {/* Sprache. Die Wahl dreht auch die Leserichtung der ganzen App. */}
-        <Abschnitt>{t('einstellungen.sprache')}</Abschnitt>
-        <Card data-tour="profil-sprache" className="mb-8 p-4">
-          <SpracheWahl />
         </Card>
 
         {/* Darstellung */}
@@ -436,15 +412,6 @@ export default function Settings() {
 
         {/* App */}
         <Abschnitt>{t('einstellungen.app')}</Abschnitt>
-        {/* Knopf Siedlung (E83). Aus blendet nur den Knopf aus. */}
-        <Card data-tour="profil-siedlung" className="mb-4 px-4 py-1.5">
-          <Switch
-            checked={siedlungKnopf}
-            onChange={siedlungKnopfSetzen}
-            label={t('einstellungen.siedlung_knopf')}
-            hint={t('einstellungen.siedlung_knopf_hinweis')}
-          />
-        </Card>
         <div className="mb-8">
           <InstallCard />
         </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowRight,
@@ -33,7 +33,7 @@ import { useSprache, useT } from '../lib/i18n'
 import { groesseSatz, useKistenGroessen } from '../lib/groessen'
 import { signedUrls } from '../lib/media'
 import { notifyItemStatus } from '../lib/push'
-import { resolveScan, type ScanResult } from '../lib/scan'
+import { parseScanInput, resolveScan, type ScanResult } from '../lib/scan'
 import { type ItemStatus, type Tag } from '../lib/types'
 import { contrastOn, fmtTime, useLocalState } from '../lib/util'
 import { useAppShell } from './AppLayout'
@@ -85,6 +85,12 @@ export default function ScanHub() {
   const toast = useToast()
   const { t, tn, lang } = useSprache()
   const groessen = useKistenGroessen()
+  const nav = useNavigate()
+  // Ueber einen Verweis, damit die Kamera nicht neu startet, wenn sich nav aendert.
+  const navRef = useRef(nav)
+  useEffect(() => {
+    navRef.current = nav
+  }, [nav])
 
   /* Derselbe Schluessel wie beim Scannen innerhalb eines Umzugs, damit die
    * Einstellung nicht an zwei Orten auseinanderlaeuft. */
@@ -172,6 +178,13 @@ export default function ScanHub() {
       const input = text.trim()
       if (!input || busyRef.current) return
       const tt = tRef.current
+      /* Der QR an der Lagertuer: gleich zur Tuer, dort traegt man sich ein
+       * und aus. Das ist keine Kiste, es gibt nichts zu suchen. */
+      const tuerId = parseScanInput(input).tuerProjektId
+      if (tuerId) {
+        navRef.current(`/app/p/${tuerId}/tuer`)
+        return
+      }
       busyRef.current = true
       setBusy(true)
       setPaused(true)
@@ -285,7 +298,7 @@ export default function ScanHub() {
 
   return (
     <>
-      <AppHeader title={t('nav.scannen')} subtitle={t('scannen.untertitel_alle')} />
+      <AppHeader title={t('nav.scannen')} subtitle={t('lager.start_scan_untertitel')} />
       <Page>
         <div data-tour="scan-kamera" className="mb-4">
           <Scanner onResult={onScanned} paused={paused || busy || schnellId !== null} />

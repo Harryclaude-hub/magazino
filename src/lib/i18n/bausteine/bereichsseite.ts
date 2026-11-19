@@ -4,48 +4,42 @@ import type { Woerterbuch } from '../woerter'
  * Sie oeffnet sich wie eine Akte: oben das Kuerzel und die Farbe, darunter
  * alles, was zu diesem Bereich gehoert. */
 export const bereichsseite: Woerterbuch = {
-  'bereichsseite.laedt': { de: 'Bereich wird geladen', ar: 'جارٍ تحميل المنطقة' },
+  'bereichsseite.laedt': { de: 'Bereich wird geladen' },
   'bereichsseite.nicht_gefunden': {
     de: 'Diesen Bereich gibt es in diesem Umzug nicht.',
-    ar: 'هذه المنطقة غير موجودة في هذه النقلة.',
   },
-  'bereichsseite.zurueck': { de: 'Zu den Bereichen', ar: 'إلى المناطق' },
+  'bereichsseite.zurueck': { de: 'Zu den Bereichen' },
 
-  'bereichsseite.kisten': { de: 'Kisten in diesem Bereich', ar: 'الصناديق في هذه المنطقة' },
-  'bereichsseite.moebel': { de: 'Möbel in diesem Zimmer', ar: 'الأثاث في هذه الغرفة' },
-  'bereichsseite.keine_kisten': { de: 'Noch keine Kisten hier', ar: 'لا توجد صناديق هنا بعد' },
+  'bereichsseite.kisten': { de: 'Kisten in diesem Bereich' },
+  'bereichsseite.moebel': { de: 'Möbel in diesem Zimmer' },
+  'bereichsseite.keine_kisten': { de: 'Noch keine Kisten hier' },
   'bereichsseite.keine_kisten_hinweis': {
     de: 'Neue Kisten bekommen das Kürzel dieses Bereichs in ihrer Nummer.',
-    ar: 'الصناديق الجديدة تأخذ رمز هذه المنطقة في رقمها.',
   },
-  'bereichsseite.keine_moebel': { de: 'Noch keine Möbel hier', ar: 'لا يوجد أثاث هنا بعد' },
-  'bereichsseite.kiste_anlegen': { de: 'Kiste hier anlegen', ar: 'إنشاء صندوق هنا' },
-  'bereichsseite.moebel_anlegen': { de: 'Möbel hier anlegen', ar: 'إضافة أثاث هنا' },
-  'bereichsseite.alle_zeigen': { de: 'Alle in der Kistenliste zeigen', ar: 'عرض الكل في قائمة الصناديق' },
-  'bereichsseite.etiketten': { de: 'Etiketten für diesen Bereich', ar: 'ملصقات هذه المنطقة' },
+  'bereichsseite.keine_moebel': { de: 'Noch keine Möbel hier' },
+  'bereichsseite.kiste_anlegen': { de: 'Kiste hier anlegen' },
+  'bereichsseite.moebel_anlegen': { de: 'Möbel hier anlegen' },
+  'bereichsseite.alle_zeigen': { de: 'Alle in der Kistenliste zeigen' },
+  'bereichsseite.etiketten': { de: 'Etiketten für diesen Bereich' },
 
-  'bereichsseite.personen_hier': { de: 'Personen mit Kisten hier', ar: 'أشخاص لديهم صناديق هنا' },
-  'bereichsseite.zimmer_dieser_person': { de: 'Zimmer dieser Person', ar: 'غرف هذا الشخص' },
-  'bereichsseite.ohne_zimmer': { de: 'Ohne Zimmer', ar: 'بدون غرفة' },
-  'bereichsseite.ohne_person': { de: 'Ohne Person', ar: 'بدون شخص' },
+  'bereichsseite.personen_hier': { de: 'Personen mit Kisten hier' },
+  'bereichsseite.zimmer_dieser_person': { de: 'Zimmer dieser Person' },
+  'bereichsseite.ohne_zimmer': { de: 'Ohne Zimmer' },
+  'bereichsseite.ohne_person': { de: 'Ohne Person' },
 
   'bereichsseite.fortschritt': {
     de: '{a} von {b} angekommen',
-    ar: 'وصل {a} من أصل {b}',
   },
   'bereichsseite.zahl_unbekannt': {
     de: 'Anzahl unbekannt',
-    ar: 'العدد غير معروف',
   },
-  'bereichsseite.zahlen_laden': { de: 'Zahlen werden geladen', ar: 'جارٍ تحميل الأعداد' },
+  'bereichsseite.zahlen_laden': { de: 'Zahlen werden geladen' },
   'bereichsseite.zaehlwerte_fehler': {
     de: 'Zählwerte konnten nicht geladen werden.',
-    ar: 'تعذّر تحميل الأعداد.',
   },
   // Kisten dieses Zimmers ohne Platz im Grundriss (Etappe 3).
-  'bereichsseite.ohne_platz': { de: 'Noch ohne Platz im Grundriss', ar: 'بلا موضع في المخطط بعد' },
+  'bereichsseite.ohne_platz': { de: 'Noch ohne Platz im Grundriss' },
   'bereichsseite.ohne_platz_hinweis': {
     de: 'Tippe eine Kiste an und stell sie hin. Danach kommt die nächste.',
-    ar: 'اضغط على صندوق وضعه في مكانه. بعدها يأتي التالي.',
   },
 }

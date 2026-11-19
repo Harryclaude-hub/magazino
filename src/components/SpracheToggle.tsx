@@ -5,6 +5,7 @@ import { SPRACHEN, SPRACH_KUERZEL, SPRACH_NAME, useSprache } from '../lib/i18n'
  *  Sprache und dreht bei Arabisch die gesamte Leserichtung um. */
 export function SpracheToggle({ withLabel = false }: { withLabel?: boolean }) {
   const { lang, setLang, t } = useSprache()
+  if (SPRACHEN.length < 2) return null
   const naechste = SPRACHEN[(SPRACHEN.indexOf(lang) + 1) % SPRACHEN.length]
   return (
     <button
@@ -25,6 +26,7 @@ export function SpracheToggle({ withLabel = false }: { withLabel?: boolean }) {
 /** Vollstaendige Auswahl fuer die Einstellungen. */
 export function SpracheWahl() {
   const { lang, setLang } = useSprache()
+  if (SPRACHEN.length < 2) return null
   return (
     <div className="flex gap-2">
       {SPRACHEN.map((s) => (

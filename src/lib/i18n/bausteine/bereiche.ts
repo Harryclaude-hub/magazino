@@ -7,93 +7,80 @@ export const bereiche: Woerterbuch = {
   // ------------------------------------------------------------- Kopfzeile
   'bereiche.untertitel': {
     de: 'Zimmer und Personen mit Kürzel und Farbe',
-    ar: 'الغرف والأشخاص مع رمز ولون',
   },
   'bereiche.erklaerung': {
     de: 'Das Kürzel steht vorne auf jeder Nummer. Wohnzimmer mit dem Kürzel W ergibt Kisten wie W-3-001. Jedes Kürzel darf es in diesem Umzug nur einmal geben, egal ob Zimmer oder Person.',
-    ar: 'الرمز يظهر في بداية كل رقم. غرفة الجلوس بالرمز W تعطي صناديق مثل W-3-001. كل رمز يُستخدم مرة واحدة فقط في هذه النقلة، سواء كان لغرفة أو لشخص.',
   },
 
   // -------------------------------------------------------------- Abschnitte
-  'bereiche.zimmer_titel': { de: 'Zimmer und Bereiche', ar: 'الغرف والمناطق' },
-  'bereiche.leer_zimmer_titel': { de: 'Noch kein Zimmer', ar: 'لا توجد غرفة بعد' },
+  'bereiche.zimmer_titel': { de: 'Zimmer und Bereiche' },
+  'bereiche.leer_zimmer_titel': { de: 'Noch kein Zimmer' },
   'bereiche.leer_zimmer_hinweis': {
     de: 'Wohnzimmer, Küche, Keller. Jedes bekommt ein Kürzel und eine Farbe.',
-    ar: 'غرفة الجلوس، المطبخ، القبو. كل واحدة تأخذ رمزًا ولونًا.',
   },
-  'bereiche.leer_person_titel': { de: 'Noch keine Person', ar: 'لا يوجد شخص بعد' },
+  'bereiche.leer_person_titel': { de: 'Noch keine Person' },
   'bereiche.leer_person_hinweis': {
     de: 'Wem gehört die Kiste? Personen bekommen genau wie Zimmer ein Kürzel.',
-    ar: 'لمن الصندوق؟ الأشخاص يأخذون رمزًا مثل الغرف تمامًا.',
   },
 
   // ------------------------------------------------------------- Kistenzahl
-  'bereiche.anzahl_fehlt': { de: 'Anzahl nicht geladen', ar: 'تعذّر تحميل العدد' },
-  'bereiche.wird_gezaehlt': { de: 'wird gezählt', ar: 'جارٍ العد' },
+  'bereiche.anzahl_fehlt': { de: 'Anzahl nicht geladen' },
+  'bereiche.wird_gezaehlt': { de: 'wird gezählt' },
   'bereiche.anzahl_fehler': {
     de: 'Die Anzahl der Kisten konnte nicht geladen werden. {grund}',
-    ar: 'تعذّر تحميل عدد الصناديق. {grund}',
   },
 
   // ------------------------------------------------------------- Zeile
-  'bereiche.bearbeiten_label': { de: '{name} bearbeiten', ar: 'تعديل {name}' },
-  'bereiche.loeschen_label': { de: '{name} löschen', ar: 'حذف {name}' },
+  'bereiche.bearbeiten_label': { de: '{name} bearbeiten' },
+  'bereiche.loeschen_label': { de: '{name} löschen' },
 
   // ------------------------------------------------------------- Farbwahl
-  'bereiche.farbe_waehlen': { de: 'Farbe {farbe}', ar: 'اللون {farbe}' },
-  'bereiche.eigene_farbe': { de: 'Eigene Farbe', ar: 'لون مخصص' },
+  'bereiche.farbe_waehlen': { de: 'Farbe {farbe}' },
+  'bereiche.eigene_farbe': { de: 'Eigene Farbe' },
 
   // --------------------------------------------------------------- Dialog
-  'bereiche.dialog_bearbeiten': { de: 'Bereich bearbeiten', ar: 'تعديل المنطقة' },
-  'bereiche.dialog_neues_zimmer': { de: 'Neues Zimmer', ar: 'غرفة جديدة' },
-  'bereiche.dialog_neue_person': { de: 'Neue Person', ar: 'شخص جديد' },
-  'bereiche.name_platzhalter_zimmer': { de: 'Kinderzimmer', ar: 'غرفة الأطفال' },
-  'bereiche.name_platzhalter_person': { de: 'Sara', ar: 'سارة' },
+  'bereiche.dialog_bearbeiten': { de: 'Bereich bearbeiten' },
+  'bereiche.dialog_neues_zimmer': { de: 'Neues Zimmer' },
+  'bereiche.dialog_neue_person': { de: 'Neue Person' },
+  'bereiche.name_platzhalter_zimmer': { de: 'Kinderzimmer' },
+  'bereiche.name_platzhalter_person': { de: 'Sara' },
   'bereiche.kuerzel_hinweis': {
     de: '1 bis 4 Zeichen. Steht vorne auf jeder Kistennummer.',
-    ar: 'من 1 إلى 4 خانات. تظهر في بداية رقم كل صندوق.',
   },
   // Das Kuerzel besteht immer aus lateinischen Zeichen, darum bleibt der
   // Platzhalter in beiden Sprachen gleich.
-  'bereiche.kuerzel_platzhalter': { de: 'KZ', ar: 'KZ' },
+  'bereiche.kuerzel_platzhalter': { de: 'KZ' },
   'bereiche.farbe_hinweis': {
     de: 'Wird auf dem Etikett als Balken gedruckt.',
-    ar: 'يُطبع على الملصق كشريط ملوّن.',
   },
   'bereiche.notiz_hinweis': {
     de: 'Optional, zum Beispiel wohin es in der neuen Wohnung soll.',
-    ar: 'اختياري، مثلًا إلى أين يذهب في البيت الجديد.',
   },
-  'bereiche.vorschau': { de: 'So sieht die Nummer aus', ar: 'هكذا يبدو الرقم' },
+  'bereiche.vorschau': { de: 'So sieht die Nummer aus' },
 
   // ---------------------------------------------------------- Pruefung
-  'bereiche.fehler_name': { de: 'Name fehlt.', ar: 'الاسم ناقص.' },
+  'bereiche.fehler_name': { de: 'Name fehlt.' },
   'bereiche.fehler_kuerzel': {
     de: 'Das Kürzel darf 1 bis 4 Buchstaben oder Ziffern haben.',
-    ar: 'الرمز يتكوّن من 1 إلى 4 أحرف أو أرقام.',
   },
   'bereiche.fehler_kuerzel_belegt': {
     de: 'Das Kürzel {kuerzel} gehört schon zu {name}.',
-    ar: 'الرمز {kuerzel} يخص {name} بالفعل.',
   },
 
   // ---------------------------------------------------------------- Meldungen
-  'bereiche.gespeichert': { de: 'Bereich gespeichert', ar: 'تم حفظ المنطقة' },
-  'bereiche.angelegt': { de: 'Bereich angelegt', ar: 'تم إنشاء المنطقة' },
-  'bereiche.geloescht': { de: 'Bereich gelöscht', ar: 'تم حذف المنطقة' },
+  'bereiche.gespeichert': { de: 'Bereich gespeichert' },
+  'bereiche.angelegt': { de: 'Bereich angelegt' },
+  'bereiche.geloescht': { de: 'Bereich gelöscht' },
 
   // ------------------------------------------------------------ Loeschabfrage
-  'bereiche.loeschen_titel': { de: '{name} löschen', ar: 'حذف {name}' },
+  'bereiche.loeschen_titel': { de: '{name} löschen' },
   'bereiche.loeschen_unbekannt': {
     de: 'Wie viele Kisten zu diesem Bereich gehören, ist gerade nicht bekannt. Die Kisten bleiben bestehen, verlieren aber die Zuordnung und behalten ihren bisherigen Code. Wirklich löschen?',
-    ar: 'عدد الصناديق التابعة لهذه المنطقة غير معروف الآن. الصناديق تبقى كما هي، لكنها تفقد الارتباط وتحتفظ برمزها الحالي. هل تريد الحذف فعلًا؟',
   },
   'bereiche.loeschen_mit_kisten': {
     de: 'Dieser Bereich hat {kisten}. Die Kisten bleiben bestehen, verlieren aber die Zuordnung und behalten ihren bisherigen Code. Wirklich löschen?',
-    ar: 'لهذه المنطقة {kisten}. الصناديق تبقى كما هي، لكنها تفقد الارتباط وتحتفظ برمزها الحالي. هل تريد الحذف فعلًا؟',
   },
   'bereiche.loeschen_leer': {
     de: 'Der Bereich wird entfernt. Das lässt sich nicht rückgängig machen.',
-    ar: 'سيتم حذف المنطقة. لا يمكن التراجع عن ذلك.',
   },
 }
