@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Link, useNavigate } from 'react-router-dom'
 import { Bell, BellOff, LogOut, ShieldCheck } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
+import { Geraete } from '../components/Geraete'
 import { InstallCard } from '../components/InstallCard'
 import { ALLE_DESIGNS, MODE_KEY, useTheme } from '../components/ThemeToggle'
 import {
@@ -266,6 +267,7 @@ export default function Settings() {
                 required
                 onChange={(e) => setAltesPasswort(e.target.value)}
                 verbergen={verbergen}
+                anzeigbar={false}
               />
             </Field>
             <Field
@@ -279,6 +281,7 @@ export default function Settings() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t('einstellungen.neues_passwort')}
                 verbergen={verbergen}
+                anzeigbar={false}
               />
             </Field>
             <Field label={t('einstellungen.passwort_wiederholen')}>
@@ -288,6 +291,7 @@ export default function Settings() {
                 required
                 onChange={(e) => setPasswordNochmal(e.target.value)}
                 verbergen={verbergen}
+                anzeigbar={false}
               />
             </Field>
             {passFehler ? <ErrorBox error={passFehler} /> : null}
@@ -304,6 +308,12 @@ export default function Settings() {
             <ShieldCheck size={16} className="mt-0.5 shrink-0" />
             {t('einstellungen.passwort_nie_sichtbar')} {t('einstellungen.sicherheit_hinweis')}
           </p>
+        </Card>
+
+        {/* Geraete: wo ist dieses Konto angemeldet (0063) */}
+        <Abschnitt>{t('geraete.titel')}</Abschnitt>
+        <Card className="mb-8 p-4">
+          <Geraete />
         </Card>
 
         {/* Benachrichtigungen */}

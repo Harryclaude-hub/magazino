@@ -64,6 +64,7 @@ export default function Login() {
           </Field>
           <Field label={t('konto.passwort')}>
             <PasswordInput
+              anzeigbar={false}
               autoComplete="current-password"
               required
               value={password}

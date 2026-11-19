@@ -225,6 +225,7 @@ export default function ResetConfirm() {
         />
         <Field label={t('konto.neues_passwort')} hint={t('konto.passwort_min')}>
           <PasswordInput
+              anzeigbar={false}
             autoComplete="new-password"
             required
             value={password}
@@ -233,6 +234,7 @@ export default function ResetConfirm() {
         </Field>
         <Field label={t('konto.passwort_nochmal')}>
           <PasswordInput
+              anzeigbar={false}
             autoComplete="new-password"
             required
             value={repeat}

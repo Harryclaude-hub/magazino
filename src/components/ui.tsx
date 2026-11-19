@@ -241,8 +241,9 @@ export function PasswordInput({
   className,
   id,
   verbergen,
+  anzeigbar = true,
   ...rest
-}: InputHTMLAttributes<HTMLInputElement> & { verbergen?: number }) {
+}: InputHTMLAttributes<HTMLInputElement> & { verbergen?: number; anzeigbar?: boolean }) {
   const [show, setShow] = useState(false)
   // Wechsel von aussen: im Rendern angleichen statt in einem Effekt.
   const [runde, setRunde] = useState(verbergen)
@@ -295,14 +296,15 @@ export function PasswordInput({
         {...rest}
         ref={feld}
         id={feldId}
-        type={show ? 'text' : 'password'}
+        type={show && anzeigbar ? 'text' : 'password'}
         // Sichtbar heisst nicht aenderbar: keine Grossschreibung, keine
         // Autokorrektur, keine Rechtschreibpruefung auf dem Handy.
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
-        className={cx(FIELD_BASE, 'pe-12', className)}
+        className={cx(FIELD_BASE, anzeigbar ? 'pe-12' : '', className)}
       />
+      {anzeigbar ? (
       <button
         type="button"
         // Merken schon bei pointerdown (Finger: mousedown kommt erst am
@@ -332,6 +334,7 @@ export function PasswordInput({
       >
         {show ? <EyeOff size={19} aria-hidden="true" /> : <Eye size={19} aria-hidden="true" />}
       </button>
+      ) : null}
     </div>
   )
 }

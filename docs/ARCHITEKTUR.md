@@ -122,6 +122,7 @@ und damit alles zurueckrollt; der Bericht steht in der Meldung.
   (die Endung `.invalid` ist weltweit reserviert und kann nie Post empfangen, es geht also nie eine Mail an Fremde). Die Seite setzt sie
   beim Anmelden selbst ein und blendet sie ueberall aus (`src/lib/konto.ts`). Solche Konten haben keinen Passwort-per-Mail-Weg;
   vergessene Passwoerter setzt der Admin neu.
+- **Geraete im Profil (0063):** Jeder sieht nur seine eigenen angemeldeten Geraete (Browser, System, zuletzt aktiv, grobe Adresse) und kann einzelne oder alle anderen abmelden; die Datenbank liest und beendet nur Sitzungen des eigenen Kontos. Passwortfelder haben keinen "Anzeigen"-Knopf mehr (nur beim Startpasswort, das der Admin weitergeben muss).
 - **Anmeldefehler** sagen nie, ob ein Name existiert. Supabase begrenzt Anmeldeversuche je Adresse und IP selbst.
 
 ## 4a. Wie ein Konto entsteht (Ablauf)

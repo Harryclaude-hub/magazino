@@ -1500,3 +1500,34 @@ export async function listVerlauf(projectId: string, limit = 100): Promise<Verla
   if (error) throw lagerFehler(error)
   return (data ?? []) as VerlaufZeile[]
 }
+
+/* ---- Geraete im Profil (0063) ----------------------------------------- */
+
+export interface Sitzung {
+  id: string
+  angemeldet_seit: string
+  zuletzt_aktiv: string
+  geraet: string | null
+  ip: string | null
+  aktuell: boolean
+}
+
+/** Die eigenen angemeldeten Geraete. Fremde Sitzungen liefert die Datenbank nie. */
+export async function meineSitzungen(): Promise<Sitzung[]> {
+  const { data, error } = await supabase.rpc('meine_sitzungen')
+  if (error) throw lagerFehler(error)
+  return (data ?? []) as Sitzung[]
+}
+
+/** Ein eigenes Geraet abmelden (nicht das aktuelle, dafuer signOut). */
+export async function sitzungBeenden(id: string): Promise<void> {
+  const { error } = await supabase.rpc('sitzung_beenden', { p_id: id })
+  if (error) throw lagerFehler(error)
+}
+
+/** Alle anderen Geraete abmelden, dieses bleibt. Gibt die Zahl zurueck. */
+export async function andereSitzungenBeenden(): Promise<number> {
+  const { data, error } = await supabase.rpc('andere_sitzungen_beenden')
+  if (error) throw lagerFehler(error)
+  return Number(data ?? 0)
+}
