@@ -69,7 +69,7 @@ in der Datenbank.
 
 Dazu: keine Schluessel im Diff, kein U+2014, keine Wegwerf-Testseiten.
 Commit-Nachrichten auf Deutsch, am Ende die Co-Authored-By-Zeile.
-Seit 20.11.2026 baut GitHub NICHT mehr bei jedem Push (Rechenzeit kostet Geld, siehe docs/GITHUB-KOSTEN-2026-11-20.md). Veroeffentlichen: `node scripts/veroeffentlichen.mjs` (baut den letzten Commit lokal, legt ihn auf den Zweig gh-pages). Das Repo ist seit 20.11.2026 OEFFENTLICH und muss es bleiben, solange die GitHub-Abrechnung nicht geklaert ist: ein privates Repo verliert die Seite (siehe docs/GITHUB-KOSTEN-2026-11-20.md, Abschnitt 6).
+Seit 20.11.2026 baut GitHub NICHT mehr bei jedem Push (Rechenzeit kostet Geld, siehe docs/GITHUB-KOSTEN-2026-11-20.md). Veroeffentlichen: `node scripts/veroeffentlichen.mjs` (baut den letzten Commit lokal, legt ihn auf den Zweig gh-pages). **Nach jedem Push von Code immer `node scripts/veroeffentlichen.mjs` ausfuehren** (ohne das kommt die neue Version nicht auf die Seite, weil GitHub Actions fuer das Konto gesperrt sind). Das Repo ist seit 20.11.2026 OEFFENTLICH und muss es bleiben, solange die GitHub-Abrechnung nicht geklaert ist: ein privates Repo verliert die Seite (siehe docs/GITHUB-KOSTEN-2026-11-20.md, Abschnitt 6).
 
 ## Wo der Stand steht
 

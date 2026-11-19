@@ -62,3 +62,25 @@ offene Weiterleitung, keine Passwoerter in Speicher oder Adresszeile), Kalenderd
 3. Einen Probelauf mit echten Konten (Admin plus Test-Kollege) im Browser, besonders die Startpasswort-Sperre nach dem zweiten
    Anmelden (M9).
 4. GitHub: Abrechnung pruefen, Actions starten derzeit nicht (neuer Stand nicht online).
+
+## 4. Das Repo ist oeffentlich: getroffene Schutzmassnahmen (20.11.2026)
+
+Gedacht fuer ein oeffentliches Repo, das nur Code und keine Geheimnisse enthaelt. Die Sicherheit der Daten haengt an den Zugriffsregeln
+der Datenbank, nicht an der Geheimhaltung des Codes.
+
+| Massnahme | Stand |
+|---|---|
+| Schluessel im Repo oder Verlauf | keine (Mustersuche); Datenbank-Schluessel im Programm ist der oeffentliche, fuer Besucher gedachte |
+| Schluessel-Schutz von GitHub (Secret Scanning plus Push-Schutz) | eingeschaltet: ein versehentlich eingecheckter Schluessel wird blockiert |
+| Sicherheitswarnungen fuer Abhaengigkeiten | eingeschaltet |
+| Zweig `main` | gegen Loeschen und Ueberschreiben (Force-Push) geschuetzt |
+| Actions | nur GitHub-eigene Bausteine erlaubt, Standardrechte nur Lesen, Fremde (Forks) brauchen eine Freigabe, Pull-Requests duerfen keine Auftraege freigeben |
+| Ablauf `pages.yml` | feste Pruefsummen statt Versions-Etiketten, kleinste Rechte je Auftrag, kein `pull_request`-Ausloeser, laeuft nur in diesem Repo, aktuell nur von Hand (Konto fuer Actions gesperrt) |
+| Registrierung | in Supabase abgeschaltet; Konten nur durch den Admin |
+| Private Adressen | aus dem aktuellen Stand entfernt (in alten Staenden des Verlaufs noch) |
+| Bekannte Kennungen im Code | die Admin-Konto-Kennung steht in den Probelaeufen unter `supabase/probelauf`: eine Kennung, kein Zugang |
+
+Was Fremde mit dem Code anfangen koennen: Sie sehen Aufbau und Datenbank-Regeln. Ohne Konto kommen sie an keine Zeile (geprueft:
+Besucher und angemeldete Fremde sehen nichts Fremdes). Konten gibt es nur vom Admin.
+
+Veroeffentlichen: nach jedem Hochladen von Code `node scripts/veroeffentlichen.mjs` (Zweig `gh-pages`, kostenlos).
