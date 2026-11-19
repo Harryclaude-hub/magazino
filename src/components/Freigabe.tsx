@@ -39,6 +39,11 @@ export function FreigabeTor({ children }: { children: ReactNode }) {
     void pruefen()
   }, [user?.id, user?.user_metadata?.passwort_aendern, pruefen])
 
+  // Im Zustand 'passwort' bei jedem Seitenwechsel neu fragen: nach dem Passwortwechsel faellt die Sperre sofort.
+  useEffect(() => {
+    if (status === 'passwort') void pruefen()
+  }, [loc.pathname, status, pruefen])
+
   // Solange nicht frei: regelmaessig und beim Zurueckkommen nachfragen.
   useEffect(() => {
     if (status === 'frei' || status === 'passwort') return

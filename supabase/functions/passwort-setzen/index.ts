@@ -105,6 +105,13 @@ Deno.serve(async (req) => {
       console.error('[passwort-setzen]', error.message)
       return json({ error: 'setzen_fehlgeschlagen' }, 500)
     }
+    // Das neue Startpasswort sofort merken (Hash), sonst bliebe es dauerhaft gueltig (0058). Zweiter Versuch bei Fehler.
+    let merkErr = (await admin.rpc('startpasswort_merken_dienst', { p_user: userId })).error
+    if (merkErr) merkErr = (await admin.rpc('startpasswort_merken_dienst', { p_user: userId })).error
+    if (merkErr) {
+      console.error('[passwort-setzen] merken:', merkErr.message)
+      return json({ error: 'merken_fehlgeschlagen' }, 500)
+    }
     // Offene Sitzungen beenden (mit dem Token des Admins, die Funktion prueft ihn selbst).
     const { error: sitzErr } = await asUser.rpc('admin_sitzungen_beenden', { p_user: userId })
     if (sitzErr) console.error('[passwort-setzen] Sitzungen:', sitzErr.message)

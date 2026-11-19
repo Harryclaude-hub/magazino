@@ -170,4 +170,6 @@ export const adminKonten: Woerterbuch = {
   'adminkonten.ks_aktiv': { de: 'Aktiv, startklar' },
   'adminkonten.ks_wartet': { de: 'Wartet auf Freigabe' },
   'adminkonten.ks_gesperrt': { de: 'Gesperrt' },
+  'fehler.db.admin.passwort_offen': { de: 'Diese Person muss erst ein eigenes Passwort setzen, bevor sie Admin werden kann.' },
+  'fehler.db.lager.fest': { de: 'Das lässt sich nicht in ein anderes Lager oder Projekt verschieben.' },
 }

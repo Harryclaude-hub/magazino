@@ -152,6 +152,16 @@ async function encryptPayload(
   return concat(salt, rs, new Uint8Array([asPublic.length]), asPublic, ciphertext)
 }
 
+/* Nur die Push-Dienste der Browser (https). Verhindert, dass jemand eine beliebige Adresse als "Geraet" einträgt. */
+function pushAdresseErlaubt(adresse: string): boolean {
+  try {
+    const u = new URL(adresse)
+    return u.protocol === 'https:' && /^(fcm\.googleapis\.com|android\.googleapis\.com|([a-z0-9-]+\.)+push\.services\.mozilla\.com|([a-z0-9-]+\.)*push\.apple\.com|([a-z0-9-]+\.)+notify\.windows\.com)$/.test(u.hostname)
+  } catch {
+    return false
+  }
+}
+
 /* ---------------------------------------------------------------- Server */
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -246,12 +256,24 @@ Deno.serve(async (req) => {
 
     const { data: membership, error: memberErr } = await asUser
       .from('project_members')
-      .select('user_id')
+      .select('user_id, role')
       .eq('project_id', body.project_id)
       .eq('user_id', me.user.id)
       .maybeSingle()
-    if (memberErr) return json({ error: memberErr.message }, 400)
-    if (!membership) return json({ error: 'Kein Mitglied dieses Umzugs' }, 403)
+    if (memberErr) return json({ error: 'Anfrage fehlgeschlagen' }, 400)
+    if (!membership) return json({ error: 'Kein Mitglied dieses Lagers' }, 403)
+    // Nur Bearbeiter und Besitzer duerfen anderen Nachrichten schicken (nicht "Nur lesen").
+    if (membership.role !== 'owner' && membership.role !== 'editor') return json({ error: 'Keine Berechtigung' }, 403)
+    // Nur Titel, Text, Ziel und Art kommen durch; keine fremden Bilder oder Zusatzfelder.
+    body.payload = {
+      title: String(body.payload.title).slice(0, 80),
+      body: body.payload.body ? String(body.payload.body).slice(0, 200) : undefined,
+      url: typeof body.payload.url === 'string' && body.payload.url.startsWith('/app') ? body.payload.url.slice(0, 200) : undefined,
+      tag: body.payload.tag ? String(body.payload.tag).slice(0, 60) : undefined,
+      type: body.payload.type,
+      callId: body.payload.callId,
+      callUrl: body.payload.callUrl,
+    }
 
     // Empfaenger bestimmen, mit Dienstschluessel.
     const { data: members } = await admin
@@ -294,6 +316,7 @@ Deno.serve(async (req) => {
     await Promise.all(
       subs.map(async (sub) => {
         try {
+          if (!pushAdresseErlaubt(sub.endpoint)) return
           const encrypted = await encryptPayload(payloadBytes, sub.p256dh, sub.auth)
           const headers = await vapidHeaders(
             sub.endpoint,
@@ -354,6 +377,6 @@ Deno.serve(async (req) => {
     return json({ sent, failed })
   } catch (err) {
     console.error('[push-send]', err)
-    return json({ error: String(err) }, 500)
+    return json({ error: 'Serverfehler' }, 500)
   }
 })

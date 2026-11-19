@@ -1193,9 +1193,23 @@ export async function kategorieSpeichern(
 }
 
 export async function listBestand(projectId: string): Promise<Bestand[]> {
-  const { data, error } = await supabase.from('bestand').select('*').eq('project_id', projectId).order('name')
-  if (error) throw lagerFehler(error)
-  return ((data ?? []) as Bestand[]).map((b) => ({ ...b, menge: Number(b.menge), mindestmenge: Number(b.mindestmenge) }))
+  // Seitenweise bis zum Ende: PostgREST schneidet sonst still bei 1000 Zeilen ab (Pruefbefund M8).
+  const SEITE = 1000
+  const alle: Bestand[] = []
+  for (let von = 0; ; von += SEITE) {
+    const { data, error } = await supabase
+      .from('bestand')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('name')
+      .order('id')
+      .range(von, von + SEITE - 1)
+    if (error) throw lagerFehler(error)
+    const zeilen = (data ?? []) as Bestand[]
+    alle.push(...zeilen)
+    if (zeilen.length < SEITE) break
+  }
+  return alle.map((b) => ({ ...b, menge: Number(b.menge), mindestmenge: Number(b.mindestmenge) }))
 }
 
 export async function bestandAnlegen(
@@ -1225,7 +1239,8 @@ export async function bestandAendern(
 }
 
 export async function bestandLoeschen(id: string): Promise<void> {
-  const { error } = await supabase.from('bestand').delete().eq('id', id)
+  // Nur ueber die Funktion: sie lehnt ab, solange etwas ausgeliehen ist (0062).
+  const { error } = await supabase.rpc('bestand_entfernen', { p_bestand: id })
   if (error) throw lagerFehler(error)
 }
 
@@ -1249,8 +1264,9 @@ export async function bestandBuchen(
 
 export async function listAusleihen(projectId: string, nurOffen = true): Promise<Ausleihe[]> {
   let q = supabase.from('ausleihen').select('*').eq('project_id', projectId)
-  if (nurOffen) q = q.is('zurueck_am', null)
-  const { data, error } = await q.order('faellig_am').limit(500)
+  // Offene: nach Termin; Zurueckgebrachte: die neuesten zuerst (nicht die aeltesten, Pruefbefund M8).
+  q = nurOffen ? q.is('zurueck_am', null).order('faellig_am') : q.not('zurueck_am', 'is', null).order('zurueck_am', { ascending: false })
+  const { data, error } = await q.limit(500)
   if (error) throw lagerFehler(error)
   return ((data ?? []) as Ausleihe[]).map((a) => ({ ...a, menge: Number(a.menge) }))
 }
@@ -1310,8 +1326,6 @@ export async function adminKontoAnlegen(input: {
   if (!userId) throw new Error(tg(`lager.konto_fehler_${kennung ?? 'unbekannt'}`))
   try {
     await adminFreigabeSetzen(userId, 'frei')
-    const merk = await supabase.rpc('admin_startpasswort_merken', { p_user: userId })
-    if (merk.error) throw merk.error
     for (const b of input.bundeslaender) {
       const r = await supabase.rpc('bl_mitglied_setzen', { p_user: userId, p_bl: b.blId, p_rolle: b.rolle })
       if (r.error) throw r.error
@@ -1337,9 +1351,7 @@ export async function adminPasswortSetzen(userId: string, passwort: string): Pro
     }
   }
   if (kennung || error) throw new Error(tg(`lager.passwort_fehler_${kennung ?? 'unbekannt'}`))
-  // Die Datenbank sperrt das Konto, bis die Person ein eigenes Passwort gesetzt hat (0058).
-  const merk = await supabase.rpc('admin_startpasswort_merken', { p_user: userId })
-  if (merk.error) throw lagerFehler(merk.error)
+  // Die Datenbank sperrt das Konto, bis die Person ein eigenes Passwort gesetzt hat (0058); die Server-Funktion merkt es sofort.
 }
 
 export interface Hinweis {

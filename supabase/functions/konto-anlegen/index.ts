@@ -138,6 +138,15 @@ Deno.serve(async (req) => {
       console.error('[konto-anlegen]', error?.message)
       return json({ error: 'anlegen_fehlgeschlagen' }, 500)
     }
+    // Das Startpasswort sofort merken (Hash, nie das Passwort): erst damit sperrt die Datenbank das Konto, bis die Person
+    // ein eigenes gesetzt hat (0058). Gelingt das nicht, wird das Konto wieder entfernt, damit kein Konto mit einem
+    // dem Admin bekannten, dauerhaft gueltigen Passwort entsteht.
+    const { error: merkErr } = await admin.rpc('startpasswort_merken_dienst', { p_user: data.user.id })
+    if (merkErr) {
+      console.error('[konto-anlegen] merken:', merkErr.message)
+      await admin.auth.admin.deleteUser(data.user.id)
+      return json({ error: 'anlegen_fehlgeschlagen' }, 500)
+    }
     return json({ user_id: data.user.id, login: benutzername ?? email })
   } catch (err) {
     console.error('[konto-anlegen]', err)

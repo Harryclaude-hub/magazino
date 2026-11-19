@@ -18,6 +18,6 @@
   ],
   "shortcuts": [
     { "name": "Scannen", "short_name": "Scan", "url": "app/scan" },
-    { "name": "Meine Umzuege", "short_name": "Umzuege", "url": "app" }
+    { "name": "Start", "short_name": "Start", "url": "app" }
   ]
 }

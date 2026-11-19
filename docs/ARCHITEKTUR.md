@@ -64,7 +64,7 @@ stoesst auf dieselben Regeln. Darum ist nichts "nur versteckt".
 | `items`, `grundrisse`, `raeume`, `objekte` | Kisten mit Nummer und QR, Plan in Zentimetern, Regale mit Faechern (aus dem frueheren Kistly) |
 | `app_admins`, `konto_freigaben` | wer Admin ist, ob ein Konto frei, wartend oder gesperrt ist |
 
-Migrationen 0001 bis 0055. Eine eingespielte Migration wird nie geaendert, ein
+Migrationen 0001 bis 0062 (0060 und 0061 entfernen die Altlasten des Umzugsprogramms, 0062 setzt die Funde der Sicherheitspruefung um, siehe `docs/SICHERHEITSPRUEFUNG-2026-11-20.md`). Eine eingespielte Migration wird nie geaendert, ein
 Fehler bekommt eine neue Nummer. Vor jedem Einspielen laeuft ein Probelauf
 (`supabase/probelauf/`), der am Ende immer mit einer Fehlermeldung abbricht
 und damit alles zurueckrollt; der Bericht steht in der Meldung.
@@ -81,7 +81,7 @@ und damit alles zurueckrollt; der Bericht steht in der Meldung.
    (security definer). Ein Trigger lehnt jede direkte Mengenaenderung ab.
    Die Funktion prueft Rolle, Eintragung an der Tuer, genug Menge, Termin bei
    Ausleihe. Das ist der Kern: die Regel gilt fuer jeden Zugang.
-4. **Tuer-Pflicht**: Buchen geht nur, wenn die Person am Tuer-QR eingetragen
+4. **Tuer-Pflicht** (ein Ablaufhelfer, kein Schloss: das Eintragen ist ein Knopf, es laeuft nach 12 Stunden von selbst ab): Buchen geht nur, wenn die Person am Tuer-QR eingetragen
    ist (`lager_eingetragen`). Admins und Besitzer sind ausgenommen, damit sie
    jederzeit eingreifen koennen.
 4a. **Grundriss nur vom Admin** (0055): ein Trigger lehnt jede Aenderung an Grundriss, Raeumen, Tueren, Fenstern, Regalen und Schraenken ab, wenn das Konto kein Admin ist, auf jedem Weg. Kisten in ein Regal stellen bleibt allen Bearbeitern erlaubt.
@@ -145,6 +145,26 @@ anders geht. Alles andere laeuft mit den Rechten des Admins, so prueft die
 Datenbank bei jedem Schritt, dass wirklich ein Admin handelt, und ein Fehler
 in der Mitte laesst kein halbes Konto ohne Hinweis zurueck (die Oberflaeche
 sagt dann, was fehlt).
+
+
+## 4c. Was seit 20.11.2026 anders ist (E108)
+
+- **Mitnehmen statt Entnehmen und Ausleihen:** Eine Aktion. Man waehlt "Bleibt weg" (verbraucht) oder "Bringe ich zurueck" (mit
+  Termin). Die Seite heisst "Unterwegs". In der Datenbank bleiben die Namen (`bestand_buchen` mit `entnahme` und `ausleihe`).
+- **Zeichner nur fuer Regale:** Karam sagt Claude, wo welche Regale hinkommen, Claude zeichnet; im Zeichner selbst gibt es nur
+  noch Auswahl, Regal, Schrank und Messen (Schalter `ZEICHNER_VOLL` in `src/zeichner/schalter.ts` bringt alles zurueck). Raeume,
+  Tueren und Fenster bleiben sichtbar. Serverseitig darf ohnehin nur ein Admin den Plan aendern (0055).
+- **Etiketten neu:** A4, A5, A6, A7 hoch oder quer, dazu Rasterbogen auf A4 (2x4, 3x7, 4x10), Inhalt passt sich dem Format an
+  (`src/lib/etikett.ts`, `src/components/etikett`), Tuer-Etikett in denselben Formaten.
+- **Kompakt und viele Daten:** Am Handy dichte Zeilen (60 px) mit Aktionsblatt, am Computer sortierbare Tabelle; es werden erst 50
+  Zeilen gezeichnet und beim Scrollen mehr nachgeladen (`src/lib/fenster.ts`, `src/components/BestandListe.tsx`).
+- **Start am Handy:** oben die Karte "Im Lager" (eintragen und austragen), darunter die Suche; alles andere liegt hinter den Menues.
+- **Konto-Status im Admin-Portal (0059):** "Konto erstellt", "Eingeloggt, Passwort noch offen", "Aktiv, startklar".
+- **Altlasten aus der Datenbank entfernt (0060, 0061):** Chat, Anrufe, Siedlung, Einladungscodes und ihre Funktionen; die Siedlung
+  ist als Datei in Super Claude gesichert.
+- **Sicherheitspruefung der Datenbank (20.11.2026):** alle Tabellen mit Zeilenregeln, kein anonymer Zugriff auf Lagerdaten, ein
+  angemeldeter Fremder ohne Lager sieht nur seine eigenen Zeilen, alle Funktionen mit festem `search_path`, alle Speicher-Ordner
+  privat, keine Schluessel im Repo oder im Git-Verlauf, `npm audit` ohne Funde.
 
 ## 5. Erinnerungen
 

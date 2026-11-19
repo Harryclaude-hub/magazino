@@ -161,6 +161,16 @@ async function encryptPayload(
 
 
 
+/* Nur die Push-Dienste der Browser (https), nie eine beliebige Adresse. */
+function pushAdresseErlaubt(adresse: string): boolean {
+  try {
+    const u = new URL(adresse)
+    return u.protocol === 'https:' && /^(fcm\.googleapis\.com|android\.googleapis\.com|([a-z0-9-]+\.)+push\.services\.mozilla\.com|([a-z0-9-]+\.)*push\.apple\.com|([a-z0-9-]+\.)+notify\.windows\.com)$/.test(u.hostname)
+  } catch {
+    return false
+  }
+}
+
 /* ---------------------------------------------------------------- Server */
 type Admin = ReturnType<typeof createClient>
 
@@ -213,11 +223,12 @@ async function schicken(
   if (ziele.length === 0) return 0
   const { data: subs } = await admin.from('push_subscriptions').select('*').in('user_id', ziele)
   if (!subs || subs.length === 0) return 0
-  const nutzlast = enc.encode(JSON.stringify({ title: n.title, body: n.body, url: n.url, tag: n.tag, type: 'item' }))
+  const nutzlast = enc.encode(JSON.stringify({ title: n.title, body: n.body, url: n.url, tag: n.tag, type: 'item', data: { url: n.url } }))
   let gesendet = 0
   await Promise.all(
     subs.map(async (sub) => {
       try {
+        if (!pushAdresseErlaubt(sub.endpoint)) return
         const verschluesselt = await encryptPayload(nutzlast, sub.p256dh, sub.auth)
         const kopf = await vapidHeaders(sub.endpoint, vapid.pub, vapid.priv, vapid.subject)
         const res = await fetch(sub.endpoint, {
