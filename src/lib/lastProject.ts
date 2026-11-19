@@ -23,8 +23,3 @@ export function getLastProject(): string | null {
   }
 }
 
-/** Ziel fuer die untere Leiste. Ohne bekannten Umzug geht es zur Uebersicht. */
-export function projectPath(suffix: string): string {
-  const id = getLastProject()
-  return id ? `/app/p/${id}${suffix}` : '/app'
-}

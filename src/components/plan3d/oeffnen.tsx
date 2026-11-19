@@ -48,7 +48,7 @@ class Fang extends Component<{ children: ReactNode; fallback: (fehler: Error) =>
 /** Laedt Raum3D als eigenen Code-Teil. Laden, Fehler (mit Nochmal) und
  *  die Ansicht sind drei Zustaende. Alle Angaben gehen unveraendert an
  *  Raum3D, die der Siedlung (welt, onEbene, steuer) eingeschlossen. */
-export function Ansicht3D(props: Props) {
+function Ansicht3D(props: Props) {
   const { t } = useSprache()
   const [versuch, setVersuch] = useState(0)
   return (

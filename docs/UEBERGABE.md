@@ -58,7 +58,7 @@ Stand: 15.10.2026. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
   begehbar, Treppen, Springen, Autos fahren, Dinge hinstellen wie bei
   Minecraft (gespeichert in siedlung_dinge). Echte Daten nur in der
   Datenbank und in der Datei des Besitzers (_privat.local, nie im Repo).
-  Umgebung neu erzeugen: scripts/stadt-aus-osm.mjs (siehe Kopf der Datei).
+  (Der Umwandler stadt-aus-osm.mjs ist aus Magazino entfernt, er lebt im Kistli-Repo.)
 - 09.10. und 10.10. (E88 bis E92): Tueren nach Karams Plan-Foto, Preise
   gleich dem Link; Moebel beim Begehen tragen; Messpunkte an Ecken, Tueren
   und Fenstern; BESTA-Eckbank und viel Deko fuer Bad und WC; Rechtsklick-
@@ -143,7 +143,7 @@ Stand: 15.10.2026. Diese Datei zuerst lesen, dann `CLAUDE.md` (Regeln).
 - Pruefen vor jedem Commit: `npx tsc -b`, `npx oxlint`, `npm run build`,
   `node scripts/woerter-pruefen.mjs` (8 bekannte Meldungen bei `*.eins`),
   und alle `node scripts/*-pruefen.mjs` aus `CLAUDE.md`; kein U+2014.
-  stadt-, innen- und physik-pruefen messen Zeit und schlagen unter Last
+  physik-pruefen misst Zeit und schlaegt unter Last
   fehl: allein wiederholen und mit dem unveraenderten Stand vergleichen.
 - Testseiten zz-* (von .gitignore erfasst) nach der Pruefung loeschen;
   hoechstens ein Vite und ein Headless-Chrome gleichzeitig (am 10.10. ist

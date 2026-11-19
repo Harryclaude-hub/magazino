@@ -86,7 +86,6 @@ export function pruefClientAnlegen(): SupabaseClient {
 }
 
 export const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? ''
-export const SUPABASE_URL = url ?? ''
 
 /** Die Platzhalter einer Ablehnung aus details lesen. Nur Zahlen und
  *  Text werden uebernommen. Ist {name} leer (Objekt ohne Namen), steht

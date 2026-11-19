@@ -31,7 +31,7 @@ export const SPRACH_KUERZEL: Record<Lang, string> = { de: 'DE', ar: 'ع' }
 const KEY = 'kistly.lang'
 const gemeldet = new Set<string>()
 
-export function richtungVon(lang: Lang): 'ltr' | 'rtl' {
+function richtungVon(lang: Lang): 'ltr' | 'rtl' {
   return lang === 'ar' ? 'rtl' : 'ltr'
 }
 
@@ -53,7 +53,7 @@ let aktuelleSprache: Lang = 'de'
 
 /** Setzt Sprache und Leserichtung am html-Element. Wird auch frueh in
  *  main.tsx aufgerufen, damit beim Start nichts springt. */
-export function spracheAnwenden(lang: Lang): void {
+function spracheAnwenden(lang: Lang): void {
   aktuelleSprache = lang
   const el = document.documentElement
   el.lang = lang

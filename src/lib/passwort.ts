@@ -4,7 +4,7 @@
  * auch. Beim Anmelden wird nichts geprueft: alte, kuerzere Passwoerter
  * gehen weiter. Der Satz dazu steht im Woerterbuch (konto.passwort_kurz). */
 
-export const PASSWORT_MIN = 10
+const PASSWORT_MIN = 10
 
 export function passwortGenug(passwort: string): boolean {
   return passwort.length >= PASSWORT_MIN && /[A-Za-z]/.test(passwort) && /[0-9]/.test(passwort)

@@ -8,7 +8,7 @@ import { raumTeilen } from '../dok.ts'
 import { fangen, weiterFangen } from '../fangen.ts'
 import { cmZahl, type Schritt, type Vorschau, type Werkzeug } from './typen.ts'
 
-export interface TeilenZustand {
+interface TeilenZustand {
   a: Punkt | null
   zeiger: Punkt | null
 }

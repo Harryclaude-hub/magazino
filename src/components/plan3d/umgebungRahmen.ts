@@ -12,7 +12,7 @@ import { oeffnungPunkte } from '../plan/hilfe.ts'
 
 type Kasten = [number, number, number, number]
 
-export interface UmgebungRahmen {
+interface UmgebungRahmen {
   rahmen: Kasten
   frei: Kasten[]
 }

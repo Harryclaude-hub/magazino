@@ -31,7 +31,7 @@ export interface BildErgebnis {
   code?: string
 }
 
-export interface ErkennungsAntwort {
+interface ErkennungsAntwort {
   ergebnisse: BildErgebnis[]
   /** Bilder, die es nicht gibt oder die zu einem anderen Umzug gehoeren. */
   uebergangen: string[]

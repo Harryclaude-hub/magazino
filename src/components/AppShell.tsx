@@ -1,7 +1,7 @@
 import { Children, Fragment, isValidElement, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, CircleHelp, MoreHorizontal } from 'lucide-react'
+import { ChevronLeft, CircleHelp, MoreHorizontal } from 'lucide-react'
 import { cx } from '../lib/util'
 import { Avatar } from './ui'
 import { displayNameOf, useAuth } from '../lib/auth'
@@ -62,7 +62,16 @@ export function useSiedlungKnopf(): boolean {
 }
 
 /** Kopfzeile. Rechts steht immer das eigene Profil, so wie bei den grossen
- *  Messengern. Zusaetzliche Knoepfe kommen links daneben. */
+ *  Messengern. Zusaetzliche Knoepfe kommen links daneben.
+ *
+ *  Aussehen wie bei iOS: Am Handy steht der Titel gross (Large Title) unter
+ *  der Leiste und scrollt mit; erst wenn er hinter der Leiste verschwindet,
+ *  erscheint er klein in der Mitte, und die Leiste wird milchglasartig mit
+ *  feiner Unterkante (Glas in design/apple.css). Am Computer steht der Titel
+ *  von Anfang an in der Leiste. Das Umschalten liest nur die Scrollhoehe und
+ *  setzt zwei Merker; Inhalt und Knoepfe bleiben, wie sie sind. Titel, die
+ *  keine Zeichenkette sind (das Logo), und Leisten, die nicht kleben
+ *  (Zeichner), behalten die schlanke Form. */
 export function AppHeader({
   title,
   subtitle,
@@ -84,61 +93,109 @@ export function AppHeader({
   const nav = useNavigate()
   const { profile, user } = useAuth()
   const t = useT()
+  const gross = sticky && typeof title === 'string'
+  const kopf = useRef<HTMLElement>(null)
+  const grosserTitel = useRef<HTMLDivElement>(null)
+  const [gescrollt, setGescrollt] = useState(false)
+  const [titelWeg, setTitelWeg] = useState(false)
+
+  useEffect(() => {
+    if (!sticky) return
+    let frame = 0
+    const lesen = () => {
+      frame = 0
+      setGescrollt(window.scrollY > 2)
+      const el = grosserTitel.current
+      const leiste = kopf.current?.offsetHeight ?? 0
+      setTitelWeg(el ? el.getBoundingClientRect().bottom < leiste + 4 : false)
+    }
+    const beiScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(lesen)
+    }
+    lesen()
+    window.addEventListener('scroll', beiScroll, { passive: true })
+    window.addEventListener('resize', beiScroll)
+    return () => {
+      window.removeEventListener('scroll', beiScroll)
+      window.removeEventListener('resize', beiScroll)
+      if (frame) window.cancelAnimationFrame(frame)
+    }
+  }, [sticky])
+
+  const breite = wide ? 'max-w-6xl lg:max-w-[1600px]' : 'max-w-5xl lg:max-w-6xl 2xl:max-w-7xl'
   return (
-    <header
-      className={cx(
-        'no-print safe-top z-30 border-b border-line bg-paper/95 backdrop-blur',
-        sticky && 'sticky top-0',
-      )}
-    >
-      <div
+    <>
+      <header
+        ref={kopf}
+        data-gescrollt={gescrollt ? 'ja' : 'nein'}
+        data-titel={!gross || titelWeg ? 'ja' : 'nein'}
         className={cx(
-          'mx-auto flex min-h-16 items-center gap-2 px-3 py-2 sm:px-5',
-          wide ? 'max-w-6xl lg:max-w-[1600px]' : 'max-w-5xl lg:max-w-6xl 2xl:max-w-7xl',
+          'kopf-leiste group/k no-print safe-top z-30 border-b border-transparent bg-paper transition-[border-color]',
+          'data-[gescrollt=ja]:border-line',
+          sticky && 'sticky top-0',
         )}
       >
-        {back ? (
-          <button
-            data-tour="zurueck"
-            onClick={() => (typeof back === 'string' ? nav(back) : nav(-1))}
-            aria-label={t('aktion.zurueck')}
-            title={t('aktion.zurueck')}
-            className="knopf -ms-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-knopf border-2 border-transparent text-ink transition hover:border-line hover:bg-raised"
-          >
-            <ArrowLeft size={22} className="spiegeln" />
-          </button>
-        ) : null}
-        {/* Erst zurueck, dann das Menue des Umzugs (E80). */}
-        <ProjektMenue />
-
-        <div className="min-w-0 flex-1">
-          <div className="t-name truncate">{title}</div>
-          {subtitle ? <div className="truncate text-sm text-muted">{subtitle}</div> : null}
-        </div>
-
-        {/* Am Computer alle Knoepfe nebeneinander. Am Handy (E76) nur der
-            erste, der Rest samt Erklaerung im Menue "Mehr": so bleibt die
-            Kopfzeile ruhig und gleichmaessig. */}
-        <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
-          {actions}
-          <ErklaerKnopf />
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
-          <KopfHandy actions={actions} />
-          {showProfile ? (
-            <Link
-              data-tour="profil"
-              to="/app/einstellungen"
-              aria-label={t('kopf.profil')}
-              title={t('kopf.profil')}
-              className="ms-0.5 rounded-full ring-2 ring-transparent transition hover:ring-line active:scale-95"
+        <div className={cx('mx-auto flex min-h-14 items-center gap-2 px-3 py-1.5 sm:px-5', breite)}>
+          {back ? (
+            <button
+              data-tour="zurueck"
+              onClick={() => (typeof back === 'string' ? nav(back) : nav(-1))}
+              aria-label={t('aktion.zurueck')}
+              title={t('aktion.zurueck')}
+              className="knopf -ms-1.5 flex h-11 shrink-0 items-center gap-0.5 rounded-full pe-2 ps-0.5 text-accent-text transition hover:bg-tint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
             >
-              <Avatar name={displayNameOf(profile, user?.email ?? '?')} size={40} />
-            </Link>
+              <ChevronLeft size={30} className="spiegeln stroke-[2.3]" aria-hidden="true" />
+              <span className="hidden text-base font-medium sm:inline">{t('aktion.zurueck')}</span>
+            </button>
           ) : null}
+          {/* Erst zurueck, dann das Menue des Umzugs (E80). */}
+          <ProjektMenue />
+
+          <div
+            className={cx(
+              'min-w-0 flex-1 transition-[opacity,visibility] duration-200',
+              gross &&
+                'max-lg:text-center max-lg:group-data-[titel=nein]/k:invisible max-lg:group-data-[titel=nein]/k:opacity-0',
+            )}
+          >
+            <div className="t-name truncate">{title}</div>
+            {subtitle ? (
+              <div className={cx('truncate text-sm text-muted', gross && 'max-lg:hidden')}>{subtitle}</div>
+            ) : null}
+          </div>
+
+          {/* Am Computer alle Knoepfe nebeneinander. Am Handy (E76) nur der
+              erste, der Rest samt Erklaerung im Menue "Mehr": so bleibt die
+              Kopfzeile ruhig und gleichmaessig. */}
+          <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+            {actions}
+            <ErklaerKnopf />
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
+            <KopfHandy actions={actions} />
+            {showProfile ? (
+              <Link
+                data-tour="profil"
+                to="/app/einstellungen"
+                aria-label={t('kopf.profil')}
+                title={t('kopf.profil')}
+                className="knopf ms-0.5 rounded-full transition"
+              >
+                <Avatar name={displayNameOf(profile, user?.email ?? '?')} size={36} />
+              </Link>
+            ) : null}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+      {gross ? (
+        <div className="no-print lg:hidden">
+          <div ref={grosserTitel} className={cx('mx-auto px-4 pb-1.5 pt-0.5 sm:px-6', breite)}>
+            <h1 className="t-gross">{title}</h1>
+            {subtitle ? <p className="t-sub mt-1">{subtitle}</p> : null}
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }
 
@@ -188,18 +245,18 @@ function KopfHandy({ actions }: { actions: ReactNode }) {
         title={t('kopf.mehr')}
         aria-expanded={offen}
         onClick={() => setOffen(true)}
-        className="knopf flex h-10 w-10 items-center justify-center rounded-knopf border-2 border-ink/12 bg-surface text-ink transition hover:bg-raised"
+        className="knopf flex h-10 w-10 items-center justify-center rounded-full bg-feld text-accent transition hover:brightness-[0.96]"
       >
         <MoreHorizontal size={20} />
       </button>
       {offen
         ? createPortal(
             <div className="fixed inset-0 z-[90] sm:hidden" role="dialog" aria-modal="true" aria-label={t('kopf.mehr')}>
-              <button type="button" aria-label={t('aktion.schliessen')} className="absolute inset-0 bg-black/45" onClick={() => setOffen(false)} />
+              <button type="button" aria-label={t('aktion.schliessen')} className="d-schleier absolute inset-0 bg-[var(--schleier)] backdrop-blur-[3px]" onClick={() => setOffen(false)} />
               <div
                 // Nach dem Tippen auf einen Eintrag schliessen; der Eintrag hat dann schon gehandelt.
                 onClickCapture={() => window.setTimeout(() => setOffen(false), 0)}
-                className="kopf-menue safe-bottom absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col gap-1 overflow-y-auto rounded-t-karte border-t border-line bg-surface p-3 shadow-dialog"
+                className="kopf-menue d-blatt safe-bottom absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col gap-2 overflow-y-auto overscroll-contain rounded-t-[20px] bg-paper p-3 shadow-dialog"
               >
                 <span className="kopf-griff" aria-hidden="true" />
                 {knoepfe.slice(1)}
@@ -207,7 +264,7 @@ function KopfHandy({ actions }: { actions: ReactNode }) {
                   type="button"
                   aria-label={t('fuehrung.knopf')}
                   onClick={() => setErklaerung(true)}
-                  className="knopf items-center rounded-knopf text-ink"
+                  className="knopf items-center text-accent"
                 >
                   <CircleHelp size={19} />
                 </button>
@@ -261,48 +318,35 @@ export function NavTab({
   /** Name fuer die Fuehrung (data-tour). */
   tour?: string
 }) {
-  if (raised) {
-    return (
-      <Link
-        to={to}
-        data-tour={tour}
-        aria-label={label}
-        aria-current={active ? 'page' : undefined}
-        className="relative flex flex-1 flex-col items-center gap-1 py-1.5 text-[0.6875rem] font-bold text-ink"
-      >
-        <span
-          className={cx(
-            'flex h-14 w-14 -translate-y-3 items-center justify-center rounded-karte ring-4 ring-paper transition active:scale-95',
-            active ? 'bg-accent text-accent-ink' : 'bg-ink text-paper',
-          )}
-        >
-          {icon}
-        </span>
-        <span className="-mt-2.5">{label}</span>
-      </Link>
-    )
-  }
+  /* Registerkarte wie in iOS: Symbol und kleine Beschriftung, die aktive
+   * in Akzent mit etwas kraeftigerem Strich. Scannen (raised) ist die eine
+   * Hauptaktion der Leiste und steht als Kapsel: getoent, wenn man woanders
+   * ist, gefuellt, wenn man dort ist. */
   return (
     <Link
       to={to}
       data-tour={tour}
+      aria-label={raised ? label : undefined}
       aria-current={active ? 'page' : undefined}
       className={cx(
-        'relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[0.6875rem] font-bold transition',
-        active ? 'text-ink' : 'text-muted hover:text-ink',
+        'nav-tab knopf relative flex min-w-0 flex-1 flex-col items-center gap-0.5 pb-0.5 pt-1 text-[0.65rem] font-medium leading-tight transition-colors',
+        'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent',
+        active || raised ? 'text-accent-text' : 'text-muted',
       )}
     >
       <span
         className={cx(
-          'flex h-9 min-w-[3.25rem] items-center justify-center rounded-full transition',
-          active && 'bg-ink text-paper',
+          'flex h-7 items-center justify-center transition-colors',
+          raised
+            ? cx('w-14 rounded-full [&_svg]:size-[22px]', active ? 'bg-accent text-accent-ink' : 'bg-tint')
+            : cx('w-14', active && '[&_svg]:stroke-[2.1]'),
         )}
       >
         {icon}
       </span>
-      {label}
+      <span className="max-w-full truncate px-0.5">{label}</span>
       {badge && badge > 0 ? (
-        <span className="absolute right-[20%] top-0 min-w-5 rounded-full bg-danger px-1.5 text-[0.6875rem] font-black leading-5 text-paper">
+        <span className="absolute right-[20%] top-0 min-w-5 rounded-full bg-danger px-1.5 text-[0.65rem] font-semibold leading-5 text-paper">
           {badge > 99 ? '99+' : badge}
         </span>
       ) : null}
@@ -337,9 +381,9 @@ export function BottomNav({ children }: { children: ReactNode }) {
       ref={ref}
       // Fest am unteren Rand (E79): sticky klebte nur in seinem eigenen,
       // gleich hohen Behaelter und scrollte darum mit weg.
-      className="no-print safe-bottom fixed inset-x-0 bottom-0 z-40 border-t-2 border-line bg-paper/98 backdrop-blur"
+      className="tab-leiste no-print safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper"
     >
-      <div className="mx-auto flex max-w-5xl items-end px-2 pt-2">{children}</div>
+      <div className="mx-auto flex max-w-xl items-stretch px-2 pt-1">{children}</div>
     </nav>
   )
 }

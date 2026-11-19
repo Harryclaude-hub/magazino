@@ -32,7 +32,7 @@ import { BLATT_KLASSEN, masseText, preisText, shopLink } from './moebelInfo'
  * unter den Angaben (Regal und Schrank: die Faecher, FachAnsicht).
  */
 
-export interface MoebelKarteProps {
+interface MoebelKarteProps {
   /** Das Objekt aus dem Plan, oder null, wenn es das nicht mehr gibt. */
   objekt: Objekt | null
   /** Name des Raums im Grundriss, in dem es steht, oder null. */

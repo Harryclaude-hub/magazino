@@ -8,7 +8,7 @@ import { einrasten, type Punkt } from '../../lib/geometrie.ts'
 import { raumAn } from '../dok.ts'
 import type { Schritt, Vorschau, Werkzeug } from './typen.ts'
 
-export interface KisteZustand {
+interface KisteZustand {
   zeiger: Punkt | null
   drehung: 0 | 90
 }

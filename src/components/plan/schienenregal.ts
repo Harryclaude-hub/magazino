@@ -57,13 +57,13 @@ export interface Schienenregal {
 }
 
 /** Staerke eines Massivholzbretts (Birke Multiplex), cm. */
-export const BRETT_DICKE_CM = 2.7
+const BRETT_DICKE_CM = 2.7
 /** Wandschiene mit Doppelschlitz: Breite entlang der Wand und Tiefe, cm. */
-export const SCHIENE_BREIT_CM = 1.6
-export const SCHIENE_TIEF_CM = 1.3
+const SCHIENE_BREIT_CM = 1.6
+const SCHIENE_TIEF_CM = 1.3
 /** Konsole: Breite (entlang der Wand) und Hoehe unter dem Brett, cm. */
-export const ARM_BREIT_CM = 1.2
-export const ARM_HOCH_CM = 3.5
+const ARM_BREIT_CM = 1.2
+const ARM_HOCH_CM = 3.5
 
 const NAME = /schienen[- ]?regal|wandschiene|رف سكة|رف بسكك|سكة جدارية|سكك جدارية/
 const SCHRAEG = /(?:45|٤٥)\s*(?:°|grad|درجة)?\s*[,-]?\s*(links|rechts|beide|يسار|يمين|الجهتين|كلاهما|الطرفين)/g
@@ -150,7 +150,7 @@ export function schienenX(B: number, T: number, s: Schienenregal): number[] {
 /** Ein Teil des Schienenregals lokal (cm), wie Teil in moebel3d.ts. umriss
  *  (nur Bretter mit Schraege an einem Ende): die Ecken des Bretts, ein
  *  Stueck aus einem Prisma (E96), sonst ist das Brett das Rechteck. */
-export interface SchienenTeil {
+interface SchienenTeil {
   art: 'schiene' | 'schlitz' | 'arm' | 'brett'
   x0: number
   y0: number

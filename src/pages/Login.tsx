@@ -42,13 +42,13 @@ export default function Login() {
   }
 
   return (
-    <main className="safe-top flex min-h-screen items-center justify-center bg-paper px-5 pb-16">
+    <main className="anmeldung safe-top flex min-h-screen items-center justify-center bg-paper px-5 pb-16">
       <div className="w-full max-w-sm">
-        <div className="mb-10 flex flex-col items-center gap-3">
-          <Logo size={88} />
-          <span className="text-3xl font-black tracking-tight">Magazino</span>
+        <div className="mb-9 flex flex-col items-center gap-4">
+          <Logo size={84} className="drop-shadow-[0_10px_22px_rgba(29,78,216,0.3)]" />
+          <h1 className="t-gross">Magazino</h1>
         </div>
-        <form onSubmit={onSubmit} className="space-y-5">
+        <form onSubmit={onSubmit} className="space-y-4 sm:rounded-[24px] sm:bg-surface sm:p-7 sm:shadow-karte">
           <Field label={t('konto.email')}>
             <Input
               type="email"

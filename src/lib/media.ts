@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
 import { supabase, errText } from './supabase'
 import { tg } from './i18n'
 
-export type Bucket = 'item-photos' | 'chat-media' | 'avatars'
+type Bucket = 'item-photos' | 'chat-media' | 'avatars'
 
 /* ------------------------------------------------------------ Verkleinern */
 
@@ -198,23 +197,6 @@ export async function uploadTo(
   return path
 }
 
-export function extOf(file: { name?: string; type?: string }, fallback = 'bin'): string {
-  const fromName = file.name?.includes('.') ? file.name.split('.').pop()! : ''
-  if (fromName && fromName.length <= 5) return fromName.toLowerCase()
-  const map: Record<string, string> = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-    'image/gif': 'gif',
-    'audio/webm': 'webm',
-    'audio/ogg': 'ogg',
-    'audio/mp4': 'm4a',
-    'audio/mpeg': 'mp3',
-    'application/pdf': 'pdf',
-  }
-  return map[file.type ?? ''] ?? fallback
-}
-
 /* ---------------------------------------------------------- Signierte URLs */
 
 const cache = new Map<string, { url: string; exp: number }>()
@@ -254,94 +236,5 @@ export async function signedUrls(bucket: Bucket, paths: string[]): Promise<Map<s
   return out
 }
 
-export function useSignedUrl(bucket: Bucket, path: string | null | undefined): string | null {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let alive = true
-    if (!path) {
-      setUrl(null)
-      return
-    }
-    signedUrl(bucket, path).then((u) => {
-      if (alive) setUrl(u)
-    })
-    return () => {
-      alive = false
-    }
-  }, [bucket, path])
-  return url
-}
-
 /* --------------------------------------------------------- Sprachaufnahme */
 
-export interface Recording {
-  blob: Blob
-  seconds: number
-  mimeType: string
-}
-
-export class VoiceRecorder {
-  private rec: MediaRecorder | null = null
-  private chunks: Blob[] = []
-  private stream: MediaStream | null = null
-  private startedAt = 0
-
-  static supported(): boolean {
-    return typeof MediaRecorder !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia)
-  }
-
-  private static pickMime(): string {
-    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
-    for (const c of candidates) {
-      if (MediaRecorder.isTypeSupported?.(c)) return c
-    }
-    return ''
-  }
-
-  async start(): Promise<void> {
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    const mimeType = VoiceRecorder.pickMime()
-    this.rec = new MediaRecorder(this.stream, mimeType ? { mimeType } : undefined)
-    this.chunks = []
-    this.rec.ondataavailable = (e) => {
-      if (e.data.size > 0) this.chunks.push(e.data)
-    }
-    this.startedAt = Date.now()
-    this.rec.start(250)
-  }
-
-  get seconds(): number {
-    return this.startedAt ? (Date.now() - this.startedAt) / 1000 : 0
-  }
-
-  async stop(): Promise<Recording> {
-    const rec = this.rec
-    if (!rec) throw new Error(tg('fehler.keine_aufnahme'))
-    const seconds = this.seconds
-    const done = new Promise<void>((resolve) => {
-      rec.onstop = () => resolve()
-    })
-    rec.stop()
-    await done
-    this.stream?.getTracks().forEach((t) => t.stop())
-    const mimeType = rec.mimeType || 'audio/webm'
-    const blob = new Blob(this.chunks, { type: mimeType })
-    this.rec = null
-    this.stream = null
-    this.chunks = []
-    if (blob.size === 0) throw new Error(tg('fehler.aufnahme_leer'))
-    return { blob, seconds, mimeType }
-  }
-
-  cancel(): void {
-    try {
-      this.rec?.stop()
-    } catch {
-      /* war schon gestoppt */
-    }
-    this.stream?.getTracks().forEach((t) => t.stop())
-    this.rec = null
-    this.stream = null
-    this.chunks = []
-  }
-}

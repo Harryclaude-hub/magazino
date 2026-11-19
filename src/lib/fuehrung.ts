@@ -34,7 +34,7 @@ const NAVIGATION: TourSchritt[] = [
 
 const KOPF: TourSchritt[] = [k('kopf.zurueck', 'zurueck'), k('kopf.erklaerung', 'erklaerung'), k('kopf.profil', 'profil')]
 
-export type TourName =
+type TourName =
   | 'umzuege'
   | 'umzug'
   | 'kisten'
@@ -54,7 +54,7 @@ export type TourName =
   | 'allgemein'
 
 /** Welche Seite ist das? */
-export function tourName(pfad: string, g: { desktop: boolean; zeichnen: boolean }): TourName {
+function tourName(pfad: string, g: { desktop: boolean; zeichnen: boolean }): TourName {
   const p = pfad.replace(/\/+$/, '')
   if (p === '/app') return 'umzuege'
   if (p === '/app/suche') return 'suche'
@@ -214,4 +214,3 @@ export function tourFuer(pfad: string, g: { desktop: boolean; zeichnen: boolean 
   return [...SEITEN[name], ...KOPF, ...NAVIGATION, k('ende')]
 }
 
-export { SEITEN as TOUR_SEITEN }

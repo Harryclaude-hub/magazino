@@ -33,7 +33,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const TUER_RE = /\/app\/p\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/tuer(?:[/?#]|$)/i
 const LINK_RE = /\/s\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
 
-export interface ScanInput {
+interface ScanInput {
   itemId: string | null
   code: string | null
   /** Der Code ist die Tuer eines Lagers: dort traegt man sich ein und aus. */

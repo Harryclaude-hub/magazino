@@ -29,7 +29,7 @@ export const ZOOM_MAX = 8
 /** Startausschnitt, wenn noch nichts gezeichnet ist: 11 m mal 7 m ab 0,0. */
 export const LEER_BOX: Box = { x0: 0, y0: 0, x1: 1100, y1: 700 }
 
-export function zoomBegrenzen(s: number): number {
+function zoomBegrenzen(s: number): number {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, s))
 }
 

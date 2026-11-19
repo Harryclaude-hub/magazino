@@ -21,7 +21,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return out
 }
 
-export function pushSupported(): boolean {
+function pushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
@@ -95,7 +95,7 @@ export async function disablePush(): Promise<PushState> {
   return 'granted-off'
 }
 
-export interface PushPayload {
+interface PushPayload {
   title: string
   body?: string
   url?: string
@@ -108,7 +108,7 @@ export interface PushPayload {
 
 /** Schickt eine Benachrichtigung an alle anderen Mitglieder des Projekts.
  *  Fehler werden gemeldet, nicht verschluckt. */
-export async function notifyProject(
+async function notifyProject(
   projectId: string,
   payload: PushPayload,
   onlyUserIds?: string[],

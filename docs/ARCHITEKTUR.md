@@ -18,7 +18,7 @@ Supabase (ein Projekt)
   Auth        Konten, Passwoerter, Token
   PostgREST   Tabellen als Schnittstelle, gefiltert von Zeilenregeln (RLS)
   Postgres    die eigentlichen Regeln: Tabellen, Pruefungen, Funktionen
-  Edge Functions (Deno)  konto-anlegen, erinnern, push-send, bild-analyse, produkt-lesen
+  Edge Functions (Deno)  konto-anlegen, erinnern, push-send, bild-analyse
   pg_cron + pg_net       ruft alle 30 Minuten "erinnern" auf
   Web Push    Benachrichtigungen aufs Handy (VAPID)
 ```
@@ -157,3 +157,40 @@ Das ist ein Einmal-Import, keine laufende Synchronisation.
 - Masse der Demo-Lager sind erfunden.
 - Das fruehere Umzugsprogramm (Zimmer, Personen, Moebel, Chat, Siedlung, Anrufe) ist aus Menues und Routen genommen, der Code liegt noch im Repo (Marke `kistly-umzugsprogramm` im Git zeigt den vollen alten Stand); es ist aufzuraeumen, wenn Karam es will. Seine Wohnung ist gesichert (Datei in Super Claude, Ordner _Sicherungen) und nicht mehr in der Datenbank. Rest-Hinweis: sind aber
   nicht Teil dieses Umbaus; ein spaeterer Rework entscheidet, was bleibt.
+
+## 8. Wie weit traegt das? (Skalierung, Stand 19.11.2026)
+
+Zahlen: Supabase-Preisseite und GitHub-Pages-Grenzen vom 19.11.2026 (aendern sich, vor
+Entscheidungen neu nachsehen). Annahmen sind als Annahme gekennzeichnet.
+
+**Heute: Hosting kostenlos plus GitHub Pro, Datenbank Free-Plan.** Das reicht fuer eine
+Gemeinschaft mit einigen Dutzend Leuten und einigen Tausend Produkten und Kisten.
+
+| Baustein | Grenze (Free / Pages) | Wann spuerbar (Annahme) | Was dann |
+|---|---|---|---|
+| Datenbank Supabase Free | 500 MB, kein Backup, Pause nach 1 Woche ohne Nutzung, max. 2 aktive Projekte | Buchungen und Verlauf: eine Zeile ca. 150 bis 200 Byte. 20 Leute mit je 10 Aktionen am Tag sind ca. 15 MB im Jahr; 100 Leute mit 50 Aktionen am Tag ca. 270 MB im Jahr | **Backup ist die erste Grenze, nicht die Groesse:** sobald echte Daten drin sind, die nicht verloren gehen duerfen, Pro-Plan (25 US-Dollar im Monat: 8 GB, taegliche Backups 7 Tage, nie pausiert) |
+| Bilder von Kisten (Supabase Storage) | 1 GB Free, 100 GB Pro | ca. 10.000 verkleinerte Fotos (100 KB) | Pro, oder Fotos staerker verkleinern |
+| Datenverkehr (Egress) | 5 GB im Monat Free, 250 GB Pro | Der Start laedt heute den ganzen Bestand eines Lagers und sucht im Browser. Bei 5.000 Produkten je Lager sind das ca. 1,5 MB je Aufruf: viele Leute ueber Tage sprengen 5 GB | **Das ist die erste echte Software-Grenze:** ab ca. 1.000 bis 2.000 Produkten je Lager Suche in die Datenbank verlegen (Postgres pg_trgm plus Seitenweise Laden) statt alles zu laden |
+| Rechenleistung | Free: geteilte CPU, 500 MB RAM. Pro: Micro 1 GB | ab einigen hundert Leuten gleichzeitig | kleine Rechenstufe dazubuchen (rund 10 bis 15 US-Dollar im Monat), Abfragen und Indizes pruefen |
+| Anmeldungen | 50.000 aktive Nutzer im Monat Free | nie fuer diese Gemeinschaft | nichts |
+| Server-Funktionen | 500.000 Aufrufe im Monat Free | erinnern laeuft alle 30 Minuten, also ca. 1.440 im Monat | nichts |
+| Mails (Passwort zuruecksetzen) | der eingebaute Versand ist sehr knapp (Annahme: wenige Mails je Stunde) | wenn viele Leute ihr Passwort vergessen | eigener Mail-Dienst (SMTP) eintragen; da Konten der Admin anlegt, kaum noetig |
+| Hosting GitHub Pages | Seite 1 GB, ca. 100 GB Datenverkehr im Monat (weich), 10 Builds je Stunde | Die Seite wiegt ca. 280 KB (gzip) im Hauptteil: das sind rund 250.000 Aufrufe im Monat | siehe unten |
+
+**GitHub Pages: wie lange begleitet es uns?** Technisch sehr lange, die Seite ist klein und
+statisch. Gruende, irgendwann zu wechseln (zu Cloudflare Pages, Netlify oder Vercel, jeweils
+kostenlos beginnend, Umzug ca. ein Tag, nur der Bau-Workflow und die Adresse aendern sich):
+1. **Kommerzielle Nutzung:** GitHub verbietet Pages fuer Seiten, die hauptsaechlich Geschaefte abwickeln. Solange es ein Werkzeug fuer die Gemeinschaft ist, passt es; wird daraus ein bezahltes Angebot fuer Kunden, wechseln.
+2. **Eigene Domain mit Sicherheits-Kopfzeilen** (CSP, HSTS, strenge Berechtigungen): Pages kann keine eigenen Kopfzeilen setzen.
+3. **Mehrere Umgebungen** (Test und Echt, Vorschau je Aenderung): Pages hat nur eine Seite je Repo.
+4. **Datenverkehr ueber ca. 100 GB im Monat**: bei dieser Seitengroesse erst bei Hunderttausenden Aufrufen.
+Die Datenbank hat mit dem Hosting nichts zu tun: ein Wechsel des Hosters aendert nur die Adresse
+(und die erlaubte Adresse in Supabase und in den Server-Funktionen).
+
+**Stufen**
+1. **Jetzt bis ca. 50 Leute und 2.000 Produkte je Lager:** Free-Plan, GitHub Pages. Pflicht
+   davor: regelmaessige Sicherung (die Super-Claude-Wiederherstellung kopiert Schema und Funktionen;
+   Daten per `supabase db dump` oder Pro-Backup).
+2. **Echte Daten, die nicht verloren gehen duerfen, oder mehr als ein Verein:** Supabase Pro (25 US-Dollar im Monat).
+3. **Ueber ca. 2.000 Produkte je Lager oder ueber ca. 200 Leute gleichzeitig:** Suche und Listen in die Datenbank (Seitenweise, Index), eventuell groessere Rechenstufe, Bilder staerker verkleinern oder ueber einen Bild-Dienst ausliefern.
+4. **Mehrere Organisationen, Bezahlmodell, ueber 10.000 Nutzer:** Hosting wechseln (Punkt 1 oben), Mandanten-Trennung in der Datenbank pruefen, Lastprobe, Ueberwachung (Fehlerprotokoll, Alarm).

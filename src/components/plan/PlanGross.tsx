@@ -63,7 +63,7 @@ import { SchnellListe, TippDetails } from './PlanDetails'
  * Zeichner.tsx oder die Leinwand.
  */
 
-export interface PlanGrossProps {
+interface PlanGrossProps {
   daten: GrundrissDaten
   /** Der offene Umzug (Weg zur Moebelseite, Links zur Kiste). */
   projektId: string
@@ -266,7 +266,7 @@ function Marke({ text }: { text: 'A' | 'B' }) {
  *  "Maueroeffnung", daneben steht, was fuer Moebel frei ist), die Namen
  *  von A und B, die Schnellmasse einer Oeffnung, solange nur A steht, und
  *  "Neu". */
-export function MessLeiste({ daten, messung, onNeu }: { daten: GrundrissDaten; messung: HandyMessung; onNeu(): void }) {
+function MessLeiste({ daten, messung, onNeu }: { daten: GrundrissDaten; messung: HandyMessung; onNeu(): void }) {
   const { t } = useSprache()
   const abstand = messAbstand(messung)
   const lichte = messLichte(messung)
@@ -462,7 +462,7 @@ export function SchnellZeichnung({ daten, oeffnungId, s }: { daten: GrundrissDat
  *  Zeichner 36 Bildpunkte vor der Innenseite der Wand), Linie und Zahl
  *  von A nach B (entlang der Innenseite einer Wand steht die Zahl in der
  *  Wand, wie im Zeichner), A und B. */
-export function MessZeichnung({ daten, messung, s }: { daten: GrundrissDaten; messung: HandyMessung; s: number }) {
+function MessZeichnung({ daten, messung, s }: { daten: GrundrissDaten; messung: HandyMessung; s: number }) {
   const { t, lang } = useSprache()
   const alle = messpunkte(daten)
   const oeffnung = schnellOeffnung(messung)

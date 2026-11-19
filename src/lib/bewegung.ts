@@ -28,7 +28,7 @@ function lesen(): Stufe {
 
 /** Setzt das Attribut. main.tsx setzt es beim Start schon einmal selbst,
  *  damit nichts kurz in der falschen Stufe aufblitzt. */
-export function stufeAnwenden(s: Stufe): void {
+function stufeAnwenden(s: Stufe): void {
   document.documentElement.dataset.motion = s
 }
 

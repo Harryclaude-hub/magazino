@@ -16,6 +16,7 @@ import { useProject } from './ProjectLayout'
 import { listBestand, listKategorien } from '../lib/api'
 import { useT } from '../lib/i18n'
 import { mengeText, zustandVon } from '../lib/lager'
+import { ProduktBild } from '../components/ProduktBild'
 import { useAsync } from '../lib/util'
 import type { Bestand as BestandZeile, LagerKategorie } from '../lib/types'
 
@@ -155,6 +156,7 @@ export default function Bestand() {
                     <li key={b.id}>
                       <Card className="p-4">
                         <div className="flex items-start justify-between gap-3">
+                          <ProduktBild pfad={b.bild_pfad} />
                           <div className="min-w-0 flex-1">
                             <h3 className="t-name-lg break-words">{b.name}</h3>
                             <p className="t-sub mt-0.5 break-words">

@@ -238,7 +238,7 @@ export interface Quader {
   glut?: number
 }
 
-export type Form3D =
+type Form3D =
   | { art: 'zylinder'; oben: number; achse: 'x' | 'y' | 'z' }
   | { art: 'kugel' }
   /** E96: Prisma mit konvexem Grundriss in einem Stueck (Schienenbrett mit
@@ -249,7 +249,7 @@ export type Form3D =
 /** E82: Alle Teile mit tuer (Blatt, Klinke, Rosette, Schluessel, Griff
  *  einer Moebeltuer) sind in der Stellung zu beschrieben (mitte, drehY).
  *  Der Motor dreht jedes Teil mit derselben id um die Angel um (w - zu). */
-export interface TuerDreh {
+interface TuerDreh {
   id: string
   angel: [number, number]
   laenge: number
@@ -270,7 +270,7 @@ export interface Flaeche {
 
 export type Koerper = Quader | Flaeche
 
-export interface SzeneOptionen {
+interface SzeneOptionen {
   /** Nur dieser Raum (Kistenseite, Suche); sonst der ganze Grundriss. */
   raumId?: string | null
   /** Item-Id der gesuchten oder gewaehlten Kiste (oder eines Moebels). */
@@ -287,7 +287,7 @@ export interface SzeneOptionen {
 }
 
 /** Wandstaerke in cm, wie in 2D (PlanBild). */
-export const WAND_CM = 12
+const WAND_CM = 12
 /** Blatt einer Tuer: so weit steht es offen (Grad). */
 export const TUER_OFFEN_GRAD = 25
 /** Deckkraft der Fensterscheibe. */
@@ -695,7 +695,7 @@ function beschlag(angel: Punkt, g: Punkt, lang: number, innen: [number, number],
 }
 
 /** Wie stark ein Material glaenzt (E67). */
-export function materialGlanz(m: Objekt['material'] | null | undefined): number {
+function materialGlanz(m: Objekt['material'] | null | undefined): number {
   switch (m) {
     case 'leder':
       return 0.45
@@ -1438,7 +1438,7 @@ function symbole(daten: GrundrissDaten, raeume: Raum[], f: Farben3D): Koerper[] 
   return out
 }
 
-export interface SzenenRahmen {
+interface SzenenRahmen {
   x0: number
   x1: number
   z0: number

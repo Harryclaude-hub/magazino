@@ -15,9 +15,9 @@ import { auswahlPruefen, dokRichten, gleicheLinien, verlaufZiel, type Auswahl, t
 import { istLeer, unterschied } from './diff.ts'
 import type { PlanKiste, PlanLinie, PlanSymbol } from '../lib/types'
 
-export const VERLAUF_MAX = 200
+const VERLAUF_MAX = 200
 
-export interface ZState {
+interface ZState {
   dok: Dok
   basis: Dok
   version: number
@@ -26,7 +26,7 @@ export interface ZState {
   auswahl: Auswahl
 }
 
-export type ZAktion =
+type ZAktion =
   | { typ: 'aendern'; dok: Dok; auswahl?: Auswahl }
   | { typ: 'waehlen'; auswahl: Auswahl }
   | { typ: 'zurueck' }

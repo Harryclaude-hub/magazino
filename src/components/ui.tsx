@@ -48,7 +48,7 @@ export function Wordmark({ size = 28 }: { size?: number }) {
   return (
     <span className="inline-flex items-center gap-2">
       <Logo size={size} />
-      <span className="text-[1.35rem] font-black tracking-tight">Magazino</span>
+      <span className="text-[1.3rem] font-bold tracking-[-0.03em]">Magazino</span>
     </span>
   )
 }
@@ -64,28 +64,31 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   full?: boolean
 }
 
-/* Nur Optik, ohne Schatten (Schatten gibt es nur an Karten und Dialogen).
- * primary ist die eine Hauptaktion einer Seite und steht in
- * Orange (--accent, Schrift --accent-ink). aktiv ist der gewaehlte Zustand
- * einer Auswahl (etwa der aktuelle Status) und bleibt dunkel, damit er
- * nicht wie eine zweite Hauptaktion aussieht. Alles andere als Umriss.
- * Heben und Einsinken beim Zeigen und Druecken macht die Designschicht
- * (design/oberflaeche.css, Klasse knopf), hier stehen nur Farben. */
+/* Die drei Stufen von iOS, dazu Gefahr und Auswahl. Nur Optik, keine
+ * Schatten.
+ *   primary  gefuellt, die eine Hauptaktion einer Seite (Akzent)
+ *   soft     getoent, zweite Stufe (Akzent auf zarter Akzentflaeche)
+ *   outline  grau gefuellt, neutrale Aktion (hiess frueher Umriss)
+ *   ghost    schlicht, nur Schrift in Akzent, dritte Stufe
+ *   aktiv    der gewaehlte Zustand einer Auswahl (etwa der aktuelle Status)
+ *   danger   gefuellt in Rot, nur fuer Loeschen und Unumkehrbares
+ * Eingedrueckt wird jeder Knopf leicht dunkler und etwas kleiner; das
+ * macht die Designschicht (design/oberflaeche.css, Klasse knopf). */
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-accent text-accent-ink hover:brightness-[1.06]',
-  aktiv: 'bg-ink text-paper',
-  soft: 'border-2 border-line bg-raised text-ink hover:border-ink/25 hover:bg-line',
-  ghost: 'border-2 border-transparent text-ink hover:border-line hover:bg-raised',
-  outline: 'border-2 border-ink/25 bg-surface text-ink hover:border-ink/55 hover:bg-raised',
+  primary: 'bg-accent text-accent-ink hover:brightness-[1.05]',
+  aktiv: 'bg-tint text-accent-text shadow-[inset_0_0_0_1.5px_var(--accent)]',
+  soft: 'bg-tint text-accent-text hover:brightness-[0.97]',
+  ghost: 'text-accent-text hover:bg-tint',
+  outline: 'bg-feld text-ink hover:brightness-[0.97]',
   danger: 'bg-danger text-paper hover:brightness-110',
 }
 
-/* Mindesthoehe statt fester Hoehe: ein langer Name (Arabisch ist oft
- * laenger) bricht um und schiebt den Knopf hoeher, statt herauszuragen. */
+/* Mindesthoehe statt fester Hoehe: ein langer Name bricht um und schiebt
+ * den Knopf hoeher, statt herauszuragen. */
 const SIZES = {
   sm: 'min-h-10 py-1.5 px-3.5 text-[0.9375rem] gap-1.5',
   md: 'min-h-12 py-2 px-5 text-base gap-2',
-  lg: 'min-h-14 py-2.5 px-7 text-lg gap-2.5',
+  lg: 'min-h-[3.25rem] py-2.5 px-7 text-base gap-2.5',
   icon: 'h-12 w-12 justify-center',
 }
 
@@ -106,12 +109,12 @@ export function Button({
       className={cx(
         // leading-tight statt leading-none: sonst stossen Umlaute und arabische
         // Zeichen oben und unten an (E76). Langer Text darf umbrechen.
-        'knopf inline-flex max-w-full items-center rounded-knopf text-center font-bold leading-tight transition select-none',
+        'knopf inline-flex max-w-full items-center justify-center rounded-knopf text-center font-semibold leading-tight transition select-none',
         'disabled:opacity-45 disabled:cursor-not-allowed',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         VARIANT[variant],
         SIZES[size],
-        full && 'w-full justify-center',
+        full && 'w-full',
         className,
       )}
     >
@@ -127,8 +130,9 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: 'sm' | 'md'
 }
 
-/** Symbolknopf mit sichtbarem Rand. Ein nacktes Symbol liest sich nicht als
- *  Knopf, darum bekommt hier jedes einen Rahmen und eine Flaeche. */
+/** Symbolknopf: runde graue Flaeche mit Symbol in Akzent, wie die Knoepfe
+ *  einer iOS-Kopfzeile. Ein nacktes Symbol liest sich nicht als Knopf,
+ *  darum hat jedes eine Flaeche. */
 export function IconButton({
   label,
   tone = 'default',
@@ -144,13 +148,13 @@ export function IconButton({
       aria-label={label}
       title={label}
       className={cx(
-        'knopf inline-flex shrink-0 items-center justify-center rounded-knopf border-2 transition',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+        'knopf inline-flex shrink-0 items-center justify-center rounded-full transition',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         'disabled:cursor-not-allowed disabled:opacity-40',
-        size === 'sm' ? 'h-10 w-10' : 'h-12 w-12',
+        size === 'sm' ? 'h-10 w-10' : 'h-11 w-11',
         tone === 'danger'
-          ? 'border-danger/25 bg-danger/5 text-danger hover:border-danger/60 hover:bg-danger/10'
-          : 'border-ink/12 bg-surface text-ink hover:border-ink/35 hover:bg-raised',
+          ? 'bg-danger/10 text-danger hover:bg-danger/15'
+          : 'bg-feld text-accent hover:brightness-[0.96]',
         className,
       )}
     >
@@ -177,25 +181,27 @@ export function Field({
   return (
     <label className="block">
       {label ? (
-        <span className="mb-2 block text-[0.9375rem] font-bold">
+        <span className="mb-1.5 block px-1 text-sm font-semibold text-muted">
           {label}
           {required ? <span className="text-danger"> *</span> : null}
         </span>
       ) : null}
       {children}
       {error ? (
-        <span className="mt-1.5 block text-sm font-semibold text-danger">{error}</span>
+        <span className="mt-1.5 block px-1 text-sm font-medium text-danger">{error}</span>
       ) : hint ? (
-        <span className="mt-1.5 block text-sm text-muted">{hint}</span>
+        <span className="mt-1.5 block px-1 text-sm text-muted">{hint}</span>
       ) : null}
     </label>
   )
 }
 
+/* Eingabefeld wie in iOS: graue Flaeche ohne Rahmen, beim Fokus ein Ring in
+ * Akzent. Der Rand ist durchsichtig da, damit beim Fokus nichts springt. */
 const FIELD_BASE =
-  'w-full rounded-knopf border-2 border-line bg-surface px-4 py-3 text-base text-ink ' +
-  'placeholder:text-muted/70 outline-none transition focus:border-ink/50 ' +
-  'focus:ring-4 focus:ring-ink/10 disabled:opacity-50'
+  'w-full rounded-[12px] border border-transparent bg-feld px-4 py-3 text-base text-ink ' +
+  'placeholder:text-muted outline-none transition focus:border-accent ' +
+  'focus:ring-[3px] focus:ring-accent/25 disabled:opacity-50 aria-[invalid=true]:border-danger'
 
 export function Input({
   className,
@@ -210,7 +216,7 @@ export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLText
 
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select {...rest} className={cx(FIELD_BASE, 'appearance-none pr-9', className)}>
+    <select {...rest} className={cx(FIELD_BASE, 'feld-auswahl appearance-none pe-10', className)}>
       {children}
     </select>
   )
@@ -295,7 +301,7 @@ export function PasswordInput({
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
-        className={cx(FIELD_BASE, 'pe-11', className)}
+        className={cx(FIELD_BASE, 'pe-12', className)}
       />
       <button
         type="button"
@@ -318,9 +324,9 @@ export function PasswordInput({
         aria-pressed={show}
         aria-controls={feldId}
         className={cx(
-          'absolute end-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center',
-          'rounded-lg border border-line bg-raised text-muted hover:text-ink',
-          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+          'absolute end-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center',
+          'rounded-full text-muted transition hover:bg-feld hover:text-ink',
+          'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
           'disabled:cursor-not-allowed disabled:opacity-40',
         )}
       >
@@ -330,6 +336,9 @@ export function PasswordInput({
   )
 }
 
+/** Schalter wie in iOS: 51 mal 31, runder weisser Knopf. Die Flaeche ist
+ *  --schalter-an (Standard: Akzent) und --schalter-aus; die Feder beim
+ *  Umlegen kommt aus der Designschicht (Klasse schalter-knopf). */
 export function Switch({
   checked,
   onChange,
@@ -345,9 +354,9 @@ export function Switch({
 }) {
   const id = useId()
   return (
-    <div className="flex items-start justify-between gap-4 py-2.5">
+    <div className="flex min-h-11 items-center justify-between gap-4 py-2">
       <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer">
-        <span className="block text-base font-bold">{label}</span>
+        <span className="block text-base font-medium">{label}</span>
         {hint ? <span className="mt-0.5 block text-sm text-muted">{hint}</span> : null}
       </label>
       <button
@@ -358,17 +367,66 @@ export function Switch({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cx(
-          'relative h-8 w-14 shrink-0 rounded-full border-2 transition disabled:opacity-40',
-          checked ? 'border-ok bg-ok' : 'border-line bg-raised',
+          'relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors disabled:opacity-40',
+          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+          checked ? 'bg-[var(--schalter-an)]' : 'bg-[var(--schalter-aus)]',
         )}
       >
         <span
           className={cx(
-            'absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all',
-            checked ? 'left-[26px]' : 'left-0.5',
+            'schalter-knopf absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white transition-transform',
+            'shadow-[0_3px_8px_rgba(0,0,0,0.15),0_1px_1px_rgba(0,0,0,0.16),0_3px_1px_rgba(0,0,0,0.06)]',
+            checked ? 'translate-x-[20px]' : 'translate-x-0',
           )}
         />
       </button>
+    </div>
+  )
+}
+
+/** Umschalter mit zwei bis vier Stufen (iOS: Segmented Control), fuer
+ *  Ansichten und Filter, die sich gegenseitig ausschliessen. Die gewaehlte
+ *  Stufe ist eine helle Kapsel auf grauer Bahn. */
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+  className,
+}: {
+  value: T
+  onChange: (v: T) => void
+  options: { value: T; label: ReactNode }[]
+  /** Name der Gruppe fuer Vorleseprogramme. */
+  label: string
+  className?: string
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className={cx('inline-flex w-full gap-0.5 rounded-[10px] bg-feld p-0.5', className)}
+    >
+      {options.map((o) => {
+        const an = o.value === value
+        return (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={an}
+            onClick={() => onChange(o.value)}
+            className={cx(
+              'knopf min-h-9 min-w-0 flex-1 rounded-[8px] px-3 py-1.5 text-[0.9375rem] leading-tight text-ink transition',
+              'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+              an
+                ? 'bg-surface font-semibold shadow-[0_3px_8px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.1)]'
+                : 'font-medium',
+            )}
+          >
+            {o.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -412,9 +470,9 @@ export function Loading({ label }: { label?: string }) {
 export function ErrorBox({ error, onRetry }: { error: string; onRetry?: () => void }) {
   const t = useT()
   return (
-    <div role="alert" className="rounded-karte border-2 border-danger/30 bg-danger/8 p-4">
+    <div role="alert" className="rounded-karte bg-danger/8 p-4">
       <p className="t-name text-danger">{t('zustand.fehler')}</p>
-      <p className="mt-1 text-base text-ink/85">{error}</p>
+      <p className="mt-1 text-base text-ink">{error}</p>
       {onRetry ? (
         <Button size="sm" variant="outline" className="mt-3" onClick={onRetry}>
           {t('aktion.nochmal')}
@@ -448,13 +506,13 @@ export function Empty({
           ? Plastikkiste
           : null
   return (
-    <div className="leer flex flex-col items-center justify-center rounded-karte border border-dashed border-line px-6 py-10 text-center">
+    <div className="leer flex flex-col items-center justify-center px-6 py-12 text-center">
       {Bild ? (
         <Bild className="leer-bild mb-4 h-24 w-28" />
       ) : icon ? (
         <div className="mb-3 text-muted">{icon}</div>
       ) : null}
-      <p className="t-name">{title}</p>
+      <p className="t-name-lg">{title}</p>
       {hint ? <p className="mt-1.5 max-w-sm text-base text-muted">{hint}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
@@ -529,7 +587,7 @@ export function Badge({
     <span
       style={style}
       className={cx(
-        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.8125rem] font-bold leading-4',
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.8125rem] font-semibold leading-4',
         !color && 'bg-raised text-ink',
         className,
       )}
@@ -550,7 +608,7 @@ export function Avatar({
   src?: string | null
   color?: string
 }) {
-  const bg = color ?? '#0a0a0a'
+  const bg = color ?? '#636366'
   if (src) {
     return (
       <img
@@ -639,7 +697,7 @@ export function StatusPill({
       onClick={onClick}
       type={onClick ? 'button' : undefined}
       className={cx(
-        'pille inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border-2 font-bold text-ink',
+        'pille inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border font-semibold text-ink',
         size === 'sm' ? 'px-2.5 py-1 text-[0.8125rem]' : 'px-3.5 py-1.5 text-[0.9375rem]',
         onClick && 'knopf transition hover:brightness-95',
       )}
@@ -730,7 +788,7 @@ export function QrPanel({
   return (
     <div
       className={cx(
-        'inline-flex flex-col items-center gap-2 rounded-2xl border-4 border-ink bg-white p-3',
+        'inline-flex flex-col items-center gap-2 rounded-[20px] bg-white p-3 shadow-karte ring-1 ring-black/10',
         className,
       )}
     >
@@ -763,6 +821,16 @@ export function QrPanel({
 
 /* ---------------------------------------------------------------- Dialog */
 
+/** Zwei Arten, wie in iOS:
+ *  - blatt (Standard): am Handy ein Bottom Sheet mit Griff, von unten
+ *    kommend und mit dem Finger nach unten wegziehbar; am Computer ein
+ *    zentriertes Blatt.
+ *  - alert: schmales, zentriertes Fenster fuer eine kurze Rueckfrage, die
+ *    Knoepfe stehen unten nebeneinander, getrennt durch Haarlinien.
+ *  Beide liegen auf einem abgedunkelten, leicht unscharfen Grund. Esc und
+ *  der Schliessen-Knopf gehen immer; das Wegziehen ist nur eine Abkuerzung
+ *  fuer Finger. Die Bewegung selbst (Feder beim Kommen) steckt in
+ *  design/oberflaeche.css, hier nur die Klassen d-schleier, d-blatt, d-alert. */
 export function Modal({
   open,
   onClose,
@@ -770,6 +838,7 @@ export function Modal({
   children,
   footer,
   wide,
+  art = 'blatt',
 }: {
   open: boolean
   onClose: () => void
@@ -777,8 +846,14 @@ export function Modal({
   children: ReactNode
   footer?: ReactNode
   wide?: boolean
+  art?: 'blatt' | 'alert'
 }) {
   const t = useT()
+  const alert = art === 'alert'
+  const blatt = useRef<HTMLDivElement>(null)
+  const zieh = useRef<{ y0: number; y: number; zeit: number; tempo: number } | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -793,36 +868,143 @@ export function Modal({
     }
   }, [open, onClose])
 
+  /* Der Fokus geht ins Blatt (ausser ein Feld darin hat ihn schon) und beim
+   * Schliessen zurueck zu dem, was das Blatt geoeffnet hat. */
+  useEffect(() => {
+    if (!open) return
+    const vorher = document.activeElement
+    const el = blatt.current
+    if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true })
+    return () => {
+      if (vorher instanceof HTMLElement && vorher.isConnected) vorher.focus({ preventScroll: true })
+    }
+  }, [open])
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  /* Wegziehen am Handy: das Blatt folgt dem Finger eins zu eins, nach oben
+   * zaeh wie ein Gummiband. Beim Loslassen zaehlt, wohin die Bewegung
+   * laeuft (Auslauf aus der Geschwindigkeit, wie bei Apple), nicht nur
+   * wo der Finger steht: ein kurzer Wisch reicht. Sonst federt es zurueck. */
+  function ziehStart(e: React.PointerEvent<HTMLDivElement>) {
+    if (alert || e.pointerType === 'mouse' || !window.matchMedia('(max-width: 639px)').matches) return
+    if ((e.target as HTMLElement).closest('button')) return
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      /* ohne Festhalten geht es auch, nur ausserhalb des Blatts nicht */
+    }
+    zieh.current = { y0: e.clientY, y: e.clientY, zeit: e.timeStamp, tempo: 0 }
+    window.clearTimeout(timer.current)
+    if (blatt.current) {
+      // Ein noch laufendes Kommen des Blatts endet hier: der Finger zaehlt.
+      blatt.current.getAnimations().forEach((a) => a.cancel())
+      blatt.current.style.transition = 'none'
+    }
+  }
+  function ziehBewegt(e: React.PointerEvent<HTMLDivElement>) {
+    const z = zieh.current
+    const el = blatt.current
+    if (!z || !el) return
+    z.tempo = (e.clientY - z.y) / Math.max(1, e.timeStamp - z.zeit)
+    z.y = e.clientY
+    z.zeit = e.timeStamp
+    const dy = e.clientY - z.y0
+    el.style.transform = `translateY(${dy >= 0 ? dy : -Math.sqrt(-dy) * 2}px)`
+  }
+  function ziehEnde() {
+    const z = zieh.current
+    const el = blatt.current
+    zieh.current = null
+    if (!z || !el) return
+    const still =
+      document.documentElement.dataset.motion === 'ruhig' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const ziel = z.y - z.y0 + z.tempo * 499
+    if (ziel > el.offsetHeight * 0.45) {
+      if (still) {
+        onClose()
+        return
+      }
+      el.style.transition = 'transform 220ms var(--kurve)'
+      el.style.transform = 'translateY(100%)'
+      timer.current = window.setTimeout(onClose, 200)
+    } else {
+      el.style.transition = still ? 'none' : 'transform 350ms var(--feder-blatt)'
+      el.style.transform = ''
+    }
+  }
+
   if (!open) return null
   /* Ueber ein Portal direkt an body: eine Spalte mit sticky bildet eine
    * eigene Ebene, darin half z-50 nicht gegen die Kopfzeile. */
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} />
+    <div
+      className={cx(
+        'fixed inset-0 z-50 flex justify-center',
+        alert ? 'items-center p-6' : 'items-end sm:items-center sm:p-6',
+      )}
+    >
       <div
-        role="dialog"
+        className="d-schleier absolute inset-0 bg-[var(--schleier)] backdrop-blur-[3px]"
+        aria-hidden="true"
+        onClick={onClose}
+      />
+      <div
+        ref={blatt}
+        role={alert ? 'alertdialog' : 'dialog'}
         aria-modal="true"
         aria-label={title}
+        tabIndex={-1}
         className={cx(
-          'animate-in relative flex max-h-[92vh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-dialog sm:rounded-karte',
-          wide ? 'sm:max-w-2xl' : 'sm:max-w-md',
+          'd-blatt relative flex max-h-[92dvh] w-full flex-col overflow-hidden bg-surface text-ink shadow-dialog outline-none',
+          alert
+            ? 'd-alert max-w-[17.5rem] rounded-[20px]'
+            : cx('rounded-t-[20px] sm:rounded-[20px]', wide ? 'sm:max-w-2xl' : 'sm:max-w-md'),
         )}
       >
-        <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
-          <h2 className="text-base font-bold">{title}</h2>
-          <button
-            onClick={onClose}
-            aria-label={t('aktion.schliessen')}
-            className="rounded-lg p-1.5 text-muted hover:bg-raised hover:text-ink"
+        {alert ? (
+          <h2 className="t-name px-5 pt-5 text-center">{title}</h2>
+        ) : (
+          <div
+            className="shrink-0 touch-none border-b border-line px-4 sm:touch-auto"
+            onPointerDown={ziehStart}
+            onPointerMove={ziehBewegt}
+            onPointerUp={ziehEnde}
+            onPointerCancel={ziehEnde}
           >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer ? (
-          <div className="safe-bottom flex justify-end gap-2 border-t border-line px-5 py-3">
-            {footer}
+            <span className="kopf-griff sm:hidden" aria-hidden="true" />
+            <div className="flex items-center gap-3 pb-3 pt-1.5 sm:pt-3.5">
+              <span className="w-9 shrink-0" aria-hidden="true" />
+              <h2 className="t-name line-clamp-2 min-w-0 flex-1 text-center">{title}</h2>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={t('aktion.schliessen')}
+                className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-feld text-muted transition hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent after:absolute after:-inset-1 after:content-['']"
+              >
+                <X size={17} aria-hidden="true" />
+              </button>
+            </div>
           </div>
+        )}
+        <div
+          className={cx(
+            'scrollbar-thin flex-1 overflow-y-auto overscroll-contain',
+            alert
+              ? 'px-5 pb-5 pt-1.5 text-center'
+              : cx('px-5 py-4', !footer && 'max-sm:pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]'),
+          )}
+        >
+          {children}
+        </div>
+        {footer ? (
+          alert ? (
+            <div className="grid auto-cols-fr grid-flow-col border-t border-line">{footer}</div>
+          ) : (
+            <div className="safe-bottom flex flex-wrap justify-end gap-2.5 border-t border-line px-5 py-3 max-sm:[&>*]:flex-1">
+              {footer}
+            </div>
+          )
         ) : null}
       </div>
     </div>,
@@ -849,19 +1031,25 @@ export function ConfirmDialog({
 }) {
   const [busy, setBusy] = useState(false)
   const t = useT()
+  /* Alert wie in iOS: die Rueckfrage in der Mitte, Abbrechen in Akzent,
+   * die Entscheidung daneben halbfett (rot, wenn sie etwas loescht). */
+  const knopf =
+    'flex min-h-12 items-center justify-center gap-2 px-3 text-base transition active:bg-feld ' +
+    'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent'
   return (
     <Modal
       open={open}
       onClose={onClose}
       title={title}
+      art="alert"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <button type="button" onClick={onClose} className={cx(knopf, 'font-medium text-accent-text')}>
             {t('aktion.abbrechen')}
-          </Button>
-          <Button
-            variant={danger ? 'danger' : 'primary'}
-            loading={busy}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
             onClick={async () => {
               setBusy(true)
               try {
@@ -871,13 +1059,19 @@ export function ConfirmDialog({
                 setBusy(false)
               }
             }}
+            className={cx(
+              knopf,
+              'border-s border-line font-semibold disabled:opacity-45',
+              danger ? 'text-danger' : 'text-accent-text',
+            )}
           >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : null}
             {confirmLabel ?? t('aktion.loeschen')}
-          </Button>
+          </button>
         </>
       }
     >
-      <p className="text-sm text-ink/80">{body}</p>
+      <p className="text-sm text-ink">{body}</p>
     </Modal>
   )
 }
@@ -917,15 +1111,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={{ push }}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div
+        aria-live="polite"
+        className="pointer-events-none fixed inset-x-0 bottom-[var(--nav-h,0px)] z-[100] flex flex-col items-center gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+      >
         {items.map((t) => (
           <div
             key={t.id}
             className={cx(
-              'animate-in pointer-events-auto max-w-sm rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg',
+              'animate-in pointer-events-auto max-w-sm rounded-2xl px-4 py-3 text-[0.9375rem] font-medium shadow-dialog',
               t.kind === 'ok' && 'bg-ok text-paper',
               t.kind === 'error' && 'bg-danger text-paper',
-              t.kind === 'info' && 'bg-ink text-paper',
+              t.kind === 'info' && 'bg-surface text-ink ring-1 ring-line',
             )}
           >
             {t.text}
@@ -944,6 +1141,8 @@ export function useToast() {
 
 /* ------------------------------------------------------------- Tabs, Chips */
 
+/** Auswahlkapsel fuer Filter. Ruhig: graue Flaeche, gewaehlt gefuellt in
+ *  Akzent. Fuer Gruppen, die sich ausschliessen, gibt es Segmented. */
 export function Chip({
   active,
   onClick,
@@ -959,11 +1158,13 @@ export function Chip({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cx(
-        'inline-flex h-10 shrink-0 items-center gap-2 rounded-full border-2 px-4 text-[0.9375rem] font-bold transition active:scale-95',
+        'knopf inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-[0.9375rem] transition',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         active
-          ? 'border-ink bg-ink text-paper'
-          : 'border-line bg-surface text-ink hover:border-ink/35 hover:bg-raised',
+          ? 'bg-accent font-semibold text-accent-ink'
+          : 'bg-feld font-medium text-ink hover:brightness-[0.96]',
       )}
     >
       {color ? (
@@ -976,13 +1177,12 @@ export function Chip({
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    // Klare Trennung der Abschnitte (E76): Linie darunter, Akzentstrich,
-    // Schrift in Tinte statt grau. Ohne Grossbuchstaben und Sperrung, die im
-    // Arabischen die Buchstaben auseinanderreissen.
-    <div className="mb-3 flex items-center justify-between gap-3 border-b-2 border-line pb-2">
-      <h2 className="flex min-w-0 items-center gap-2 text-[1.0625rem] font-black leading-tight text-ink">
-        <span className="h-4 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
-        <span className="min-w-0">{children}</span>
+    // Titel eines Abschnitts wie die Zwischenueberschrift in iOS: Title 3,
+    // halbfett, ohne Linie und ohne Zierstrich. Die Gliederung kommt aus
+    // Groesse und Abstand.
+    <div className="mb-2.5 mt-1 flex items-center justify-between gap-3">
+      <h2 className="min-w-0 text-[1.18rem] font-bold leading-tight tracking-[-0.024em] text-ink">
+        {children}
       </h2>
       {action}
     </div>

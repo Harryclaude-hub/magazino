@@ -61,22 +61,22 @@ export function objektBoden(o: Pick<ObjektForm, 'boden_cm'>): number {
 /* Was kisteBasis, platzFehler und unterlagenAn von einem Grundriss
  * brauchen. GrundrissDaten aus types.ts passt darauf; hier steht nur die
  * Form, damit diese Datei ohne Importe bleibt. */
-export type UnterlageArtGeo = 'boden' | 'kiste' | 'objekt' | 'fach'
+type UnterlageArtGeo = 'boden' | 'kiste' | 'objekt' | 'fach'
 
-export interface GeoRaum {
+interface GeoRaum {
   id: string
   punkte: Punkt[]
   hoehe_cm: number
 }
 
-export interface GeoObjekt extends ObjektForm {
+interface GeoObjekt extends ObjektForm {
   id: string
   raum_id: string
   art: 'moebel' | 'regal' | 'schrank'
   name: string
 }
 
-export interface GeoKiste {
+interface GeoKiste {
   id: string
   code: string
   platz_raum_id: string | null
@@ -94,12 +94,12 @@ export interface GeoKiste {
 }
 
 /** Kiste im fertigen Plan: grundriss_laden liefert Unterkante und Grenze. */
-export interface GeoPlanKiste extends GeoKiste {
+interface GeoPlanKiste extends GeoKiste {
   oben_cm: number
   grenze_cm: number
 }
 
-export interface GeoDaten {
+interface GeoDaten {
   raeume: GeoRaum[]
   objekte: GeoObjekt[]
   kisten: GeoKiste[]
@@ -107,7 +107,7 @@ export interface GeoDaten {
 
 /** Ablehnung wie in der Datenbank: Kennung fuer fehler.db.grundriss.<kennung>
  *  und die Platzhalter dazu. */
-export interface GeoFehler {
+interface GeoFehler {
   kennung: string
   werte: Record<string, string | number>
 }
@@ -146,7 +146,7 @@ function zwischen(v: number, a: number, b: number): boolean {
 
 /** Beruehren oder schneiden sich zwei geschlossene Strecken?
  *  geo_strecken_schneiden */
-export function streckenSchneiden(p1: Punkt, p2: Punkt, q1: Punkt, q2: Punkt): boolean {
+function streckenSchneiden(p1: Punkt, p2: Punkt, q1: Punkt, q2: Punkt): boolean {
   const [p1x, p1y] = p1
   const [p2x, p2y] = p2
   const [q1x, q1y] = q1
@@ -233,7 +233,7 @@ export function punktImPolygon(u: Umriss, x: number, y: number): boolean {
 
 /** Trifft die Strecke das OFFENE Rechteck? Beruehren zaehlt nicht.
  *  geo_strecke_trifft_offen */
-export function streckeTrifftOffen(a: Punkt, b: Punkt, r: Rechteck): boolean {
+function streckeTrifftOffen(a: Punkt, b: Punkt, r: Rechteck): boolean {
   const [sx1, sy1] = a
   const [sx2, sy2] = b
   const seite = (rx: number, ry: number) =>
@@ -458,7 +458,7 @@ export function objektRechtecke(o: ObjektForm): Rechteck[] {
 
 /* ======================================================= Hoehe, Platz */
 
-export interface KistenBasis {
+interface KistenBasis {
   unten_cm: number
   grenze_cm: number
   wurzel_art: 'boden' | 'objekt' | 'fach'
@@ -623,13 +623,8 @@ export function umlaufRichten(p: Punkt[]): {
   }
 }
 
-/** Laenge von Kante k als Kommazahl. Nur Anzeige und Umrechnung. */
-export function kanteLaenge(u: Umriss, k: number): number {
-  return Math.sqrt(kanteLaenge2(u, k))
-}
-
 /** Einheitsvektor entlang Kante k. */
-export function kanteRichtung(u: Umriss, k: number): [number, number] {
+function kanteRichtung(u: Umriss, k: number): [number, number] {
   const n = Math.floor(u.length / 2)
   const j = (k + 1) % n
   const dx = u[2 * j] - u[2 * k]
@@ -640,7 +635,7 @@ export function kanteRichtung(u: Umriss, k: number): [number, number] {
 
 /** Anfang und Ende einer Oeffnung auf ihrer Kante (Kommazahl, nur
  *  Zeichnung). */
-export function oeffnungStrecke(
+function oeffnungStrecke(
   u: Umriss,
   oeff: { kante: number; abstand_cm: number; breite_cm: number },
 ): [Punkt, Punkt] {
@@ -653,7 +648,7 @@ export function oeffnungStrecke(
   ]
 }
 
-export interface WandStueck {
+interface WandStueck {
   a: Punkt
   b: Punkt
   raumId: string
@@ -1001,15 +996,6 @@ export function cmText(cm: number, lang: 'de' | 'ar'): string {
 
 export function einrasten(v: number, raster = 5): number {
   return Math.round(v / raster) * raster
-}
-
-/** Ohne Umschalt die Achse mit der groesseren Bewegung (90-Grad-Schritte),
- *  mit Umschalt frei; danach auf ganze cm. */
-export function winkelEinrasten(start: Punkt, p: Punkt, frei: boolean): Punkt {
-  if (frei) return [Math.round(p[0]), Math.round(p[1])]
-  const dx = Math.abs(p[0] - start[0])
-  const dy = Math.abs(p[1] - start[1])
-  return dx >= dy ? [Math.round(p[0]), Math.round(start[1])] : [Math.round(start[0]), Math.round(p[1])]
 }
 
 /* ------------------------------------------------------------- Faecher */

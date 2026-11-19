@@ -8,7 +8,7 @@ import { einrasten, type Drehung, type Punkt } from '../../lib/geometrie.ts'
 import { neuesObjekt, objektBox, objektPasst, objektUm, raumAn, type Vorlage } from '../dok.ts'
 import type { Kontext, Schritt, Vorschau, Werkzeug } from './typen.ts'
 
-export interface ObjektZustand {
+interface ObjektZustand {
   zeiger: Punkt | null
   drehung: Drehung
 }
@@ -17,7 +17,7 @@ const FANG_PX = 12
 
 /** Ort des Geists: Mitte am Zeiger, dann an nahe Waende und Moebel
  *  gerueckt (nur gerade Waende). */
-export function geistOrt(k: Kontext, v: Vorlage, p: Punkt, drehung: Drehung): { x: number; y: number } {
+function geistOrt(k: Kontext, v: Vorlage, p: Punkt, drehung: Drehung): { x: number; y: number } {
   const form = { ...v, drehung, brett_cm: v.brett_cm, spalten: v.spalten }
   let pos = objektUm(form, [einrasten(p[0], k.raster), einrasten(p[1], k.raster)])
   const box = objektBox({ ...form, ...pos })

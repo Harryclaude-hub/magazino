@@ -50,7 +50,7 @@ export function woerter(s: string): string[] {
 }
 
 /** Wie viele Tippfehler ein Suchwort dieser (lockeren) Laenge vertraegt. */
-export function erlaubteFehler(laenge: number): number {
+function erlaubteFehler(laenge: number): number {
   if (laenge <= 3) return 0
   if (laenge <= 6) return 1
   return 2
@@ -95,7 +95,7 @@ function abstand(w: string, v: string, anfang: boolean, ende: boolean): number {
 
 /** Punkte (0 bis 100), wie gut das Suchwort w zu einem Wort v passt.
  *  Beide sind schon locker geschluesselt. 0 heisst: passt nicht. */
-export function wortPunkte(w: string, v: string): number {
+function wortPunkte(w: string, v: string): number {
   if (!w || !v) return 0
   if (w === v) return 100
   if (v.startsWith(w)) return 90 - Math.min(10, (v.length - w.length) * 0.5)
@@ -125,7 +125,7 @@ interface Wort {
   gewicht: number
 }
 
-export interface FuzzyIndex<T> {
+interface FuzzyIndex<T> {
   items: T[]
   woerter: Wort[][]
 }
@@ -152,7 +152,7 @@ function woerter_(text: string): string[] {
   return woerter(text).map(locker)
 }
 
-export interface FuzzyTreffer<T> {
+interface FuzzyTreffer<T> {
   item: T
   /** 0 bis 100, hoeher ist besser. */
   punkte: number

@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 
 /* Ab dieser Breite gilt ein Bildschirm als Computer: Seitenleiste statt
  * unterer Leiste, Zeichner und 3D. Dieselbe Grenze wie Tailwinds `lg`. */
-export const DESKTOP_AB = 1024
+const DESKTOP_AB = 1024
 
 const abfrage = `(min-width: ${DESKTOP_AB}px)`
 /* Zeichnen braucht zusaetzlich einen genauen Zeiger (Maus, Stift). Ein

@@ -4,14 +4,12 @@
  * auseinanderlaeuft.
  */
 import { supabase, errText } from './supabase'
-import { siedlungInnenPruefen } from './siedlungInnen'
-import { stadtPruefen } from './stadt'
 import { tg } from './i18n'
 import { zuPunkten, zuUmriss } from './geometrie'
 import type {
   AdminUebersicht,
-  Call,
-  CallParticipant,
+  
+  
   EigeneGroesse,
   Grundriss,
   GrundrissAenderung,
@@ -25,17 +23,17 @@ import type {
   KisteLage,
   KistenGroesse,
   MemberRole,
-  Message,
-  Objekt,
-  PlanKiste,
+  
+  
+  
   PlanLinie,
   PlanSymbol,
-  MessageLink,
-  MessageReaction,
+  
+  
   NotificationPrefs,
   Profile,
   Project,
-  ProjectInvite,
+  
   ProjectMember,
   ProjectStats,
   Platz,
@@ -44,7 +42,6 @@ import type {
   SuchTreffer,
   Tag,
 } from './types'
-import { inviteCode } from './util'
 
 /** Wirft mit lesbarer Meldung, statt still null zurueckzugeben.
  *  Der Schluessel zeigt auf einen Satz der Form 'Kisten laden: {grund}'. */
@@ -154,29 +151,6 @@ export async function getProject(id: string): Promise<Project> {
   return res.data as Project
 }
 
-export async function getStats(projectId: string): Promise<ProjectStats> {
-  const res = await supabase
-    .from('project_stats')
-    .select('*')
-    .eq('project_id', projectId)
-    .maybeSingle()
-  if (res.error) throw new Error(tg('fehler.zaehlwerte_laden', { grund: errText(res.error) }))
-  return (res.data as ProjectStats) ?? EMPTY_STATS(projectId)
-}
-
-export async function createProject(
-  name: string,
-  note?: string,
-  withDefaults = true,
-): Promise<Project> {
-  const res = await supabase.rpc('create_project', {
-    p_name: name,
-    p_note: note ?? null,
-    p_with_defaults: withDefaults,
-  })
-  return unwrap(res, 'fehler.umzug_anlegen') as Project
-}
-
 export async function updateProject(id: string, patch: Partial<Project>): Promise<Project> {
   const res = await supabase.from('projects').update(patch).eq('id', id).select('*').single()
   return unwrap(res, 'fehler.umzug_speichern') as Project
@@ -185,11 +159,6 @@ export async function updateProject(id: string, patch: Partial<Project>): Promis
 export async function deleteProject(id: string): Promise<void> {
   const { error } = await supabase.from('projects').delete().eq('id', id)
   if (error) throw new Error(tg('fehler.umzug_loeschen', { grund: errText(error) }))
-}
-
-export async function joinProject(code: string): Promise<Project> {
-  const res = await supabase.rpc('join_project', { p_code: code })
-  return unwrap(res, 'fehler.beitreten') as Project
 }
 
 /* ============================================================ Mitglieder */
@@ -213,28 +182,6 @@ export async function listMembers(projectId: string): Promise<ProjectMember[]> {
   return rows.map((r) => ({ ...r, profile: profiles.get(r.user_id) ?? null }))
 }
 
-export async function setMemberRole(
-  projectId: string,
-  userId: string,
-  role: ProjectMember['role'],
-): Promise<void> {
-  const { error } = await supabase
-    .from('project_members')
-    .update({ role })
-    .eq('project_id', projectId)
-    .eq('user_id', userId)
-  if (error) throw new Error(tg('fehler.rolle_aendern', { grund: errText(error) }))
-}
-
-export async function removeMember(projectId: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('project_members')
-    .delete()
-    .eq('project_id', projectId)
-    .eq('user_id', userId)
-  if (error) throw new Error(tg('fehler.mitglied_entfernen', { grund: errText(error) }))
-}
-
 /** Selbst aus einem Umzug aussteigen.
  *
  *  Das ist etwas anderes als loeschen: der Umzug bleibt bestehen, nur man
@@ -256,48 +203,7 @@ export async function leaveProject(projectId: string): Promise<void> {
   if (error) throw new Error(tg('fehler.umzug_verlassen', { grund: errText(error) }))
 }
 
-export async function markRead(projectId: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('project_members')
-    .update({ last_read_at: new Date().toISOString() })
-    .eq('project_id', projectId)
-    .eq('user_id', userId)
-  if (error) console.warn('[chat] Lesestand nicht gespeichert:', errText(error))
-}
-
 /* =========================================================== Einladungen */
-
-export async function listInvites(projectId: string): Promise<ProjectInvite[]> {
-  const res = await supabase
-    .from('project_invites')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: false })
-  return unwrap(res, 'fehler.einladungen_laden') as ProjectInvite[]
-}
-
-export async function createInvite(
-  projectId: string,
-  role: ProjectMember['role'] = 'editor',
-): Promise<ProjectInvite> {
-  const { data: auth } = await supabase.auth.getUser()
-  const res = await supabase
-    .from('project_invites')
-    .insert({
-      project_id: projectId,
-      code: inviteCode(),
-      role,
-      created_by: auth.user?.id ?? null,
-    })
-    .select('*')
-    .single()
-  return unwrap(res, 'fehler.einladung_anlegen') as ProjectInvite
-}
-
-export async function setInviteActive(id: string, active: boolean): Promise<void> {
-  const { error } = await supabase.from('project_invites').update({ active }).eq('id', id)
-  if (error) throw new Error(tg('fehler.einladung_aendern', { grund: errText(error) }))
-}
 
 /* ============================================================== Bereiche */
 
@@ -337,40 +243,9 @@ export async function updateTag(id: string, patch: Partial<Tag>): Promise<Tag> {
   return unwrap(res, 'fehler.bereich_speichern') as Tag
 }
 
-export async function deleteTag(id: string): Promise<void> {
-  const { error } = await supabase.from('tags').delete().eq('id', id)
-  if (error) throw new Error(tg('fehler.bereich_loeschen', { grund: errText(error) }))
-}
-
-export interface TagStat {
-  total: number
-  arrived: number
-}
-
-/** Zaehlwerte fuer alle Bereiche eines Projekts in einer Abfrage. */
-export async function listTagStats(projectId: string): Promise<Map<string, TagStat>> {
-  const res = await supabase.rpc('tag_stats', { p_project: projectId })
-  if (res.error) throw new Error(tg('fehler.zaehlwerte_bereich', { grund: errText(res.error) }))
-  const map = new Map<string, TagStat>()
-  for (const row of (res.data ?? []) as Array<{ tag_id: string; total: number; arrived: number }>) {
-    map.set(row.tag_id, { total: Number(row.total), arrived: Number(row.arrived) })
-  }
-  return map
-}
-
-/** Zwei Bereiche zusammenfuehren. Alles vom ersten haengt danach am
- *  zweiten, der erste ist weg. Die Codes vergibt die Datenbank neu, die
- *  alten bleiben ueber item_code_history scannbar.
- *  Gibt zurueck, wie viele Eintraege umgehaengt wurden. */
-export async function mergeTags(von: string, nach: string): Promise<number> {
-  const res = await supabase.rpc('merge_tags', { p_von: von, p_nach: nach })
-  if (res.error) throw new Error(tg('fehler.bereiche_zusammenfuehren', { grund: errText(res.error) }))
-  return Number(res.data ?? 0)
-}
-
 /* ================================================================ Kisten */
 
-export interface ItemFilter {
+interface ItemFilter {
   search?: string
   status?: ItemStatus | 'all'
   /* Eine Kennung, 'all' fuer alle, oder 'none' fuer die ohne Zuordnung.
@@ -391,7 +266,7 @@ export interface ItemFilter {
   sort?: 'code' | 'newest' | 'size'
 }
 
-export interface ItemPage {
+interface ItemPage {
   rows: Item[]
   total: number
 }
@@ -500,28 +375,6 @@ export async function setItemStatus(id: string, status: ItemStatus): Promise<Ite
 export async function deleteItem(id: string): Promise<void> {
   const { error } = await supabase.from('items').delete().eq('id', id)
   if (error) throw new Error(tg('fehler.kiste_loeschen', { grund: errText(error) }))
-}
-
-export async function getItemsByIds(ids: string[]): Promise<Map<string, Item>> {
-  const map = new Map<string, Item>()
-  const unique = [...new Set(ids.filter(Boolean))]
-  if (unique.length === 0) return map
-  const res = await supabase.from('items').select('*').in('id', unique)
-  if (res.error) {
-    console.warn('[items] Vorschau nicht geladen:', res.error.message)
-    return map
-  }
-  for (const i of (res.data ?? []) as Item[]) map.set(i.id, i)
-  return map
-}
-
-export async function resolveCode(
-  projectId: string,
-  code: string,
-): Promise<Array<{ item_id: string; code: string; is_old: boolean }>> {
-  const res = await supabase.rpc('resolve_code', { p_project: projectId, p_code: code })
-  if (res.error) throw new Error(tg('fehler.code_suchen', { grund: errText(res.error) }))
-  return (res.data ?? []) as Array<{ item_id: string; code: string; is_old: boolean }>
 }
 
 /* ------------------------------------------------------- Schnellansicht */
@@ -662,40 +515,6 @@ export async function legeEigeneGroesseAn(
     .select('*')
     .single()
   return unwrap(res, 'fehler.eigene_groesse_speichern') as EigeneGroesse
-}
-
-/** Groesse fuer einen einzelnen Gegenstand: eine eigene Groesse (Art
- *  Kiste) mit genau diesen Massen. Gibt es sie schon, wird sie wieder
- *  benutzt, sonst entsteht eine, die nach ihren Massen heisst ("30 x 30 x
- *  150 cm"). So waechst die Liste nicht mit jedem Gegenstand, und die
- *  Datenbank prueft den Platz mit den echten Massen. */
-export async function groesseFuerMasse(
-  projectId: string,
-  laenge: number,
-  breite: number,
-  hoehe: number,
-): Promise<EigeneGroesse> {
-  const res = await supabase
-    .from('eigene_groessen')
-    .select('*')
-    .eq('project_id', projectId)
-    .eq('art', 'kiste')
-    .eq('laenge_cm', laenge)
-    .eq('breite_cm', breite)
-    .eq('hoehe_cm', hoehe)
-    .is('ausschnitt_breite_cm', null)
-    .limit(1)
-  const da = unwrap(res, 'fehler.eigene_groessen_laden') as EigeneGroesse[]
-  if (da.length > 0) return da[0]
-  const name = `${laenge} x ${breite} x ${hoehe} cm`
-  const werte = { art: 'kiste' as const, laenge_cm: laenge, breite_cm: breite, hoehe_cm: hoehe, ausschnitt_breite_cm: null, ausschnitt_tiefe_cm: null }
-  try {
-    return await legeEigeneGroesseAn(projectId, { name, ...werte })
-  } catch {
-    // Der Name ist schon vergeben (etwa eine Moebelgroesse mit denselben
-    // Massen): ein zweiter Versuch mit Zusatz, ein Fehler dann wird gemeldet.
-    return legeEigeneGroesseAn(projectId, { name: `${name} (${tg('art.other')})`, ...werte })
-  }
 }
 
 /** Aendern der Masse stuft alle Kisten mit dieser Groesse neu ein. Passt
@@ -912,25 +731,6 @@ export async function ladeRaeumeDesUmzugs(projectId: string): Promise<RaumEintra
   })
 }
 
-/** Was im Grundriss in den Raeumen eines Zimmers steht: Moebel, Regale,
- *  Schraenke und alle hingestellten Kisten und Gegenstaende. Ein Zimmer
- *  kann in mehreren Grundrissen gezeichnet sein; alles wird zusammengelegt. */
-export async function ladeZimmerPlan(
-  projectId: string,
-  tagId: string,
-): Promise<{ raeume: number; objekte: Objekt[]; kisten: PlanKiste[] }> {
-  const raeume = (await ladeRaeumeDesUmzugs(projectId)).filter((r) => r.tag_id === tagId)
-  const teile = await Promise.all(raeume.map((r) => ladeGrundriss(r.grundriss_id, r.id)))
-  const objekte: Objekt[] = []
-  const kisten: PlanKiste[] = []
-  for (const d of teile) {
-    if (!d) continue
-    objekte.push(...d.objekte)
-    kisten.push(...d.kisten)
-  }
-  return { raeume: raeume.length, objekte, kisten }
-}
-
 /** Eine Kiste hinstellen. Ob der Platz gilt (im Raum, auf der Unterlage,
  *  unter der Decke), entscheidet die Datenbank; die Antwort ist die neue
  *  Lage. Nicht zu verwechseln mit dem alten setzePlatz (Raster). */
@@ -1124,38 +924,6 @@ export async function moveContent(
   if (error) throw new Error(tg('fehler.inhalt_verschieben', { grund: errText(error) }))
 }
 
-/** Mehrere Kisten auf einmal aendern. Einzeln, damit der Trigger je Zeile
- *  einen sauberen neuen Code vergeben kann. Fehlschlaege werden gesammelt
- *  gemeldet, nicht verschluckt: wer zehn Kisten markiert und sieben
- *  bekommt, muss das erfahren. */
-export async function patchItems(
-  ids: string[],
-  patch: Partial<Item>,
-): Promise<{ ok: number; fehler: string[] }> {
-  let okZahl = 0
-  const fehler: string[] = []
-  for (const id of ids) {
-    try {
-      await updateItem(id, patch)
-      okZahl++
-    } catch (err) {
-      fehler.push(err instanceof Error ? err.message : String(err))
-    }
-  }
-  return { ok: okZahl, fehler }
-}
-
-/** Mehrere Kisten in ein anderes Zimmer oder zu einer anderen Person
- *  haengen. Eigener Name, damit an der Aufrufstelle steht, was gemeint
- *  ist. Der Weg dorthin ist derselbe wie bei patchItems, es gibt ihn nur
- *  einmal. */
-export async function moveItems(
-  ids: string[],
-  patch: { room_id?: string | null; person_id?: string | null; code_source?: Item['code_source'] },
-): Promise<{ ok: number; fehler: string[] }> {
-  return patchItems(ids, patch)
-}
-
 /** Ein Update, das keine Zeile trifft, meldet Supabase nicht als Fehler.
  *  Darum wird die Zeile zurueckgelesen: kommt keine, wurde nichts
  *  gespeichert, und die Oberflaeche darf nicht so tun als ob. */
@@ -1259,29 +1027,6 @@ export async function setCoverPhoto(itemId: string, photoId: string | null): Pro
   return updateItem(itemId, { cover_photo_id: photoId })
 }
 
-/** Die Deckbilder mehrerer Eintraege auf einmal holen, fuer Listen und
- *  fuer die Schnellansicht. Begrenzt und seitenweise, damit auch eine
- *  lange Liste nicht in eine zu grosse Antwort laeuft. */
-export async function coverPaths(items: Item[]): Promise<Map<string, string>> {
-  const out = new Map<string, string>()
-  const ids = items.map((i) => i.cover_photo_id).filter((x): x is string => Boolean(x))
-  if (ids.length === 0) return out
-  const step = 200
-  for (let i = 0; i < ids.length; i += step) {
-    const res = await supabase
-      .from('item_photos')
-      .select('id,path')
-      .in('id', ids.slice(i, i + step))
-    if (res.error) throw new Error(tg('fehler.fotos_laden', { grund: errText(res.error) }))
-    const nachId = new Map((res.data ?? []).map((r) => [r.id as string, r.path as string]))
-    for (const item of items) {
-      const pfad = item.cover_photo_id ? nachId.get(item.cover_photo_id) : undefined
-      if (pfad) out.set(item.id, pfad)
-    }
-  }
-  return out
-}
-
 /** In welche Schicht der Kiste dieses Foto gehoert. null nimmt die
  *  Angabe wieder weg.
  *
@@ -1320,16 +1065,6 @@ export async function listItemEvents(itemId: string, limit = 50): Promise<ItemEv
   return unwrap(res, 'fehler.verlauf_laden') as ItemEvent[]
 }
 
-export async function listProjectEvents(projectId: string, limit = 40): Promise<ItemEvent[]> {
-  const res = await supabase
-    .from('item_events')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  return unwrap(res, 'fehler.verlauf_laden') as ItemEvent[]
-}
-
 export async function logScan(projectId: string, itemId: string, note?: string): Promise<void> {
   const { data: auth } = await supabase.auth.getUser()
   const { error } = await supabase.from('item_events').insert({
@@ -1344,203 +1079,7 @@ export async function logScan(projectId: string, itemId: string, note?: string):
 
 /* ================================================================= Chat */
 
-export interface ChatMessage extends Message {
-  reactions: MessageReaction[]
-  links: MessageLink[]
-}
-
-export async function listMessages(
-  projectId: string,
-  before?: string,
-  limit = 40,
-): Promise<ChatMessage[]> {
-  let q = supabase
-    .from('messages')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  if (before) q = q.lt('created_at', before)
-  const { data, error } = await q
-  if (error) throw new Error(tg('fehler.nachrichten_laden', { grund: errText(error) }))
-
-  const msgs = ((data ?? []) as Message[]).reverse()
-  if (msgs.length === 0) return []
-  const ids = msgs.map((m) => m.id)
-  const [reacts, links] = await Promise.all([
-    supabase.from('message_reactions').select('*').in('message_id', ids),
-    supabase.from('message_links').select('*').in('message_id', ids),
-  ])
-  if (reacts.error) console.warn('[chat] Reaktionen:', reacts.error.message)
-  if (links.error) console.warn('[chat] Verweise:', links.error.message)
-
-  return msgs.map((m) => ({
-    ...m,
-    reactions: ((reacts.data ?? []) as MessageReaction[]).filter((r) => r.message_id === m.id),
-    links: ((links.data ?? []) as MessageLink[]).filter((l) => l.message_id === m.id),
-  }))
-}
-
-export async function loadMessageExtras(
-  ids: string[],
-): Promise<{ reactions: MessageReaction[]; links: MessageLink[] }> {
-  if (ids.length === 0) return { reactions: [], links: [] }
-  const [reacts, links] = await Promise.all([
-    supabase.from('message_reactions').select('*').in('message_id', ids),
-    supabase.from('message_links').select('*').in('message_id', ids),
-  ])
-  return {
-    reactions: (reacts.data ?? []) as MessageReaction[],
-    links: (links.data ?? []) as MessageLink[],
-  }
-}
-
-export async function sendMessage(input: {
-  project_id: string
-  body?: string | null
-  kind?: Message['kind']
-  attachment_path?: string | null
-  attachment_meta?: Record<string, unknown>
-  reply_to?: string | null
-  call_id?: string | null
-  links?: Array<{ target_type: 'item' | 'tag'; target_id: string; label?: string }>
-}): Promise<Message> {
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) throw new Error(tg('fehler.nicht_angemeldet'))
-  const { links, ...rest } = input
-  const res = await supabase
-    .from('messages')
-    .insert({ ...rest, sender_id: auth.user.id })
-    .select('*')
-    .single()
-  const msg = unwrap(res, 'fehler.nachricht_senden') as Message
-
-  if (links?.length) {
-    const { error } = await supabase.from('message_links').insert(
-      links.map((l) => ({
-        message_id: msg.id,
-        project_id: input.project_id,
-        target_type: l.target_type,
-        target_id: l.target_id,
-        label: l.label ?? null,
-      })),
-    )
-    if (error) console.warn('[chat] Verweise nicht gespeichert:', errText(error))
-  }
-  return msg
-}
-
-export async function deleteMessage(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('messages')
-    .update({ deleted_at: new Date().toISOString(), body: null })
-    .eq('id', id)
-  if (error) throw new Error(tg('fehler.nachricht_loeschen', { grund: errText(error) }))
-}
-
-export async function editMessage(id: string, body: string): Promise<void> {
-  const { error } = await supabase
-    .from('messages')
-    .update({ body, edited_at: new Date().toISOString() })
-    .eq('id', id)
-  if (error) throw new Error(tg('fehler.nachricht_aendern', { grund: errText(error) }))
-}
-
-export async function toggleReaction(
-  projectId: string,
-  messageId: string,
-  emoji: string,
-  on: boolean,
-): Promise<void> {
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) throw new Error(tg('fehler.nicht_angemeldet'))
-  if (on) {
-    const { error } = await supabase
-      .from('message_reactions')
-      .insert({ message_id: messageId, user_id: auth.user.id, emoji, project_id: projectId })
-    if (error && !String(error.message).includes('duplicate'))
-      throw new Error(tg('fehler.reaktion_setzen', { grund: errText(error) }))
-  } else {
-    const { error } = await supabase
-      .from('message_reactions')
-      .delete()
-      .eq('message_id', messageId)
-      .eq('user_id', auth.user.id)
-      .eq('emoji', emoji)
-    if (error) throw new Error(tg('fehler.reaktion_entfernen', { grund: errText(error) }))
-  }
-}
-
-export async function countUnread(projectId: string, since: string): Promise<number> {
-  const { count, error } = await supabase
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .eq('project_id', projectId)
-    .gt('created_at', since)
-  if (error) {
-    console.warn('[chat] Ungelesene nicht gezaehlt:', errText(error))
-    return 0
-  }
-  return count ?? 0
-}
-
 /* ================================================================ Anrufe */
-
-export async function createCall(projectId: string, video: boolean, invitees: string[]): Promise<Call> {
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) throw new Error(tg('fehler.nicht_angemeldet'))
-  const res = await supabase
-    .from('calls')
-    .insert({ project_id: projectId, video, created_by: auth.user.id })
-    .select('*')
-    .single()
-  const call = unwrap(res, 'fehler.anruf_starten') as Call
-
-  const rows = [
-    { call_id: call.id, user_id: auth.user.id, state: 'joined', joined_at: new Date().toISOString() },
-    ...invitees
-      .filter((u) => u !== auth.user!.id)
-      .map((u) => ({ call_id: call.id, user_id: u, state: 'invited' })),
-  ]
-  const { error } = await supabase.from('call_participants').insert(rows)
-  if (error) throw new Error(tg('fehler.teilnehmer_eintragen', { grund: errText(error) }))
-  return call
-}
-
-export async function setCallStatus(callId: string, status: Call['status']): Promise<void> {
-  const patch: Partial<Call> = { status }
-  if (status === 'active') patch.started_at = new Date().toISOString()
-  if (status === 'ended' || status === 'declined' || status === 'missed')
-    patch.ended_at = new Date().toISOString()
-  const { error } = await supabase.from('calls').update(patch).eq('id', callId)
-  if (error) throw new Error(tg('fehler.anruf_aendern', { grund: errText(error) }))
-}
-
-export async function setParticipantState(
-  callId: string,
-  userId: string,
-  state: CallParticipant['state'],
-): Promise<void> {
-  const patch: Partial<CallParticipant> = { state }
-  if (state === 'joined') patch.joined_at = new Date().toISOString()
-  if (state === 'left' || state === 'declined') patch.left_at = new Date().toISOString()
-  const { error } = await supabase
-    .from('call_participants')
-    .update(patch)
-    .eq('call_id', callId)
-    .eq('user_id', userId)
-  if (error) throw new Error(tg('fehler.teilnehmer_aendern', { grund: errText(error) }))
-}
-
-export async function getCall(callId: string): Promise<{ call: Call; parts: CallParticipant[] }> {
-  const [c, p] = await Promise.all([
-    supabase.from('calls').select('*').eq('id', callId).maybeSingle(),
-    supabase.from('call_participants').select('*').eq('call_id', callId),
-  ])
-  if (c.error) throw new Error(tg('fehler.anruf_laden', { grund: errText(c.error) }))
-  if (!c.data) throw new Error(tg('fehler.anruf_fehlt'))
-  return { call: c.data as Call, parts: (p.data ?? []) as CallParticipant[] }
-}
 
 /* ================================================================= Push */
 
@@ -1570,7 +1109,7 @@ export async function setPrefs(
 
 /* ============================================================== Profile */
 
-export async function listProfiles(ids: string[]): Promise<Map<string, Profile>> {
+async function listProfiles(ids: string[]): Promise<Map<string, Profile>> {
   const map = new Map<string, Profile>()
   const unique = [...new Set(ids.filter(Boolean))]
   if (unique.length === 0) return map
@@ -1584,51 +1123,6 @@ export async function listProfiles(ids: string[]): Promise<Map<string, Profile>>
 }
 
 /* ------------------------------------------------------------ Produkt (E77) */
-
-/** Was produkt-lesen von einer IKEA-Produktseite liefert. */
-export interface ProduktDaten {
-  url: string
-  name: string | null
-  preis_cent: number | null
-  masse: { name: string; wert: string }[]
-  breite_cm: number | null
-  tiefe_cm: number | null
-  hoehe_cm: number | null
-  /** Tiefe der langen Seite (Recamiere, Ecke), fuer die L-Form. */
-  tiefe_lang_cm: number | null
-  /** Kleines Produktfoto als data:-Adresse, fuer die Farbe. */
-  bild: string | null
-}
-
-/** Name, Preis, Masse und Foto eines Produkts von seiner Seite holen. */
-export async function produktLesen(url: string): Promise<ProduktDaten> {
-  const { data, error } = await supabase.functions.invoke('produkt-lesen', {
-    body: { url },
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (error) {
-    let grund = errText(error)
-    const ctx = (error as { context?: unknown }).context
-    if (ctx instanceof Response) {
-      try {
-        const k = (await ctx.clone().json()) as { error?: string }
-        if (k.error) grund = k.error
-      } catch {
-        /* kein JSON: der allgemeine Grund bleibt */
-      }
-    }
-    throw new Error(tg('fehler.produkt_lesen', { grund }))
-  }
-  return data as ProduktDaten
-}
-
-/** Den ganzen Verlauf eines Umzugs loeschen (0041, nur der Besitzer).
- *  Gibt zurueck, wie viele Eintraege weg sind. */
-export async function verlaufLoeschen(projectId: string): Promise<number> {
-  const res = await supabase.from('item_events').delete({ count: 'exact' }).eq('project_id', projectId)
-  if (res.error) throw new Error(tg('fehler.verlauf_loeschen', { grund: errText(res.error) }))
-  return res.count ?? 0
-}
 
 /* ------------------------------------------------- Kistenkarte in 3D (E82) */
 
@@ -1658,389 +1152,7 @@ export async function ladeKistenKarte(
 
 /* ----------------------------------------------------------- Siedlung (E83) */
 
-/* Eine Siedlung gehoert einem Konto (0044). Lesen darf auch, wer Mitglied
- * im Umzug des Grundrisses der eigenen Wohnung ist; schreiben nur der
- * Besitzer. Die Datenbank prueft den Inhalt selbst. Die Typen kommen hier
- * ohne Eintrag oben in der Importliste aus, damit dieser Teil fuer sich
- * steht. */
-type SiedlungZeile = import('./types').Siedlung
-type SiedlungAussenWerte = import('./types').SiedlungAussen
-
-const SIEDLUNG_SPALTEN = 'id, owner_id, name, lat, lon, gebaeude, wohnung, aussen, created_at, updated_at'
-/** Mit den Haeusern innen (E84, 0045): gross, darum nur beim Oeffnen einer
- *  Siedlung, nicht in der Liste. */
-const SIEDLUNG_SPALTEN_INNEN = `${SIEDLUNG_SPALTEN}, innen`
-/** Dazu die Stadt ringsum (E87, 0047): bis einige MB, ebenso nur beim
- *  Oeffnen. */
-const SIEDLUNG_SPALTEN_GANZ = `${SIEDLUNG_SPALTEN_INNEN}, stadt`
-
-/** Zeile der Datenbank in die Form der Oberflaeche: fehlende Listen leer,
- *  lat und lon als Zahl. */
-function siedlungLesen(z: SiedlungZeile): SiedlungZeile {
-  const a = (z.aussen ?? {}) as Partial<SiedlungAussenWerte>
-  return {
-    ...z,
-    lat: Number(z.lat),
-    lon: Number(z.lon),
-    gebaeude: Array.isArray(z.gebaeude) ? z.gebaeude : [],
-    wohnung: z.wohnung ?? null,
-    aussen: { spielplatz: a.spielplatz ?? null, tiefgarage: a.tiefgarage ?? null, wege: a.wege ?? [] },
-    innen: innenLesen(z.innen, Array.isArray(z.gebaeude) ? z.gebaeude.map((g) => g.id) : []),
-  }
-}
-
-/** Die Haeuser innen (E84): nur Haeuser ohne Fehler; ein kaputtes Haus
- *  faellt weg (mit Hinweis in der Konsole), statt die ganze Siedlung zu
- *  sperren. Fehlt die Spalte in der Abfrage, bleibt es undefined. */
-function innenLesen(roh: unknown, gebaeudeIds: string[]): SiedlungZeile['innen'] {
-  if (roh === undefined) return undefined
-  if (!Array.isArray(roh)) return null
-  return roh.filter((h, i) => {
-    const probleme = siedlungInnenPruefen([h], gebaeudeIds)
-    if (probleme.length) console.warn(`[siedlung] Haus ${i} innen ausgelassen:`, probleme.slice(0, 3))
-    return probleme.length === 0
-  }) as NonNullable<SiedlungZeile['innen']>
-}
-
-/** Alle Siedlungen, die man sehen darf: die eigenen und die aus einem
- *  gemeinsamen Umzug (owner_id sagt, wem sie gehoeren). Aelteste zuerst. */
-export async function listSiedlungen(): Promise<SiedlungZeile[]> {
-  const res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN).order('created_at')
-  if (res.error) throw new Error(errText(res.error))
-  return ((res.data ?? []) as SiedlungZeile[]).map(siedlungLesen)
-}
-
-/** Die Stadt ringsum (E87): nur, wenn stadtPruefen nichts findet. Eine
- *  kaputte Stadt faellt weg (mit Hinweis in der Konsole), statt die ganze
- *  Siedlung zu sperren. Fehlt die Spalte in der Abfrage, bleibt es
- *  undefined. */
-function stadtLesen(roh: unknown): SiedlungZeile['stadt'] {
-  if (roh === undefined) return undefined
-  if (roh === null) return null
-  const probleme = stadtPruefen(roh)
-  if (probleme.length) {
-    console.warn('[siedlung] Stadt ausgelassen:', probleme.slice(0, 3))
-    return null
-  }
-  return roh as SiedlungZeile['stadt']
-}
-
-/** Eine Siedlung. null heisst: gibt es nicht (mehr) oder nicht sichtbar.
- *  Mit innen und Stadt. */
-export async function ladeSiedlung(id: string): Promise<SiedlungZeile | null> {
-  let res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN_GANZ).eq('id', id).maybeSingle()
-  // Ist 0047 noch nicht angewandt, fehlt die Spalte stadt (42703): dann die
-  // Siedlung ohne Stadt, mit Hinweis in der Konsole, statt gar keine.
-  if (res.error?.code === '42703') {
-    console.warn('[siedlung] Spalte stadt fehlt (Migration 0047), Siedlung ohne Stadt geladen')
-    res = await supabase.from('siedlungen').select(SIEDLUNG_SPALTEN_INNEN).eq('id', id).maybeSingle()
-  }
-  if (res.error) throw new Error(errText(res.error))
-  if (!res.data) return null
-  const z = res.data as SiedlungZeile
-  return { ...siedlungLesen(z), stadt: stadtLesen(z.stadt) }
-}
-
-/** Die Siedlung ist gespeichert, ihre Stadt aber nicht (E87). siedlung ist
- *  die gespeicherte Zeile; die Nachricht sagt beides. */
-export class SiedlungStadtFehler extends Error {
-  siedlung: SiedlungZeile
-  constructor(nachricht: string, siedlung: SiedlungZeile) {
-    super(nachricht)
-    this.name = 'SiedlungStadtFehler'
-    this.siedlung = siedlung
-  }
-}
-
-/** Satz zu einem Fehler beim Speichern der Stadt: die Pruefung von 0047
- *  (siedlungen_stadt_ok) und eine zu grosse Anfrage haben einen eigenen. */
-function stadtFehlerText(err: { message?: string }): string {
-  const m = err.message ?? ''
-  if (m.includes('siedlungen_stadt_ok') || /too large|\b413\b/i.test(m)) return tg('fehler.db.siedlung.stadt_ungueltig')
-  return errText(err)
-}
-
-/** Legt an (ohne id) oder aendert (mit id). Beim Aendern gehen nur die
- *  Felder hinaus, die mitkommen; Besitzer und Zeiten setzt die Datenbank.
- *  Gibt die gespeicherte Zeile zurueck. */
-export async function speichereSiedlung(
-  s: Partial<SiedlungZeile> & { name: string; lat: number; lon: number },
-): Promise<SiedlungZeile> {
-  const werte: Record<string, unknown> = { name: s.name.trim(), lat: s.lat, lon: s.lon }
-  if (s.gebaeude !== undefined) werte.gebaeude = s.gebaeude
-  if (s.wohnung !== undefined) werte.wohnung = s.wohnung
-  if (s.aussen !== undefined) werte.aussen = s.aussen
-  if (s.innen !== undefined) werte.innen = s.innen
-
-  let zeile: SiedlungZeile
-  if (!s.id) {
-    const neu = {
-      gebaeude: [],
-      wohnung: null,
-      aussen: { spielplatz: null, tiefgarage: null, wege: [] } satisfies SiedlungAussenWerte,
-      ...werte,
-    }
-    const res = await supabase.from('siedlungen').insert(neu).select(SIEDLUNG_SPALTEN).single()
-    if (res.error) throw new Error(errText(res.error))
-    zeile = siedlungLesen(res.data as SiedlungZeile)
-  } else {
-    const res = await supabase.from('siedlungen').update(werte).eq('id', s.id).select(SIEDLUNG_SPALTEN).maybeSingle()
-    if (res.error) throw new Error(errText(res.error))
-    // Keine Zeile: gibt es nicht mehr oder gehoert einem anderen Konto.
-    if (!res.data) throw new Error(tg('zustand.nichts_gefunden'))
-    zeile = siedlungLesen(res.data as SiedlungZeile)
-  }
-
-  // Die Stadt (E87, bis einige MB) geht in einer eigenen Anfrage hinterher,
-  // damit die Siedlung selbst nicht an ihrer Groesse scheitert. Scheitert
-  // dieser Schritt, bleibt die Siedlung gespeichert, und der Fehler sagt es.
-  if (s.stadt !== undefined) {
-    const res = await supabase.from('siedlungen').update({ stadt: s.stadt }).eq('id', zeile.id).select('id').maybeSingle()
-    if (res.error || !res.data) {
-      const grund = res.error ? stadtFehlerText(res.error) : tg('zustand.nichts_gefunden')
-      throw new SiedlungStadtFehler(tg('fehler.siedlung_stadt', { grund }), zeile)
-    }
-    zeile = { ...zeile, stadt: s.stadt }
-  }
-  return zeile
-}
-
-/** Loescht eine eigene Siedlung. Traf es keine Zeile (fremd oder schon
- *  weg), ist das ein Fehler und kein stilles Nichts. */
-export async function loescheSiedlung(id: string): Promise<void> {
-  const res = await supabase.from('siedlungen').delete({ count: 'exact' }).eq('id', id)
-  if (res.error) throw new Error(errText(res.error))
-  if (!res.count) throw new Error(tg('zustand.nichts_gefunden'))
-}
-
-/** Eine Siedlung aus einer Datei eintragen (E85, siedlungImport.ts), mit
- *  dem eigenen Konto, ohne Befehle in der Datenbank.
- *
- *  Mit opt.ersetzeId (E87b, "Aus Datei aktualisieren" auf der Seite einer
- *  Siedlung) wird genau diese Siedlung ersetzt, Gaeste und gespeicherte
- *  Dinge bleiben. Sie muss dem eigenen Konto gehoeren; sonst kommt ein
- *  Fehler (fehler.siedlung_ersetzen), und nichts wird angelegt, auch keine
- *  zweite Siedlung. Eine Wohnung aus einem fremden Umzug laesst die
- *  Datenbank dabei nicht herein (siedlungen_vorher, 0044).
- *
- *  Ohne ersetzeId (erstes Laden): gibt es schon eine eigene Siedlung mit
- *  derselben Wohnung, wird sie ersetzt statt doppelt angelegt, sonst
- *  kommt eine neue.
- *
- *  Deko und Schalter fuer den eigenen Grundriss kommen danach; scheitern
- *  sie, bleibt die Siedlung trotzdem eingetragen, und der Grund kommt als
- *  Text zurueck (deko), nichts wird verschwiegen. Die Stadt (E87) schreibt
- *  speichereSiedlung gleich nach der Siedlung; scheitert sie, kommt ein
- *  SiedlungStadtFehler (Siedlung gespeichert, Stadt und Deko nicht), und
- *  ein zweites Laden derselben Datei holt alles nach. */
-export async function siedlungImportieren(
-  d: import('./siedlungImport').SiedlungDatei,
-  opt?: { ersetzeId?: string },
-): Promise<{ siedlung: SiedlungZeile; deko: 'ok' | 'keine' | { fehler: string } }> {
-  const { data: auth, error: authFehler } = await supabase.auth.getUser()
-  const uid = auth.user?.id ?? null
-  let ziel: string | null = null
-  if (opt?.ersetzeId !== undefined) {
-    // Nur eine eigene ersetzen; eine fremde oder verschwundene ist ein
-    // Fehler und nie ein stilles Neuanlegen.
-    if (authFehler || !uid) throw new Error(tg('fehler.siedlung_ersetzen', { grund: authFehler ? errText(authFehler) : tg('zustand.nichts_gefunden') }))
-    if (!UUID_FORM.test(opt.ersetzeId)) throw new Error(tg('fehler.siedlung_ersetzen', { grund: tg('zustand.nichts_gefunden') }))
-    const res = await supabase.from('siedlungen').select('id, owner_id').eq('id', opt.ersetzeId).maybeSingle()
-    if (res.error) throw new Error(tg('fehler.siedlung_ersetzen', { grund: errText(res.error) }))
-    const z = res.data as { id: string; owner_id: string } | null
-    if (!z) throw new Error(tg('fehler.siedlung_ersetzen', { grund: tg('zustand.nichts_gefunden') }))
-    if (z.owner_id !== uid) throw new Error(tg('fehler.siedlung_ersetzen', { grund: tg('fehler.db.siedlung.nur_besitzer') }))
-    ziel = z.id
-  } else {
-    // Nur eine eigene ersetzen (E86: die Liste enthaelt auch fremde, in die
-    // man eingeladen ist).
-    const gid = d.siedlung.wohnung?.grundrissId ?? null
-    const vorhanden = gid && uid ? (await listSiedlungen()).find((x) => x.owner_id === uid && x.wohnung?.grundrissId === gid) : undefined
-    ziel = vorhanden?.id ?? null
-  }
-  // speichereSiedlung aendert mit id und legt nur ohne id an; mit ziel gibt
-  // es also nie eine zweite Siedlung (keine Zeile mehr: Fehler).
-  const siedlung = await speichereSiedlung({ ...d.siedlung, ...(ziel ? { id: ziel } : {}) })
-  if (!d.deko) return { siedlung, deko: 'keine' }
-  try {
-    const plan = await ladeGrundriss(d.deko.grundrissId)
-    if (!plan) throw new Error(tg('fehler.db.grundriss.grundriss_fehlt'))
-    // Gleiche Kennungen: ein zweites Laden aendert nur, legt nichts doppelt an.
-    await speichereGrundriss(d.deko.grundrissId, plan.grundriss.version, { objekte: d.deko.objekte })
-    const da = new Set((plan.grundriss.symbole ?? []).map((x) => x.id))
-    const neu = d.deko.symbole.filter((x) => !da.has(x.id))
-    if (neu.length) await speichereLinien(d.deko.grundrissId, plan.grundriss.linien ?? [], [...(plan.grundriss.symbole ?? []), ...neu])
-    return { siedlung, deko: 'ok' }
-  } catch (err) {
-    return { siedlung, deko: { fehler: err instanceof Error ? err.message : String(err) } }
-  }
-}
-
 /* ------------------------------------------------ Siedlung gemeinsam (E86) */
-
-/* Der Besitzer laedt registrierte Konten in seine Siedlung ein (0046).
- * Alles laeuft ueber Funktionen der Datenbank: sie prueft, wer einladen,
- * sehen und herausnehmen darf, und gibt nie E-Mails oder Kennungen fremder
- * Konten heraus. Ablehnungen tragen eine Kennung (kistly:siedlung.*), den
- * Satz dazu macht errText. Die Typen kommen wie oben ohne Eintrag in der
- * Importliste aus. */
-type SiedlungMitgliedZeile = import('./types').SiedlungMitglied
-type SiedlungEinladungAntwort = import('./types').SiedlungEinladung
-
-/** Alle Antworten von siedlung_einladen ausser 'ok' (0046). */
-const EINLADUNG_ANDERE: readonly string[] = ['nicht_gefunden', 'mehrdeutig', 'schon_drin', 'selbst', 'zu_viele']
-
-/** Laedt per E-Mail (enthaelt '@') oder per eindeutigem Anzeigenamen ein.
- *  Die Antwort sagt, wie es ausging (ok mit dem Anzeigenamen, sonst der
- *  Grund). Ein Fehler kommt, wenn man nicht der Besitzer ist, das Konto
- *  nicht freigeschaltet ist oder zu oft eingeladen wurde (30 Versuche je
- *  Stunde). */
-export async function siedlungEinladen(siedlungId: string, wer: string): Promise<SiedlungEinladungAntwort> {
-  const res = await supabase.rpc('siedlung_einladen', { p_siedlung: siedlungId, p_wer: wer })
-  if (res.error) throw new Error(errText(res.error))
-  const d = (res.data ?? null) as { status?: unknown; name?: unknown } | null
-  const status = d?.status
-  if (status === 'ok') return { status, name: typeof d?.name === 'string' ? d.name : '' }
-  if (typeof status === 'string' && EINLADUNG_ANDERE.includes(status)) {
-    return { status: status as Exclude<SiedlungEinladungAntwort['status'], 'ok'> }
-  }
-  // Eine Antwort, die es nicht geben duerfte: sichtbar, nicht still.
-  throw new Error(tg('zustand.unbekannter_fehler'))
-}
-
-/** Rollen, die siedlung_mitglieder_liste kennt (0046, 'umzug' seit 0048). */
-const MITGLIED_ROLLEN: readonly SiedlungMitgliedZeile['rolle'][] = ['besitzer', 'gast', 'umzug']
-
-/** Wer zur Siedlung gehoert: der Besitzer zuerst, dann die Gaeste in der
- *  Reihenfolge der Einladung, dann (E87b, 0048) die Mitglieder im Umzug der
- *  eigenen Wohnung des Besitzers mit Rolle 'umzug', jeweils mit
- *  Anzeigenamen (sonst 'Gast') und Figur. Nur fuer wer hinein darf; alle
- *  anderen bekommen einen Fehler, keine leere Liste. Die Figur prueft die
- *  Datenbank beim Speichern (0043). Eine unbekannte Rolle ist ein Fehler
- *  und wird nicht still zum Gast. */
-export async function siedlungMitglieder(siedlungId: string): Promise<SiedlungMitgliedZeile[]> {
-  const res = await supabase.rpc('siedlung_mitglieder_liste', { p_siedlung: siedlungId })
-  if (res.error) throw new Error(errText(res.error))
-  return ((res.data ?? []) as SiedlungMitgliedZeile[]).map((m) => {
-    if (!MITGLIED_ROLLEN.includes(m.rolle)) throw new Error(tg('zustand.unbekannter_fehler'))
-    return {
-      user_id: m.user_id,
-      name: m.name,
-      avatar3d: m.avatar3d ?? null,
-      rolle: m.rolle,
-    }
-  })
-}
-
-/** Nimmt einen Gast heraus (nur der Besitzer) oder verlaesst die Siedlung
- *  (userId = das eigene Konto). War die Person nicht als Gast drin (auch
- *  ein Mitglied mit Rolle 'umzug'), ist das ein Fehler und kein stilles
- *  Nichts. Seit 0048 gehen die Dinge mit, die sie als Erste hingestellt
- *  hat (sie stehen danach wieder am Startplatz). */
-export async function siedlungEntfernen(siedlungId: string, userId: string): Promise<void> {
-  const res = await supabase.rpc('siedlung_entfernen', { p_siedlung: siedlungId, p_user: userId })
-  if (res.error) throw new Error(errText(res.error))
-}
-
-/* ------------------------------------------------------ Siedlung E87 (0047)
- * Dinge und Fahrzeuge, die jemand bewegt hat, bleiben dort stehen, wo sie
- * zuletzt hingestellt wurden (siedlung_dinge). Lesen duerfen Besitzer,
- * Gaeste und seit 0048 die Mitglieder im Umzug der eigenen Wohnung
- * (siedlung_darf), schreiben nur ueber siedlung_ding_setzen: die Funktion
- * prueft Zugang, Kennung, Zahlen, hoechstens 5000 Dinge je Siedlung und
- * (0048) hoechstens 500 neue je Konto, ausser fuer den Besitzer. Zurueck an
- * den Startplatz bringt sie nur der Besitzer (siedlung_dinge_zuruecksetzen).
- *
- * Die Lagen sind seit E87b Siedlungsmeter (x nach Osten, z nach Sueden, y
- * ueber dem Boden der Siedlung = 0, gier wie Pose3D), keine Weltmeter:
- * die Oberflaeche rechnet beim Laden und Speichern mit
- * SiedlungWelt3D.rahmen um. Hier geht jede Zahl unveraendert hin und her.
- *
- * Ablehnungen tragen eine Kennung (kistly:siedlung.*), den Satz macht
- * errText. Die Typen kommen wie oben ohne Eintrag in der Importliste aus. */
-type DingLageZeile = import('../components/plan3d/vertrag3d').DingLage3D
-
-/** So viele Zeilen gibt die Datenbank hoechstens auf einmal heraus
- *  (Supabase: max rows 1000); darum in Seiten. */
-const DINGE_SEITE = 1000
-const UUID_FORM = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/** Wo Dinge und Fahrzeuge der Siedlung zuletzt hingestellt wurden (alle,
- *  die je bewegt wurden), in Siedlungsmetern. Nur fuer wer hinein darf
- *  (Besitzer, Gaeste, Umzug der eigenen Wohnung); alle anderen bekommen
- *  eine leere Liste (die Zeilen-Sicherheit filtert). */
-export async function siedlungDinge(siedlungId: string): Promise<DingLageZeile[]> {
-  const out: DingLageZeile[] = []
-  for (let von = 0; ; von += DINGE_SEITE) {
-    const { data, error } = await supabase
-      .from('siedlung_dinge')
-      .select('ding_id, art, x, y, z, gier, ebene')
-      .eq('siedlung_id', siedlungId)
-      .order('ding_id')
-      .range(von, von + DINGE_SEITE - 1)
-    if (error) throw new Error(tg('fehler.siedlung_dinge_laden', { grund: errText(error) }))
-    const zeilen = (data ?? []) as { ding_id: string; art: string; x: number; y: number; z: number; gier: number; ebene: string }[]
-    for (const d of zeilen) {
-      out.push({
-        id: d.ding_id,
-        art: d.art === 'fahrzeug' ? 'fahrzeug' : 'ding',
-        x: Number(d.x),
-        y: Number(d.y),
-        z: Number(d.z),
-        gier: Number(d.gier),
-        ebene: d.ebene,
-      })
-    }
-    if (zeilen.length < DINGE_SEITE) return out
-  }
-}
-
-/** Eine neue Lage speichern (ueberschreibt die alte desselben Dings), in
- *  Siedlungsmetern. Die Datenbank lehnt ab, wenn man nicht dazu gehoert
- *  (kistly:siedlung.kein_zugriff), Kennung oder Zahlen nicht passen
- *  (kistly:siedlung.ding_ungueltig), schon 5000 Dinge bewegt wurden
- *  (kistly:siedlung.zu_viele_dinge) oder das eigene Konto schon 500 neue
- *  hingestellt hat (kistly:siedlung.zu_viele_eigene_dinge, nicht fuer den
- *  Besitzer). */
-export async function siedlungDingSetzen(siedlungId: string, l: DingLageZeile): Promise<void> {
-  const werte = {
-    p_siedlung: siedlungId,
-    p_ding: l.id,
-    p_art: l.art,
-    p_x: l.x,
-    p_y: l.y,
-    p_z: l.z,
-    p_gier: l.gier,
-    p_ebene: l.ebene,
-  }
-  const { error } = await supabase.rpc('siedlung_ding_setzen', werte)
-  if (error) throw new Error(tg('fehler.siedlung_ding_setzen', { grund: errText(error) }))
-}
-
-/** Bringt ein Ding (dingId) oder alle Dinge der Siedlung (ohne dingId oder
- *  null) zurueck an ihren Startplatz, indem ihre gespeicherten Lagen
- *  geloescht werden (0048). Nur der Besitzer; alle anderen bekommen einen
- *  Fehler (kistly:siedlung.nur_besitzer). Gibt die Zahl der geloeschten
- *  Lagen zurueck (0: es war keins bewegt). Was andere gerade live sehen,
- *  aendert das nicht; das sagt die Oberflaeche ueber den Kanal. */
-export async function siedlungDingeZuruecksetzen(siedlungId: string, dingId?: string | null): Promise<number> {
-  const { data, error } = await supabase.rpc('siedlung_dinge_zuruecksetzen', { p_siedlung: siedlungId, p_ding: dingId ?? null })
-  if (error) throw new Error(tg('fehler.siedlung_dinge_zuruecksetzen', { grund: errText(error) }))
-  // Eine Antwort, die es nicht geben duerfte (keine ganze Zahl ab 0):
-  // sichtbar, nicht still.
-  if (typeof data !== 'number' || !Number.isInteger(data) || data < 0) throw new Error(tg('zustand.unbekannter_fehler'))
-  return data
-}
-
-/** Darf ich diesen Grundriss sehen (bin ich im Umzug)? Dann sein Umzug,
- *  sonst null. Fuer den Knopf "Eingerichtet ansehen" in der Siedlung. Die
- *  Zeilen-Sicherheit der Grundrisse (is_member) entscheidet. */
-export async function grundrissDarf(grundrissId: string): Promise<{ projectId: string } | null> {
-  if (!UUID_FORM.test(grundrissId)) return null
-  const { data, error } = await supabase.from('grundrisse').select('id, project_id').eq('id', grundrissId).maybeSingle()
-  if (error) throw new Error(tg('fehler.grundriss_laden', { grund: errText(error) }))
-  return data ? { projectId: (data as { project_id: string }).project_id } : null
-}
 
 /* ===================================================== Lager (0050, E103)
  * Bestand, Ausleihen, Ein- und Austragen, Aktivitaet. Mengen aendert nur
@@ -2204,11 +1316,6 @@ export async function adminKontoAnlegen(input: {
   return userId
 }
 
-export async function adminMitgliedSetzen(userId: string, projectId: string, rolle: 'owner' | 'editor' | 'viewer' | 'keine'): Promise<void> {
-  const { error } = await supabase.rpc('admin_mitglied_setzen', { p_user: userId, p_project: projectId, p_rolle: rolle })
-  if (error) throw lagerFehler(error)
-}
-
 export async function adminAdminSetzen(userId: string, istAdmin: boolean): Promise<void> {
   const { error } = await supabase.rpc('admin_admin_setzen', { p_user: userId, p_admin: istAdmin })
   if (error) throw lagerFehler(error)
@@ -2299,13 +1406,13 @@ export async function blMitgliedSetzen(userId: string, blId: string, rolle: 'edi
 
 /* ---- Bereiche (statt Zimmer) und Verlauf (0054) ------------------------ */
 
-export async function bereichAnlegen(projectId: string, name: string): Promise<string> {
+async function bereichAnlegen(projectId: string, name: string): Promise<string> {
   const { data, error } = await supabase.rpc('bereich_anlegen', { p_project: projectId, p_name: name })
   if (error) throw lagerFehler(error)
   return data as string
 }
 
-export async function bereichUmbenennen(bereichId: string, name: string): Promise<void> {
+async function bereichUmbenennen(bereichId: string, name: string): Promise<void> {
   const { error } = await supabase.rpc('bereich_umbenennen', { p_bereich: bereichId, p_name: name })
   if (error) throw lagerFehler(error)
 }
@@ -2322,7 +1429,7 @@ export async function bestandEntfernen(bestandId: string): Promise<void> {
   if (error) throw lagerFehler(error)
 }
 
-export interface VerlaufZeile {
+interface VerlaufZeile {
   id: number
   user_id: string | null
   art: string

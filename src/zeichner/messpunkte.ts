@@ -80,7 +80,7 @@ import { einrasten, flaeche2, zuUmriss, WAND_DURCH_CM, type Punkt } from '../lib
 import { oeffnungPunkte, raumTitel, streckenAbstand, WAND_HALB_CM } from '../components/plan/hilfe.ts'
 import type { Oeffnung, Raum } from '../lib/types'
 
-export type MesspunktArt = 'ecke' | 'tuer' | 'durchgang' | 'fenster'
+type MesspunktArt = 'ecke' | 'tuer' | 'durchgang' | 'fenster'
 
 export interface Messpunkt {
   /** Lage auf der Innenseite der Wand (cm). */
@@ -102,7 +102,7 @@ export interface Messpunkt {
 }
 
 /** Ein Ende einer Oeffnung ohne Lage, fuer Messpunkt.auch. */
-export type MesspunktEnde = Omit<Messpunkt, 'p' | 'auch'>
+type MesspunktEnde = Omit<Messpunkt, 'p' | 'auch'>
 
 type MessDaten = { raeume: Raum[]; oeffnungen: Oeffnung[] }
 
@@ -436,7 +436,7 @@ function endeName(t: Uebersetzer, m: MesspunktEnde): string {
 }
 
 /** Der Messpunkt, der p am naechsten liegt, hoechstens toleranz cm weit. */
-export function messpunktAn(liste: Messpunkt[], p: Punkt, toleranz: number): Messpunkt | null {
+function messpunktAn(liste: Messpunkt[], p: Punkt, toleranz: number): Messpunkt | null {
   let beste: Messpunkt | null = null
   let bester = toleranz
   for (const m of liste) {

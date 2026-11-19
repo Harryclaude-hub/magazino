@@ -219,7 +219,7 @@ export function imRaum(a: Kasten2, raeume: readonly Umriss[]): boolean {
 
 /** Waende fuer die Pruefung: Felder wie in kollision.ts (Hindernisse) und
  *  die Nummern der Rechtecke, die zaehlen. */
-export interface WandFelder {
+interface WandFelder {
   mx: readonly number[]
   mz: readonly number[]
   ux: readonly number[]
@@ -250,7 +250,7 @@ export function stelleErlaubt(
  *  Stueck in einer Wand steht (schrumpfFuer). Waende stehen mittig auf der
  *  Kante des Raums (12 cm, also 6 cm in den Raum), und der Zeichner
  *  erlaubt Moebel bis an die Kante. */
-export const TRAGEN_SCHRUMPF_MAX_M = 0.08
+const TRAGEN_SCHRUMPF_MAX_M = 0.08
 
 /** Wie viel ein Moebel beim Pruefen kleiner sein muss (TRAGEN_SCHRUMPF_M
  *  bis TRAGEN_SCHRUMPF_MAX_M, in ganzen cm), damit es dort passt, wo es im

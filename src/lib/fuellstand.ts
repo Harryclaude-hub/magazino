@@ -16,12 +16,6 @@ export const FUELL_STUFEN = [0, 25, 50, 75, 100] as const
 /** Schritt des feinen Reglers. */
 export const FUELL_SCHRITT = 5
 
-/** Ganze Prozent 0 bis 100, sonst null. */
-export function fuellWert(v: unknown): number | null {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return null
-  return Math.min(100, Math.max(0, Math.round(v)))
-}
-
 /** CSS-Farbe fuer p Prozent, nur aus den Variablen gemischt. */
 export function fuellFarbe(p: number): string {
   const w = Math.min(100, Math.max(0, p))

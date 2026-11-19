@@ -1,12 +1,8 @@
-import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Ref } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowBigUp, ArrowDownToLine, ArrowUpFromLine, Car, Clock, Crosshair, Eye, Flower2, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, LogOut, Map as KarteIcon, Maximize2, Mic, MicOff, Minimize2, Moon, Rotate3d, RotateCw, Siren, SlidersHorizontal, Square, Sun, SwitchCamera, Target, Users, X } from 'lucide-react'
-import { displayNameOf, useAuth } from '../../lib/auth'
-import { standardLook } from '../../lib/avatar'
-import { wohnungBeitreten, type WohnungVerbindung } from '../../lib/anwesenheit'
+import { ArrowBigUp, ArrowDownToLine, ArrowUpFromLine, Car, Clock, Crosshair, Eye, Flower2, Footprints, Hand, Layers, ChevronUp, Lightbulb, LightbulbOff, LogOut, Map as KarteIcon, Maximize2, Minimize2, Moon, Rotate3d, RotateCw, Siren, SlidersHorizontal, Square, Sun, SwitchCamera, Target, X } from 'lucide-react'
 import { useSprache } from '../../lib/i18n'
-import { Sprechen, type SprechZustand } from '../../lib/sprechen'
-import type { Avatar3D, GrundrissDaten, Item } from '../../lib/types'
+import type { GrundrissDaten, Item } from '../../lib/types'
 import { cx } from '../../lib/util'
 import { useProjektOptional } from '../../pages/ProjectLayout'
 import { Button, useToast } from '../ui'
@@ -14,7 +10,6 @@ import { flaecheQm, innenPunkt, raumTitel } from '../plan/hilfe'
 import { moebelArt } from '../plan/moebelArt'
 import { objektMitte } from '../plan/objektVerschieben'
 import { baueUmgebung } from './aussen3d'
-import { baueFigur } from './avatar3d'
 import { zielFuerItem } from '../ItemRow'
 import KistenKarte from './KistenKarte'
 import MoebelKarte from './MoebelKarte'
@@ -23,21 +18,18 @@ import { kistenAuf, traegerKarte, type MenueEintrag } from './moebelInfo'
 import {
   motorStarten,
   type Blick,
-  type Figur3D,
   type Haltung,
   type MoebelAenderung,
   type MoebelKontext3D,
   type MoebelTragZustand,
   type Motor,
-  type Pose3D,
   type Treffer3D,
 } from './motor'
 import { Knueppel } from './Knueppel'
-import Minikarte, { springbarBerechnen, sprungImHaus, type MinikarteLage, type MinikartePerson } from './Minikarte'
 import { farbenLesen } from './farben3d'
 import { baueSzene, hervorMitte, lichter, type Farben3D } from './szene'
 import { umgebungAus } from './umgebungRahmen'
-import type { DingLage3D, Ebene3D, FahrzeugArt, FahrzeugJetzt, Karte3D, Moeglich3D, Sprungziel3D, Welt3D } from './vertrag3d'
+import type { FahrzeugArt, FahrzeugJetzt, Moeglich3D } from './vertrag3d'
 
 /* Die 3D-Ansicht am Computer (START 5.5, BAUPLAN 5.4).
  *
@@ -59,30 +51,7 @@ import type { DingLage3D, Ebene3D, FahrzeugArt, FahrzeugJetzt, Karte3D, Moeglich
  * E82: Beim Begehen setzt man sich hin oder legt sich hin (Antippen),
  * hebt kleine Dinge auf, schaltet Fernseher und Wasser, schliesst Tueren
  * ab. Eine angetippte Kiste zeigt ihre Karte mit Zurueck zur Begehung.
- * Wer im selben Umzug gerade auch durch die Wohnung geht, erscheint als
- * Figur, und mit Mikrofon hoert man sich, lauter, je naeher man steht.
  * Draussen gibt es eine ruhige Umgebung (aussen3d.ts).
- *
- * E83: Die Siedlung gibt statt dieser Umgebung ihre eigene Welt mit
- * (welt): Haeuser rundherum, Gaenge, Treppenhaus, Aufzug. Beim Begehen
- * steht dann oben, auf welchem Stockwerk man ist. Ohne welt bleibt alles
- * wie zuvor.
- *
- * E84: Die Welt der Siedlung bringt Sprungziele mit (alle Wohnungen der
- * Haeuser mit Plan). Raum3D meldet sie der Seite (onSprungziele), und
- * steuer.springen(i) bringt einen beim Begehen dorthin; wer gerade nicht
- * geht, beginnt das Begehen dort.
- *
- * E86: Die Siedlung ist gemeinsam. Mit live geht Raum3D beim Begehen in
- * den Kanal der Siedlung statt in den des Umzugs: wer gleichzeitig dort
- * geht, erscheint als Figur (Name und Aussehen aus live.leute), Sprechen
- * wie in der Wohnung (der Abstand zaehlt hier auch in der Hoehe, also
- * ueber Stockwerke), Zahl der Leute unten rechts (Fehler seit E87 oben
- * in der Mitte unter dem Stockwerk). Bringt die
- * Welt eine Karte mit (Welt3D.karte), steht unten rechts die Minikarte
- * (Minikarte.tsx), ueber den Knoepfen und auch im Vollbild; Antippen eines
- * Hauses fuehrt zu seinem naechsten Sprungziel. Die Lage fuer die Karte
- * liegt in Refs, Raum3D zeichnet dafuer nicht neu.
  *
  * E87: Beim Begehen stehen Knoepfe fuer das, was gerade geht (der Motor
  * meldet es mit moeglich() und fahrzeug()): Springen (nur am Handy, am
@@ -97,31 +66,6 @@ import type { DingLage3D, Ebene3D, FahrzeugArt, FahrzeugJetzt, Karte3D, Moeglich
  * fuer CSS und Pruefung, scripts/bedienung-pruefen.mjs); nichts deckt
  * Knueppel, Minikarte oder einander zu. 3D wird nie gespiegelt, auch die
  * Knoepfe bleiben im Arabischen, wo sie sind.
- *
- * E87, gemeinsam: Wer faehrt, schickt das Fahrzeug mit der Stellung
- * (Pose3D.lenkt, anwesenheit.ts). Stellt jemand ein Ding hin oder ein
- * Fahrzeug ab (motor.bewegt), geht das an die anderen (Ereignis 'ding')
- * und an die Seite (onDingBewegt, zum Speichern); Ankommendes setzt
- * motor.lage. Gespeicherte Lagen kommen ueber dingLagen und werden nach
- * jedem Neubau der Welt wieder gesetzt.
- *
- * E87, Nachtrag: Zwischenpodeste der Treppen (Ebenen '<Haus>:<k>.5') sind
- * keine Stockwerke zum Waehlen (ebenenZumWaehlen); oben steht trotzdem ihr
- * Name, solange man darauf steht. startGehen beginnt das Begehen gleich
- * beim Oeffnen, einmal (Grundriss mit ?begehen=1).
- *
- * E87b, nach der Pruefung: Mit live zaehlt nur, wer in live.leute steht
- * (Besitzer, Gaeste, Leute im Umzug). Wer herausgenommen wurde, ist nach
- * der naechsten Liste weg: keine Figur, kein Sprechen, seine Stellungen,
- * Signale und Dinge fallen weg, ohne neu zu verbinden. Laesst sich die
- * Liste nicht laden (live.ohneListe), gilt wie bisher, wen der Kanal
- * hineinlaesst. Gemerkte Lagen sind begrenzt (LAGEN_MAX, fremde zuerst
- * weg), und an den Motor geht nur Neues oder Geaendertes: ein Neubau der
- * Welt spielt nichts erneut ab (der Motor behaelt seine Lagen selbst), und
- * ein Ding in der Hand bleibt in der Hand. Aussteigen ohne freien Platz
- * sagt es (Hinweis, im Vollbild auch oben); Esc dann noch einmal beendet
- * das Begehen. Beim Abbau geht null als Stockwerk an die Seite. Ein Fehler
- * der Seite kann Nochmal und Schliessen haben.
  *
  * E89: Beim Begehen der Wohnung (nicht in der Welt der Siedlung) hebt ein
  * Rechtsklick (am Handy langes Druecken; seit E92 ueber "Verschieben" im
@@ -159,46 +103,6 @@ import type { DingLage3D, Ebene3D, FahrzeugArt, FahrzeugJetzt, Karte3D, Moeglich
  * Hell/Dunkel neu gelesen. Ohne WebGL steht ein Hinweis da, 2D bleibt.
  */
 
-/** Was die Seite der Siedlung von aussen ausloesen kann (E83). */
-export interface Raum3DSteuer {
-  /** Begehen in der eigenen Wohnung beginnen (im groessten Raum), auch
-   *  wenn man gerade woanders in der Siedlung geht. */
-  zurWohnung(): void
-  /** Alles von oben zeigen. */
-  vonOben(): void
-  /** Zum Sprungziel index der Welt gehen (E84, Nummer in der Liste, die
-   *  onSprungziele gemeldet hat). Wer nicht geht, beginnt das Begehen und
-   *  steht dann dort. Unbekannte Nummer oder noch keine Welt: nichts. */
-  springen(index: number): void
-}
-
-/** Was der Motor fuer eine eigene Welt kann (E83 und E84, Paket motor).
- *  Hier nur als freiwillige Angabe und ueber unknown gegriffen, damit es
- *  nach dem Zusammenfuehren nicht mit motor.ts kollidiert: fehlt welt(),
- *  kommt die Welt ueber umgebung() und es gibt keine Stockwerke; fehlt
- *  springen(), meldet springen es in der Konsole. */
-interface MotorMitWelt {
-  welt?: (w: Welt3D | null) => void
-  ebeneJetzt?: (fn: ((ebene: unknown) => void) | null) => void
-  ebeneWechseln?: (i: number) => void
-  /** Beim Begehen auf Ebene ebene (Index in welt().ebenen) an die Stelle
-   *  x, z (Meter, Welt) mit Blick gier (0 = nach -z). */
-  springen?: (ebene: number, x: number, z: number, gier: number) => void
-}
-
-function mitWelt(m: Motor): MotorMitWelt {
-  return m as unknown as MotorMitWelt
-}
-
-/** Name der Ebene aus dem, was der Motor meldet: ihre Nummer in
- *  welt.ebenen, die Ebene selbst oder ihre Kennung. */
-function ebenenName(e: unknown, ebenen: Ebene3D[]): string | null {
-  if (typeof e === 'number') return ebenen[e]?.name ?? null
-  if (typeof e === 'string') return ebenen.find((x) => x.id === e)?.name ?? e
-  if (e && typeof e === 'object' && 'name' in e && typeof e.name === 'string') return e.name
-  return null
-}
-
 export interface Raum3DProps {
   daten: GrundrissDaten
   /** Nur diesen Raum zeigen (Kistenseite, Suche). */
@@ -215,44 +119,6 @@ export interface Raum3DProps {
   onTippen?: (xCm: number, yCm: number, treffer: Treffer3D | null) => void
   /** Gewaehltes Moebel (Objekt-Id): leuchtet in 3D auf. */
   markiert?: string | null
-  /** Eigene Aussenwelt statt der ruhigen Umgebung (E83, Siedlung). Raum3D
-   *  baut sie mit den aktuellen Farben, gibt sie dem Motor und gibt sie bei
-   *  einem Wechsel und beim Schliessen frei. Soll stabil sein (useCallback
-   *  oder useMemo), sonst wird sie bei jedem Neuzeichnen neu gebaut. Ohne
-   *  welt bleibt alles wie bisher (aussen3d.ts). */
-  welt?: (farben: Farben3D) => Welt3D
-  /** Meldet das Stockwerk, auf dem man gerade geht (Name der Ebene der
-   *  welt), oder null, wenn man nicht geht. */
-  onEbene?: (name: string | null) => void
-  /** Die Sprungziele der welt (E84), jedes Mal, wenn sie gebaut ist (auch
-   *  neu, etwa bei Hell und Dunkel); ohne Ziele eine leere Liste. ebenen:
-   *  die Namen der Ebenen der welt, Index wie Sprungziel3D.ebene (fuer
-   *  Ueberschriften). Schlaegt der Bau fehl, kommt nichts. */
-  onSprungziele?: (ziele: Sprungziel3D[], ebenen: string[]) => void
-  /** Griff fuer Knoepfe ausserhalb (Kopfzeile der Siedlung). */
-  steuer?: Ref<Raum3DSteuer>
-  /** Gemeinsam in der Siedlung (E86): Kanal 'siedlung:<Kennung>', die
-   *  eigene Kennung und wer dazugehoert (Name, Aussehen; fehlt jemand,
-   *  steht '?' und eine Standardfigur da). Beim Begehen geht Raum3D damit
-   *  live, ohne Umzug. null oder fehlt: wie bisher, live nur im eigenen
-   *  Umzug (E82). Die Liste darf sich aendern, die Verbindung bleibt. */
-  live?: Raum3DLive | null
-  /** E87: Wo Dinge und Fahrzeuge der Welt stehen (gespeichert). Jede Lage
-   *  geht an den Motor (motor.lage), wenn die Liste kommt und nach jedem
-   *  Neubau der Welt. Was in dieser Sitzung schon bewegt wurde (selbst
-   *  oder von anderen), gilt vor dieser Liste. */
-  dingLagen?: readonly DingLage3D[] | null
-  /** E87: Man hat ein Ding der Welt hingestellt oder abgelegt oder ein
-   *  Fahrzeug abgestellt (motor.bewegt), zum Speichern. Kommt auch, wenn
-   *  niemand sonst da ist. */
-  onDingBewegt?: (l: DingLage3D) => void
-  /** E87: Ein Fehler der Seite (etwa beim Speichern der Dinge), als
-   *  kleiner Hinweis oben in der Mitte der Ansicht, auch im Vollbild. */
-  seitenFehler?: string | null
-  /** E87b: Knopf Nochmal am Fehler der Seite (etwa Laden der Dinge). */
-  onSeitenFehlerNochmal?: (() => void) | null
-  /** E87b: Knopf Schliessen am Fehler der Seite. */
-  onSeitenFehlerZu?: (() => void) | null
   /** E87: gleich begehen, sobald 3D laeuft (einmal je Ansicht), etwa wenn
    *  der Grundriss mit ?begehen=1 geoeffnet wurde. Spaeter wechseln wirkt
    *  nicht mehr; ohne Raeume und ohne Welt nichts. */
@@ -268,18 +134,6 @@ export interface Raum3DProps {
   className?: string
 }
 
-/** Siehe Raum3DProps.live (E86). */
-export interface Raum3DLive {
-  kanal: string
-  uid: string
-  leute: { uid: string; name: string; look: Avatar3D | null }[]
-  /** E87b: true, solange die Liste der Mitglieder nicht geladen werden
-   *  konnte. Dann gilt, wen der Kanal hineinlaesst; sonst nur, wer in leute
-   *  steht. */
-  ohneListe?: boolean
-}
-
-
 /** Wo das Begehen anfaengt: im gezeigten Raum, sonst im groessten Raum
  *  innen (meist Wohnzimmer oder Wohnkueche). Punkt im Plan in cm. */
 function startPunkt(daten: GrundrissDaten, raumId: string | null): [number, number] | null {
@@ -289,123 +143,12 @@ function startPunkt(daten: GrundrissDaten, raumId: string | null): [number, numb
   return best ? innenPunkt(best.punkte) : null
 }
 
-/** E87: so viele selbst bewegte Dinge bekommt jemand, der neu dazukommt
- *  (der Kanal nimmt je Absender 20 je Sekunde an). */
-const DINGE_NACHREICHEN = 20
-
-/** E87b: so viele Lagen merkt sich Raum3D hoechstens (je Liste). Wer im
- *  Kanal immer neue Kennungen schickt, fuellt so nicht den Speicher. */
-// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
-export const LAGEN_MAX = 5000
-
-/** Eine Lage (oder einen Wert) unter id merken, als juengsten Eintrag
- *  (eine Map behaelt die Reihenfolge des Einfuegens). Sind es danach mehr
- *  als max, fallen die aeltesten weg, ausser denen in schuetzen und id
- *  selbst. Gibt die verworfenen Kennungen zurueck (E87b). */
-// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
-export function lageMerken<T>(karte: Map<string, T>, id: string, wert: T, schuetzen: { has(id: string): boolean } | null, max: number = LAGEN_MAX): string[] {
-  karte.delete(id)
-  karte.set(id, wert)
-  const weg: string[] = []
-  if (karte.size <= max) return weg
-  for (const k of karte.keys()) {
-    if (karte.size <= max) break
-    if (k === id || schuetzen?.has(k)) continue
-    karte.delete(k)
-    weg.push(k)
-  }
-  return weg
-}
-
-/** Dieselbe Lage (Art, Ort, Drehung, Ebene)? Dann muss sie nicht noch
- *  einmal an den Motor (E87b). */
-// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
-export function lageGleich(a: DingLage3D | undefined | null, b: DingLage3D): boolean {
-  return !!a && a.id === b.id && a.art === b.art && a.x === b.x && a.y === b.y && a.z === b.z && a.gier === b.gier && a.ebene === b.ebene
-}
-
-/** Eine Lage als dem Motor bekannt merken (lagen); was dabei wegfaellt,
- *  faellt auch aus frisch. eigene (selbst Bewegtes) faellt nie weg. */
-function lageVermerken(lagen: Map<string, DingLage3D>, frisch: Set<string>, eigene: Map<string, DingLage3D>, l: DingLage3D): void {
-  for (const k of lageMerken(lagen, l.id, l, eigene)) frisch.delete(k)
-}
-
-/** Wer live dabei sein darf, als Zeichen (E87b): '*' heisst alle, die der
- *  Kanal hineinlaesst (Umzug ohne live, oder die Liste liess sich nicht
- *  laden); sonst die Kennungen aus live.leute, klein, sortiert, mit Komma.
- *  Gleiches Zeichen, gleiche Leute: eine neue Liste mit denselben Leuten
- *  aendert nichts. */
-// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
-export function erlaubtZeichenVon(live: Raum3DLive | null | undefined): string {
-  if (!live || live.ohneListe) return '*'
-  return live.leute
-    .map((l) => String(l.uid).toLowerCase())
-    .sort()
-    .join(',')
-}
-
-/** Die Pruefung zu einem Zeichen aus erlaubtZeichenVon (gross oder klein egal). */
-// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
-export function erlaubtPruefen(zeichen: string): (u: string) => boolean {
-  if (zeichen === '*') return () => true
-  const s = new Set(zeichen ? zeichen.split(',') : [])
-  return (u) => typeof u === 'string' && s.has(u.toLowerCase())
-}
-
 /** So lange (ms) steht der Hinweis "kein Platz zum Aussteigen"; so lange
  *  beendet ein zweites Esc das Begehen (E87b). */
 const KEIN_PLATZ_MS = 5000
 
 /** Moebel tragen (E89): nichts in der Hand, nichts verschoben. */
 const TRAG_START: MoebelTragZustand = { traegt: null, ok: true, verschoben: 0, grund: null }
-
-/** Eine ruhige Farbe je Person, fest aus der Kennung. */
-function farbeFuer(uid: string): string {
-  const farben = ['#4f6d8f', '#7a5c8e', '#4f8a6e', '#a0663f', '#8a4f5c', '#5c7a8a']
-  let h = 0
-  for (let i = 0; i < uid.length; i++) h = (h * 31 + uid.charCodeAt(i)) >>> 0
-  return farben[h % farben.length]
-}
-
-/** Ist diese Ebene ein Zwischenpodest einer Treppe (E87, Kennung
- *  '<Haus>:<k>.5')? Dorthin waehlt man nicht, man geht hin. */
-// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
-export function istPodest(id: string): boolean {
-  return typeof id === 'string' && id.endsWith('.5')
-}
-
-/** Die Ebenen zum Waehlen (Aufzug): ohne Zwischenpodeste, oben die
- *  hoechste wie an der Tafel im Aufzug; i ist die Nummer in welt.ebenen. */
-// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
-export function ebenenZumWaehlen(ebenen: readonly Pick<Ebene3D, 'id' | 'name' | 'y'>[]): { i: number; name: string; y: number }[] {
-  return ebenen
-    .map((x, i) => ({ i, id: x.id, name: x.name, y: x.y }))
-    .filter((x) => !istPodest(x.id))
-    .sort((a, b) => b.y - a.y)
-    .map(({ i, name, y }) => ({ i, name, y }))
-}
-
-/** Die Karte der Welt (E86), nur wenn sie brauchbar ist: Rahmen aus vier
- *  Zahlen, Haeuser und Flaechen mit Punkten aus je zwei Zahlen. Sonst null
- *  und ein Hinweis in der Konsole; die Minikarte bleibt dann weg. */
-function karteLesen(k: Karte3D | undefined): Karte3D | null {
-  if (!k) return null
-  const zahl = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
-  const punkte = (l: unknown) => Array.isArray(l) && l.every((q) => Array.isArray(q) && q.length === 2 && zahl(q[0]) && zahl(q[1]))
-  const ok =
-    Array.isArray(k.rahmen) &&
-    k.rahmen.length === 4 &&
-    k.rahmen.every(zahl) &&
-    Array.isArray(k.haeuser) &&
-    k.haeuser.every((h) => !!h && typeof h.name === 'string' && punkte(h.punkte)) &&
-    Array.isArray(k.flaechen) &&
-    k.flaechen.every((f) => !!f && punkte(f.punkte))
-  if (!ok) {
-    console.warn('[3d] Karte der Welt unbrauchbar, die Minikarte bleibt weg')
-    return null
-  }
-  return k
-}
 
 /* ------------------------------------------------ E87: Bedienung
  * Reine Rechnungen, ohne Browser pruefbar (scripts/bedienung-pruefen.mjs). */
@@ -419,7 +162,7 @@ function gleichMoeglich(a: Moeglich3D, b: Moeglich3D): boolean {
 }
 
 /** Ein Knopf beim Begehen. kmh ist die Anzeige der Geschwindigkeit. */
-export type BedienKnopf = 'kmh' | 'springen' | 'aufstehen' | 'einsteigen' | 'aussteigen' | 'sicht' | 'blaulicht' | 'hinstellen' | 'drehen' | 'ablegen'
+type BedienKnopf = 'kmh' | 'springen' | 'aufstehen' | 'einsteigen' | 'aussteigen' | 'sicht' | 'blaulicht' | 'hinstellen' | 'drehen' | 'ablegen'
 
 /** Hat ein Fahrzeug dieser Art Blaulicht? */
 // eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
@@ -427,7 +170,7 @@ export function hatBlaulicht(art: FahrzeugArt | string): boolean {
   return art === 'feuerwehr' || art === 'rettung' || art === 'polizei'
 }
 
-export interface BedienZustand {
+interface BedienZustand {
   moeglich: Moeglich3D
   /** Das Fahrzeug, in dem man sitzt (motor.fahrzeug), sonst null. */
   fahrzeug: { art: FahrzeugArt } | null
@@ -569,8 +312,7 @@ export const QUER_MEDIA = '(orientation: landscape) and (max-height: 500px)'
  *  Zone): hochkant ueber dem Knueppel und so breit wie er (zwei Knoepfe
  *  je Reihe), quer unten rechts neben dem Knueppel bis vor die Spalte.
  *  Die Reihen wachsen nach oben. */
-// eslint-disable-next-line react/only-export-components -- reine Rechnung, eigene Pruefung
-export function knopfGruppeLage(quer: boolean): { links: number; unten: number; breite: number | null; rechts: number | null } {
+function knopfGruppeLage(quer: boolean): { links: number; unten: number; breite: number | null; rechts: number | null } {
   const m = BEDIEN_MASS
   return quer
     ? { links: m.rand + m.knueppel + m.luecke, unten: m.rand, breite: null, rechts: m.rand + m.spalte + m.luecke }
@@ -603,12 +345,6 @@ export const SPALTE_STIL: CSSProperties = {
 }
 /** Ein Knopf (BedienKachel, Tacho). */
 const KNOPF_STIL: CSSProperties = { width: `${BEDIEN_MASS.knopfB}rem`, height: `${BEDIEN_MASS.knopfH}rem` }
-
-/** Breite der Spalte rechts: quer immer schmal (BEDIEN_MASS.spalte), sonst
- *  ab sm und lg breiter (die Knoepfe stehen dann ueber dem Knueppel). */
-function spalteKlasse(quer: boolean): string {
-  return quer ? 'w-[7.5rem]' : 'w-[7.5rem] sm:w-44 lg:w-52'
-}
 
 export interface Rechteck {
   x0: number
@@ -677,16 +413,6 @@ export default function Raum3D({
   onSchliessen,
   onObjektZiehen,
   onTippen,
-  welt,
-  onEbene,
-  onSprungziele,
-  steuer,
-  live: gemeinsam = null,
-  dingLagen = null,
-  onDingBewegt,
-  seitenFehler = null,
-  onSeitenFehlerNochmal = null,
-  onSeitenFehlerZu = null,
   startGehen = false,
   onMoebelSpeichern,
   className,
@@ -694,20 +420,8 @@ export default function Raum3D({
   const { t } = useSprache()
   const nav = useNavigate()
   const toast = useToast()
-  const { user, profile } = useAuth()
   const projekt = useProjektOptional()
   const host = useRef<HTMLDivElement>(null)
-  // E87: Hoehe der 3D-Flaeche, damit die Minikarte bei zu wenig Platz
-  // (quer, ohne Vollbild) nur als Knopf steht und die Leiste nicht zudeckt.
-  const flaeche = useRef<HTMLDivElement>(null)
-  const [flaecheH, setFlaecheH] = useState<number | undefined>(undefined)
-  useEffect(() => {
-    const el = flaeche.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => setFlaecheH(Math.round(el.clientHeight)))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
   const motor = useRef<Motor | null>(null)
   const [geht, setGeht] = useState<'pruefen' | 'ja' | 'nein'>('pruefen')
   const [farben, setFarben] = useState<Farben3D>(farbenLesen)
@@ -793,26 +507,7 @@ export default function Raum3D({
   const kmhHoerer = useRef(new Set<(kmh: number) => void>())
   const kmhLetzt = useRef(0)
   const quer = useMedien(QUER_MEDIA)
-  // E87: die zuletzt bekannte Lage der Dinge und Fahrzeuge der Welt, je
-  // Kennung (aus dingLagen, eigenen Bewegungen und von den anderen).
-  // frisch: in dieser Sitzung bewegt, gilt vor dingLagen. eigeneLagen:
-  // selbst bewegt, fuer alle, die neu in den Kanal kommen (juengste zuletzt).
-  // E87b: lagen ist, was der Motor schon bekommen hat (nur Neues oder
-  // Geaendertes geht hin); alle drei hoechstens LAGEN_MAX, fremde zuerst
-  // weg (frisch nur, was noch in lagen steht). nachher: gespeicherte Lage
-  // eines Dings, das man gerade in der Hand hat; sie gilt, sobald es aus
-  // der Hand ist, ohne dass man es hingestellt hat.
-  const lagen = useRef(new Map<string, DingLage3D>())
-  const frisch = useRef(new Set<string>())
-  const eigeneLagen = useRef(new Map<string, DingLage3D>())
-  const nachher = useRef(new Map<string, DingLage3D>())
   const inHandRef = useRef<string | null>(null)
-  const dingRueck = useRef(onDingBewegt)
-  useLayoutEffect(() => {
-    dingRueck.current = onDingBewegt
-  })
-  /** Senden an die anderen (gehoert der Verbindung, sonst null). */
-  const dingSenden = useRef<((l: DingLage3D) => void) | null>(null)
   const lichtRaeumeListe = useMemo(
     () => daten.raeume.filter((r) => r.punkte.length >= 3 && (!raumId || r.id === raumId)),
     [daten.raeume, raumId],
@@ -924,19 +619,9 @@ export default function Raum3D({
     const m = motor.current
     if (!m) return
     m.haltung(setHaltung)
-    // E87b: ist ein Ding aus der Hand, ohne dass man es hingestellt hat,
-    // gilt seine gespeicherte Lage, die kam, waehrend man es hielt (nach
-    // dem Rueckruf, nicht mitten im Motor).
     m.inHand((id) => {
-      const vorher = inHandRef.current
       inHandRef.current = id
       setInHand(id)
-      const l = vorher && vorher !== id ? nachher.current.get(vorher) : undefined
-      if (!l) return
-      nachher.current.delete(l.id)
-      queueMicrotask(() => {
-        if (!frisch.current.has(l.id) && inHandRef.current !== l.id) motor.current?.lage(l)
-      })
     })
     // E87: Knoepfe und Fahrzeug. Neu gesetzt nur bei echter Aenderung.
     m.moeglich((x) => setMoeglich((alt) => (gleichMoeglich(alt, x) ? alt : { ...x })))
@@ -959,156 +644,35 @@ export default function Raum3D({
     }
   }, [geht])
 
-  // E87: Hingestellt, abgelegt oder abgestellt: merken, an die anderen und
-  // an die Seite (Speichern). Dinge der Wohnung meldet der Motor nicht.
-  useEffect(() => {
-    const m = motor.current
-    if (!m) return
-    m.bewegt((l) => {
-      // Erst die eigenen (sie schuetzen sich in lagen), dann lagen.
-      lageMerken(eigeneLagen.current, l.id, l, null)
-      lageVermerken(lagen.current, frisch.current, eigeneLagen.current, l)
-      frisch.current.add(l.id)
-      nachher.current.delete(l.id)
-      dingSenden.current?.(l)
-      dingRueck.current?.(l)
-    })
-    return () => m.bewegt(null)
-  }, [geht])
-  // Gespeicherte Lagen (E87): an den Motor; was in dieser Sitzung schon
-  // bewegt wurde, bleibt, wie es jetzt ist. E87b: nur Neues oder
-  // Geaendertes (die Liste kommt nach jedem Neubau der Welt neu umgerechnet,
-  // der Motor kennt die Lagen dann schon); ein Ding in der Hand bleibt in
-  // der Hand, seine Lage gilt erst danach (nachher).
-  useEffect(() => {
-    const m = motor.current
-    if (!m || geht !== 'ja' || !dingLagen) return
-    for (const l of dingLagen) {
-      if (frisch.current.has(l.id)) continue
-      if (lageGleich(lagen.current.get(l.id), l)) continue
-      lageVermerken(lagen.current, frisch.current, eigeneLagen.current, l)
-      if (inHandRef.current === l.id) {
-        nachher.current.set(l.id, l)
-        continue
-      }
-      m.lage(l)
-    }
-  }, [dingLagen, geht])
   // Spiegel spiegeln echt, solange man geht (kostet Rechenzeit).
   useEffect(() => {
     motor.current?.spiegel(gehen)
   }, [gehen, geht])
 
   // Draussen (E82): Himmel, Wiese, Weg, Baeume, Nachbarhaeuser. Nur fuer die
-  // ganze Wohnung, nicht beim Blick in einen einzelnen Raum. Mit eigener
-  // Welt (E83, Siedlung) entfaellt sie.
-  const eigeneWelt = Boolean(welt)
+  // ganze Wohnung, nicht beim Blick in einen einzelnen Raum.
   const umgebung = useMemo(
-    () => (raumId || eigeneWelt ? null : umgebungAus({ raeume: daten.raeume, oeffnungen: daten.oeffnungen })),
-    [daten.raeume, daten.oeffnungen, raumId, eigeneWelt],
+    () => (raumId ? null : umgebungAus({ raeume: daten.raeume, oeffnungen: daten.oeffnungen })),
+    [daten.raeume, daten.oeffnungen, raumId],
   )
   useEffect(() => {
     const m = motor.current
     if (!m || geht !== 'ja' || !umgebung) return
-    let welt: ReturnType<typeof baueUmgebung>
+    let aussen: ReturnType<typeof baueUmgebung>
     try {
-      welt = baueUmgebung({ rahmen: umgebung.rahmen, frei: umgebung.frei, farben, stockwerkHoehe: 0 })
+      aussen = baueUmgebung({ rahmen: umgebung.rahmen, frei: umgebung.frei, farben, stockwerkHoehe: 0 })
     } catch (err) {
       // Ohne Aussenwelt geht die Wohnung weiter; der Fehler wird gezeigt.
       console.warn('[3d] Aussenwelt:', err)
       return
     }
-    m.umgebung({ gruppe: welt.gruppe, nebel: welt.nebel, himmel: welt.himmel })
+    m.umgebung({ gruppe: aussen.gruppe, nebel: aussen.nebel, himmel: aussen.himmel })
     return () => {
       m.umgebung(null)
-      welt.dispose()
+      aussen.dispose()
     }
   }, [umgebung, farben, geht])
 
-  // Eigene Welt (E83): bei jedem Anbringen frisch gebaut (auch im
-  // StrictMode, der Effekte doppelt laufen laesst), beim Abnehmen
-  // freigegeben. Ein Fehler beim Bauen wird gezeigt; die Wohnung bleibt.
-  const [weltFehler, setWeltFehler] = useState<{ fuer: (farben: Farben3D) => Welt3D; text: string } | null>(null)
-  const weltFehlerText = weltFehler && weltFehler.fuer === welt ? weltFehler.text : null
-  // Stockwerk beim Begehen: Name und alle Ebenen der Welt (fuer den Aufzug,
-  // oben das hoechste wie an der Tafel im Aufzug; i ist die Nummer in welt.ebenen).
-  const [ebeneLage, setEbeneLage] = useState<{ name: string | null; liste: { i: number; name: string; y: number }[] } | null>(null)
-  const [aufzugAuf, setAufzugAuf] = useState(false)
-  // Sprungziele der gebauten Welt (E84): fuer steuer.springen hier, fuer
-  // die Liste der Wohnungen an die Seite. Der Rueckruf in einer Ref, damit
-  // ein neuer Wert die Welt nicht neu baut.
-  const sprungziele = useRef<Sprungziel3D[]>([])
-  // Ein Sprung hat das Begehen gestartet (E86): dann nicht zum Start.
-  const zielGewaehlt = useRef(false)
-  const sprungRueck = useRef(onSprungziele)
-  useLayoutEffect(() => {
-    sprungRueck.current = onSprungziele
-  })
-  // Die Karte der Welt fuer die Minikarte (E86), dazu je Haus, ob es ein
-  // Sprungziel hat, und der Boden jeder Ebene (zum Waehlen des Ziels).
-  const [lageKarte, setLageKarte] = useState<{ karte: Karte3D; springbar: boolean[]; ebenenY: number[] } | null>(null)
-  useEffect(() => {
-    const m = motor.current
-    if (!m || geht !== 'ja' || !welt) return
-    let w: Welt3D
-    try {
-      w = welt(farben)
-    } catch (err) {
-      console.warn('[3d] Welt:', err)
-      setWeltFehler({ fuer: welt, text: err instanceof Error ? err.message : String(err) })
-      return
-    }
-    const mw = mitWelt(m)
-    if (mw.welt) mw.welt(w)
-    else m.umgebung({ gruppe: w.gruppe, nebel: w.nebel, himmel: w.himmel })
-    // E87b: die bekannten Lagen der Dinge und Fahrzeuge setzt der Motor in
-    // der neuen Welt selbst (er merkt sich jede, die er bekam oder meldete).
-    // Hier noch einmal alle zu schicken, nahm ein Ding aus der Hand und
-    // schob gelenkte Fahrzeuge zurueck (Pruefung E87).
-    // Zum Waehlen ohne die Zwischenpodeste (E87); oben steht trotzdem der
-    // Name der Ebene, auf der man gerade ist, auch eines Podests.
-    const liste = ebenenZumWaehlen(w.ebenen)
-    mw.ebeneJetzt?.((e) => setEbeneLage({ name: ebenenName(e, w.ebenen), liste }))
-    sprungziele.current = w.sprungziele ?? []
-    sprungRueck.current?.(sprungziele.current, w.ebenen.map((x) => x.name))
-    const k = karteLesen(w.karte)
-    if (k) {
-      setLageKarte({
-        karte: k,
-        // Ueber ein Gitter: auch Tausende Haeuser mal Hunderte Ziele (E87).
-        springbar: springbarBerechnen(k.haeuser, sprungziele.current),
-        ebenenY: w.ebenen.map((x) => x.y),
-      })
-    }
-    return () => {
-      sprungziele.current = []
-      mw.ebeneJetzt?.(null)
-      if (mw.welt) mw.welt(null)
-      else m.umgebung(null)
-      w.dispose()
-      setEbeneLage(null)
-      setLageKarte(null)
-    }
-  }, [welt, farben, geht])
-  const ebeneJetzt = gehen ? (ebeneLage?.name ?? null) : null
-  const kannWechseln = Boolean(welt) && geht === 'ja' && !!motor.current && typeof mitWelt(motor.current).ebeneWechseln === 'function'
-  // Das Stockwerk geht auch an die Seite (Kopfzeile der Siedlung).
-  const ebeneRueck = useRef(onEbene)
-  useLayoutEffect(() => {
-    ebeneRueck.current = onEbene
-  })
-  useEffect(() => {
-    ebeneRueck.current?.(ebeneJetzt)
-  }, [ebeneJetzt])
-  // E87b: beim Abbau einmal null, sonst stuende oben weiter das letzte
-  // Stockwerk (nur hier, nicht bei jeder Aenderung: das meldete zwischen
-  // zwei Stockwerken kurz null).
-  useEffect(
-    () => () => {
-      ebeneRueck.current?.(null)
-    },
-    [],
-  )
   /** Bedienung mit Fingern (Handy, Tablet): anderer Hinweis. */
   const beruehren = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
   const traeger = useMemo(() => traegerKarte(daten.kisten), [daten.kisten])
@@ -1121,67 +685,16 @@ export default function Raum3D({
     motor.current?.blick(b)
   }
 
-  // Knoepfe der Siedlung (E83). Zur Wohnung: neu anfangen, auch mitten im
-  // Gehen; der Motor setzt dabei die Ebene der Wohnung (Boden bei 0). Der
-  // Griff dient auch der Minikarte (E86), darum erst als eigener Wert.
-  const griff = useMemo<Raum3DSteuer>(
-    () => ({
-      zurWohnung() {
-        const m = motor.current
-        if (!m || geht !== 'ja') return
-        setKarte(null)
-        setAufzugAuf(false)
-        if (gehenRef.current) m.begehen(false, null)
-        m.begehen(true, startPunkt(daten, raumId))
-        setGehen(true)
-      },
-      vonOben() {
-        setKarte(null)
-        setAufzugAuf(false)
-        setGehen(false)
-        motor.current?.blick('oben')
-      },
-      // E84: Liste der Wohnungen. Wer nicht geht, beginnt erst das Begehen
-      // (der Motor merkt sich die Kamera fuer danach), dann der Sprung.
-      // setGehen(true) laesst die Leiste folgen; das begehen() im Effekt
-      // darunter tut dann nichts mehr, der Motor geht ja schon.
-      springen(index: number) {
-        const m = motor.current
-        const ziel = sprungziele.current[index]
-        if (!m || geht !== 'ja' || !ziel) return
-        const mw = mitWelt(m)
-        if (!mw.springen) {
-          console.warn('[3d] Der Motor kann noch nicht springen (Motor.springen fehlt).')
-          return
-        }
-        setKarte(null)
-        setAufzugAuf(false)
-        if (!gehenRef.current) {
-          // Das Ziel gilt, nicht der Start der Welt im Effekt darunter.
-          zielGewaehlt.current = true
-          m.begehen(true, startPunkt(daten, raumId))
-          setGehen(true)
-        }
-        mw.springen(ziel.ebene, ziel.x, ziel.z, ziel.gier)
-      },
-    }),
-    [geht, daten, raumId],
-  )
-  useImperativeHandle(steuer, () => griff, [griff])
-
   // E87: gleich begehen (startGehen, etwa ?begehen=1), einmal, sobald der
   // Motor laeuft und es etwas zu begehen gibt. Wie ein Druck auf den Knopf.
   const startGegangen = useRef(false)
   useEffect(() => {
-    if (!startGehen || startGegangen.current || geht !== 'ja' || (leer && !eigeneWelt)) return
+    if (!startGehen || startGegangen.current || geht !== 'ja' || leer) return
     startGegangen.current = true
     setGehen(true)
-  }, [startGehen, geht, leer, eigeneWelt])
+  }, [startGehen, geht, leer])
 
-  // Begehen an und aus; der Motor merkt sich die Kamera von vorher. Ohne
-  // Raeume (Siedlung ohne Wohnung, E86) beginnt es am ersten Sprungziel der
-  // Welt ('Start', vor einem Hauseingang), nicht im Ursprung, der in einer
-  // Wand liegen kann; ausser es wurde gerade ein Ziel gewaehlt.
+  // Begehen an und aus; der Motor merkt sich die Kamera von vorher.
   useEffect(() => {
     if (geht !== 'ja') return
     const m = motor.current
@@ -1193,11 +706,6 @@ export default function Raum3D({
       setFahrt(null)
     }
     m.begehen(gehen, start)
-    const gewaehlt = zielGewaehlt.current
-    zielGewaehlt.current = false
-    const erstes = sprungziele.current[0]
-    const mw = mitWelt(m)
-    if (gehen && !start && !gewaehlt && erstes && mw.springen) mw.springen(erstes.ebene, erstes.x, erstes.z, erstes.gier)
     // Nur beim Umschalten, nicht bei jeder Aenderung am Plan.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gehen, geht])
@@ -1207,12 +715,12 @@ export default function Raum3D({
   const haelt = gehen && !faehrt && (inHand !== null || moeglich.halten)
 
   // ------------------------------------------------ E89: Moebel tragen
-  // Nur beim Begehen der Wohnung, nicht in der Welt der Siedlung. Mauern
+  // Nur beim Begehen der Wohnung. Mauern
   // lassen sich nicht tragen; jedes Moebel dreht um die Mitte seines
   // Grundrisses (Meter, Welt x und z), damit Speichern genau das trifft,
   // was man in 3D sieht.
   // Nur wer auch speichern darf (Admin): sonst bleibt alles ansehen.
-  const tragenAn = gehen && geht === 'ja' && !eigeneWelt && daten.raeume.length > 0 && Boolean(onMoebelSpeichern)
+  const tragenAn = gehen && geht === 'ja' && daten.raeume.length > 0 && Boolean(onMoebelSpeichern)
   const [trag, setTrag] = useState<MoebelTragZustand>(TRAG_START)
   const traegt = tragenAn ? trag.traegt : null
   const gesperrt = useMemo(() => new Set(daten.objekte.filter((o) => moebelArt(o.name ?? '') === 'mauer').map((o) => o.id)), [daten.objekte])
@@ -1456,258 +964,9 @@ export default function Raum3D({
     return () => window.removeEventListener('keydown', taste, true)
   }, [])
 
-  // ------------------------------------------------ Mitspieler und Sprechen
-  // Nur beim Begehen: im eigenen Umzug (E82) oder, mit live, in der
-  // gemeinsamen Siedlung (E86). Wer gleichzeitig geht, sieht die anderen
-  // als Figur; Ton nur mit eingeschaltetem Mikrofon.
-  const uid = user?.id ?? null
   const projectId = daten.grundriss.project_id
-  const liveKanal = gemeinsam?.kanal ?? null
-  const liveUid = gemeinsam ? gemeinsam.uid : uid
-  const live =
-    gehen && geht === 'ja' && (gemeinsam ? !!gemeinsam.uid : !!uid && !!projekt && projekt.project.id === projectId)
-  /** Name und Aussehen einer Person: aus live.leute (Siedlung) oder aus
-   *  den Mitgliedern des Umzugs. In einer Ref, damit eine neue Liste die
-   *  Verbindung nicht neu aufbaut. */
-  const werRef = useRef<(u: string) => { name: string; look: Avatar3D | null }>(() => ({ name: '?', look: null }))
-  useLayoutEffect(() => {
-    const liste = gemeinsam?.leute ?? null
-    const mitglieder = projekt?.members ?? []
-    werRef.current = (u) => {
-      if (liste) {
-        const l = liste.find((x) => x.uid.toLowerCase() === u)
-        return { name: l?.name || '?', look: l?.look ?? null }
-      }
-      const prof = mitglieder.find((x) => x.user_id === u)?.profile ?? null
-      return { name: displayNameOf(prof, '?'), look: prof?.avatar3d ?? null }
-    }
-  })
-  // E87b: wer live dabei sein darf. Mit live (Siedlung) nur, wer in
-  // live.leute steht (Besitzer, Gaeste, Leute im Umzug); laesst sich die
-  // Liste nicht laden (ohneListe), wie bisher alle, die der Kanal
-  // hineinlaesst. Im Umzug (ohne live) entscheidet der Kanal. In einer Ref
-  // wie werRef; aendert sich die Liste, wendet die Verbindung die letzte
-  // Anwesenheit neu an (erlaubtNeu): wer herausgenommen wurde, verschwindet,
-  // das Sprechen zu ihm endet, ohne neu zu verbinden.
-  const erlaubtZeichen = useMemo(() => erlaubtZeichenVon(gemeinsam), [gemeinsam])
-  const erlaubtRef = useRef<(u: string) => boolean>(() => true)
-  useLayoutEffect(() => {
-    erlaubtRef.current = erlaubtPruefen(erlaubtZeichen)
-  }, [erlaubtZeichen])
-  const erlaubtNeu = useRef<(() => void) | null>(null)
-  useEffect(() => {
-    erlaubtNeu.current?.()
-  }, [erlaubtZeichen])
-  const [leuteDa, setLeuteDa] = useState<string[]>([])
-  const [sprech, setSprech] = useState<SprechZustand | null>(null)
-  // Fehler der Live-Verbindung auch in der Ansicht: im echten Vollbild sind
-  // Toasts (an body) nicht zu sehen (E82, Pruefung).
-  const [wohnungFehler, setWohnungFehler] = useState<string | null>(null)
-  const sprechenRef = useRef<Sprechen | null>(null)
-  const figuren = useRef(new Map<string, Figur3D>())
-  /** Figuren neu bauen, deren Name oder Aussehen sich geaendert hat. */
-  const figurenNeu = useRef<(() => void) | null>(null)
-
-  // Eigene Stellung beim Begehen (E86): ein Abnehmer am Motor, verteilt an
-  // die Verbindung und die Minikarte; die letzte bleibt fuer die Karte da.
-  const eigeneLetzte = useRef<Pose3D | null>(null)
-  const poseHoerer = useRef(new Set<(p: Pose3D) => void>())
-  const brauchtPose = live || !!lageKarte
-  useEffect(() => {
-    const m = motor.current
-    if (!m || !gehen || geht !== 'ja' || !brauchtPose) return
-    const hoerer = poseHoerer.current
-    m.eigenePose((p) => {
-      eigeneLetzte.current = p
-      for (const f of hoerer) f(p)
-    })
-    return () => {
-      m.eigenePose(null)
-      eigeneLetzte.current = null
-    }
-  }, [gehen, geht, brauchtPose])
-  // Wo die anderen stehen, fuer die Minikarte (gehoert der Verbindung).
-  const andereRef = useRef<ReadonlyMap<string, Pose3D>>(new Map())
-
-  useEffect(() => {
-    const m = motor.current
-    if (!live || !m || !liveUid) return
-    // In der Siedlung tragen alle die Kennung der Siedlung als Grundriss,
-    // sonst saehen sie sich nicht (anwesenheit.ts vergleicht ihn).
-    const raum = liveKanal ? liveKanal.slice(liveKanal.indexOf(':') + 1).toLowerCase() : null
-    const grundrissId = raum ?? daten.grundriss.id
-    const figurenKarte = figuren.current
-    const eigene = { p: null as Pose3D | null }
-    const fremde = new Map<string, Pose3D>()
-    andereRef.current = fremde
-    // Wohnung: ein Stockwerk, der Abstand am Boden reicht. Siedlung: auch
-    // die Hoehe, sonst hoerte man sich durch die Decke.
-    const abstand = raum
-      ? (a: Pose3D, b: Pose3D) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
-      : (a: Pose3D, b: Pose3D) => Math.hypot(a.x - b.x, a.z - b.z)
-    let verbindung: WohnungVerbindung | null = null
-    const sprechen = new Sprechen({ signal: (an, d) => verbindung?.signal(an, d) }, liveUid)
-    sprechen.on('zustand', setSprech)
-    sprechenRef.current = sprechen
-    const zeichen = new Map<string, string>()
-    let hierJetzt: string[] = []
-    const figurenSetzen = (uids: string[]) => {
-      hierJetzt = uids
-      const karte = figurenKarte
-      for (const u of [...karte.keys()]) {
-        if (uids.includes(u)) continue
-        karte.delete(u)
-        zeichen.delete(u)
-      }
-      for (const u of uids) {
-        const wer = werRef.current(u)
-        const z = `${wer.name}|${JSON.stringify(wer.look)}`
-        if (karte.has(u) && zeichen.get(u) === z) continue
-        karte.set(u, baueFigur(wer.look ?? standardLook(u), wer.name, farbeFuer(u)))
-        zeichen.set(u, z)
-      }
-      // Der Motor gibt Figuren frei, die nicht mehr in der Liste stehen
-      // oder durch eine neue ersetzt sind (die Stellung bleibt).
-      m.leute([...karte].map(([u, figur]) => ({ uid: u, figur })))
-    }
-    figurenNeu.current = () => figurenSetzen(hierJetzt)
-    // E87: wer neu dazukommt, bekommt die Dinge, die man selbst bewegt hat
-    // (die juengsten, hoechstens so viele, wie der Kanal je Sekunde annimmt).
-    let bekannt = new Set<string>()
-    const dingeNachreichen = () => {
-      const liste = [...eigeneLagen.current.values()].slice(-DINGE_NACHREICHEN)
-      for (const l of liste) verbindung?.ding(l)
-    }
-    // E87b: die letzte Anwesenheit, wie sie kam; gezeigt wird nur, wer im
-    // eigenen Grundriss ist und dazugehoert (erlaubtRef).
-    let anwesend: { uid: string; grundrissId: string | null }[] = []
-    const darf = (u: string) => erlaubtRef.current(u)
-    const werAnwenden = () => {
-      const hier = anwesend.filter((l) => l.grundrissId === grundrissId && darf(l.uid)).map((l) => l.uid)
-      // Synchron, damit fruehe Signale nicht verloren gehen (sprechen.ts).
-      sprechen.leute(hier)
-      for (const u of [...fremde.keys()]) if (!hier.includes(u)) fremde.delete(u)
-      figurenSetzen(hier)
-      setLeuteDa(hier)
-      if (hier.some((u) => !bekannt.has(u))) dingeNachreichen()
-      bekannt = new Set(hier)
-    }
-    erlaubtNeu.current = werAnwenden
-    verbindung = wohnungBeitreten({
-      projectId: raum ?? projectId,
-      grundrissId,
-      uid: liveUid,
-      ...(liveKanal ? { kanal: liveKanal } : {}),
-      onWer: (leute) => {
-        anwesend = leute
-        werAnwenden()
-      },
-      onPose: (u, p) => {
-        if (!darf(u)) return
-        fremde.set(u, p)
-        motor.current?.leutePose(u, p)
-        if (eigene.p) sprechen.lautstaerke(u, abstand(eigene.p, p))
-      },
-      onSignal: (von, d) => {
-        if (darf(von)) sprechen.empfangen(von, d)
-      },
-      onFehler: (text) => {
-        setWohnungFehler(text)
-        toast(text, 'error')
-      },
-      onVerbunden: () => setWohnungFehler(null),
-      // E87: jemand anderes hat ein Ding hingestellt oder ein Fahrzeug
-      // abgestellt. E87b: nur von dem, der dazugehoert; schon so bekannt:
-      // nichts; gemerkt hoechstens LAGEN_MAX (fremde zuerst weg).
-      onDing: (von, l) => {
-        if (!darf(von) || lageGleich(lagen.current.get(l.id), l)) return
-        eigeneLagen.current.delete(l.id)
-        nachher.current.delete(l.id)
-        lageVermerken(lagen.current, frisch.current, eigeneLagen.current, l)
-        frisch.current.add(l.id)
-        motor.current?.lage(l)
-      },
-    })
-    dingSenden.current = (l) => verbindung?.ding(l)
-    const aufPose = (p: Pose3D) => {
-      eigene.p = p
-      verbindung?.pose(p)
-      for (const [u, q] of fremde) sprechen.lautstaerke(u, abstand(p, q))
-    }
-    const hoerer = poseHoerer.current
-    hoerer.add(aufPose)
-    // Die Stellung, die der Motor beim Start schon gemeldet hat, gleich nach.
-    if (eigeneLetzte.current) aufPose(eigeneLetzte.current)
-    return () => {
-      hoerer.delete(aufPose)
-      dingSenden.current = null
-      figurenNeu.current = null
-      erlaubtNeu.current = null
-      sprechen.beenden()
-      verbindung?.verlassen()
-      sprechenRef.current = null
-      figurenKarte.clear()
-      andereRef.current = new Map()
-      m.leute([])
-      setSprech(null)
-      setLeuteDa([])
-      setWohnungFehler(null)
-    }
-    // toast ist stabil genug; ein neuer Wert soll die Verbindung nicht neu aufbauen.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, liveUid, liveKanal, projectId, daten.grundriss.id])
-  // Neue Namen oder Figuren (etwa nach dem Einladen, E86): nur die
-  // betroffenen Figuren neu, die Verbindung bleibt.
-  const leuteZeichen = useMemo(
-    () => (gemeinsam ? JSON.stringify(gemeinsam.leute.map((l) => [l.uid, l.name, l.look])) : ''),
-    [gemeinsam],
-  )
-  useEffect(() => {
-    figurenNeu.current?.()
-  }, [leuteZeichen])
-
-  // Minikarte (E86): liest die Lage aus den Refs, Raum3D zeichnet dafuer nicht neu.
-  const kartenLage = useCallback((): MinikarteLage => ({ eigene: eigeneLetzte.current, andere: andereRef.current }), [])
-  const kartenLeute = useMemo<MinikartePerson[]>(
-    () => (gemeinsam?.leute ?? []).map((l) => ({ uid: l.uid.toLowerCase(), name: l.name, farbe: farbeFuer(l.uid.toLowerCase()) })),
-    [gemeinsam],
-  )
-  const hausAntippen = (haus: number, x: number, z: number) => {
-    const k = lageKarte
-    const h = k?.karte.haeuser[haus]
-    if (!k || !h) return
-    const i = sprungImHaus(h.punkte, sprungziele.current, k.ebenenY, [x, z], eigeneLetzte.current?.y ?? null)
-    // Kein Ziel in diesem Haus: nichts.
-    if (i !== null) griff.springen(i)
-  }
-
-  // Die eigene Figur, nur im Spiegel zu sehen (E82).
-  useEffect(() => {
-    const m = motor.current
-    if (!m || !gehen || geht !== 'ja') return
-    const figur = baueFigur(profile?.avatar3d ?? (uid ? standardLook(uid) : null), '', uid ? farbeFuer(uid) : '#4f6d8f')
-    m.ich(figur)
-    return () => {
-      m.ich(null)
-      figur.dispose()
-    }
-  }, [gehen, geht, uid, profile])
 
   const karteKiste = karte ? (daten.kisten.find((k) => k.id === karte) ?? null) : null
-  // Die Minikarte (E86): nur mit einer Karte der Welt und nicht, solange
-  // die Karte einer Kiste (oder, E92, eines Moebels) offen ist.
-  const minikarte =
-    geht === 'ja' && lageKarte && !kartenAuf ? (
-      <Minikarte
-        karte={lageKarte.karte}
-        lage={kartenLage}
-        leute={kartenLeute}
-        ebene={ebeneJetzt}
-        springbar={lageKarte.springbar}
-        onHaus={hausAntippen}
-        hoeheFrei={flaecheH}
-      />
-    ) : null
   const karteRaum = karteKiste?.platz_raum_id ? daten.raeume.find((r) => r.id === karteKiste.platz_raum_id) : null
   // E92: das Moebel der offenen Karte (null: nicht mehr im Plan), sein
   // Zimmer, die Kisten darauf oder darin und der Weg zur Moebelseite (nur
@@ -1815,60 +1074,11 @@ export default function Raum3D({
         ) : null}
       </div>
     ) : null,
-    seitenFehler ? (
-      // E87b: mit Nochmal und Schliessen, wenn die Seite es anbietet (der
-      // Hinweis faengt Finger, er soll sich also wegtippen lassen).
-      <div key="seite" dir="auto" className={cx(chip, 'flex items-center gap-2 border-danger text-danger')} role="alert">
-        <span className="min-w-0 flex-1">{seitenFehler}</span>
-        {onSeitenFehlerNochmal ? (
-          <button
-            type="button"
-            data-seite-nochmal=""
-            onClick={onSeitenFehlerNochmal}
-            className="shrink-0 rounded-lg border border-danger px-2 py-1 text-xs font-bold text-danger hover:bg-danger/8"
-          >
-            {t('aktion.nochmal')}
-          </button>
-        ) : null}
-        {onSeitenFehlerZu ? (
-          <button
-            type="button"
-            data-seite-zu=""
-            aria-label={t('aktion.schliessen')}
-            title={t('aktion.schliessen')}
-            onClick={onSeitenFehlerZu}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-danger hover:bg-danger/8"
-          >
-            <X size={15} />
-          </button>
-        ) : null}
-      </div>
-    ) : null,
     // E87b: kein Platz zum Aussteigen. Der Toast ist im Vollbild nicht zu
     // sehen, darum dort auch hier.
     vollbild && keinPlatzJetzt ? (
       <p key={`platz-${keinPlatzJetzt.n}`} dir="auto" className={cx(chip, 'border-warn text-ink')} role="status">
         {t(keinPlatzJetzt.esc ? 'plan3d.aussteigen_kein_platz_esc' : 'plan3d.aussteigen_kein_platz')}
-      </p>
-    ) : null,
-    weltFehlerText ? (
-      <p key="welt" dir="auto" className={cx(chip, 'border-danger text-danger')} role="alert">
-        {t('siedlung.welt_fehler', { fehler: weltFehlerText })}
-      </p>
-    ) : null,
-    gehen && sprech?.tonGesperrt && leuteDa.length > 0 ? (
-      <p key="ton" dir="auto" className={cx(chip, 'border-line text-ink')}>
-        {t('plan3d.ton_tippen')}
-      </p>
-    ) : null,
-    gehen && sprech?.fehler ? (
-      <p key="sprechen" dir="auto" className={cx(chip, 'border-danger text-danger')} role="alert">
-        {sprech.fehler}
-      </p>
-    ) : null,
-    gehen && live && wohnungFehler ? (
-      <p key="live" dir="auto" className={cx(chip, 'border-danger text-danger')} role="alert">
-        {wohnungFehler}
       </p>
     ) : null,
   ].filter(Boolean)
@@ -1911,7 +1121,7 @@ export default function Raum3D({
             an={gehen}
             onClick={() => setGehen((v) => !v)}
             // Mit eigener Welt (Siedlung ohne Wohnung) geht man auch ohne Raeume.
-            disabled={geht !== 'ja' || (leer && !eigeneWelt)}
+            disabled={geht !== 'ja' || leer}
           />
           <div className={cx('flex rounded-xl border-2 border-line p-0.5', gehen && 'pointer-events-none opacity-40')} role="group" aria-label={t('plan3d.modus')}>
             <Teil zeichen={Hand} name={t('plan3d.hand')} hilfe={t('plan3d.hand_hilfe')} an={hand} onClick={() => handSetzen(true)} />
@@ -1967,7 +1177,7 @@ export default function Raum3D({
       </div>
       )}
       {/* Plaene werden nie gespiegelt, auch nicht im Arabischen. */}
-      <div ref={flaeche} dir="ltr" className="relative min-h-0 flex-1" style={{ background: 'var(--plan-grund)' }}>
+      <div dir="ltr" className="relative min-h-0 flex-1" style={{ background: 'var(--plan-grund)' }}>
         <div
           ref={host}
           className={cx('absolute inset-0', geht === 'nein' && 'hidden')}
@@ -2045,57 +1255,14 @@ export default function Raum3D({
                 <span className="absolute left-0 top-1/2 h-0.5 w-full -translate-y-1/2 rounded-full bg-ink shadow-[0_0_0_1px_var(--surface)]" />
               </div>
             ) : null}
-            {/* Rechts unten (E82): Mikrofon und wer da ist; darueber die
-                Minikarte (E86). Feste Breite (BEDIEN_MASS.spalte am Handy),
-                damit die Knoepfe daneben Platz haben; Hinweise stehen oben
-                (E87). */}
-            {/* Der Behaelter erbt ltr (rechts bleibt rechts, nicht auf dem Knueppel);
-                nur die Texte richten sich nach ihrer Sprache (E82, Pruefung). */}
-            <div className={cx('pointer-events-none absolute z-20 flex flex-col items-end gap-2 *:pointer-events-auto', spalteKlasse(quer))} style={SPALTE_STIL} data-spalte="">
-              {minikarte}
-              {live ? (
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="flex h-10 items-center gap-1 rounded-knopf border-2 border-line bg-surface/95 px-2.5 text-sm font-bold text-ink shadow"
-                    title={t(gemeinsam ? 'siedlung.leute_da' : 'plan3d.leute_da', { n: leuteDa.length })}
-                    aria-label={t(gemeinsam ? 'siedlung.leute_da' : 'plan3d.leute_da', { n: leuteDa.length })}
-                  >
-                    <Users size={16} /> <span className="t-serial">{leuteDa.length}</span>
-                  </span>
-                  <Button
-                    size="sm"
-                    variant={sprech?.mikrofon ? 'aktiv' : 'outline'}
-                    aria-pressed={!!sprech?.mikrofon}
-                    aria-label={t(sprech?.mikrofon ? 'plan3d.mikro_aus' : 'plan3d.mikro_an')}
-                    title={t(gemeinsam ? 'siedlung.mikro_hilfe' : 'plan3d.mikro_hilfe')}
-                    // Direkt im Klick: der Browser gibt nur so Mikrofon und Ton frei.
-                    onClick={() => void sprechenRef.current?.mikrofon(!sprech?.mikrofon)}
-                    className="h-10 w-10 justify-center px-0"
-                  >
-                    {sprech?.mikrofon ? <Mic size={18} /> : <MicOff size={18} />}
-                  </Button>
-                </div>
-              ) : null}
-            </div>
           </>
-        ) : geht === 'ja' && leer && !eigeneWelt ? (
+        ) : geht === 'ja' && leer ? (
           <div dir="auto" className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
             <p className="rounded-xl border border-line bg-surface px-3 py-2 text-muted">{t('plan3d.leer')}</p>
           </div>
         ) : null}
-        {/* Ohne Begehen steht die Minikarte allein rechts unten (E86);
-            Antippen eines Hauses beginnt das Begehen dort. */}
-        {geht === 'ja' && !gehen && minikarte ? (
-          <div className={cx('pointer-events-none absolute z-20 flex flex-col items-end gap-2 *:pointer-events-auto', spalteKlasse(quer))} style={SPALTE_STIL}>
-            {minikarte}
-          </div>
-        ) : null}
-        {/* Eigene Welt (E83): beim Begehen das Stockwerk oben in der Mitte;
-            mit Aufzug als Liste zum Wechseln. Darunter (E87) Hinweise und
-            Fehler: Bau der Welt, Seite, Sprechen, Verbindung. Die Saetze
-            der Welt stehen in bausteine/siedlung.ts, das mit der Seite der
-            Siedlung laedt (nur sie gibt eine Welt mit). */}
-        {(geht === 'ja' && ebeneJetzt && !kartenAuf) || (hinweise.length > 0 && !kartenAuf) ? (
+        {/* Hinweise und Fehler (E87): oben in der Mitte. */}
+        {hinweise.length > 0 && !kartenAuf ? (
           <div
             data-hinweise=""
             className={cx(
@@ -2103,52 +1270,6 @@ export default function Raum3D({
               vollbild && !leisteZu ? 'top-28 md:top-16' : 'top-3',
             )}
           >
-            {geht !== 'ja' || !ebeneJetzt ? null : kannWechseln && (ebeneLage?.liste.length ?? 0) > 1 ? (
-              <button
-                type="button"
-                aria-expanded={aufzugAuf}
-                aria-label={`${t('siedlung.ebene_jetzt', { name: ebeneJetzt })}. ${t('siedlung.aufzug')}`}
-                title={t('siedlung.aufzug')}
-                onClick={() => setAufzugAuf((v) => !v)}
-                className="flex h-9 items-center gap-1.5 rounded-full border-2 border-line bg-surface/95 px-3 text-sm font-bold text-ink shadow"
-              >
-                <Layers size={15} /> <span dir="auto">{ebeneJetzt}</span>
-              </button>
-            ) : (
-              <span
-                role="status"
-                aria-label={t('siedlung.ebene_jetzt', { name: ebeneJetzt })}
-                className="flex h-9 items-center gap-1.5 rounded-full border border-line bg-surface/95 px-3 text-sm font-bold text-ink shadow"
-              >
-                <Layers size={15} /> <span dir="auto">{ebeneJetzt}</span>
-              </span>
-            )}
-            {aufzugAuf && kannWechseln && ebeneLage ? (
-              <div dir="auto" className="w-56 max-w-full rounded-2xl border border-line bg-surface/95 p-2 shadow-lg">
-                <p className="t-sub px-1 pb-1">{t('siedlung.aufzug')}</p>
-                <ul className="max-h-64 overflow-y-auto">
-                  {ebeneLage.liste.map((e) => (
-                    <li key={e.i}>
-                      <button
-                        type="button"
-                        aria-pressed={e.name === ebeneJetzt}
-                        onClick={() => {
-                          const m = motor.current
-                          if (m) mitWelt(m).ebeneWechseln?.(e.i)
-                          setAufzugAuf(false)
-                        }}
-                        className={cx(
-                          'flex w-full items-center rounded-lg px-2 py-1.5 text-start text-sm font-bold hover:bg-raised',
-                          e.name === ebeneJetzt ? 'bg-ink text-paper hover:bg-ink' : 'text-ink',
-                        )}
-                      >
-                        {e.name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
             {hinweise}
           </div>
         ) : null}

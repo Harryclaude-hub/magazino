@@ -38,7 +38,7 @@ import { flaecheQm, raumTitel, type PlanTreffer } from './hilfe'
  * Moebelkarte das selbst; Kiste, Raum und Oeffnung zeigen dann nichts.
  */
 
-export interface TippDetailsProps {
+interface TippDetailsProps {
   daten: GrundrissDaten
   tipp: PlanTreffer | null
   /** Der offene Umzug: der Weg zur Moebelseite nur, wenn der Plan zu ihm

@@ -7,6 +7,7 @@ import { inhaltSuchen, listBestand, listKategorien, listProjects } from '../lib/
 import { fuzzyAbfrage, fuzzyIndex, normalisieren } from '../lib/fuzzy'
 import { useSprache } from '../lib/i18n'
 import { mengeText, zustandVon } from '../lib/lager'
+import { ProduktBild } from './ProduktBild'
 import type { Bestand, Project, SuchTreffer } from '../lib/types'
 
 /* Suchen auf dem Start (E105): eine Leiste, optional Bereiche als Filter,
@@ -182,6 +183,7 @@ function ProduktKarte({
         onClick={onOeffnen}
         className="flex w-full items-start gap-3 rounded-karte p-4 text-start transition hover:bg-raised active:scale-[0.99]"
       >
+        <ProduktBild pfad={p.b.bild_pfad} />
         <span className="min-w-0 flex-1">
           <span className="t-name-lg block break-words">{p.b.name}</span>
           {ort ? <span className="t-sub mt-0.5 block break-words">{ort}</span> : null}

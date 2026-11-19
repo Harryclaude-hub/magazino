@@ -61,7 +61,7 @@ export function FuellBalken({
   )
 }
 
-export function FuellstandWahl({
+function FuellstandWahl({
   wert,
   onWert,
   disabled,

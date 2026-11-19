@@ -9,8 +9,6 @@ export type MemberRole = 'owner' | 'editor' | 'viewer'
 export type TagKind = 'room' | 'person'
 export type ItemKind = 'box' | 'furniture' | 'bag' | 'other'
 export type ItemStatus = 'open' | 'transit' | 'arrived'
-export type MessageKind = 'text' | 'image' | 'voice' | 'file' | 'system' | 'call'
-export type CallStatus = 'ringing' | 'active' | 'ended' | 'missed' | 'declined'
 
 export interface Profile {
   id: string
@@ -25,7 +23,7 @@ export interface Profile {
 
 /** Aussehen einer Figur in 3D (E82). Farben als #rrggbb. Die Datenbank
  *  prueft dieselben Felder (avatar3d_gueltig, 0043). */
-export interface Avatar3D {
+interface Avatar3D {
   v: 1
   haut: string
   haare: string
@@ -60,19 +58,6 @@ export interface ProjectMember {
   last_read_at: string
   created_at: string
   profile?: Profile | null
-}
-
-export interface ProjectInvite {
-  id: string
-  project_id: string
-  code: string
-  role: MemberRole
-  created_by: string | null
-  expires_at: string | null
-  max_uses: number | null
-  uses: number
-  active: boolean
-  created_at: string
 }
 
 export interface Tag {
@@ -147,7 +132,7 @@ export interface Item {
 /** Woher eine Zeile der Inhaltsliste kommt. Ein Vorschlag der
  *  Bilderkennung bleibt als solcher erkennbar, auch nachdem er
  *  uebernommen wurde. Siehe Migration 0013. */
-export type InhaltQuelle = 'hand' | 'bild'
+type InhaltQuelle = 'hand' | 'bild'
 
 export interface ItemContent {
   id: string
@@ -263,7 +248,7 @@ export interface SuchTreffer {
   item_fuellstand: number | null
 }
 
-export type PhotoArt = 'foto' | 'anleitung'
+type PhotoArt = 'foto' | 'anleitung'
 
 export interface ItemPhoto {
   id: string
@@ -341,57 +326,6 @@ export interface ItemEvent {
   created_at: string
 }
 
-export interface Message {
-  id: string
-  project_id: string
-  sender_id: string | null
-  kind: MessageKind
-  body: string | null
-  attachment_path: string | null
-  attachment_meta: Record<string, unknown>
-  reply_to: string | null
-  call_id: string | null
-  edited_at: string | null
-  deleted_at: string | null
-  created_at: string
-}
-
-export interface MessageReaction {
-  message_id: string
-  user_id: string
-  emoji: string
-  project_id: string
-  created_at: string
-}
-
-export interface MessageLink {
-  id: string
-  message_id: string
-  project_id: string
-  target_type: 'item' | 'tag'
-  target_id: string
-  label: string | null
-}
-
-export interface Call {
-  id: string
-  project_id: string
-  created_by: string | null
-  video: boolean
-  status: CallStatus
-  started_at: string | null
-  ended_at: string | null
-  created_at: string
-}
-
-export interface CallParticipant {
-  call_id: string
-  user_id: string
-  state: 'invited' | 'joined' | 'left' | 'declined' | 'missed'
-  joined_at: string | null
-  left_at: string | null
-}
-
 export interface NotificationPrefs {
   user_id: string
   chat: boolean
@@ -436,7 +370,7 @@ export interface GroessenFolgen {
 /* ------------------------------------------------------------- Admin */
 
 /** Ein Umzug in der Admin-Uebersicht (admin_uebersicht, 0035). */
-export interface AdminUmzug {
+interface AdminUmzug {
   id: string
   name: string
   rolle: MemberRole
@@ -724,9 +658,9 @@ export const TAG_COLORS = [
  * privat. Koordinaten in Metern, lokal um den Mittelpunkt (lat, lon):
  * x nach Osten, z nach Sueden (wie der Plan: y nach unten), y nach oben. */
 
-export type SiedlungStil = 'weiss_loggia' | 'holz' | 'putz' | 'grau'
+type SiedlungStil = 'weiss_loggia' | 'holz' | 'putz' | 'grau'
 
-export interface SiedlungGebaeude {
+interface SiedlungGebaeude {
   id: string
   /** Wie man das Haus nennt (Haus A, Nr. 1a ...). */
   name: string
@@ -747,7 +681,7 @@ export interface SiedlungGebaeude {
 /** Wo die eigene Wohnung (ein Grundriss aus einem Umzug) in der Siedlung
  *  liegt: Haus, Geschoss (0 = Erdgeschoss, 2 = 2. Stock), und wo der
  *  Ursprung des Plans (0,0 cm) in Metern liegt, gedreht um drehung Grad. */
-export interface SiedlungWohnung {
+interface SiedlungWohnung {
   grundrissId: string
   gebaeudeId: string
   geschoss: number
@@ -757,7 +691,7 @@ export interface SiedlungWohnung {
 }
 
 /** Flaechen und Dinge draussen (Spielplatz, Tiefgarage, Wege), Meter. */
-export interface SiedlungAussen {
+interface SiedlungAussen {
   spielplatz: [number, number][] | null
   tiefgarage: { x: number; z: number; breite: number; laenge: number; drehung: number } | null
   wege: [number, number][][]
@@ -789,13 +723,13 @@ export interface Siedlung {
  * SiedlungInnenHaus (x, z, drehung) mit derselben Formel wie
  * SiedlungWohnung: Siedlung (x, z) = (h.x, h.z) + R(drehung) * (px/100, py/100). */
 
-export interface SiedlungInnenRaum {
+interface SiedlungInnenRaum {
   name: string
   art: 'innen' | 'draussen'
   punkte: [number, number][]
 }
 
-export interface SiedlungInnenOeffnung {
+interface SiedlungInnenOeffnung {
   /** Index in raeume der Wohnung. */
   raum: number
   art: 'tuer' | 'fenster' | 'durchgang'
@@ -808,7 +742,7 @@ export interface SiedlungInnenOeffnung {
   aufschlag: 'innen' | 'aussen'
 }
 
-export interface SiedlungInnenMoebel {
+interface SiedlungInnenMoebel {
   name: string
   x: number
   y: number
@@ -817,7 +751,7 @@ export interface SiedlungInnenMoebel {
   drehung: 0 | 90 | 180 | 270
 }
 
-export interface SiedlungInnenWohnung {
+interface SiedlungInnenWohnung {
   /** Top-Nummer wie im Plan, etwa 'A12'. */
   top: string
   typ: string
@@ -829,7 +763,7 @@ export interface SiedlungInnenWohnung {
   eingang: [number, number] | null
 }
 
-export interface SiedlungInnenGeschoss {
+interface SiedlungInnenGeschoss {
   /** 0 = Erdgeschoss, 1 = 1. OG ... */
   geschoss: number
   wohnungen: SiedlungInnenWohnung[]
@@ -837,7 +771,7 @@ export interface SiedlungInnenGeschoss {
   allgemein: { art: 'stiege' | 'aufzug' | 'gang' | 'laubengang'; punkte: [number, number][] }[]
 }
 
-export interface SiedlungInnenHaus {
+interface SiedlungInnenHaus {
   gebaeudeId: string
   x: number
   z: number
@@ -850,20 +784,6 @@ export interface SiedlungInnenHaus {
  * eindeutiger Anzeigename). Gaeste sehen die Siedlung mit allen Haeusern
  * und Wohnungen und gehen gleichzeitig mit hinein (Figuren, Sprechen).
  * Die eingerichtete eigene Wohnung sieht nur, wer im Umzug ist (wie bisher). */
-
-export interface SiedlungMitglied {
-  user_id: string
-  name: string
-  avatar3d: Avatar3D | null
-  /** E87b: 'umzug' = Mitglied im Umzug der eigenen Wohnung des Besitzers
-   *  (darf hinein, laesst sich aber nicht als Gast herausnehmen). */
-  rolle: 'besitzer' | 'gast' | 'umzug'
-}
-
-/** Antwort beim Einladen. */
-export type SiedlungEinladung =
-  | { status: 'ok'; name: string }
-  | { status: 'nicht_gefunden' | 'mehrdeutig' | 'schon_drin' | 'selbst' | 'zu_viele' }
 
 /* ------------------------------------------------------- Stadt (E87)
  * Die Umgebung einer Siedlung: Gelaende, Strassen, Haeuser, Flaechen,
@@ -879,7 +799,7 @@ export type SiedlungEinladung =
  * beliebiger Drehrichtung. Wo jemand wohnt, steht nie im Code: diese Daten
  * gibt es nur in der Datenbank und in der Datei des Besitzers. */
 
-export type StadtHausArt =
+type StadtHausArt =
   | 'wohnen'
   | 'haus'
   | 'laden'
@@ -896,7 +816,7 @@ export type StadtHausArt =
   | 'schuppen'
   | 'sonst'
 
-export interface StadtHaus {
+interface StadtHaus {
   /** Kennung, stabil ueber neue Auszuege (etwa 'w123' aus OSM). */
   id: string
   umriss: [number, number][]
@@ -920,9 +840,9 @@ export interface StadtHaus {
   farbe?: string
 }
 
-export type StadtStrassenArt = 'haupt' | 'neben' | 'wohn' | 'dienst' | 'fuss' | 'rad' | 'treppe' | 'feldweg' | 'gleis'
+type StadtStrassenArt = 'haupt' | 'neben' | 'wohn' | 'dienst' | 'fuss' | 'rad' | 'treppe' | 'feldweg' | 'gleis'
 
-export interface StadtStrasse {
+interface StadtStrasse {
   art: StadtStrassenArt
   /** Breite in Metern (Fahrbahn oder Weg). */
   breite: number
@@ -933,7 +853,7 @@ export interface StadtStrasse {
   tunnel?: boolean
 }
 
-export type StadtFlaechenArt =
+type StadtFlaechenArt =
   | 'wiese'
   | 'park'
   | 'wald'
@@ -948,12 +868,12 @@ export type StadtFlaechenArt =
   | 'fels'
   | 'schwimmbad'
 
-export interface StadtFlaeche {
+interface StadtFlaeche {
   art: StadtFlaechenArt
   punkte: [number, number][]
 }
 
-export interface StadtOrt {
+interface StadtOrt {
   name: string
   /** Art wie in OSM (shop=..., amenity=...), etwa 'supermarket', 'fire_station'. */
   art: string
@@ -963,7 +883,7 @@ export interface StadtOrt {
   haus?: string
 }
 
-export interface StadtDaten {
+interface StadtDaten {
   art: 'kistly-stadt'
   v: 1
   /** Stand der Kartendaten (Datum, ISO), fuer den Hinweis. */
@@ -1012,6 +932,8 @@ export interface Bestand {
   item_id: string | null
   ort: string | null
   knapp_seit: string | null
+  /** Foto im Programm, z.B. produkte/papierbecher.jpg (0056). */
+  bild_pfad: string | null
 }
 
 export interface Ausleihe {

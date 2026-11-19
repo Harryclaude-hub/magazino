@@ -71,14 +71,14 @@
  * Keine Allokation je Bild: Zustand, Ergebnis und Kamera sind Objekte, die
  * der Aufrufer einmal anlegt und weiterreicht. */
 import { Hindernisse } from './kollision.ts'
-import { STUFE_M, type FahrzeugArt, type Hindernis3D } from './vertrag3d.ts'
+import { STUFE_M, type FahrzeugArt } from './vertrag3d.ts'
 
 /** Was hoechstens so hoch ist (Meter), haelt Fahrzeuge nicht auf. */
-export const BORDSTEIN_M = 0.25
+const BORDSTEIN_M = 0.25
 /** Was hoeher ist (Meter), steht der Kamera hinter dem Wagen im Weg. */
-export const KAMERA_HINDERNIS_M = 2
+const KAMERA_HINDERNIS_M = 2
 /** Laengster Weg (Meter) eines Punkts des Wagens je Teilschritt. */
-export const TEILSCHRITT_FAHREN_M = 0.08
+const TEILSCHRITT_FAHREN_M = 0.08
 /** Tempogrenze in der Siedlung (km/h), wenn nichts anderes gesagt ist. */
 export const GRENZE_KMH = 60
 /** Einsteigen: so weit (Meter) darf man hoechstens von der Fahrertuer weg sein. */
@@ -87,7 +87,7 @@ export const EINSTEIGEN_M = 3
  *  Lenkrad und Armaturen zu sehen sind. */
 export const FAHR_FOV_INNEN = 65
 /** Vom Fahrersitz leicht nach unten schauen (rad). */
-export const FAHR_NEIGUNG_INNEN = -0.1
+const FAHR_NEIGUNG_INNEN = -0.1
 
 const G = 9.81
 /** So viel der Hangabtriebskraft wirkt (Arcade: gedaempft). */
@@ -116,7 +116,7 @@ const AUSRICHTEN_RAD_M = 0.6
 
 /** Was Physik und Modell (fahrzeug3d.ts) gemeinsam brauchen. Masse in
  *  Metern, lokal wie das Modell: x rechts, y hoch, vorne = -z. */
-export interface FahrzeugMasse {
+interface FahrzeugMasse {
   laenge: number
   breite: number
   hoehe: number
@@ -145,7 +145,7 @@ export interface FahrzeugMasse {
 /** Spur aus Breite und Reifen: Radmitte 3 cm innerhalb der Aussenkante. */
 const spur = (breite: number, radB: number) => breite - radB - 0.06
 
-export const FAHRZEUG_MASSE: Record<FahrzeugArt, FahrzeugMasse> = {
+const FAHRZEUG_MASSE: Record<FahrzeugArt, FahrzeugMasse> = {
   // Kleinwagen mit Heckklappe.
   auto: {
     laenge: 4.3, breite: 1.8, hoehe: 1.45, kmh: 120,
@@ -190,9 +190,6 @@ export const FAHRZEUG_MASSE: Record<FahrzeugArt, FahrzeugMasse> = {
     beschl: 1.8, bremse: 5.8, rollen: 0.8, rueckKmh: 12, lenkMax: 0.7, querMax: 4.5,
   },
 }
-
-/** Alle Arten in fester Reihenfolge (fuer Pruefungen und Auswahl). */
-export const FAHRZEUG_ARTEN: readonly FahrzeugArt[] = ['auto', 'kombi', 'transporter', 'feuerwehr', 'rettung', 'polizei', 'bus']
 
 /* ------------------------------------------------------------ Typen */
 
@@ -244,7 +241,7 @@ export interface FahrEingabe {
  *  Aufprall (m/s, 0 = keiner), an der Stelle stossX, stossZ (Welt). weg:
  *  gefahrener Weg laengs (Meter, mit Vorzeichen). fest: der Wagen steckte
  *  fest und blieb stehen. */
-export interface FahrErgebnis {
+interface FahrErgebnis {
   stoss: number
   stossX: number
   stossZ: number
@@ -253,7 +250,7 @@ export interface FahrErgebnis {
 }
 
 /** Bodenhoehe (Welt, Meter) an der Stelle x, z. */
-export type BodenFn = (x: number, z: number) => number
+type BodenFn = (x: number, z: number) => number
 
 /* ------------------------------------------------------------ Hilfen */
 
@@ -324,7 +321,7 @@ export function tempoKmh(z: FahrZustand): number {
 
 /** Groesster Lenkeinschlag bei Tempo v (m/s): im Stand lenkMax, schnell so
  *  viel, dass die Querbeschleunigung querMax nicht uebersteigt. */
-export function lenkGrenze(w: FahrWerte, v: number): number {
+function lenkGrenze(w: FahrWerte, v: number): number {
   const a = Math.abs(v)
   if (a < 0.5) return w.lenkMax
   return Math.max(0.03, Math.min(w.lenkMax, Math.atan((w.radstand * w.querMax) / (a * a))))
@@ -461,30 +458,6 @@ function tiefeIn(h: Hindernisse | null, k: Kasten): number {
 /** Groesste Ueberlappung des Kastens mit den Treffern der letzten Loesung. */
 function kastenTiefe(k: Kasten): number {
   return Math.max(tiefeIn(loesA, k), tiefeIn(loesB, k))
-}
-
-/** Steht ein Rechteck von laenge x breite (Mitte x, z, Blick gier) frei im
- *  Raster (und in dazu, E87)? Fuer Aussteigen neben einem Wagen und
- *  Pruefungen. */
-export function kastenFrei(h: Hindernisse, x: number, z: number, gier: number, laenge: number, breite: number, dazu: Hindernisse | null = null): boolean {
-  kasten.x = x
-  kasten.z = z
-  kasten.gier = gier
-  kasten.hl = laenge / 2
-  kasten.hb = breite / 2
-  const ex = Math.abs(Math.sin(gier)) * kasten.hl + Math.abs(Math.cos(gier)) * kasten.hb
-  const ez = Math.abs(Math.cos(gier)) * kasten.hl + Math.abs(Math.sin(gier)) * kasten.hb
-  return kastenFreiIn(h, x - ex, z - ez, x + ex, z + ez) && kastenFreiIn(dazu, x - ex, z - ez, x + ex, z + ez)
-}
-
-function kastenFreiIn(r: Hindernisse | null, x0: number, z0: number, x1: number, z1: number): boolean {
-  if (!r || r.groesse === 0) return true
-  r.abfrage(x0, z0, x1, z1)
-  for (let j = 0; j < r.anzahl; j++) {
-    const i = r.treffer[j]
-    if (haelt(r, i) && ueberlappung(r, i, kasten, aus) > 0.002) return false
-  }
-  return true
 }
 
 /* ------------------------------------------------------------ Gelaende */
@@ -720,7 +693,7 @@ export function radDrehen(winkel: number, weg: number, r: number): number {
 /** Einschlag eines Vorderrads (rad, fuer rotation.y; positiv = nach links)
  *  auf der Seite seite (+1 rechts, -1 links), mit Ackermann: das innere Rad
  *  schlaegt staerker ein. */
-export function radEinschlag(z: FahrZustand, w: FahrWerte, seite: number): number {
+function radEinschlag(z: FahrZustand, w: FahrWerte, seite: number): number {
   const t = Math.tan(z.lenk)
   const nenner = w.radstand - Math.sign(seite) * (w.spurVorne / 2) * t
   return -Math.atan2(w.radstand * t, nenner)
@@ -752,7 +725,7 @@ export function lageAnwenden(
 
 /** Ein Punkt (lx, ly, lz) im Wagen in der Welt, mit Neigung und Kippen
  *  (Drehung wie three mit Reihenfolge 'YXZ'). */
-export function lokalZuWelt(z: FahrZustand, lx: number, ly: number, lz: number, out: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+function lokalZuWelt(z: FahrZustand, lx: number, ly: number, lz: number, out: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
   const ck = Math.cos(z.kippen)
   const sk = Math.sin(z.kippen)
   const x1 = lx * ck - ly * sk
@@ -857,14 +830,14 @@ export function verfolgen(k: Verfolger, z: FahrZustand, w: FahrWerte, dt: number
 /* ------------------------------------------------------------ Ein- und Aussteigen */
 
 /** Lage eines Fahrzeugs in der Ebene. */
-export interface FahrLage {
+interface FahrLage {
   x: number
   z: number
   gier: number
 }
 
 /** Ein Punkt (lx, lz) des Wagens in der Welt (eben, ohne Neigung). */
-export function flachZuWelt(lage: FahrLage, lx: number, lz: number, out: { x: number; z: number }): { x: number; z: number } {
+function flachZuWelt(lage: FahrLage, lx: number, lz: number, out: { x: number; z: number }): { x: number; z: number } {
   const c = Math.cos(lage.gier)
   const s = Math.sin(lage.gier)
   out.x = lage.x + lx * c + lz * s
@@ -883,7 +856,7 @@ export function tuerAbstand(f: { breite: number; fahrerAuge: readonly [number, n
 
 /** Wo man nach dem Aussteigen steht (Welt): seite 1 wie das Modell sagt
  *  (links, Fahrerseite), -1 gespiegelt auf die andere Seite. */
-export function ausstiegWelt(f: { ausstieg: readonly [number, number] }, lage: FahrLage, seite: 1 | -1, out: { x: number; z: number }): { x: number; z: number } {
+function ausstiegWelt(f: { ausstieg: readonly [number, number] }, lage: FahrLage, seite: 1 | -1, out: { x: number; z: number }): { x: number; z: number } {
   return flachZuWelt(lage, f.ausstieg[0] * seite, f.ausstieg[1], out)
 }
 
@@ -936,24 +909,3 @@ export function aussteigenSuchen(
   return false
 }
 
-/** Das Rechteck eines stehenden Fahrzeugs als Hindernis (fuer Gehen und
- *  fuer andere Fahrzeuge). */
-export function fahrzeugHindernis(f: { laenge: number; breite: number; hoehe: number }, lage: FahrLage): Hindernis3D {
-  // Hindernis3D: laenge entlang x vor der Drehung, tiefe entlang z.
-  return { x: lage.x, z: lage.z, laenge: f.breite, tiefe: f.laenge, drehY: lage.gier, oben: f.hoehe }
-}
-
-/** Raster fuer das Fahren aus den Hindernissen einer Ebene: nur, was hoeher
- *  als abOben ist (Vorgabe: Bordsteine und Kanten bis 25 cm fahren sich
- *  einfach ueberfahren; fuer die Kamera etwa 2 m). Rechtecke mit kaputten
- *  Zahlen fallen weg. */
-export function fahrHindernisse(liste: readonly Hindernis3D[], abOben: number = BORDSTEIN_M, zelle = 2): Hindernisse {
-  const h = new Hindernisse(zelle)
-  for (const r of liste) {
-    if (r.oben !== undefined && !(r.oben > abOben)) continue
-    if (![r.x, r.z, r.laenge, r.tiefe, r.drehY].every(zahl)) continue
-    h.dazu(r.x, r.z, r.laenge, r.tiefe, r.drehY)
-  }
-  h.rastern()
-  return h
-}

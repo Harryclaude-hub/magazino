@@ -14,8 +14,8 @@
  * ===================================================================== */
 
 :root {
-  --lese-grund: #f6efe2;
-  --lese-rand: #e2d5bd;
+  --lese-grund: var(--surface);
+  --lese-rand: var(--line);
   --lese-karton: #cfa572;
   --lese-karton-seite: #b98e5b;
   --lese-klappe: #dbb686;
@@ -26,13 +26,13 @@
   --lese-ecke: #1d1b16;
   --lese-strahl: rgba(233, 120, 40, 0.55);
   --lese-strahl-kern: #e97828;
-  --lese-balken-grund: #eadfcb;
-  --lese-balken: #e97828;
+  --lese-balken-grund: var(--raised);
+  --lese-balken: var(--accent);
 }
 
 .dark {
-  --lese-grund: #1d1a14;
-  --lese-rand: #3b362c;
+  --lese-grund: var(--surface);
+  --lese-rand: var(--line);
   --lese-karton: #8a6a45;
   --lese-karton-seite: #6f5537;
   --lese-klappe: #97744c;
@@ -43,8 +43,8 @@
   --lese-ecke: #f3efe6;
   --lese-strahl: rgba(245, 150, 70, 0.5);
   --lese-strahl-kern: #f59646;
-  --lese-balken-grund: #2c281f;
-  --lese-balken: #f59646;
+  --lese-balken-grund: var(--raised);
+  --lese-balken: var(--accent);
 }
 
 .lese-karte {
@@ -53,8 +53,8 @@
   align-items: center;
   gap: 0.6rem;
   padding: 1.25rem 1rem 1.1rem;
-  border: 2px solid var(--lese-rand);
-  border-radius: 1.25rem;
+  border: 1px solid var(--lese-rand);
+  border-radius: 18px;
   background: var(--lese-grund);
 }
 

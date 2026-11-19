@@ -1,0 +1,223 @@
+/* =====================================================================
+ * Magazino: Apple-Look (Glas, Blaetter, Federn, Gruppen)
+ *
+ * Reine Optik. Diese Datei darf weg: dann sind Kopfzeile und Tab-Leiste
+ * einfarbig statt milchglasartig, Blaetter und Alerts erscheinen ohne
+ * Feder, Listen haben keine Haarlinien, und alles funktioniert
+ * unveraendert weiter. Eingebunden ohne festen Import ueber
+ * import.meta.glob in src/main.tsx.
+ *
+ * Farben, Groessen und Kurven stehen als Variablen in src/index.css
+ * (--glas-leiste, --schleier, --feder-blatt, --kurve ...). Hier steht nur,
+ * wie sie angewendet werden.
+ *
+ * Bewegung haengt an data-motion auf dem html-Element:
+ *   ruhig   nichts bewegt sich, kein Milchglas (Unschaerfe kostet Akku)
+ *   normal  Federn beim Kommen von Blaettern und Schalter, Milchglas
+ *   voll    wie normal
+ * prefers-reduced-motion: Blaetter blenden nur kurz ein, nichts rutscht.
+ * prefers-reduced-transparency: Leisten sind einfarbig.
+ * prefers-contrast: Trenner werden kraeftiger.
+ * ===================================================================== */
+
+/* Haken im Grundton: Auswahlfelder, Haken, Regler in Akzent. */
+:root {
+  accent-color: var(--accent);
+}
+
+/* ------------------------------------------------------------ Milchglas
+ * Kopfzeile (erst beim Scrollen, solange der grosse Titel sichtbar ist,
+ * bleibt sie einfarbig und nahtlos) und Tab-Leiste: durchscheinend, der
+ * Inhalt schimmert beim Rollen durch, feine Unterkante. */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  html:not([data-motion='ruhig']) .kopf-leiste[data-gescrollt='ja'],
+  html:not([data-motion='ruhig']) .tab-leiste {
+    background-color: var(--glas-leiste);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  html .kopf-leiste,
+  html .tab-leiste {
+    background-color: var(--paper) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+
+/* ---------------------------------------------- Blaetter, Alerts, Menues
+ * Das Blatt kommt von unten (Handy) oder waechst aus der Mitte
+ * (Computer), der Alert waechst immer aus der Mitte, die Seitenleiste des
+ * Umzugs kommt von der Seite. Alles auf einer Feder (linear(), siehe
+ * index.css), nur transform und opacity. Der Schleier blendet ein. */
+@keyframes d-ein {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes d-blatt-hoch {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes d-seite-ein {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes d-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='ruhig']) .d-schleier {
+    animation: d-ein 220ms var(--kurve) backwards;
+  }
+  html:not([data-motion='ruhig']) .d-blatt {
+    animation: d-blatt-hoch 350ms var(--feder-blatt) backwards;
+  }
+  html:not([data-motion='ruhig']) .d-seite {
+    animation: d-seite-ein 340ms var(--feder-blatt) backwards;
+  }
+  @media (min-width: 640px) {
+    html:not([data-motion='ruhig']) .d-blatt:not(.d-seite) {
+      transform-origin: 50% 40%;
+      animation: d-pop 300ms var(--feder-pop) backwards;
+    }
+  }
+  html:not([data-motion='ruhig']) .d-alert {
+    transform-origin: 50% 50%;
+    animation: d-pop 300ms var(--feder-pop) backwards;
+  }
+}
+/* Wer weniger Bewegung will, bekommt nur eine kurze Einblendung. */
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='ruhig']) :is(.d-schleier, .d-blatt, .d-seite, .d-alert) {
+    animation: d-ein 150ms linear backwards;
+  }
+}
+
+/* ---------------------------------------------------------------- Schalter
+ * Der Knopf federt beim Umlegen. Ohne Bewegung springt er. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='ruhig']) .schalter-knopf {
+    transition-duration: 300ms;
+    transition-timing-function: var(--feder-schalter);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html .schalter-knopf {
+    transition: none;
+  }
+}
+html[data-motion='ruhig'] .schalter-knopf {
+  transition: none;
+}
+
+/* ----------------------------------------------------------------- Gruppen
+ * "Inset grouped": weisse Gruppe auf grauem Grund, Zeilen durch eine
+ * Haarlinie getrennt, die erst hinter dem Symbol beginnt. Klasse gruppe auf
+ * eine Liste (ul) setzen, deren Kinder li sind. */
+.gruppe > li {
+  position: relative;
+}
+.gruppe > li + li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  inset-inline-start: 3rem;
+  inset-inline-end: 0;
+  height: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------- Auswahlfeld
+ * Natives select mit den beiden kleinen Pfeilen von iOS. Die Farbe ist ein
+ * mittleres Grau, das auf Hell und Dunkel lesbar bleibt (nur Zierde). */
+.feld-auswahl {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='18' viewBox='0 0 12 18' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 7l4-4 4 4M2 11l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 0.75rem 1.1rem;
+}
+[dir='rtl'] .feld-auswahl {
+  background-position: left 0.85rem center;
+}
+/* Windows zeichnet die Liste selbst: Flaeche und Schrift ausdruecklich. */
+select option {
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------- Rahmen, Auswahl, Hilfe
+ * Alte Seiten schreiben 2 px Rahmen (border-2). Im Apple-Look sind Rahmen
+ * Haarlinien. Ausnahme: ein Rahmen in Tinte oder Akzent ist eine Auswahl
+ * und bleibt kraeftig. */
+html .border-2 {
+  border-width: 1px;
+}
+html .border-2:is(.border-ink, .border-accent, .border-danger, .border-ok, .border-warn) {
+  border-width: 2px;
+}
+html .border-t-2 {
+  border-top-width: 1px;
+}
+html .border-b-2 {
+  border-bottom-width: 1px;
+}
+/* "Gewaehlt" heisst ueberall dasselbe: gefuellt in Akzent, nicht schwarz. */
+html .bg-ink.text-paper {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+}
+html .border-ink.bg-ink.text-paper {
+  border-color: var(--accent);
+}
+
+/* Der Knopf "Erklaerung" in der Kopfzeile kommt aus Fuehrung.tsx mit
+ * Rahmen; hier wird er zur grauen Kapsel wie die anderen Kopfzeilenknoepfe. */
+[data-tour='erklaerung']:not(.kopf-menue *) {
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--feld);
+  color: var(--ink);
+}
+
+/* ----------------------------------------------------------- Anmeldeseite
+ * Ein Hauch Akzentfarbe von oben, sonst ruhig. */
+.anmeldung {
+  background-image: radial-gradient(
+    75% 50% at 50% 0%,
+    color-mix(in srgb, var(--accent) 11%, transparent),
+    transparent 72%
+  );
+}
+
+/* ---------------------------------------------------------------- Kontrast
+ * Wer mehr Kontrast eingestellt hat, bekommt kraeftigere Trenner. */
+@media (prefers-contrast: more) {
+  :root {
+    --line: rgba(60, 60, 67, 0.55);
+  }
+  .dark {
+    --line: rgba(174, 174, 178, 0.6);
+  }
+}

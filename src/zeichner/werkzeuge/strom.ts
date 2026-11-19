@@ -9,7 +9,7 @@ import type { Vorschau, Werkzeug } from './typen.ts'
 
 export const SYMBOL_ARTEN: SymbolArt[] = ['steckdose', 'licht', 'schalter']
 
-export interface StromZustand {
+interface StromZustand {
   zeiger: Punkt | null
 }
 

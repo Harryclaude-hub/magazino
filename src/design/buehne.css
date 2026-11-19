@@ -248,14 +248,9 @@
 }
 
 :root {
-  --glas: rgba(251, 248, 242, 0.84);
-  --glas-stark: rgba(251, 248, 242, 0.96);
-  --band: rgba(242, 238, 230, 0.78);
-}
-.dark {
-  --glas: rgba(33, 30, 24, 0.76);
-  --glas-stark: rgba(33, 30, 24, 0.93);
-  --band: rgba(22, 20, 15, 0.72);
+  --glas: color-mix(in srgb, var(--surface) 84%, transparent);
+  --glas-stark: color-mix(in srgb, var(--surface) 96%, transparent);
+  --band: color-mix(in srgb, var(--paper) 78%, transparent);
 }
 
 .karte-glas-stark {

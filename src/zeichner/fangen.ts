@@ -10,7 +10,7 @@ import { einrasten, type Punkt } from '../lib/geometrie.ts'
 import { streckenAbstand } from '../components/plan/hilfe.ts'
 import type { Dok } from './dok'
 
-export type FangArt = 'ecke' | 'kante' | 'raster'
+type FangArt = 'ecke' | 'kante' | 'raster'
 
 export interface Gefangen {
   p: Punkt

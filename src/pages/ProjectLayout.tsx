@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Link, Outlet, useParams } from 'react-router-dom'
 import { Button, ErrorBox, Skelett } from '../components/ui'
 import { AppHeader, Page } from '../components/AppShell'
-import { CallProvider } from '../components/CallLayer'
 import { useT } from '../lib/i18n'
 import { getProject, listMembers, listTags } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -135,9 +134,7 @@ export default function ProjectLayout() {
 
   return (
     <Ctx.Provider value={value}>
-      <CallProvider projectId={pid} projectName={value.project.name} members={members}>
-        <Outlet />
-      </CallProvider>
+      <Outlet />
     </Ctx.Provider>
   )
 }

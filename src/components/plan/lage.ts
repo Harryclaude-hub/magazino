@@ -29,7 +29,7 @@ export function objektName(t: T, o: { name: string; art: ObjektArt }): string {
 }
 
 /** Was es fuer den Satz braucht, egal ob aus kiste_lage oder der Suche. */
-export interface PlatzAngabe {
+interface PlatzAngabe {
   unterlage_art: UnterlageArt | 'moebel' | null
   unterlage_code: string | null
   objekt: { name: string; art: ObjektArt } | null
@@ -42,7 +42,7 @@ export interface PlatzAngabe {
   bis: number
 }
 
-export function platzSatz(p: PlatzAngabe, t: T): string {
+function platzSatz(p: PlatzAngabe, t: T): string {
   const { von, bis } = p
   if (p.unterlage_art === 'moebel' && p.objekt) {
     return t('lage.satz_in_moebel', { name: objektName(t, p.objekt), von, bis })

@@ -42,7 +42,7 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { Farben3D } from './szene.ts'
 
-export interface UmgebungOptionen {
+interface UmgebungOptionen {
   /** Umriss der Wohnung in Metern (Welt x0, z0, x1, z1). */
   rahmen: [number, number, number, number]
   /** Bereiche, die frei bleiben muessen (Treppenhaus am Eingang, Keller), Meter. */
@@ -64,8 +64,8 @@ const BODEN_TEILE = 48
 const EPS = 1e-6
 
 /** Abstand des Zauns zu den Aussenwaenden, Hoehe, Brettbreite und Luecke (m). */
-export const ZAUN_ABSTAND = 3
-export const ZAUN_HOEHE = 1.5
+const ZAUN_ABSTAND = 3
+const ZAUN_HOEHE = 1.5
 const BRETT_BREIT = 0.1
 const BRETT_LUECKE = 0.03
 const BRETT_DICK = 0.025

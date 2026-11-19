@@ -6,7 +6,11 @@
  * (dunkel). Gesetzt ueber data-theme am html-Element (ThemeToggle.tsx);
  * die dunklen haben dazu die Klasse dark, damit alles Dunkle greift.
  *
- * Nur die Grundfarben der Oberflaeche aendern sich. Zimmer-, Ordner- und
+ * Nur die Grundfarben der Oberflaeche aendern sich. Alles Abgeleitete
+ * (graue Feldflaeche --feld, Toenung --tint, Glas, Schalter) rechnet in
+ * src/index.css aus diesen Farben und folgt darum von selbst. Jedes Design
+ * nennt dazu --accent-text, die Akzentfarbe fuer Schrift auf zarter
+ * Toenung. Zimmer-, Ordner- und
  * Kistenfarben, die jemand selbst gewaehlt hat, bleiben gleich, ebenso
  * Tuer-Orange und Fenster-Blau im Plan.
  *
@@ -24,7 +28,9 @@ html[data-theme='kontrast'] {
   --ink: #000000;
   --muted: #333333;
   --line: #4d4d4d;
-  --accent: #8a3200;
+  --schleier: rgba(0, 0, 0, 0.55);
+  --accent: #0036b3;
+  --accent-text: #0036b3;
   --accent-ink: #ffffff;
   --zebra: rgba(0, 0, 0, 0.07);
   --danger: #a30d00;
@@ -50,6 +56,7 @@ html[data-theme='salbei'] {
   --muted: #4c5a4e;
   --line: #ccd6c6;
   --accent: #36623f;
+  --accent-text: #36623f;
   --accent-ink: #ffffff;
   --zebra: rgba(24, 32, 26, 0.045);
   --skelett: #dbe2d4;
@@ -67,6 +74,7 @@ html[data-theme='ozean'] {
   --muted: #475668;
   --line: #c9d5e2;
   --accent: #1f5b8f;
+  --accent-text: #1f5b8f;
   --accent-ink: #ffffff;
   --zebra: rgba(18, 27, 38, 0.045);
   --skelett: #d8e1eb;
@@ -84,6 +92,7 @@ html[data-theme='nacht'] {
   --muted: #a5b3c6;
   --line: #2b3a50;
   --accent: #7fb6f0;
+  --accent-text: #7fb6f0;
   --accent-ink: #0b1626;
   --zebra: rgba(255, 255, 255, 0.05);
   --skelett: #223047;
@@ -100,6 +109,7 @@ html[data-theme='graphit'] {
   --muted: #a9aeb2;
   --line: #3a3d40;
   --accent: #5fd0c0;
+  --accent-text: #5fd0c0;
   --accent-ink: #0b1a18;
   --zebra: rgba(255, 255, 255, 0.05);
   --skelett: #2d3032;

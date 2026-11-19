@@ -38,7 +38,7 @@ const NAME: Record<MenueEintrag, string> = {
   hinlegen: 'plan3d.menue_hinlegen',
 }
 
-export interface MoebelMenueProps {
+interface MoebelMenueProps {
   /** Stelle am Bildschirm (CSS-Pixel in der 3D-Flaeche) und was geht. */
   x: number
   y: number

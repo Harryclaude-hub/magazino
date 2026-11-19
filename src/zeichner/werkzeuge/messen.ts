@@ -21,7 +21,7 @@ import { oeffnungAn } from '../../components/plan/hilfe.ts'
 import { istLichte, messFangen, messpunkte, schnellMasse, wandSeite, type Messpunkt } from '../messpunkte.ts'
 import { cmZahl, type Kontext, type Vorschau, type Werkzeug } from './typen.ts'
 
-export interface MessenZustand {
+interface MessenZustand {
   a: Punkt | null
   b: Punkt | null
   zeiger: Punkt | null

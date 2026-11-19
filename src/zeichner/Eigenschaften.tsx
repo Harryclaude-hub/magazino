@@ -38,7 +38,7 @@ import { FaecherEditor } from './FaecherEditor'
 
 type Aendern = (dok: Dok, auswahl?: Auswahl) => void
 
-export interface EigenschaftenProps {
+interface EigenschaftenProps {
   dok: Dok
   auswahl: NonNullable<Auswahl>
   projectId: string

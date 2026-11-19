@@ -37,7 +37,7 @@ interface Zug {
   bewegt: boolean
 }
 
-export interface AuswahlZustand {
+interface AuswahlZustand {
   zug: Zug | null
 }
 
@@ -50,7 +50,7 @@ type Griff =
 
 /** Ecke oder Kante unter dem Zeiger. Der gewaehlte Raum hat Vorrang,
  *  damit an einer gemeinsamen Wand der richtige Raum greift. */
-export function griffAn(k: Kontext, p: Punkt): Griff | null {
+function griffAn(k: Kontext, p: Punkt): Griff | null {
   const vorne =
     k.auswahl && 'raumId' in k.auswahl ? k.auswahl.raumId : k.auswahl?.art === 'raum' ? k.auswahl.id : null
   const raeume = [...k.dok.raeume].sort((a, b) => (a.id === vorne ? -1 : b.id === vorne ? 1 : 0))
@@ -81,7 +81,7 @@ const SYMBOL_PX = 12
 /** Kleinste Korrektur (dx, dy), mit der eine waagrechte oder senkrechte
  *  Kante des verschobenen Raums genau auf einer parallelen Kante eines
  *  anderen Raums liegt, der sich entlang der Kante mit ihr ueberdeckt. */
-export function magnet(d: Dok, raumId: string, punkte: Punkt[], gx: number, gy: number, tol: number): [number, number] {
+function magnet(d: Dok, raumId: string, punkte: Punkt[], gx: number, gy: number, tol: number): [number, number] {
   const eigene = kantenAchsen(punkte.map(([x, y]) => [x + gx, y + gy] as Punkt))
   const fremde = d.raeume.filter((r) => r.id !== raumId).flatMap((r) => kantenAchsen(r.punkte))
   let bx: number | null = null

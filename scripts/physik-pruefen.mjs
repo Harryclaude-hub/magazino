@@ -46,7 +46,22 @@ import {
   treppeWelt,
 } from '../src/components/plan3d/physik.ts'
 import { STUFE_M } from '../src/components/plan3d/vertrag3d.ts'
-import { gelaendeHoehe } from '../src/lib/stadt.ts'
+/** Hoehe des Gelaendes an (x, z) in Metern, bilinear zwischen den Gitterpunkten
+ *  (hier im Skript, die Siedlung mit stadt.ts ist aus Magazino entfernt). */
+function gelaendeHoehe(g, x, z) {
+  const { x0, z0, schritt, nx, nz, dm } = g
+  if (!(nx >= 1 && nz >= 1 && schritt > 0) || dm.length < nx * nz) return 0
+  const fx = Math.min(Math.max((x - x0) / schritt, 0), nx - 1)
+  const fz = Math.min(Math.max((z - z0) / schritt, 0), nz - 1)
+  const i = Math.min(Math.floor(fx), Math.max(nx - 2, 0))
+  const j = Math.min(Math.floor(fz), Math.max(nz - 2, 0))
+  const tx = nx > 1 ? fx - i : 0
+  const tz = nz > 1 ? fz - j : 0
+  const w = (a, b) => dm[Math.min(b, nz - 1) * nx + Math.min(a, nx - 1)] / 10
+  const a = w(i, j) * (1 - tx) + w(i + 1, j) * tx
+  const b = w(i, j + 1) * (1 - tx) + w(i + 1, j + 1) * tx
+  return a * (1 - tz) + b * tz
+}
 
 let fehler = 0
 function nahe(name, ist, soll, tol = 1e-6) {

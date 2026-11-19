@@ -19,7 +19,7 @@ export function istKnapp(b: Bestand): boolean {
   return b.knapp_seit !== null || (b.mindestmenge > 0 && b.menge <= b.mindestmenge)
 }
 
-export type BestandZustand = 'da' | 'knapp' | 'leer'
+type BestandZustand = 'da' | 'knapp' | 'leer'
 
 /** Der eine Zustand, den jeder sieht: leer (Menge 0), knapp oder im Lager. */
 export function zustandVon(b: Bestand): BestandZustand {

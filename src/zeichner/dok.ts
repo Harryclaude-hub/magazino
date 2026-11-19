@@ -43,7 +43,7 @@ export type Auswahl =
 
 /* ------------------------------------------------------------ Kleinkram */
 
-export function gleichPunkt(a: Punkt, b: Punkt, tol = 0.01): boolean {
+function gleichPunkt(a: Punkt, b: Punkt, tol = 0.01): boolean {
   return Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] - b[1]) <= tol
 }
 
@@ -52,7 +52,7 @@ function rund(p: Punkt): Punkt {
 }
 
 /** Aufeinanderfolgende doppelte Punkte weg (auch letzter gegen ersten). */
-export function ohneDoppelte(p: Punkt[]): Punkt[] {
+function ohneDoppelte(p: Punkt[]): Punkt[] {
   const out: Punkt[] = []
   for (const q of p) if (!out.length || !gleichPunkt(out[out.length - 1], q)) out.push(q)
   while (out.length > 1 && gleichPunkt(out[0], out[out.length - 1])) out.pop()
@@ -61,7 +61,7 @@ export function ohneDoppelte(p: Punkt[]): Punkt[] {
 
 /** Punkte, die genau auf der Geraden ihrer Nachbarn liegen und in
  *  dieselbe Richtung weiterlaufen, sind keine Ecke. */
-export function ohneGeradeEcken(p: Punkt[]): Punkt[] {
+function ohneGeradeEcken(p: Punkt[]): Punkt[] {
   let out = p.slice()
   let geaendert = true
   while (geaendert && out.length > 3) {
@@ -88,7 +88,7 @@ export function raumVon(dok: Dok, id: string): Raum | undefined {
 
 /** Liegt die Strecke a-b (bis auf tol cm) auf einer Kante des Umrisses?
  *  Dann Kante und die Anteile entlang der Kante in cm. */
-export function aufKante(
+function aufKante(
   punkte: Punkt[],
   a: Punkt,
   b: Punkt,
@@ -116,7 +116,7 @@ export function aufKante(
 /** Tueren und Fenster eines Raums nach einer Aenderung des Umrisses neu
  *  zuordnen: jede Oeffnung sucht die Kante (auch in einem anderen der
  *  Ziel-Umrisse), auf der sie liegt. Findet sie keine, faellt sie weg. */
-export function oeffnungenUmhaengen(
+function oeffnungenUmhaengen(
   altPunkte: Punkt[],
   ziele: { id: string; punkte: Punkt[] }[],
   oeffnungen: Oeffnung[],
@@ -138,7 +138,7 @@ export function oeffnungenUmhaengen(
 
 /** Wandfarben je Kante auf einen neuen Umriss uebertragen: eine neue Kante
  *  erbt die Farbe der alten Kante, auf der sie ganz liegt. */
-export function wandfarbenUmhaengen(
+function wandfarbenUmhaengen(
   altPunkte: Punkt[],
   alt: (string | null)[] | null,
   neuPunkte: Punkt[],
@@ -185,7 +185,7 @@ export function dokRichten(dok: Dok): Dok {
 
 /* ---------------------------------------------------------------- Raum */
 
-export function neuerRaum(dok: Dok, id: string, punkte: Punkt[]): Raum {
+function neuerRaum(dok: Dok, id: string, punkte: Punkt[]): Raum {
   return {
     id,
     grundriss_id: dok.grundriss.id,

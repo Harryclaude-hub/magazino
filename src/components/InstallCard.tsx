@@ -24,7 +24,7 @@ if (typeof window !== 'undefined') {
   })
 }
 
-export function isStandalone(): boolean {
+function isStandalone(): boolean {
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
     // iOS meldet das ueber ein eigenes Feld
@@ -32,11 +32,11 @@ export function isStandalone(): boolean {
   )
 }
 
-export function isIos(): boolean {
+function isIos(): boolean {
   return /iphone|ipad|ipod/i.test(navigator.userAgent)
 }
 
-export function useInstall() {
+function useInstall() {
   const [, force] = useState(0)
   useEffect(() => {
     const l = () => force((n) => n + 1)

@@ -58,12 +58,11 @@ npx oxlint                        nur Warnungen erlaubt
 npm run build                     wie auf GitHub
 node scripts/woerter-pruefen.mjs  bekannt: 8 Meldungen bei *.eins
 node scripts/szene-pruefen.mjs    dazu geometrie-, zeichner-, kollision-,
-                                  moebel-, aussen-, avatar-, osm-, innen-,
-                                  physik-, fahren-, motor-fahren-,
+                                  moebel-, aussen-, physik-,
                                   moebel-tragen-, bedienung-, kalender- und
                                   fuzzy-pruefen
-(Die Skripte siedlung-*, stadt-*, minikarte-pruefen gehoeren zur Siedlung, die aus
-Magazino genommen ist und im Kistli-Repo lebt; sie schlagen hier absichtlich an.)
+(Die Pruefungen der Siedlung, Stadt, Minikarte, Fahrzeuge und Figur sind mit diesem Code entfernt;
+sie leben im Kistli-Repo und in der Git-Marke `kistly-umzugsprogramm`.)
 Wo jemand wohnt (Siedlung, Adresse, Stockwerk), steht nie im Code, nur
 in der Datenbank.
 ```
@@ -77,10 +76,7 @@ Jeder Push auf `main` geht sofort live (GitHub Pages).
 - `docs/UEBERGABE.md`: aktueller Stand und naechste Schritte (zuerst lesen).
 - `docs/ARCHITEKTUR.md`: wie Magazino gebaut ist und warum (zum Erklaeren, Frontend bis Datenbank).
 - `rework/01-lager-umbau/`: Plan und Haekchenliste des Umbaus zum Lagerprogramm (E103).
-- `docs/cloud/START.md`: urspruenglicher Auftrag des Grundriss-Umbaus.
-- `docs/grundriss/entwurf-teile.json`: Material fuer den Grundriss-Umbau
-  (Code-Karten, drei Entwuerfe, zwei Bewertungen).
-- `docs/grundriss/BAUPLAN.md`: der Bauplan, sobald er geschrieben ist.
+- `docs/grundriss/BAUPLAN.md`: der Bauplan des Grundrisses (Datenmodell, Regeln).
 - `docs/grundriss/STAND.md`: Stand nach der letzten fertigen Etappe.
 - `PLAN.md`: Fahrplan und Begruendungen der frueheren Bloecke.
 

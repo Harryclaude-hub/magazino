@@ -1,6 +1,5 @@
 /* Magazino Service Worker
- * Aufgaben: App-Huelle offline halten, Push-Benachrichtigungen anzeigen,
- * Anrufe so lange erneut melden, wie es klingelt.
+ * Aufgaben: App-Huelle offline halten, Push-Benachrichtigungen anzeigen.
  * Bewusst ohne Build-Schritt, damit hier nichts still auseinanderlaeuft.
  */
 const VERSION = 'magazino-v1'
@@ -86,47 +85,8 @@ function parsePush(event) {
   }
 }
 
-async function showCall(payload) {
-  // Solange der Anruf laeuft, immer wieder melden. Der Anrufer schickt
-  // zusaetzlich alle paar Sekunden einen neuen Push, das hier ist die
-  // Absicherung, falls der Service Worker zwischendurch schlaeft.
-  const tag = payload.tag || 'kistly-call'
-  for (let i = 0; i < 6; i++) {
-    const open = await self.registration.getNotifications({ tag })
-    if (i > 0 && open.length === 0) return // wurde weggetippt
-    await self.registration.showNotification(payload.title || 'Anruf', {
-      body: payload.body || 'Eingehender Anruf',
-      tag,
-      renotify: true,
-      requireInteraction: true,
-      silent: false,
-      vibrate: [400, 200, 400, 200, 400],
-      icon: `${BASE}icons/icon-192.png`,
-      badge: `${BASE}icons/favicon-32.png`,
-      data: payload.data || {},
-      actions: [
-        { action: 'accept', title: 'Annehmen' },
-        { action: 'decline', title: 'Ablehnen' },
-      ],
-    })
-    await new Promise((r) => setTimeout(r, 5000))
-  }
-}
-
 self.addEventListener('push', (event) => {
   const payload = parsePush(event)
-  if (payload.type === 'call') {
-    event.waitUntil(showCall(payload))
-    return
-  }
-  if (payload.type === 'call-cancel') {
-    event.waitUntil(
-      self.registration
-        .getNotifications({ tag: payload.tag || 'kistly-call' })
-        .then((ns) => ns.forEach((n) => n.close())),
-    )
-    return
-  }
   event.waitUntil(
     self.registration.showNotification(payload.title || 'Magazino', {
       body: payload.body || '',
@@ -151,8 +111,6 @@ self.addEventListener('notificationclick', (event) => {
    * /app statt unter /kistly/app. */
   const inApp = (u) => (u ? `${BASE}${String(u).replace(/^\//, '')}` : `${BASE}app`)
   let target = inApp(data.url)
-  if (action === 'accept' && data.callUrl) target = inApp(data.callUrl)
-  if (action === 'decline') target = `${inApp(data.url)}?call=decline&id=${data.callId || ''}`
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {

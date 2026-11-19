@@ -6,7 +6,7 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 
 /* ----------------------------------------------------------------- Codes */
 
-export interface ParsedCode {
+interface ParsedCode {
   prefix: string
   size: string
   seq: string
@@ -38,15 +38,6 @@ export function contrastOn(hex: string): string {
   return l > 0.45 ? '#0a0a0a' : '#ffffff'
 }
 
-export function withAlpha(hex: string, alpha: number): string {
-  const h = hex.replace('#', '')
-  if (h.length !== 6) return hex
-  const r = parseInt(h.slice(0, 2), 16)
-  const g = parseInt(h.slice(2, 4), 16)
-  const b = parseInt(h.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
-
 /* ------------------------------------------------------------------ Zeit */
 
 const dtf = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -76,30 +67,6 @@ export function relTime(v: string | null | undefined): string {
   if (d === 1) return 'gestern'
   if (d < 7) return `vor ${d} Tagen`
   return fmtDate(v)
-}
-
-export function chatDayLabel(v: string): string {
-  const d = new Date(v)
-  const today = new Date()
-  const yest = new Date()
-  yest.setDate(today.getDate() - 1)
-  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString()
-  if (same(d, today)) return 'Heute'
-  if (same(d, yest)) return 'Gestern'
-  return new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(d)
-}
-
-export function fmtDuration(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds))
-  const m = Math.floor(s / 60)
-  const r = s % 60
-  return `${m}:${String(r).padStart(2, '0')}`
-}
-
-export function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
-  return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
 /* ------------------------------------------------------------------ Text */
@@ -152,15 +119,6 @@ export function appUrl(path: string): string {
 
 export function uid(): string {
   return crypto.randomUUID()
-}
-
-export function inviteCode(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let out = ''
-  const buf = new Uint8Array(8)
-  crypto.getRandomValues(buf)
-  for (let i = 0; i < 8; i++) out += alphabet[buf[i] % alphabet.length]
-  return `${out.slice(0, 4)}-${out.slice(4)}`
 }
 
 /* ----------------------------------------------------------------- Hooks */

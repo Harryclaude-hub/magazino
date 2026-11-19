@@ -9,7 +9,7 @@ import { linieHinzufuegen } from '../dok.ts'
 import { fangen, richtung, weiterFangen } from '../fangen.ts'
 import { cmZahl, istLaengenZeichen, type Kontext, type Schritt, type Vorschau, type Werkzeug, type Zeiger } from './typen.ts'
 
-export interface LinieZustand {
+interface LinieZustand {
   a: Punkt | null
   zeiger: Punkt | null
   text: string

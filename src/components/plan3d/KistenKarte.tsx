@@ -25,7 +25,7 @@ import { Button, ErrorBox, Spinner, StatusPill } from '../ui'
  * Fehler mit "Nochmal", leer. Escape regelt die einbindende Seite.
  */
 
-export interface KistenKarteProps {
+interface KistenKarteProps {
   kiste: PlanKiste
   /** Name des Raums im Grundriss, in dem die Kiste steht, oder null. */
   raumName: string | null

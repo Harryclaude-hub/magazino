@@ -1,4 +1,3 @@
-import type { Item } from './types'
 
 /* Markieren wie in Excel.
  *
@@ -67,7 +66,3 @@ export function markFlaeche(farbe: string | null | undefined): string | undefine
   return `rgba(${r}, ${g}, ${b}, ${FLAECHE})`
 }
 
-/** Ist an dieser Zeile ueberhaupt etwas markiert? */
-export function istMarkiert(item: Pick<Item, 'mark_color' | 'mark_symbol'>): boolean {
-  return Boolean(item.mark_color || item.mark_symbol)
-}

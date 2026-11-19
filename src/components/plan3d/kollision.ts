@@ -109,7 +109,7 @@ export interface Rechteck {
 /** Eine begehbare Ebene (wie Ebene3D in vertrag3d.ts, ohne three): y ist
  *  die Bodenhoehe in Metern, die Wohnung liegt bei 0. hoehe (E87): das
  *  Gelaende an (x, z) relativ zu y; fehlt: eben. */
-export interface EbeneDaten {
+interface EbeneDaten {
   id: string
   name: string
   y: number
@@ -131,7 +131,7 @@ function fussAus(f: number): number {
 }
 
 /** So nah an 0 (Meter) gilt ein Boden als der Boden der Wohnung. */
-export const WOHNUNG_BODEN_M = 0.05
+const WOHNUNG_BODEN_M = 0.05
 /** Aufzug: mit faehrt, wer beim Abfahren hoechstens so weit ueber oder
  *  unter dem Boden der Kabine steht ... */
 export const AUFZUG_BODEN_M = 0.5
@@ -799,7 +799,7 @@ export function wohnungsEbene(ebenen: readonly EbeneDaten[]): number {
 /** Eine Ebene mit ihrem Raster. Ohne gueltigen Boden (y kaputt) ist sie
  *  nicht betretbar, behaelt aber ihren Platz, damit die Indizes zu denen
  *  der Welt passen. */
-export interface EbeneRaster {
+interface EbeneRaster {
   id: string
   name: string
   y: number

@@ -12,7 +12,7 @@ import { streckenAbstand } from '../../components/plan/hilfe.ts'
 import { nischeFormen, raumVon, type Dok } from '../dok.ts'
 import { cmZahl, istLaengenZeichen, type Kontext, type Schritt, type Vorschau, type Werkzeug, type Zeiger } from './typen.ts'
 
-export interface NischeZustand {
+interface NischeZustand {
   /** Erster Punkt auf einer Wand, mit seinem Raum. */
   a: { raumId: string; p: Punkt } | null
   /** Ab dem zweiten Punkt: die Wand und das Stueck darauf (cm ab ihrer ersten Ecke). */

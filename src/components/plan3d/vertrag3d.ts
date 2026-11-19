@@ -140,7 +140,7 @@ export interface Sprungziel3D {
 
 /** Was die Minikarte zeigt: Haeuser und Flaechen als Umrisse in
  *  Weltmetern (x, z; z wie der Plan nach unten), dazu der Rahmen. */
-export interface Karte3D {
+interface Karte3D {
   rahmen: [number, number, number, number]
   haeuser: { name: string; punkte: [number, number][] }[]
   flaechen: { art: KartenFlaeche; punkte: [number, number][] }[]
@@ -151,7 +151,7 @@ export interface Karte3D {
 }
 
 /** Art einer Flaeche auf der Minikarte (E86, E87 erweitert). */
-export type KartenFlaeche =
+type KartenFlaeche =
   | 'weg'
   | 'spielplatz'
   | 'strasse'

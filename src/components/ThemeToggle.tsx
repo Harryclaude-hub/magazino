@@ -77,9 +77,9 @@ export function ThemeToggle({ withLabel = false }: { withLabel?: boolean }) {
       onClick={() => setMode(next)}
       title={t('einstellungen.theme_titel', { wert: name })}
       aria-label={t('kopf.darstellung', { wert: name })}
-      className="inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-ink hover:bg-raised"
+      className="knopf inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-ink transition hover:bg-feld focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
-      <Icon size={18} />
+      <Icon size={18} className="text-accent" />
       {withLabel ? name : null}
     </button>
   )

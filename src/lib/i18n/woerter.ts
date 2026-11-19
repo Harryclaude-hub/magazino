@@ -14,9 +14,7 @@ import { start } from './bausteine/start'
 import { konto } from './bausteine/konto'
 import { umzuege } from './bausteine/umzuege'
 import { bereiche } from './bausteine/bereiche'
-import { bereichsseite } from './bausteine/bereichsseite'
 import { kisten } from './bausteine/kisten'
-import { gegenstand } from './bausteine/gegenstand'
 import { fuehrung } from './bausteine/fuehrung'
 import { admin } from './bausteine/admin'
 import { grundriss } from './bausteine/grundriss'
@@ -30,7 +28,6 @@ import { scannen } from './bausteine/scannen'
 import { schnell } from './bausteine/schnell'
 import { bildki } from './bausteine/bildki'
 import { schichten } from './bausteine/schichten'
-import { chat } from './bausteine/chat'
 import { team } from './bausteine/team'
 import { einstellungen } from './bausteine/einstellungen'
 import { fehler } from './bausteine/fehler'
@@ -62,9 +59,7 @@ export const WOERTER: Woerterbuch = zusammenlegen(
   konto,
   umzuege,
   bereiche,
-  bereichsseite,
   kisten,
-  gegenstand,
   fuehrung,
   admin,
   grundriss,
@@ -78,7 +73,6 @@ export const WOERTER: Woerterbuch = zusammenlegen(
   schnell,
   bildki,
   schichten,
-  chat,
   team,
   einstellungen,
   fehler,

@@ -496,7 +496,7 @@ function Markierung({
   )
 }
 
-export interface PlanEbenenProps {
+interface PlanEbenenProps {
   daten: GrundrissDaten
   /** Pixel je Zentimeter. */
   massstab: number
@@ -660,7 +660,7 @@ export function PlanEbenen({ daten, massstab, hervor, auswahl, kisten = true, be
   )
 }
 
-export interface PlanBildProps {
+interface PlanBildProps {
   daten: GrundrissDaten
   ausschnitt?: { raumId: string } | 'alles'
   hervor?: string | null

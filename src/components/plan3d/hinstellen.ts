@@ -60,22 +60,21 @@
  * Keine Allokation je Bild: Ergebnis und Punkt sind Objekte, die der Aufrufer
  * einmal anlegt und weiterreicht. */
 import { Hindernisse } from './kollision.ts'
-import type { Hindernis3D } from './vertrag3d.ts'
 
 /** So weit (Meter) reicht der Arm, gemessen von den Augen bis zum Treffer. */
 export const REICHWEITE_M = 4.5
 /** Flaechen mit flacherer Normale (y darunter) sind zu schraeg. */
-export const NORMALE_MIN_Y = 0.75
+const NORMALE_MIN_Y = 0.75
 /** So nah (Meter) darf ein Ding einem Menschen hoechstens kommen. */
-export const PERSON_ABSTAND_M = 0.35
+const PERSON_ABSTAND_M = 0.35
 /** Raster der Lage (Meter). */
-export const RASTER_M = 0.05
+const RASTER_M = 0.05
 /** Eine Drehstufe (rad) und wie viele es rundum gibt. */
 export const DREH_STUFE_RAD = Math.PI / 4
-export const DREH_STUFEN = 8
+const DREH_STUFEN = 8
 /** Zeigt man auf eine Wand bis zu dieser Hoehe (Meter) ueber dem Boden
  *  davor, kommt das Ding auf den Boden an die Wand. */
-export const WAND_ANLEHNEN_M = 1.2
+const WAND_ANLEHNEN_M = 1.2
 
 /** Groesse eines Menschen fuer die Pruefung, ob man ihm zu nahe kommt. */
 const PERSON_HOEHE_M = 1.9
@@ -86,16 +85,16 @@ const WAND_ABSTAND_M = 0.03
 /** Senkrecht ist eine Flaeche, deren Normale weniger als das nach oben zeigt. */
 const SENKRECHT_Y = 0.3
 
-export type StellGrund = 'zu_weit' | 'schraeg' | 'wand' | 'besetzt' | 'person'
+type StellGrund = 'zu_weit' | 'schraeg' | 'wand' | 'besetzt' | 'person'
 /** Was getroffen wurde. 'treppe' (E87): Stufen einer Treppe, dort steht
  *  nichts (gilt als schraeg). */
-export type TrefferArt = 'boden' | 'oben' | 'ding' | 'wand' | 'treppe'
+type TrefferArt = 'boden' | 'oben' | 'ding' | 'wand' | 'treppe'
 
 /** Was der Strahl getroffen hat: Punkt und Normale (Welt), was es war und
  *  bei einem Ding seine Kennung. Was mit der Flaeche geht, sagt die Normale;
  *  art 'ding' mit ding braucht es zum Stapeln (Oberkante des Dings), die
  *  anderen Arten sind fuer den Aufrufer (Anzeige, Pruefung). */
-export interface StellTreffer {
+interface StellTreffer {
   x: number
   y: number
   z: number
@@ -171,7 +170,7 @@ function raster(v: number): number {
 }
 
 /** Grunddrehung: die Vorderseite schaut zu einem, auf 45 Grad gerastert. */
-export function grundGier(spielerGier: number): number {
+function grundGier(spielerGier: number): number {
   const g = (zahl(spielerGier) ? spielerGier : 0) + Math.PI
   return winkel(Math.round(g / DREH_STUFE_RAD) * DREH_STUFE_RAD)
 }
@@ -385,20 +384,6 @@ export function hinstellenPruefen(a: StellAnfrage, u: StellUmgebung, out: StellE
   }
   out.ok = true
   return out
-}
-
-/** Raster und Oberkanten fuer hinstellenPruefen aus den Hindernissen einer
- *  Ebene (Indizes passen zueinander; kaputte Rechtecke fallen weg). */
-export function stellRaster(liste: readonly Hindernis3D[], zelle = 1): { raster: Hindernisse; oben: Float64Array } {
-  const h = new Hindernisse(zelle)
-  const oben: number[] = []
-  for (const r of liste) {
-    if (![r.x, r.z, r.laenge, r.tiefe, r.drehY].every(zahl)) continue
-    h.dazu(r.x, r.z, r.laenge, r.tiefe, r.drehY)
-    oben.push(zahl(r.oben) ? r.oben : Infinity)
-  }
-  h.rastern()
-  return { raster: h, oben: Float64Array.from(oben) }
 }
 
 /* ------------------------------------------------------------ Zielen in der Welt */
@@ -652,15 +637,15 @@ export function strahlZiel(
 /** So weit (Meter) unter dem eigenen Boden an seiner Stelle darf ein Ding
  *  liegen, das man greift (eine Schwelle tiefer, vom Haus hinaus). Ein
  *  Geschoss tiefer (ab 2,2 m) ist zu weit. */
-export const GREIF_UNTEN_M = 1.6
+const GREIF_UNTEN_M = 1.6
 /** So weit (Meter) ueber dem eigenen Boden an seiner Stelle darf ein Ding
  *  stehen (Moebel, Regal, Mauer). Dinge liegen in den Haeusern bis 1,3 m
  *  hoch; das Geschoss darueber beginnt fruehestens 2,2 m hoeher. */
-export const GREIF_OBEN_M = 2.1
+const GREIF_OBEN_M = 2.1
 /** Boeden, die weiter als so viel (Meter) auseinander liegen, gehoeren zu
  *  verschiedenen Geschossen; naeher (Garten und Erdgeschoss, die Schwelle
  *  einer Haustuer) zum selben. */
-export const GESCHOSS_ABSTAND_M = 1.0
+const GESCHOSS_ABSTAND_M = 1.0
 
 /** Laesst sich ein Ding der Welt von hier aus greifen (E87b)? Die Ebenen
  *  kennen keine Decke, also prueft der Motor vor dem Aufheben (und Zielen

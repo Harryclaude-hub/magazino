@@ -11,7 +11,7 @@ import { raumAnlegen } from '../dok.ts'
 import { fangen, richtung, weiterFangen } from '../fangen.ts'
 import { cmZahl, istLaengenZeichen, type Aktion, type Kontext, type Schritt, type Vorschau, type Werkzeug, type Zeiger } from './typen.ts'
 
-export interface RaumZustand {
+interface RaumZustand {
   modus: 'punkte' | 'rechteck'
   punkte: Punkt[]
   zeiger: Punkt | null

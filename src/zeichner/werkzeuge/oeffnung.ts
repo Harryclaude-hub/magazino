@@ -9,13 +9,13 @@ import type { Oeffnung, Raum } from '../../lib/types'
 import type { Dok } from '../dok.ts'
 import { cmZahl, istLaengenZeichen, type Kontext, type Schritt, type Vorschau, type Werkzeug } from './typen.ts'
 
-export interface OeffnungZustand {
+interface OeffnungZustand {
   zeiger: Punkt | null
   ziel: { raumId: string; kante: number; abstand: number; laenge: number; nachEnde: boolean } | null
   text: string
 }
 
-export const STANDARD = {
+const STANDARD = {
   tuer: { breite_cm: 80, hoehe_cm: 200, bruestung_cm: 0 },
   fenster: { breite_cm: 100, hoehe_cm: 120, bruestung_cm: 90 },
 } as const

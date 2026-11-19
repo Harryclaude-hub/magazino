@@ -1,15 +1,17 @@
 /* =====================================================================
- * Magazino: Oberflaeche (Hover, Uebergaenge, Glas)
+ * Magazino: Oberflaeche (Druecken, Hover, Uebergaenge)
  *
- * Reine Optik. Diese Datei darf weg: dann heben sich Knoepfe nicht mehr,
- * Tabellenzeilen zeigen kein Schweben, Skelette atmen nicht, und alles
- * funktioniert unveraendert. Eingebunden ohne festen Import ueber
+ * Reine Optik. Diese Datei darf weg: dann werden Knoepfe beim Druecken
+ * nicht dunkler und kleiner, Tabellenzeilen zeigen kein Schweben, Skelette
+ * atmen nicht, und alles funktioniert unveraendert. Milchglas,
+ * Blaetter und Schalter stehen in apple.css. Eingebunden ohne festen Import ueber
  * import.meta.glob in src/main.tsx.
  *
  * Bewegung haengt an data-motion auf dem html-Element:
  *   ruhig   nichts bewegt sich (auch die kurzen Einblendungen nicht)
- *   normal  Knoepfe heben sich leicht, Skelette atmen, Fotos zoomen sacht
- *   voll    dazu Glas in den Kopfzeilen und schwebende Zeichnungen
+ *   normal  Knoepfe geben beim Druecken nach (kleiner), Skelette atmen,
+ *           Fotos zoomen sacht
+ *   voll    dazu schwebende Zeichnungen
  * Wer im Betriebssystem weniger Bewegung eingestellt hat, bekommt keine.
  * Farben nur ueber die Variablen aus src/index.css.
  * ===================================================================== */
@@ -26,23 +28,27 @@
   }
 }
 
-/* ------------------------------------------------ Knoepfe (Bewegung) */
+/* ------------------------------------------ Knoepfe (Druecken, Farbe)
+ * Sofort beim Aufsetzen des Fingers (:active), nicht erst beim Loslassen:
+ * der Knopf wird dunkler. Das ist Farbe, darum in jeder Stufe. */
+html .knopf:not(:disabled):active {
+  filter: brightness(0.9);
+}
+
+/* ------------------------------------------------ Knoepfe (Bewegung)
+ * Dazu gibt der Knopf etwas nach (Skalierung 0,97), kurz und
+ * unterbrechbar: Loslassen mitten in der Bewegung faehrt von der
+ * aktuellen Stellung zurueck. Kein Heben beim Zeigen. */
 @media (prefers-reduced-motion: no-preference) {
   html[data-motion='normal'] .knopf,
   html[data-motion='voll'] .knopf {
     transition-property: color, background-color, border-color, box-shadow, filter, transform;
-    transition-duration: 160ms;
-    transition-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
-  }
-  @media (hover: hover) and (pointer: fine) {
-    html[data-motion='normal'] .knopf:not(:disabled):hover,
-    html[data-motion='voll'] .knopf:not(:disabled):hover {
-      transform: translateY(-1px);
-    }
+    transition-duration: 140ms;
+    transition-timing-function: var(--kurve);
   }
   html[data-motion='normal'] .knopf:not(:disabled):active,
   html[data-motion='voll'] .knopf:not(:disabled):active {
-    transform: translateY(0) scale(0.97);
+    transform: scale(0.97);
   }
 
   /* Fotos in der Reihe der Kistenseite: sachtes Heranholen beim Zeigen. */
@@ -103,16 +109,6 @@ html[data-motion='ruhig'] .animate-in {
   html .knopf,
   html .foto-reihe img {
     transform: none !important;
-  }
-}
-
-/* ------------------------------------------------------ Glas bei voll
- * Kopfzeilen werden durchscheinend, der Inhalt schimmert beim Rollen
- * durch. Nur bei voll, weil Unschaerfe auf schwachen Geraeten kostet. */
-@supports (backdrop-filter: blur(1px)) {
-  html[data-motion='voll'] header.sticky {
-    background-color: color-mix(in srgb, var(--paper) 72%, transparent);
-    backdrop-filter: blur(16px) saturate(1.25);
   }
 }
 

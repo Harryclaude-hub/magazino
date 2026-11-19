@@ -41,11 +41,11 @@ export const SCHWERE_M_S2 = 15
 /** Tempo beim Absprung (m/s): gut 0,7 m hoch. */
 export const HUPF_M_S = 4.6
 /** Schneller faellt niemand (m/s). */
-export const FALL_MAX_M_S = 30
+const FALL_MAX_M_S = 30
 /** Zeitkonstante, mit der das Auge am Boden den Fuessen folgt (s). */
 export const AUGE_TAU_S = 0.07
 /** So nah (m) am Ziel rastet das Auge ein (0,2 mm). */
-export const AUGE_RAST_M = 2e-4
+const AUGE_RAST_M = 2e-4
 /** Einsinken beim Landen: Dauer (s) und tiefste Stelle (m). */
 export const DELLE_S = 0.28
 export const DELLE_MAX_M = 0.09
@@ -171,7 +171,7 @@ export function grundAn(eb: Ebenen, i: number, boden: number, x: number, z: numb
 
 /** Stelle in den Achsen einer Treppe: u entlang der Laufrichtung (von -L/2
  *  an der Kante von bis +L/2 an der Kante nach), v quer dazu. */
-export interface TreppeLage {
+interface TreppeLage {
   u: number
   v: number
 }

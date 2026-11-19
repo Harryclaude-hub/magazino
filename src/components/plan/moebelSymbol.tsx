@@ -1,6 +1,5 @@
 import { objektGlobal, type Punkt } from '../../lib/geometrie'
 import type { Objekt } from '../../lib/types'
-import { objektUmriss } from './hilfe'
 
 /* Ein eigenes Zeichen je Moebelart im Plan (WC, Waschbecken, Kuehlschrank,
  * Herd, Bett ...), damit man ohne Anklicken sieht, was wo steht. Die Art
@@ -72,7 +71,7 @@ function lSofa(o: Pick<Objekt, 'breite_cm' | 'tiefe_cm' | 'ausschnitt_breite_cm'
 }
 
 /** Die Striche des Zeichens in lokalen Koordinaten. */
-export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tiefe_cm' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke'>): Form[] {
+function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tiefe_cm' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke'>): Form[] {
   const B = o.breite_cm
   const T = o.tiefe_cm
   const k = Math.min(B, T)
@@ -419,50 +418,6 @@ export function moebelFormen(art: MoebelArt, o: Pick<Objekt, 'breite_cm' | 'tief
         { art: 'linie', a: [B * 0.92, T * 0.05], b: [B * 0.92, T * 0.95] },
       ]
   }
-}
-
-/** Kleines Vorschaubild fuer die Auswahl im Katalog: Umriss und Zeichen
- *  des Moebels, in ein Kaestchen eingepasst. Regale zeigen Faecher,
- *  Schraenke eine Kleiderstange. */
-export function MoebelVorschau({
-  v,
-  name,
-  groesse = 34,
-}: {
-  v: Pick<Objekt, 'art' | 'breite_cm' | 'tiefe_cm' | 'hoehe_cm' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke' | 'brett_cm' | 'spalten'>
-  name: string
-  groesse?: number
-}) {
-  const B = v.breite_cm
-  const T = v.tiefe_cm
-  const m = Math.max(B, T)
-  const rand = m * 0.06
-  const umriss = objektUmriss({ ...v, x: 0, y: 0, drehung: 0 })
-  const art = v.art === 'moebel' ? moebelArt(name) : null
-  const formen: Form[] = art
-    ? moebelFormen(art, v)
-    : v.art === 'regal'
-      ? [0.33, 0.66].map((f): Form => ({ art: 'linie', a: [B * f, 0], b: [B * f, T] }))
-      : v.art === 'schrank'
-        ? [{ art: 'linie', a: [B * 0.05, T / 2], b: [B * 0.95, T / 2] }]
-        : []
-  return (
-    <svg width={groesse} height={groesse} viewBox={`${-rand} ${-rand} ${m + 2 * rand} ${m + 2 * rand}`} className="shrink-0" aria-hidden="true">
-      <g transform={`translate(${(m - B) / 2} ${(m - T) / 2})`} fill="none" stroke="currentColor" strokeWidth={1.3}>
-        <polygon points={umriss.map((p) => p.join(',')).join(' ')} vectorEffect="non-scaling-stroke" />
-        {formen.map((f, i) => {
-          if (f.art === 'kreis') return <circle key={i} cx={f.m[0]} cy={f.m[1]} r={f.r} vectorEffect="non-scaling-stroke" />
-          if (f.art === 'linie') return <line key={i} x1={f.a[0]} y1={f.a[1]} x2={f.b[0]} y2={f.b[1]} vectorEffect="non-scaling-stroke" />
-          const pts = f.p.map((p) => p.join(',')).join(' ')
-          return f.zu ? (
-            <polygon key={i} points={pts} vectorEffect="non-scaling-stroke" />
-          ) : (
-            <polyline key={i} points={pts} vectorEffect="non-scaling-stroke" />
-          )
-        })}
-      </g>
-    </svg>
-  )
 }
 
 /** Das Zeichen eines Moebels im Plan, oder nichts. */

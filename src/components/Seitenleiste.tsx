@@ -122,14 +122,14 @@ export function Seitenleiste({
     <aside
       data-tour="leiste"
       className={cx(
-        'no-print sticky top-0 hidden h-screen shrink-0 flex-col border-e border-line bg-surface lg:flex',
+        'seitenleiste no-print sticky top-0 hidden h-screen shrink-0 flex-col border-e border-line bg-[var(--seitenleiste)] lg:flex',
         zu ? 'w-[4.5rem]' : 'w-60',
       )}
     >
       <div className="flex items-center gap-2 px-3 pb-2 pt-4">
         {!zu ? (
           <div className="min-w-0 flex-1">
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">
+            <label className="mb-1 block px-1 text-xs font-semibold text-muted">
               {t('leiste.umzug')}
             </label>
             {fehler ? (
@@ -145,7 +145,7 @@ export function Seitenleiste({
                 data-tour="leiste-umzug"
                 value={projektId ?? ''}
                 onChange={(e) => e.target.value && nav(`/app/p/${e.target.value}`)}
-                className="h-10 w-full truncate rounded-xl border-2 border-line bg-paper px-2 text-sm font-bold text-ink"
+                className="feld-auswahl h-10 w-full appearance-none truncate rounded-[10px] border-0 bg-feld ps-3 pe-8 text-sm font-semibold text-ink"
               >
                 {projektId ? null : <option value="">{t('leiste.umzug_waehlen')}</option>}
                 {projekte.map((p) => (
@@ -163,7 +163,7 @@ export function Seitenleiste({
           aria-label={t(zu ? 'leiste.aufklappen' : 'leiste.einklappen')}
           title={t(zu ? 'leiste.aufklappen' : 'leiste.einklappen')}
           className={cx(
-            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted transition hover:bg-raised hover:text-ink',
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] text-muted transition hover:bg-feld hover:text-ink',
             zu && 'mx-auto',
           )}
         >
@@ -181,17 +181,17 @@ export function Seitenleiste({
             aria-label={e.label}
             aria-current={e.active ? 'page' : undefined}
             className={cx(
-              'relative flex min-h-11 items-center gap-3 rounded-xl px-3 font-bold transition',
-              e.active ? 'bg-ink text-paper' : 'text-muted hover:bg-raised hover:text-ink',
+              'relative flex min-h-10 items-center gap-2.5 rounded-[10px] px-3 text-[0.9375rem] transition',
+              e.active ? 'bg-tint font-semibold text-accent-text' : 'font-medium text-ink hover:bg-feld',
               zu && 'justify-center px-0',
             )}
           >
-            <span className="shrink-0">{e.icon}</span>
+            <span className={cx('shrink-0', !e.active && 'text-accent')}>{e.icon}</span>
             {!zu ? <span className="truncate">{e.label}</span> : null}
             {e.badge && e.badge > 0 ? (
               <span
                 className={cx(
-                  'min-w-5 rounded-full bg-danger px-1.5 text-center text-[0.6875rem] font-black leading-5 text-paper',
+                  'min-w-5 rounded-full bg-danger px-1.5 text-center text-[0.6875rem] font-semibold leading-5 text-paper',
                   zu ? 'absolute end-1 top-0.5' : 'ms-auto',
                 )}
               >
@@ -226,10 +226,10 @@ export function SuchKopf() {
   }, [])
 
   return (
-    <div className="no-print hidden border-b border-line bg-surface/80 lg:block">
+    <div className="no-print hidden border-b border-line bg-paper lg:block">
       <form
         data-tour="suchkopf"
-        className="mx-auto flex h-12 max-w-[1600px] items-center gap-2 px-5"
+        className="mx-auto flex h-14 max-w-[1600px] items-center px-5"
         onSubmit={(e) => {
           e.preventDefault()
           const s = q.trim()
@@ -237,16 +237,18 @@ export function SuchKopf() {
           feld.current?.blur()
         }}
       >
-        <Search size={18} className="shrink-0 text-muted" />
-        <input
-          ref={feld}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t('leiste.suche_platzhalter')}
-          aria-label={t('nav.suchen')}
-          className="h-9 min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-muted"
-        />
-        <kbd className="rounded-md border border-line px-1.5 text-xs font-bold text-muted">/</kbd>
+        <div className="flex h-9 w-full max-w-xl items-center gap-2 rounded-[10px] bg-feld px-3 transition focus-within:ring-[3px] focus-within:ring-accent/25">
+          <Search size={17} className="shrink-0 text-muted" aria-hidden="true" />
+          <input
+            ref={feld}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t('leiste.suche_platzhalter')}
+            aria-label={t('nav.suchen')}
+            className="h-9 min-w-0 flex-1 bg-transparent text-[0.9375rem] text-ink outline-none placeholder:text-muted"
+          />
+          <kbd className="rounded-md bg-surface px-1.5 text-xs font-semibold text-muted shadow-[0_0_0_0.5px_var(--line)]">/</kbd>
+        </div>
       </form>
     </div>
   )

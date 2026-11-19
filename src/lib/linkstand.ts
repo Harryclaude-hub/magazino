@@ -29,7 +29,7 @@ import { useSyncExternalStore } from 'react'
  * Link mit beliebigem Text darin verschicken.
  */
 
-export interface LinkStand {
+interface LinkStand {
   tokenHash: string | null
   type: string | null
   code: string | null

@@ -15,7 +15,7 @@ import type { EigeneGroesse, ItemKind, KistenGroesse } from './types'
  * in der Kiste und in ihrer Nummer.
  */
 
-export type GroessenTabelle = Map<number, KistenGroesse>
+type GroessenTabelle = Map<number, KistenGroesse>
 
 let tabelle: GroessenTabelle | null = null
 let unterwegs: Promise<GroessenTabelle> | null = null
@@ -37,7 +37,7 @@ function holen(): Promise<GroessenTabelle> {
   return unterwegs
 }
 
-export interface GroessenStand {
+interface GroessenStand {
   /** Die Tabelle, oder null, solange sie nicht da ist. */
   tabelle: GroessenTabelle | null
   /** Warum sie nicht kam. null, solange sie laedt oder da ist. */
@@ -123,7 +123,7 @@ export function groesseSatz(
 
 /* ------------------------------------------------------ Eigene Groessen */
 
-export interface EigeneGroessenStand {
+interface EigeneGroessenStand {
   /** Die Liste, oder null, solange sie laedt (oder nach einem Fehler). */
   liste: EigeneGroesse[] | null
   /** Warum sie nicht kam. null, solange sie laedt oder da ist. */
@@ -169,14 +169,6 @@ export function useEigeneGroessen(projectId: string | null): EigeneGroessenStand
     setVersuch((v) => v + 1)
   }, [])
   return { liste, fehler, nochmal, neuLaden }
-}
-
-/** "Grosse Box (60 x 40 x 35 cm)" in der Sprache des Uebersetzers. */
-export function eigeneGroesseText(
-  t: Uebersetzer,
-  g: Pick<EigeneGroesse, 'name' | 'laenge_cm' | 'breite_cm' | 'hoehe_cm'>,
-): string {
-  return `${g.name} (${eigeneGroesseMasse(t, g)})`
 }
 
 /** Nur die Masse: "60 × 40 × 35 cm". */

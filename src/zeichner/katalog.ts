@@ -5,7 +5,7 @@
  */
 import { faecherGleichmaessig } from '../lib/geometrie.ts'
 import { moebelArt, type MoebelArt } from '../components/plan/moebelArt.ts'
-import type { EigeneGroesse, Objekt } from '../lib/types'
+import type { Objekt } from '../lib/types'
 import type { Vorlage } from './dok'
 
 type Roh = Omit<Vorlage, 'name' | 'form' | 'ausschnitt_breite_cm' | 'ausschnitt_tiefe_cm' | 'ausschnitt_ecke' | 'brett_cm' | 'spalten'> &
@@ -56,56 +56,6 @@ export const KATALOG: Vorlage[] = [
   v({ schluessel: 'klavier', art: 'moebel', breite_cm: 150, tiefe_cm: 60, hoehe_cm: 125 }),
 ]
 
-/** Schlafen und Arbeiten. */
-export const KATALOG_SCHLAFEN: Vorlage[] = [
-  v({ schluessel: 'bett_90', art: 'moebel', breite_cm: 90, tiefe_cm: 200, hoehe_cm: 45 }),
-  v({ schluessel: 'bett_140', art: 'moebel', breite_cm: 140, tiefe_cm: 200, hoehe_cm: 45 }),
-  v({ schluessel: 'bett_180', art: 'moebel', breite_cm: 180, tiefe_cm: 200, hoehe_cm: 45 }),
-  v({ schluessel: 'nachttisch', art: 'moebel', breite_cm: 45, tiefe_cm: 40, hoehe_cm: 55 }),
-  v({ schluessel: 'kinderbett', art: 'moebel', breite_cm: 70, tiefe_cm: 140, hoehe_cm: 90 }),
-  v({ schluessel: 'schreibtisch', art: 'moebel', breite_cm: 140, tiefe_cm: 70, hoehe_cm: 75 }),
-  v({ schluessel: 'buerostuhl', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 110 }),
-]
-
-/** Flur, Abstellraum und Sonstiges. */
-export const KATALOG_SONST: Vorlage[] = [
-  v({ schluessel: 'schuhschrank', art: 'moebel', breite_cm: 80, tiefe_cm: 35, hoehe_cm: 100 }),
-  v({ schluessel: 'wandregal', art: 'regal', breite_cm: 80, tiefe_cm: 25, ...faecherGleichmaessig(2, 50), spalten: 1, boden_cm: 150 }),
-  v({ schluessel: 'wandschrank', art: 'schrank', breite_cm: 80, tiefe_cm: 35, ...faecherGleichmaessig(2, 60), spalten: 1, boden_cm: 150 }),
-  v({ schluessel: 'garderobe', art: 'moebel', breite_cm: 100, tiefe_cm: 35, hoehe_cm: 180 }),
-  v({ schluessel: 'gefrierschrank', art: 'moebel', breite_cm: 60, tiefe_cm: 65, hoehe_cm: 145 }),
-  v({ schluessel: 'fahrrad', art: 'moebel', breite_cm: 180, tiefe_cm: 60, hoehe_cm: 100 }),
-  v({ schluessel: 'mauervorsprung', art: 'moebel', breite_cm: 30, tiefe_cm: 60, hoehe_cm: 250 }),
-]
-
-/** Bad und WC: Sanitaer in ueblichen Groessen. */
-export const KATALOG_BAD: Vorlage[] = [
-  v({ schluessel: 'wc', art: 'moebel', breite_cm: 40, tiefe_cm: 65, hoehe_cm: 80 }),
-  v({ schluessel: 'waschbecken', art: 'moebel', breite_cm: 60, tiefe_cm: 45, hoehe_cm: 85 }),
-  v({ schluessel: 'handwaschbecken', art: 'moebel', breite_cm: 40, tiefe_cm: 25, hoehe_cm: 85 }),
-  v({ schluessel: 'badewanne', art: 'moebel', breite_cm: 170, tiefe_cm: 75, hoehe_cm: 58 }),
-  v({ schluessel: 'dusche', art: 'moebel', breite_cm: 90, tiefe_cm: 90, hoehe_cm: 5 }),
-  v({ schluessel: 'waschmaschine', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 85 }),
-  v({ schluessel: 'trockner', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 85 }),
-  v({ schluessel: 'spiegel', art: 'moebel', breite_cm: 60, tiefe_cm: 5, hoehe_cm: 80, boden_cm: 110 }),
-  v({ schluessel: 'badematte', art: 'moebel', breite_cm: 80, tiefe_cm: 50, hoehe_cm: 1 }),
-]
-
-/** Kueche: die Zeile als Ganzes und einzelne Teile. Unter- und Hochschrank
- *  sind Schraenke mit Faechern: dort lassen sich Kisten hineinstellen. */
-export const KATALOG_KUECHE: Vorlage[] = [
-  v({ schluessel: 'kuechenzeile', art: 'moebel', breite_cm: 240, tiefe_cm: 60, hoehe_cm: 90 }),
-  v({ schluessel: 'unterschrank', art: 'schrank', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 87, brett_cm: [0, 40], spalten: 1 }),
-  v({ schluessel: 'hochschrank', art: 'schrank', breite_cm: 60, tiefe_cm: 60, ...faecherGleichmaessig(5, 210), spalten: 1 }),
-  v({ schluessel: 'haengeschrank', art: 'schrank', breite_cm: 60, tiefe_cm: 35, ...faecherGleichmaessig(2, 70), spalten: 1, boden_cm: 145 }),
-  v({ schluessel: 'spuele', art: 'moebel', breite_cm: 80, tiefe_cm: 60, hoehe_cm: 90 }),
-  v({ schluessel: 'herd', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 90 }),
-  v({ schluessel: 'geschirrspueler', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 87 }),
-  v({ schluessel: 'kuehlschrank', art: 'moebel', breite_cm: 60, tiefe_cm: 65, hoehe_cm: 180 }),
-  v({ schluessel: 'backofen', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 220 }),
-  v({ schluessel: 'hochschrank_kuehl', art: 'moebel', breite_cm: 60, tiefe_cm: 60, hoehe_cm: 220 }),
-]
-
 export const REGAL_STANDARD: Vorlage = v({
   schluessel: 'regal',
   art: 'regal',
@@ -124,24 +74,6 @@ export const SCHRANK_STANDARD: Vorlage = v({
   brett_cm: [0, 160],
   spalten: 2,
 })
-
-/** Ein Moebel aus einer eigenen Groesse: die Masse werden kopiert, keine
- *  Verknuepfung (BAUPLAN 7.1 E14). */
-export function ausEigenerGroesse(g: EigeneGroesse): Vorlage {
-  const l = g.ausschnitt_breite_cm !== null && g.ausschnitt_tiefe_cm !== null
-  return v({
-    schluessel: `eigen_${g.id}`,
-    art: 'moebel',
-    name: g.name,
-    breite_cm: g.laenge_cm,
-    tiefe_cm: g.breite_cm,
-    hoehe_cm: g.hoehe_cm,
-    form: l ? 'l' : 'rechteck',
-    ausschnitt_breite_cm: l ? g.ausschnitt_breite_cm : null,
-    ausschnitt_tiefe_cm: l ? g.ausschnitt_tiefe_cm : null,
-    ausschnitt_ecke: l ? 'ro' : null,
-  })
-}
 
 /** Arten, die im Katalog unter einer anderen stehen: die BESTA-Eckbank
  *  (eigene Art seit E91) ist eine Sitzbank und zaehlt dort mit. */

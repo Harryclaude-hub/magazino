@@ -296,7 +296,7 @@ export interface MoebelKontext3D {
 
 /** Die Ebene, auf der man beim Begehen steht (E83): Index in welt().ebenen,
  *  Kennung und Name. */
-export interface EbeneJetzt {
+interface EbeneJetzt {
   index: number
   id: string
   name: string
@@ -307,7 +307,7 @@ export interface EbeneJetzt {
  *  Bodens gerade jetzt (Meter, wie Ebene3D.y). Der Motor folgt y; nach der
  *  Fahrt gilt die Ebene ziel (E84, siehe ankunftsEbene), ohne gueltiges
  *  ziel die mit dem naechsten Boden. */
-export interface Fahrt3D {
+interface Fahrt3D {
   ziel: number
   y: number
 }
@@ -328,7 +328,7 @@ type WeltMitFahrt = Welt3D & {
 /** Wo man vor einer neuen Welt stand (E84): Kennung und Index der Ebene
  *  (null und -1: die Wohnung allein), ihr Boden und ob es die Ebene der
  *  Wohnung war. */
-export interface EbeneMerk {
+interface EbeneMerk {
   id: string | null
   index: number
   y: number
@@ -374,12 +374,12 @@ export function ebeneWiederfinden(eb: Ebenen, m: EbeneMerk): number {
  *  die Ebene, auf der man stand, wenn es ihre Kennung (noch) nicht gibt
  *  (E87b): die Geschosse eines Hauses der Stadt kommen erst, wenn es fertig
  *  gebaut ist. */
-export const EBENE_WARTEN_MS = 5000
+const EBENE_WARTEN_MS = 5000
 
 /** Warten auf eine Ebene (E87b): ihre Kennung, der Boden, auf dem man
  *  stand, die Treppe darauf (Kennung oder null) und bis wann (ms, Uhr von
  *  performance.now). */
-export interface EbeneWarten {
+interface EbeneWarten {
   id: string
   y: number
   treppe: string | null
@@ -387,7 +387,7 @@ export interface EbeneWarten {
 }
 
 /** Index der ersten begehbaren Ebene mit dieser Kennung, sonst -1. */
-export function ebeneMitKennung(eb: Ebenen, id: string): number {
+function ebeneMitKennung(eb: Ebenen, id: string): number {
   for (let i = 0; i < eb.liste.length; i++) if (eb.liste[i].id === id && eb.gibt(i)) return i
   return -1
 }
@@ -398,7 +398,7 @@ export function ebeneMitKennung(eb: Ebenen, id: string): number {
  *  Kennung in eb (schon mit den neuen Ebenen) nicht gibt. Wartete man schon
  *  auf dieselbe Kennung (neue Welt mitten im Warten), gilt die alte Frist.
  *  Sonst null: dann wie bisher ebeneWiederfinden. */
-export function ebeneWartenAb(eb: Ebenen, m: EbeneMerk, mitVersion: boolean, treppe: string | null, jetzt: number, alt: EbeneWarten | null): EbeneWarten | null {
+function ebeneWartenAb(eb: Ebenen, m: EbeneMerk, mitVersion: boolean, treppe: string | null, jetzt: number, alt: EbeneWarten | null): EbeneWarten | null {
   if (m.wohnung || m.id === null || !mitVersion || !Number.isFinite(jetzt)) return null
   if (ebeneMitKennung(eb, m.id) >= 0) return null
   const bis = alt && alt.id === m.id && Number.isFinite(alt.bis) ? alt.bis : jetzt + EBENE_WARTEN_MS
@@ -408,7 +408,7 @@ export function ebeneWartenAb(eb: Ebenen, m: EbeneMerk, mitVersion: boolean, tre
 /** Beim Warten (E87b, jedes Bild und nach jeder neuen version()): der
  *  Index der Ebene, sobald es sie gibt; -1, solange weiter gewartet wird;
  *  -2, wenn die Frist um ist (dann wie ohne Warten). */
-export function ebeneWartenPruefen(eb: Ebenen, w: EbeneWarten, jetzt: number): number {
+function ebeneWartenPruefen(eb: Ebenen, w: EbeneWarten, jetzt: number): number {
   const i = ebeneMitKennung(eb, w.id)
   if (i >= 0) return i
   return jetzt >= w.bis ? -2 : -1
@@ -417,14 +417,14 @@ export function ebeneWartenPruefen(eb: Ebenen, w: EbeneWarten, jetzt: number): n
 /** Bis so weit (Meter) und so viel Drehung (rad) gelten zwei Lagen als
  *  dieselbe (E87b): Neubau der Welt, Umrechnung in den Rahmen der Siedlung
  *  und zurueck. */
-export const LAGE_GLEICH_M = 0.01
-export const LAGE_GLEICH_RAD = 0.01
+const LAGE_GLEICH_M = 0.01
+const LAGE_GLEICH_RAD = 0.01
 
 /** Dieselbe Lage (E87b)? Gleiche Kennung und Art, Stelle auf LAGE_GLEICH_M
  *  und Drehung auf LAGE_GLEICH_RAD (ueber +-pi hinweg), gleiche Ebene;
  *  fehlt die Ebene auf einer Seite (''), zaehlt sie nicht. Kaputte Zahlen:
  *  nein. */
-export function lageGleich(a: DingLage3D, b: DingLage3D): boolean {
+function lageGleich(a: DingLage3D, b: DingLage3D): boolean {
   if (a.id !== b.id || a.art !== b.art) return false
   if (a.ebene && b.ebene && a.ebene !== b.ebene) return false
   // winkelDiff kaeme mit unendlich nie zurueck.
@@ -440,7 +440,7 @@ export function lageGleich(a: DingLage3D, b: DingLage3D): boolean {
  *  falsch (der Elternteil in der Welt, aus dem es kam, ist aus): dann aus,
  *  vermerkt in d.versteckt, und nur dieses eigene Ausblenden nimmt er
  *  zurueck, sobald der Elternteil wieder an ist. Ohne neues Objekt. */
-export function dingSichtbarkeit(o: { visible: boolean }, d: { versteckt: boolean }, bewegt: boolean, herkunftSichtbar: boolean): void {
+function dingSichtbarkeit(o: { visible: boolean }, d: { versteckt: boolean }, bewegt: boolean, herkunftSichtbar: boolean): void {
   if (bewegt) {
     d.versteckt = false
     if (!o.visible) o.visible = true
@@ -459,7 +459,7 @@ export function dingSichtbarkeit(o: { visible: boolean }, d: { versteckt: boolea
  *  Welt3D.dingErzeugen): gemerkte Lagen, deren Kennung in der Welt fehlt.
  *  Je Welt wird jede Kennung hoechstens einmal gefragt, je Bild nur wenige
  *  (schritt). */
-export class ErzeugenListe {
+class ErzeugenListe {
   private gefragt = new Set<string>()
   private readonly warte: string[] = []
   private readonly drin = new Set<string>()
@@ -545,9 +545,9 @@ function vollBewegung(): boolean {
 }
 
 /** Augenhoehe ueber der Sitzflaeche beim Sitzen (Meter). */
-export const SITZ_AUGE_M = 0.78
+const SITZ_AUGE_M = 0.78
 /** Augenhoehe ueber der Liegeflaeche beim Liegen (Meter). */
-export const LIEGE_AUGE_M = 0.2
+const LIEGE_AUGE_M = 0.2
 
 export type Blick = 'oben' | 'schraeg' | 'kiste'
 
@@ -862,7 +862,7 @@ export interface Motor {
   dispose(): void
 }
 
-export type GehRichtung = 'vor' | 'zurueck' | 'links' | 'rechts'
+type GehRichtung = 'vor' | 'zurueck' | 'links' | 'rechts'
 
 /** Was ein Klick in 3D getroffen hat (Moebel oder Kiste). */
 export interface Treffer3D {
@@ -1289,7 +1289,7 @@ const ACHSE_Z = new Vector3(0, 0, 1)
 const RUNTER = new Vector3(0, -1, 0)
 
 /** WebGL da? Ohne Kontext gibt es keine 3D-Ansicht, nur 2D. */
-export function webglDa(): boolean {
+function webglDa(): boolean {
   try {
     const c = document.createElement('canvas')
     const ctx = c.getContext('webgl2') ?? c.getContext('webgl')
