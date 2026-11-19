@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Magazino">
+  <rect width="512" height="512" rx="116" fill="#1D4ED8"/>
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M132 386 V142 L256 288 L380 142 V386" stroke="#FFFFFF" stroke-width="46"/>
+    <path d="M132 430 H380" stroke="#93C5FD" stroke-width="26"/>
+  </g>
+</svg>
