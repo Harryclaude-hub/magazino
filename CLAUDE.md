@@ -78,7 +78,8 @@ Seit 20.11.2026 baut GitHub NICHT mehr bei jedem Push (Rechenzeit kostet Geld, s
 - `rework/01-lager-umbau/`: Plan und Haekchenliste des Umbaus zum Lagerprogramm (E103).
 - `docs/grundriss/BAUPLAN.md`: der Bauplan des Grundrisses (Datenmodell, Regeln).
 - `docs/grundriss/STAND.md`: Stand nach der letzten fertigen Etappe.
-- `PLAN.md`: Fahrplan und Begruendungen der frueheren Bloecke.
+- `docs/keller/`: Archiv der frueheren Uebergaben und des alten Fahrplans (Kistly-Zeit), nur zum Nachschlagen.
+- `docs/ENTSCHEIDUNGEN.md` und `docs/BEKANNTE-SCHULDEN.md`: Entscheidungen mit Herkunft, offene Punkte (fuer Reviewer).
 
 ## Name und Adresse (seit 14.11.2026)
 

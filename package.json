@@ -1,5 +1,5 @@
 {
-  "name": "kistly",
+  "name": "magazino",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "pruefen": "node scripts/pruefen.mjs",
     "veroeffentlichen": "node scripts/veroeffentlichen.mjs"
   },
   "dependencies": {
