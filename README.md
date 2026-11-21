@@ -71,7 +71,7 @@ npm run dev                        # http://localhost:5173
    `insert into public.app_admins (user_id) select id from auth.users where email = 'du@beispiel.de';`
    sowie `update public.konto_freigaben set status = 'frei' where user_id = (select id from auth.users where email = 'du@beispiel.de');`
 4. Edge Functions deployen: `npx supabase functions deploy konto-anlegen passwort-setzen push-send bild-analyse`
-   und `erinnern` mit `--no-verify-jwt` (sie schützt sich selbst durch ein Zufallszeichen aus `private.config`).
+   und `erinnern` mit `--no-verify-jwt` (sie schützt sich selbst durch ein Zufallszeichen aus `private.config`) sowie `kalender` mit `--no-verify-jwt` (der geheime Link ist das Geheimnis).
 5. Optional Beispieldaten: `supabase/demo/demo_lager.sql`.
 6. In Supabase unter Authentication die freie Anmeldung ausschalten (Konten legt der Admin im Portal an).
 
