@@ -146,6 +146,7 @@ export const lager: Woerterbuch = {
   'lager.toast_zurueck': { de: 'Als zurückgebracht gebucht' },
   'lager.in_kalender': { de: 'In Kalender' },
   'lager.alle_in_kalender': { de: 'Alle meine offenen in den Kalender' },
+  'lager.kal_bald': { de: 'Kommt bald' },
   'lager.kal_verbinden': { de: 'Mit Kalender verbinden' },
   'lager.kal_titel_dialog': { de: 'Kalender verbinden' },
   'lager.kal_erklaerung': {

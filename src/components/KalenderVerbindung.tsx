@@ -9,6 +9,11 @@ import { useT } from '../lib/i18n'
  * ab. Der Link wird hier angezeigt, kopiert, erneuert oder getrennt; die
  * Datenbank haelt das Zeichen (Migration 0064). */
 
+/** Aus, bis geklaert ist, wie die Verbindung laufen soll (21.11.2026): der Knopf
+ *  zeigt "Kommt bald". Datenbank 0064 und Funktion "kalender" sind noch nicht
+ *  eingespielt; vor dem Einschalten beides live stellen. */
+export const KALENDER_VERBINDUNG_AKTIV = false
+
 export function KalenderVerbindung() {
   const t = useT()
   const toast = useToast()
@@ -70,6 +75,15 @@ export function KalenderVerbindung() {
     } finally {
       setArbeitet(false)
     }
+  }
+
+  if (!KALENDER_VERBINDUNG_AKTIV) {
+    return (
+      <Button variant="outline" full disabled aria-disabled="true">
+        <CalendarSync size={18} /> {t('lager.kal_verbinden')}
+        <span className="ms-2 rounded-full bg-tint px-2 py-0.5 text-xs font-semibold text-accent-text">{t('lager.kal_bald')}</span>
+      </Button>
+    )
   }
 
   return (

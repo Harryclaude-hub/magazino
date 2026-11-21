@@ -1152,3 +1152,7 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   `kalender_erneuern`, `kalender_trennen`, `kalender_feed`; Edge Function `kalender`, ohne Anmeldung, liest nur mit dem anon-Schluessel).
   Apple, Google und Outlook holen die offenen Rueckgaben selbst ab. Preis: wer den Link kennt, sieht die offenen Rueckgaben des Kontos
   (widerrufbar: neu erzeugen oder trennen); Google aktualisiert Abos nur alle paar Stunden.
+- **E111a Kalender vorerst "Kommt bald" (21.11.2026):** Der Knopf auf "Unterwegs" ist sichtbar, aber ausgeschaltet
+  (`KALENDER_VERBINDUNG_AKTIV = false` in `src/components/KalenderVerbindung.tsx`). Migration 0064 und die Funktion `kalender`
+  liegen im Repo, sind aber **nicht eingespielt und nicht deployt**; die Frage, wie die Verbindung laufen soll, ist offen.
+  Vor dem Einschalten: 0064 einspielen, `kalender` mit `--no-verify-jwt` deployen, Schalter auf true.
