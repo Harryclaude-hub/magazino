@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import { CalendarPlus, Check, ChevronDown, ChevronRight } from 'lucide-react'
 import { AppHeader, Page } from '../components/AppShell'
+import { KalenderVerbindung } from '../components/KalenderVerbindung'
 import { MehrAnzeigen } from '../components/MehrAnzeigen'
 import { ProduktBild } from '../components/ProduktBild'
 import { Button, Empty, ErrorBox, Loading, Modal, Segmented, useToast } from '../components/ui'
@@ -246,6 +247,7 @@ export default function Ausleihen() {
                   <CalendarPlus size={18} /> {t('lager.alle_in_kalender')}
                 </Button>
               ) : null}
+              <KalenderVerbindung />
             </section>
           )}
 

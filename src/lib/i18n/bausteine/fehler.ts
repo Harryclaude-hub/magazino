@@ -280,6 +280,7 @@ export const fehler: Woerterbuch = {
   'fehler.passwort_schwach': {
     de: 'Das Passwort ist zu schwach. Nimm mindestens 10 Zeichen, darunter mindestens einen Buchstaben (a bis z) und eine Ziffer.',
   },
+  'fehler.kopieren': { de: 'Kopieren hat nicht geklappt. Markiere den Link und kopiere ihn von Hand.' },
   'fehler.passwort_geleakt': {
     de: 'Dieses Passwort ist schon in Datenlecks aufgetaucht. Nimm bitte ein anderes.',
   },

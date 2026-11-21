@@ -43,8 +43,8 @@ src/
   lib/          api.ts (der EINZIGE Ort mit Datenbankzugriff), auth, fuzzy (Suche), kalender, etikett, i18n/
   design/       die Design-Schicht (Apple-Stil, Farben nur über Variablen)
 supabase/
-  migrations/   0001 bis 0063, nummeriert, eingespielte werden nie geändert
-  functions/    konto-anlegen, passwort-setzen, erinnern, push-send, bild-analyse
+  migrations/   0001 bis 0064, nummeriert, eingespielte werden nie geändert
+  functions/    konto-anlegen, passwort-setzen, erinnern, kalender, push-send, bild-analyse
   probelauf/    zu jeder neueren Migration ein Probelauf, der alles zurückrollt und eine Berichtszeile je Regel liefert
   demo/         Beispieldaten (zwei Demo-Lager)
 scripts/        Prüfskripte (*-pruefen.mjs), veroeffentlichen.mjs, vapid.mjs

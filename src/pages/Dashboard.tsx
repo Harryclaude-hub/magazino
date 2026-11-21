@@ -5,7 +5,7 @@ import { AppHeader, Page } from '../components/AppShell'
 import { InstallCard } from '../components/InstallCard'
 import { LagerStatus } from '../components/LagerStatus'
 import { StartSuche } from '../components/StartSuche'
-import { Button, Empty, ErrorBox, Field, Input, Loading, Modal, SectionTitle, Wordmark, useToast } from '../components/ui'
+import { Button, Empty, ErrorBox, Field, Input, Loading, Modal, SectionTitle, useToast } from '../components/ui'
 import { blProjektAnlegen, istAdmin, listBlProjekte, listProjects } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useSprache } from '../lib/i18n'
@@ -73,7 +73,8 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-paper">
-      <AppHeader title={<Wordmark size={24} />} />
+      {/* Nur ein Logo: das in der Kopfzeile (fuehrt zum Start). */}
+      <AppHeader title={null} />
 
       <Page>
         {!laden && !fehler && projekte.length > 0 ? (

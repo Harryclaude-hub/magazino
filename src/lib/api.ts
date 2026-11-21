@@ -1531,3 +1531,31 @@ export async function andereSitzungenBeenden(): Promise<number> {
   if (error) throw lagerFehler(error)
   return Number(data ?? 0)
 }
+
+/* ---- Kalender-Verbindung (0064) ---------------------------------------- */
+
+/** Adresse des Kalender-Abos zu einem Zeichen (Edge Function "kalender"). */
+export function kalenderAdresse(zeichen: string): string {
+  const basis = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? ''
+  return `${basis.replace(/\/+$/, '')}/functions/v1/kalender?z=${zeichen}`
+}
+
+/** Das eigene Zeichen holen; gibt es noch keins, legt die Datenbank es an. */
+export async function kalenderZeichen(): Promise<string> {
+  const { data, error } = await supabase.rpc('kalender_link')
+  if (error) throw lagerFehler(error)
+  return data as string
+}
+
+/** Neues Zeichen: der bisherige Link geht danach nicht mehr. */
+export async function kalenderErneuern(): Promise<string> {
+  const { data, error } = await supabase.rpc('kalender_erneuern')
+  if (error) throw lagerFehler(error)
+  return data as string
+}
+
+/** Verbindung loeschen: der Link liefert danach nichts mehr. */
+export async function kalenderTrennen(): Promise<void> {
+  const { error } = await supabase.rpc('kalender_trennen')
+  if (error) throw lagerFehler(error)
+}

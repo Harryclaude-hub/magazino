@@ -1144,3 +1144,11 @@ stammt aus dem Bauplan (Abschnitt 7.1), danach folgen Entscheidungen beim Bauen.
   Preis: wer ein offenes Geraet in die Finger bekommt, kann das Passwort aendern (Gegenmittel: Geraeteliste, Abmelden). Der
   Startpasswort-Zwang bleibt unveraendert (die Datenbank vergleicht den Hash). Im Verlauf erscheinen "betreten" und "verlassen" als
   kleine zentrierte Zeile "Name ist reingegangen / rausgegangen" mitten in der Liste, alles andere weiter als Karte.
+
+- **E111 Ein Logo, Hinweise gelesen, Kalender-Verbindung (21.11.2026):** Die Startseite zeigte das Logo doppelt (Kopfzeile plus
+  Titel); jetzt nur noch das in der Kopfzeile, es fuehrt zum Start. Hinweise (Glocke): "Alle als gelesen markieren"; gemerkt wird
+  je Konto im Browser (Schluessel aus Lager, Art und Zahl, aendert sich die Zahl, ist der Hinweis wieder neu), kein Datenbankzugriff.
+  Kalender: statt einmaliger .ics-Datei ein geheimer Abo-Link (Migration 0064, Tabelle `kalender_abo`, Funktionen `kalender_link`,
+  `kalender_erneuern`, `kalender_trennen`, `kalender_feed`; Edge Function `kalender`, ohne Anmeldung, liest nur mit dem anon-Schluessel).
+  Apple, Google und Outlook holen die offenen Rueckgaben selbst ab. Preis: wer den Link kennt, sieht die offenen Rueckgaben des Kontos
+  (widerrufbar: neu erzeugen oder trennen); Google aktualisiert Abos nur alle paar Stunden.

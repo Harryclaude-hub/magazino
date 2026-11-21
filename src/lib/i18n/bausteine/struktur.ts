@@ -56,6 +56,7 @@ export const struktur: Woerterbuch = {
   'struktur.art.sonst': { de: 'Eintrag' },
 
   // ---------------------------------------------------- Kopfzeile (Aktionen)
+  'kopf.hinweise_alle_gelesen': { de: 'Alle als gelesen markieren' },
   'kopf.logo': { de: 'Magazino, zur Startseite' },
   'kopf.scannen': { de: 'Scannen' },
   'kopf.hinweise': { de: 'Hinweise' },

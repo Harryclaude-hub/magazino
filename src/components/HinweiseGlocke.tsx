@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, CircleCheck, Clock, PackageMinus, RotateCw, TriangleAlert } from 'lucide-react'
+import { CheckCheck, ChevronRight, CircleCheck, Clock, PackageMinus, RotateCw, TriangleAlert } from 'lucide-react'
 import { meineHinweise, type Hinweis } from '../lib/api'
 import { useSprache } from '../lib/i18n'
 import { cx } from '../lib/util'
@@ -19,13 +19,15 @@ const FRISCH = 60 * 1000
 
 interface Stand {
   nutzer: string | null
+  /** Schluessel der Hinweise, die als gelesen markiert sind (nur auf diesem Geraet). */
+  gelesen: string[]
   daten: Hinweis[] | null
   laedt: boolean
   fehler: boolean
   geladenAm: number
 }
 
-const LEER: Stand = { nutzer: null, daten: null, laedt: false, fehler: false, geladenAm: 0 }
+const LEER: Stand = { nutzer: null, gelesen: [], daten: null, laedt: false, fehler: false, geladenAm: 0 }
 let stand: Stand = LEER
 const hoerer = new Set<() => void>()
 let timer: number | undefined
@@ -76,18 +78,51 @@ function anmelden(h: () => void): () => void {
 }
 
 /** Stand der Hinweise fuer das angemeldete Konto (nutzerId). */
-export function useHinweise(nutzerId: string | null | undefined): Stand & { summe: number; nochmal: () => void } {
+export function useHinweise(nutzerId: string | null | undefined): Stand & { summe: number; ungelesen: number; nochmal: () => void; alleGelesen: () => void } {
   const s = useSyncExternalStore(anmelden, () => stand)
   useEffect(() => {
     const id = nutzerId ?? null
     if (stand.nutzer !== id) {
-      stand = { ...LEER, nutzer: id }
+      stand = { ...LEER, nutzer: id, gelesen: gelesenLesen(id) }
       hoerer.forEach((h) => h())
     }
     if (id) void laden()
   }, [nutzerId])
-  const summe = (s.nutzer === (nutzerId ?? null) ? s.daten ?? [] : []).reduce((n, h) => n + h.anzahl, 0)
-  return { ...s, summe, nochmal: () => void laden(true) }
+  const eigene = s.nutzer === (nutzerId ?? null) ? s.daten ?? [] : []
+  const ungelesen = eigene.filter((h) => !s.gelesen.includes(hinweisKey(h)))
+  const summe = ungelesen.reduce((n, h) => n + h.anzahl, 0)
+  return { ...s, summe, ungelesen: ungelesen.length, nochmal: () => void laden(true), alleGelesen }
+}
+
+/* Gelesen heisst: genau dieser Hinweis mit genau dieser Zahl. Aendert sich die
+ * Zahl oder kommt ein neuer Hinweis, ist er wieder ungelesen. Der Merker liegt
+ * nur im Browser (kein Datenbankzugriff). */
+const GELESEN_SCHLUESSEL = 'magazino.hinweise.gelesen.'
+
+export function hinweisKey(h: Hinweis): string {
+  return `${h.project_id}:${h.art}:${h.anzahl}`
+}
+
+function gelesenLesen(nutzer: string | null): string[] {
+  if (!nutzer) return []
+  try {
+    const roh = localStorage.getItem(GELESEN_SCHLUESSEL + nutzer)
+    const a: unknown = roh ? JSON.parse(roh) : []
+    return Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string').slice(0, 200) : []
+  } catch {
+    return []
+  }
+}
+
+function alleGelesen(): void {
+  if (!stand.nutzer || !stand.daten) return
+  const keys = stand.daten.map(hinweisKey)
+  try {
+    localStorage.setItem(GELESEN_SCHLUESSEL + stand.nutzer, JSON.stringify(keys))
+  } catch {
+    /* ohne Speicher gilt der Merker nur bis zum Neuladen */
+  }
+  setzen({ gelesen: keys })
 }
 
 const REIHENFOLGE: Record<Hinweis['art'], number> = { ueberfaellig: 0, bald: 1, knapp: 2 }
@@ -147,11 +182,24 @@ export function HinweiseInhalt({ s, b }: { s: ReturnType<typeof useHinweise>; b:
   return (
     <>
       {fehlerZeile}
+      {s.ungelesen > 0 ? (
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={s.alleGelesen}
+            className="knopf inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-accent-text hover:bg-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <CheckCheck size={16} aria-hidden="true" />
+            {t('kopf.hinweise_alle_gelesen')}
+          </button>
+        </div>
+      ) : null}
       <ul className="gruppe overflow-hidden rounded-[14px] bg-surface">
         {liste.map((h) => {
           const z = zeile(h, tn)
+          const gelesen = s.gelesen.includes(hinweisKey(h))
           return (
-            <li key={`${h.project_id}:${h.art}`}>
+            <li key={`${h.project_id}:${h.art}`} className={gelesen ? 'opacity-60' : undefined}>
               <Link
                 to={z.ziel}
                 onClick={b.zu}
